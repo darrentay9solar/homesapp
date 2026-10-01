@@ -1,0 +1,211 @@
+/* Same green-on-black identity as the app, kept deliberately small — this page
+   is a diagnostic, not a design exercise. */
+:root {
+  --ink: #000;
+  --surface: #08090a;
+  --card: #0e1011;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-soft: rgba(255, 255, 255, 0.055);
+  --brand: #16c47f;
+  --brand-hi: #3ddc97;
+  --bad: #e5484d;
+  --bad-tx: #f0736f;
+  --tx: #f4f6f5;
+  --tx-2: #9aa29e;
+  --tx-3: #79817d;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--tx);
+  font: 400 15px/1.55 "Segoe UI", -apple-system, BlinkMacSystemFont, Inter,
+    Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.005em;
+}
+
+main {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 56px 20px 72px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+}
+
+h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.lead {
+  margin: 10px 0 0;
+  color: var(--tx-3);
+  font-size: 14px;
+  max-width: 52ch;
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 34px;
+}
+
+.check {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+}
+
+.check.bad {
+  border-color: rgba(229, 72, 77, 0.3);
+}
+
+.check .dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--brand);
+}
+
+.check.bad .dot {
+  background: var(--bad);
+}
+
+.check h2 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.status {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--brand-hi);
+}
+
+.check.bad .status {
+  color: var(--bad-tx);
+  border-color: rgba(229, 72, 77, 0.32);
+}
+
+.detail,
+.note {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  color: var(--tx-2);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  color: var(--tx-3);
+  font-size: 11.5px;
+}
+
+section.detail {
+  margin-top: 30px;
+  padding: 18px;
+  background: var(--card);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+}
+
+section.detail h2 {
+  margin: 0 0 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tx-3);
+}
+
+dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+dt {
+  color: var(--tx-3);
+  flex: 0 0 auto;
+}
+
+dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+footer {
+  margin-top: 28px;
+  font-size: 11.5px;
+  color: var(--tx-3);
+}
+
+code {
+  font-family: "Cascadia Mono", ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line-soft);
+  color: var(--brand-hi);
+}
+
+@media (max-width: 520px) {
+  main {
+    padding: 36px 16px 56px;
+  }
+  .row {
+    flex-direction: column;
+    gap: 3px;
+  }
+  dd {
+    text-align: left;
+  }
+}
