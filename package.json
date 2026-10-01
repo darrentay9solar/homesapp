@@ -8,13 +8,15 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "db:check": "tsx scripts/check-db.ts"
+    "db:check": "tsx scripts/check-db.ts",
+    "db:roles": "tsx scripts/roles.ts",
+    "db:rotate": "tsx scripts/rotate-password.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "next": "15.5.4",
-    "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "next": "^16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
