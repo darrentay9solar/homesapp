@@ -16,11 +16,16 @@
     "db:rotate": "tsx scripts/rotate-password.ts",
     "db:app-role": "tsx scripts/create-app-role.ts",
     "db:env": "tsx scripts/env-audit.ts",
-    "icons": "node scripts/generate-icons.mjs"
+    "icons": "node scripts/generate-icons.mjs",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "db:verify": "tsx scripts/verify-schema.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.10",
     "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.45.3",
     "next": "^16.3.8",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
@@ -29,6 +34,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.8",
     "sharp": "^0.35.5",
