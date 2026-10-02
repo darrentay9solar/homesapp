@@ -23,15 +23,25 @@ const BRAND = "#16C47F";
 const INK = "#08090A";
 
 /**
+ * The mark is authored on a 120-unit grid, matching the Flutter painter, but
+ * it does not fill that grid: the roof spans x 18–102 and the artwork runs
+ * y 18–100, with half a stroke beyond. Scaling the *grid* therefore left a
+ * wide invisible margin and the icon read as small. These are the real ink
+ * bounds, so markScale now means what it says — the fraction of the tile the
+ * visible mark occupies.
+ */
+const BOX = { x: 15.5, y: 15.5, w: 89, h: 87 };
+
+/**
  * @param {number} size      output pixel size
- * @param {number} markScale fraction of the canvas the mark occupies
+ * @param {number} markScale fraction of the canvas the visible mark occupies
  */
 function svg(size, markScale) {
-  // The mark is authored on a 120-unit grid, matching the Flutter painter.
-  const grid = 120;
-  const scale = (size / grid) * markScale;
-  const offset = (size - grid * scale) / 2;
-  const t = `translate(${offset}, ${offset}) scale(${scale})`;
+  // Fit the longer side so the aspect ratio is preserved.
+  const scale = (size * markScale) / Math.max(BOX.w, BOX.h);
+  const cx = BOX.x + BOX.w / 2;
+  const cy = BOX.y + BOX.h / 2;
+  const t = `translate(${(size / 2 - cx * scale).toFixed(2)}, ${(size / 2 - cy * scale).toFixed(2)}) scale(${scale.toFixed(4)})`;
 
   const rays = Array.from({ length: 8 }, (_, i) => {
     const angle = (Math.PI * 2 / 8) * i - Math.PI / 2;
@@ -56,16 +66,17 @@ function svg(size, markScale) {
 }
 
 const outputs = [
-  // Android / manifest. 0.70 leaves a little breathing room in a square tile.
-  { file: "icon-192.png", size: 192, markScale: 0.7 },
-  { file: "icon-512.png", size: 512, markScale: 0.7 },
-  // Maskable: Android crops up to 20% off each edge, so the mark must stay well
-  // inside. 0.52 keeps it whole under the most aggressive squircle.
-  { file: "icon-maskable-512.png", size: 512, markScale: 0.52 },
-  // iOS home screen.
-  { file: "apple-icon.png", size: 180, markScale: 0.7 },
-  // Browser tab.
-  { file: "favicon-32.png", size: 32, markScale: 0.78 },
+  // Android / manifest: fill the tile, leaving only a small optical margin.
+  { file: "icon-192.png", size: 192, markScale: 0.86 },
+  { file: "icon-512.png", size: 512, markScale: 0.86 },
+  // Maskable is the one that must stay modest: Android crops to a circle or
+  // squircle and guarantees only the centre 80% survives. 0.66 keeps the roof
+  // line and the outer rays intact under the most aggressive crop.
+  { file: "icon-maskable-512.png", size: 512, markScale: 0.66 },
+  // iOS rounds the corners itself, so the mark can run close to the edge.
+  { file: "apple-icon.png", size: 180, markScale: 0.88 },
+  // A tab favicon is tiny; it needs every pixel.
+  { file: "favicon-32.png", size: 32, markScale: 0.94 },
 ];
 
 const publicDir = resolve(process.cwd(), "public");
