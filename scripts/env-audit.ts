@@ -8,6 +8,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { createHash } from "node:crypto";
+
 import { neon } from "@neondatabase/serverless";
 
 function raw(client: unknown, text: string): Promise<unknown> {
@@ -50,6 +52,7 @@ async function main() {
     console.log(`    password : ${url.password.length} chars`);
     console.log(`    sslmode  : ${url.searchParams.get("sslmode") ?? "NOT SET"}`);
     console.log(`    pooled   : ${url.hostname.includes("-pooler") ? "yes" : "NO — see README"}`);
+    console.log(`    branch#  : ${createHash("sha256").update(url.hostname).digest("hex").slice(0, 12)}`);
 
     try {
       const sql = neon(value);

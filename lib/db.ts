@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { neon } from "@neondatabase/serverless";
 
 /**
@@ -27,6 +29,24 @@ export function sql() {
   return neon(databaseUrl());
 }
 
+/**
+ * A short, stable hash of the Neon endpoint hostname.
+ *
+ * Deploying the wrong branch's connection string to production is invisible
+ * otherwise — the role name and Postgres version are identical on both. This
+ * makes the branch checkable on a public endpoint without publishing the
+ * hostname itself. Compare against `npm run db:env`, which prints the same
+ * fingerprint for every local connection string.
+ */
+export function branchFingerprint(url: string = process.env.DATABASE_URL ?? ""): string {
+  try {
+    const host = new URL(url).hostname;
+    return createHash("sha256").update(host).digest("hex").slice(0, 12);
+  } catch {
+    return "unknown";
+  }
+}
+
 /** Everything the health page needs to prove the chain actually works. */
 export type DbCheck =
   | {
@@ -38,6 +58,8 @@ export type DbCheck =
       latencyMs: number;
       /** Tables already present in the public schema. Empty on a fresh Neon DB. */
       tables: string[];
+      /** Identifies which Neon branch this is, without revealing the hostname. */
+      branchFingerprint: string;
     }
   | { ok: false; error: string; hint: string };
 
@@ -74,6 +96,7 @@ export async function checkDatabase(): Promise<DbCheck> {
       serverTime: new Date(info.server_time).toISOString(),
       latencyMs: Date.now() - started,
       tables: tableRows.map((r) => r.table_name),
+      branchFingerprint: branchFingerprint(),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
