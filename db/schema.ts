@@ -1,14 +1,17 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   bigserial,
   boolean,
   check,
   date,
+  doublePrecision,
   index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
@@ -62,6 +65,50 @@ export const auditActionEnum = pgEnum("audit_action", [
   "insert",
   "update",
   "delete",
+]);
+
+/**
+ * The approval and handover state machine from the brief. Not derivable from
+ * field values — "declined" and "PM approved" are decisions, not data.
+ */
+export const projectStatusEnum = pgEnum("project_status", [
+  "draft",
+  "awaiting_homeowner",
+  "homeowner_declined",
+  "homeowner_approved",
+  "pm_approved",
+  "in_progress",
+  "awaiting_signature",
+  "signed",
+  "closed",
+]);
+
+export const notificationKindEnum = pgEnum("notification_kind", [
+  "approval_request",
+  "approval_granted",
+  "approval_declined",
+  "assignment",
+  "visit_assigned",
+  "visit_reminder",
+  "visit_missed",
+  "milestone_complete",
+  "signature_request",
+  "signed",
+  "project_closed",
+]);
+
+export const notificationChannelEnum = pgEnum("notification_channel", [
+  "in_app",
+  "email",
+  "whatsapp",
+]);
+
+export const deliveryStatusEnum = pgEnum("delivery_status", [
+  "queued",
+  "sent",
+  "delivered",
+  "failed",
+  "skipped",
 ]);
 
 // ---------------------------------------------------------------- users
@@ -197,6 +244,27 @@ export const projects = pgTable("projects", {
   asBuiltPvLayout: boolean("as_built_pv_layout"),
   fusionSolarAppAccess: boolean("fusion_solar_app_access"),
 
+  // ---- workflow ----------------------------------------------------------
+  status: projectStatusEnum("status").notNull().default("draft"),
+
+  /**
+   * Contractor, in the three forms the brief allows: a whole group, named
+   * individuals (see projectAssignments), or free text when the outfit has no
+   * accounts yet.
+   */
+  contractorGroupId: integer("contractor_group_id").references(
+    () => contractorGroups.groupId,
+    { onDelete: "set null" }
+  ),
+  contractorText: text("contractor_text"),
+
+  /**
+   * Site coordinates, used to measure how far a crew is from the roof when
+   * they check in. Without these there is nothing to measure against.
+   */
+  siteLat: doublePrecision("site_lat"),
+  siteLng: doublePrecision("site_lng"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -273,6 +341,15 @@ export const auditLog = pgTable(
 
     /** `{ "panel_quantity_actual": { "from": 18, "to": 20 } }` */
     changes: jsonb("changes"),
+
+    /**
+     * Set when this entry undoes an earlier one.
+     *
+     * Reverting never removes the original — a revert is itself a change, and
+     * both facts are true. This column makes the chain explicit so the audit
+     * view can show "↩ reverts #412" instead of two unrelated-looking edits.
+     */
+    revertsAuditId: bigint("reverts_audit_id", { mode: "number" }),
   },
   (table) => [
     // "What happened to this project" — the audit page's main query.
@@ -283,6 +360,209 @@ export const auditLog = pgTable(
     ),
     // "What has this person done" — the other way people read an audit log.
     index("audit_log_actor_idx").on(table.actorUid, table.occurredAt.desc()),
+  ]
+);
+
+// ------------------------------------------------------ contractor groups
+
+export const contractorGroups = pgTable("contractor_groups", {
+  groupId: serial("group_id").primaryKey(),
+  name: varchar("name", { length: 160 }).notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Membership is many-to-many on purpose: subcontractors routinely work for
+ * more than one outfit, and forcing a single group would mean duplicate
+ * accounts for the same person.
+ */
+export const contractorGroupMembers = pgTable(
+  "contractor_group_members",
+  {
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => contractorGroups.groupId, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+    addedBy: integer("added_by").references(() => users.uid, { onDelete: "set null" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.groupId, table.userId] }),
+    index("contractor_group_members_user_idx").on(table.userId),
+  ]
+);
+
+/** Individuals named on a project directly, rather than through a group. */
+export const projectAssignments = pgTable(
+  "project_assignments",
+  {
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.projectId, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }).notNull().defaultNow(),
+    assignedBy: integer("assigned_by").references(() => users.uid, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.userId] }),
+    index("project_assignments_user_idx").on(table.userId),
+  ]
+);
+
+// ------------------------------------------------------------ site visits
+
+export const siteVisits = pgTable(
+  "site_visits",
+  {
+    visitId: serial("visit_id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.projectId, { onDelete: "cascade" }),
+    scheduledDate: date("scheduled_date").notNull(),
+    scheduledTime: varchar("scheduled_time", { length: 5 }),
+    worksNote: text("works_note"),
+    createdBy: integer("created_by").references(() => users.uid, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("site_visits_project_date_idx").on(table.projectId, table.scheduledDate)]
+);
+
+/**
+ * A crew arriving on site, and later leaving.
+ *
+ * There is deliberately no "late" or "missed" column. That is derived — a
+ * site_visits row whose date has passed with no check-in — because a stored
+ * flag would need a nightly job to stay honest and would be wrong in between.
+ */
+export const siteCheckIns = pgTable(
+  "site_check_ins",
+  {
+    checkInId: serial("check_in_id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.projectId, { onDelete: "cascade" }),
+
+    /** Null for an unscheduled visit, which the brief explicitly allows. */
+    visitId: integer("visit_id").references(() => siteVisits.visitId, {
+      onDelete: "set null",
+    }),
+
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.uid, { onDelete: "restrict" }),
+
+    checkedInAt: timestamp("checked_in_at", { withTimezone: true }).notNull().defaultNow(),
+    crewIn: integer("crew_in").notNull(),
+
+    lat: doublePrecision("lat"),
+    lng: doublePrecision("lng"),
+
+    /**
+     * Distance from the site at the moment of check-in, in metres. Stored
+     * rather than recomputed: if the site coordinates are corrected later,
+     * history must not silently change where the crew was standing.
+     */
+    distanceM: doublePrecision("distance_m"),
+
+    checkedOutAt: timestamp("checked_out_at", { withTimezone: true }),
+    crewOut: integer("crew_out"),
+  },
+  (table) => [
+    index("site_check_ins_project_idx").on(table.projectId, table.checkedInAt.desc()),
+    index("site_check_ins_user_idx").on(table.userId, table.checkedInAt.desc()),
+  ]
+);
+
+// -------------------------------------------------------------- milestones
+
+/**
+ * When a milestone was first reached. Completion itself is derived from the
+ * field values, so there is no "complete" flag to contradict the data — the
+ * presence of a row is the record, and the unique key stops it double-firing.
+ */
+export const projectMilestones = pgTable(
+  "project_milestones",
+  {
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.projectId, { onDelete: "cascade" }),
+    milestoneNo: integer("milestone_no").notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+    completedBy: integer("completed_by").references(() => users.uid, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.projectId, table.milestoneNo] }),
+    check(
+      "project_milestones_no_range",
+      sql`${table.milestoneNo} between 1 and 3`
+    ),
+  ]
+);
+
+// ----------------------------------------------------------- notifications
+
+/**
+ * One row per recipient. Readable only by that person, enforced by the same
+ * row level security mechanism as the audit log.
+ */
+export const notifications = pgTable(
+  "notifications",
+  {
+    notificationId: bigserial("notification_id", { mode: "number" }).primaryKey(),
+    recipientUid: integer("recipient_uid")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    projectId: integer("project_id").references(() => projects.projectId, {
+      onDelete: "cascade",
+    }),
+    kind: notificationKindEnum("kind").notNull(),
+    title: text("title").notNull(),
+    body: text("body"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("notifications_recipient_idx").on(table.recipientUid, table.createdAt.desc()),
+  ]
+);
+
+/**
+ * One row per channel attempted, separate from the message itself.
+ *
+ * Email and WhatsApp fail and need retrying; in-app does not. Keeping delivery
+ * apart means a failed WhatsApp send can be retried without duplicating the
+ * notification or marking it unread again. providerMessageId is what lets a
+ * later delivery receipt be reconciled back to the attempt.
+ */
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    deliveryId: bigserial("delivery_id", { mode: "number" }).primaryKey(),
+    notificationId: bigint("notification_id", { mode: "number" })
+      .notNull()
+      .references(() => notifications.notificationId, { onDelete: "cascade" }),
+    channel: notificationChannelEnum("channel").notNull(),
+    status: deliveryStatusEnum("status").notNull().default("queued"),
+    queuedAt: timestamp("queued_at", { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    error: text("error"),
+    providerMessageId: text("provider_message_id"),
+  },
+  (table) => [
+    index("notification_deliveries_notification_idx").on(table.notificationId),
+    // Finding what still needs sending or retrying.
+    index("notification_deliveries_status_idx").on(table.status, table.queuedAt),
   ]
 );
 
