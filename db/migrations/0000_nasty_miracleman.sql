@@ -62,12 +62,13 @@ CREATE TABLE "users" (
 	"full_name" text,
 	"user_type" "user_type" NOT NULL,
 	"contact_no" varchar(32),
-	"ic" varchar(32),
+	"ic_last4" varchar(4),
 	"email" varchar(320) NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "users_clerk_user_id_unique" UNIQUE("clerk_user_id")
+	CONSTRAINT "users_clerk_user_id_unique" UNIQUE("clerk_user_id"),
+	CONSTRAINT "users_ic_last4_format" CHECK ("users"."ic_last4" ~ '^[0-9]{3}[A-Za-z]$')
 );
 --> statement-breakpoint
 ALTER TABLE "project_files" ADD CONSTRAINT "project_files_project_id_projects_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("project_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

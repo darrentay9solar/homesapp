@@ -1,6 +1,7 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   integer,
   pgEnum,
@@ -79,11 +80,17 @@ export const users = pgTable(
     contactNo: varchar("contact_no", { length: 32 }),
 
     /**
-     * NRIC/FIN. Sensitive under the PDPA — see the note in README before
-     * deciding whether to store this in full or only the last four characters,
-     * which is all the original brief asked for.
+     * Last four characters of the NRIC/FIN only — three digits and the
+     * checksum letter, e.g. "567D" from S1234567D.
+     *
+     * Under the PDPA, collecting a full NRIC is restricted to cases where the
+     * law requires it, and nothing here does: these four characters are enough
+     * to match a homeowner against SP Group's paperwork. The length limit and
+     * the check constraint below make storing a whole NRIC impossible rather
+     * than merely discouraged — a validation rule in application code is one
+     * forgotten import away from being bypassed.
      */
-    ic: varchar("ic", { length: 32 }),
+    icLast4: varchar("ic_last4", { length: 4 }),
 
     email: varchar("email", { length: 320 }).notNull(),
 
@@ -96,6 +103,9 @@ export const users = pgTable(
     // Case-insensitive: nobody should be able to register Bob@x.com alongside
     // bob@x.com and end up with two profiles for one person.
     uniqueIndex("users_email_lower_idx").on(table.email),
+    // Three digits then the checksum letter. Rejects a full NRIC outright, so
+    // one cannot arrive through a stray import, a seed script or a fixture.
+    check("users_ic_last4_format", sql`${table.icLast4} ~ '^[0-9]{3}[A-Za-z]$'`),
   ]
 );
 

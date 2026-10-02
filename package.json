@@ -20,7 +20,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
-    "db:verify": "tsx scripts/verify-schema.ts"
+    "db:verify": "tsx scripts/verify-schema.ts",
+    "db:verify-nric": "tsx scripts/verify-nric.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.10",

@@ -1,5 +1,5 @@
 {
-  "id": "93565b19-9288-4558-8356-cccbcb118fd2",
+  "id": "8816f1d1-05f6-490c-a774-014705f80f89",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -421,9 +421,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "ic": {
-          "name": "ic",
-          "type": "varchar(32)",
+        "ic_last4": {
+          "name": "ic_last4",
+          "type": "varchar(4)",
           "primaryKey": false,
           "notNull": false
         },
@@ -484,7 +484,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "users_ic_last4_format": {
+          "name": "users_ic_last4_format",
+          "value": "\"users\".\"ic_last4\" ~ '^[0-9]{3}[A-Za-z]$'"
+        }
+      },
       "isRLSEnabled": false
     }
   },
