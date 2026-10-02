@@ -16,8 +16,16 @@ const isPublic = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (!isPublic(request)) {
-    await auth.protect();
+  if (isPublic(request)) return;
+
+  // `auth.protect()` answers 404 for an unauthenticated visitor rather than
+  // revealing that the route exists. That is a reasonable default for an API,
+  // but for a page it looks like the site is broken — the root returned 404 in
+  // production while /sign-in returned 200. Redirecting explicitly is both
+  // clearer to the user and consistent between dev and production.
+  const { userId, redirectToSignIn } = await auth();
+  if (!userId) {
+    return redirectToSignIn({ returnBackUrl: request.url });
   }
 });
 
