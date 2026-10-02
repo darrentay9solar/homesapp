@@ -20,6 +20,13 @@
   box-sizing: border-box;
 }
 
+html {
+  /* iOS Safari inflates text when a phone is rotated to landscape unless this
+     is pinned. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--ink);
@@ -28,12 +35,41 @@ body {
     Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.005em;
+  /* Belt and braces against a stray wide child causing sideways scroll on a
+     narrow phone. */
+  overflow-x: hidden;
+  /* Stops the whole page rubber-banding when an inner area is scrolled —
+     noticeable once this is installed to a home screen. */
+  overscroll-behavior-y: contain;
+  /* Removes the grey flash Android draws over tapped elements. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Inputs below 16px make iOS Safari zoom in on focus, which shifts the whole
+   layout. Applies to every form this app grows later, not just today's pages. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1em);
+}
+
+/* Media should never be the thing that forces a horizontal scrollbar. */
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
 }
 
 main {
   max-width: 680px;
   margin: 0 auto;
-  padding: 56px 20px 72px;
+  /* env() insets keep content clear of the notch, Dynamic Island and home
+     indicator once this is installed to a home screen. They resolve to 0 in a
+     normal browser tab, so this is safe everywhere. */
+  padding: calc(56px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
+    calc(72px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
 }
 
 .eyebrow {
@@ -199,7 +235,8 @@ code {
 
 @media (max-width: 520px) {
   main {
-    padding: 36px 16px 56px;
+    padding: calc(36px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+      calc(56px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
   }
   .row {
     flex-direction: column;
@@ -217,7 +254,10 @@ code {
   background: transparent;
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 7px 14px;
+  /* 44px is the iOS minimum touch target; padding gets it there without
+     making the pill look oversized. */
+  min-height: 44px;
+  padding: 0 18px;
   cursor: pointer;
   transition: border-color 0.18s, color 0.18s;
 }
