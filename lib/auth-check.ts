@@ -15,6 +15,14 @@ export type AuthCheck =
       instance: string;
       publishableKeyPrefix: string;
       secretKeySet: true;
+      /**
+       * Without these, `auth.protect()` has nowhere to send an unauthenticated
+       * visitor and answers 404 instead of redirecting — which looks like a
+       * missing page rather than a missing variable.
+       */
+      signInUrl: string | null;
+      signUpUrl: string | null;
+      redirectsConfigured: boolean;
     }
   | { ok: false; error: string; hint: string };
 
@@ -77,11 +85,17 @@ export function checkAuth(): AuthCheck {
     };
   }
 
+  const signInUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL?.trim() || null;
+  const signUpUrl = process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL?.trim() || null;
+
   return {
     ok: true,
     instance: pkInstance,
     // Enough to tell two Clerk apps apart; not enough to be useful to anyone else.
     publishableKeyPrefix: publishable.slice(0, 11),
     secretKeySet: true,
+    signInUrl,
+    signUpUrl,
+    redirectsConfigured: Boolean(signInUrl && signUpUrl),
   };
 }
