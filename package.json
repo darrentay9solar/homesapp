@@ -15,7 +15,8 @@
     "db:roles": "tsx scripts/roles.ts",
     "db:rotate": "tsx scripts/rotate-password.ts",
     "db:app-role": "tsx scripts/create-app-role.ts",
-    "db:env": "tsx scripts/env-audit.ts"
+    "db:env": "tsx scripts/env-audit.ts",
+    "icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.10",
@@ -30,6 +31,7 @@
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.8",
+    "sharp": "^0.35.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
