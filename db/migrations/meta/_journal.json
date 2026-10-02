@@ -43,6 +43,20 @@
       "when": 1790927741040,
       "tag": "0005_workflow_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790928225722,
+      "tag": "0006_geofence",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790928228812,
+      "tag": "0007_geofence_enforcement",
+      "breakpoints": true
     }
   ]
 }

@@ -260,10 +260,34 @@ export const projects = pgTable("projects", {
 
   /**
    * Site coordinates, used to measure how far a crew is from the roof when
-   * they check in. Without these there is nothing to measure against.
+   * they check in. Without these there is nothing to measure against, and the
+   * trigger refuses the check-in rather than letting it through unverified.
+   *
+   * Resolved from OneMap (SLA) once, when the project is set up. Never looked
+   * up during a check-in: OneMap rate-limits aggressively — three rapid
+   * requests was enough to get a 429 — and a crew on a roof should not depend
+   * on a third-party API answering.
    */
   siteLat: doublePrecision("site_lat"),
   siteLng: doublePrecision("site_lng"),
+
+  /**
+   * Singapore postal codes are unique per building, which street text is not:
+   * searching OneMap for "14 Jalan Kayu" returns five fuzzy matches and none
+   * of them that address. This is the field to geocode from.
+   */
+  postalCode: varchar("postal_code", { length: 6 }),
+
+  /** What OneMap actually matched, so a wrong match is visible to a PM. */
+  geocodedAddress: text("geocoded_address"),
+  geocodeSource: varchar("geocode_source", { length: 32 }),
+  geocodedAt: timestamp("geocoded_at", { withTimezone: true }),
+
+  /**
+   * How close a crew must be, in metres. A column rather than a constant so a
+   * large landed property can be widened without a deployment.
+   */
+  checkInRadiusM: integer("check_in_radius_m").notNull().default(100),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -472,8 +496,24 @@ export const siteCheckIns = pgTable(
      */
     distanceM: doublePrecision("distance_m"),
 
+    /**
+     * Reported accuracy of the fix, in metres. A reading accurate to ±200 m
+     * tells you nothing against a 100 m radius, so the trigger refuses it —
+     * and in that case "not receiving GPS signal" is literally true.
+     */
+    accuracyM: doublePrecision("accuracy_m"),
+
     checkedOutAt: timestamp("checked_out_at", { withTimezone: true }),
     crewOut: integer("crew_out"),
+
+    /**
+     * Check-out is verified independently of check-in. Otherwise a crew could
+     * arrive, check in, leave, and close the day from anywhere.
+     */
+    checkoutLat: doublePrecision("checkout_lat"),
+    checkoutLng: doublePrecision("checkout_lng"),
+    checkoutDistanceM: doublePrecision("checkout_distance_m"),
+    checkoutAccuracyM: doublePrecision("checkout_accuracy_m"),
   },
   (table) => [
     index("site_check_ins_project_idx").on(table.projectId, table.checkedInAt.desc()),

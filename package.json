@@ -23,7 +23,8 @@
     "db:verify": "tsx scripts/verify-schema.ts",
     "db:verify-nric": "tsx scripts/verify-nric.ts",
     "db:verify-audit": "tsx scripts/verify-audit.ts",
-    "db:verify-audit-rls": "tsx scripts/verify-audit-rls.ts"
+    "db:verify-audit-rls": "tsx scripts/verify-audit-rls.ts",
+    "db:verify-geofence": "tsx scripts/verify-geofence.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.10",
