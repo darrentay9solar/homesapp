@@ -18,6 +18,7 @@
     "db:env": "tsx scripts/env-audit.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.9.10",
     "@neondatabase/serverless": "^0.10.4",
     "next": "^16.3.8",
     "react": "^19.3.0",

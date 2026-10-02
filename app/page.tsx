@@ -1,9 +1,17 @@
+import { currentUser } from "@clerk/nextjs/server";
+import { SignOutButton } from "@clerk/nextjs";
+
+import { checkAuth } from "@/lib/auth-check";
 import { checkDatabase } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const db = await checkDatabase();
+  const auth = checkAuth();
+  // The middleware already requires a session to reach this page, so a null
+  // user here would mean Clerk is misconfigured rather than signed out.
+  const user = auth.ok ? await currentUser() : null;
   const onVercel = Boolean(process.env.VERCEL);
   const env = process.env.VERCEL_ENV ?? "local";
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null;
@@ -57,6 +65,19 @@ export default async function Home() {
           }
           note={db.ok ? undefined : db.hint}
         />
+
+        <Check
+          name="Clerk auth"
+          ok={auth.ok}
+          detail={
+            auth.ok
+              ? `${auth.instance} instance · ${auth.publishableKeyPrefix}… · signed in as ${
+                  user?.primaryEmailAddress?.emailAddress ?? user?.id ?? "unknown"
+                }`
+              : auth.error
+          }
+          note={auth.ok ? undefined : auth.hint}
+        />
       </section>
 
       {db.ok && (
@@ -78,8 +99,18 @@ export default async function Home() {
       <footer>
         <p>
           Machine-readable version at <code>/api/health</code> — returns 503 when
-          the database is unreachable, so an uptime monitor can watch it.
+          the database or auth is misconfigured, so an uptime monitor can watch
+          it. It is the one route the middleware leaves public.
         </p>
+        {user && (
+          <p style={{ marginTop: 14 }}>
+            <SignOutButton>
+              <button type="button" className="signout">
+                Sign out
+              </button>
+            </SignOutButton>
+          </p>
+        )}
       </footer>
     </main>
   );

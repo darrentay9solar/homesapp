@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { checkAuth } from "@/lib/auth-check";
 import { checkDatabase } from "@/lib/db";
 
 /**
@@ -11,9 +12,10 @@ export const revalidate = 0;
 
 export async function GET() {
   const db = await checkDatabase();
+  const auth = checkAuth();
 
   const body = {
-    ok: db.ok,
+    ok: db.ok && auth.ok,
     checkedAt: new Date().toISOString(),
     runtime: {
       // Set by Vercel at build/run time; absent locally, which is itself useful.
@@ -25,8 +27,9 @@ export async function GET() {
       node: process.version,
     },
     database: db,
+    auth,
   };
 
   // 503 on failure so an uptime monitor treats it as down rather than fine.
-  return NextResponse.json(body, { status: db.ok ? 200 : 503 });
+  return NextResponse.json(body, { status: body.ok ? 200 : 503 });
 }
