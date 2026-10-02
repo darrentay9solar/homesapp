@@ -51,7 +51,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python dependencies
-        run: pip install -r requirements.txt ruff
+        run: pip install ".[dev]"
 
       - name: Lint Python
         run: ruff check api tests_py

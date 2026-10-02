@@ -1,5 +1,35 @@
+[project]
+# Vercel's Python builder runs `uv lock` whenever it finds a pyproject.toml,
+# and uv requires this table. Without it the build fails with "No `project`
+# table found" — tool configuration alone is not enough.
+name = "gethomeapps-py"
+version = "0.1.0"
+description = "Scheduled jobs and document generation for GetHomeApps."
+requires-python = ">=3.12"
+
+# Declared here rather than in requirements.txt so there is one source of
+# truth. uv reads this; so does `pip install .`.
+dependencies = [
+    "psycopg[binary]==3.2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff==0.8.4",
+    "pytest==8.3.4",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# The API handlers are deployed as individual serverless functions, not
+# imported as a package, so there is nothing to discover or install.
+packages = []
+
 [tool.ruff]
-# Matches .nvmrc's intent: pin the version CI and production actually run.
+# Pin what CI and the Vercel runtime actually run, as .nvmrc does for Node.
 target-version = "py312"
 line-length = 100
 extend-exclude = [".venv", "node_modules", ".next"]
@@ -8,8 +38,10 @@ extend-exclude = [".venv", "node_modules", ".next"]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-# Vercel requires a lowercase class named `handler`.
-"api/*.py" = ["N801"]
+# Vercel requires a lowercase class named `handler`, and
+# BaseHTTPRequestHandler dispatches to methods named do_GET, do_POST and so
+# on. Both naming rules are imposed from outside and cannot be satisfied.
+"api/*.py" = ["N801", "N802"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests_py"]

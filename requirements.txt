@@ -1,6 +1,0 @@
-# Python runtime for Vercel serverless functions under api/.
-#
-# Kept deliberately small: the Python side exists for scheduled jobs and
-# document generation, not as a second web framework. Everything user-facing
-# is served by Next.js.
-psycopg[binary]==3.2.3
