@@ -22,6 +22,13 @@
       "when": 1790925165327,
       "tag": "0002_audit_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790926581381,
+      "tag": "0003_audit_rls",
+      "breakpoints": true
     }
   ]
 }
