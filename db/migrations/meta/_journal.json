@@ -8,6 +8,20 @@
       "when": 1790924284436,
       "tag": "0000_nasty_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790925161989,
+      "tag": "0001_audit_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790925165327,
+      "tag": "0002_audit_triggers",
+      "breakpoints": true
     }
   ]
 }

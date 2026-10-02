@@ -1,9 +1,12 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  bigserial,
   boolean,
   check,
   date,
+  index,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
@@ -49,6 +52,16 @@ export const fileCategoryEnum = pgEnum("file_category", [
   "final_submission_documents",
   "handover_docs",
   "completion_form_signed",
+]);
+
+/**
+ * What happened. Row changes come from triggers; the wider values exist so
+ * non-table events (an approval, a site check-in) can share the same log later.
+ */
+export const auditActionEnum = pgEnum("audit_action", [
+  "insert",
+  "update",
+  "delete",
 ]);
 
 // ---------------------------------------------------------------- users
@@ -215,6 +228,63 @@ export const projectFiles = pgTable("project_files", {
   }),
   uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ------------------------------------------------------------ audit log
+
+/**
+ * Append-only record of every row written, changed or removed.
+ *
+ * Three properties make this an audit trail rather than a table of notes, and
+ * all three are enforced in Postgres rather than in application code (see the
+ * accompanying `audit_triggers` migration):
+ *
+ *   1. Nothing can read it except the dedicated audit role, which only the
+ *      project-manager view connects with. The app's own role has no
+ *      privileges on this table at all.
+ *   2. Nothing can write to it directly either. Entries appear only as a side
+ *      effect of a real data change, via SECURITY DEFINER triggers, so the
+ *      application cannot forge or omit an entry.
+ *   3. No UPDATE or DELETE is granted to anybody. A log a project manager can
+ *      quietly edit is not a log.
+ *
+ * The actor is captured twice on purpose: a foreign key so it can be joined,
+ * and a snapshot of their name, email and role so the history stays truthful
+ * after someone is renamed, changes role, or leaves.
+ */
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    auditId: bigserial("audit_id", { mode: "number" }).primaryKey(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+
+    actorUid: integer("actor_uid").references(() => users.uid, {
+      onDelete: "set null",
+    }),
+    actorEmail: varchar("actor_email", { length: 320 }),
+    actorName: text("actor_name"),
+    /** Their role at the time of the action, not their role now. */
+    actorRole: userTypeEnum("actor_role"),
+    actorClerkId: text("actor_clerk_id"),
+
+    action: auditActionEnum("action").notNull(),
+    entityTable: text("entity_table").notNull(),
+    /** Text so one column serves every table's primary key type. */
+    entityId: text("entity_id"),
+
+    /** `{ "panel_quantity_actual": { "from": 18, "to": 20 } }` */
+    changes: jsonb("changes"),
+  },
+  (table) => [
+    // "What happened to this project" — the audit page's main query.
+    index("audit_log_entity_idx").on(
+      table.entityTable,
+      table.entityId,
+      table.occurredAt.desc()
+    ),
+    // "What has this person done" — the other way people read an audit log.
+    index("audit_log_actor_idx").on(table.actorUid, table.occurredAt.desc()),
+  ]
+);
 
 // ------------------------------------------------------------- relations
 

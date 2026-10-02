@@ -1,0 +1,690 @@
+{
+  "id": "8ffbd91f-6db0-4162-8ee0-bfd67c99bbec",
+  "prevId": "36e980dc-bc69-40d1-825b-8897eebb02f4",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.audit_log": {
+      "name": "audit_log",
+      "schema": "",
+      "columns": {
+        "audit_id": {
+          "name": "audit_id",
+          "type": "bigserial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "actor_uid": {
+          "name": "actor_uid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_email": {
+          "name": "actor_email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_name": {
+          "name": "actor_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_role": {
+          "name": "actor_role",
+          "type": "user_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_clerk_id": {
+          "name": "actor_clerk_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "audit_action",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_table": {
+          "name": "entity_table",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "changes": {
+          "name": "changes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "audit_log_entity_idx": {
+          "name": "audit_log_entity_idx",
+          "columns": [
+            {
+              "expression": "entity_table",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "audit_log_actor_idx": {
+          "name": "audit_log_actor_idx",
+          "columns": [
+            {
+              "expression": "actor_uid",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "audit_log_actor_uid_users_uid_fk": {
+          "name": "audit_log_actor_uid_users_uid_fk",
+          "tableFrom": "audit_log",
+          "columnsFrom": [
+            "actor_uid"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "uid"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.electricity_retailers": {
+      "name": "electricity_retailers",
+      "schema": "",
+      "columns": {
+        "retailer_id": {
+          "name": "retailer_id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "electricity_retailers_name_unique": {
+          "name": "electricity_retailers_name_unique",
+          "columns": [
+            "name"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.project_files": {
+      "name": "project_files",
+      "schema": "",
+      "columns": {
+        "file_id": {
+          "name": "file_id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "file_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uploaded_by": {
+          "name": "uploaded_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uploaded_at": {
+          "name": "uploaded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "project_files_project_id_projects_project_id_fk": {
+          "name": "project_files_project_id_projects_project_id_fk",
+          "tableFrom": "project_files",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "tableTo": "projects",
+          "columnsTo": [
+            "project_id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "project_files_uploaded_by_users_uid_fk": {
+          "name": "project_files_uploaded_by_users_uid_fk",
+          "tableFrom": "project_files",
+          "columnsFrom": [
+            "uploaded_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "uid"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.projects": {
+      "name": "projects",
+      "schema": "",
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "homeowner_id": {
+          "name": "homeowner_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "installation_start_date": {
+          "name": "installation_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "installation_end_date": {
+          "name": "installation_end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_by_homeowner": {
+          "name": "confirmed_by_homeowner",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "waterproofing": {
+          "name": "waterproofing",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "create_group_chat": {
+          "name": "create_group_chat",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "panel_quantity_estimate": {
+          "name": "panel_quantity_estimate",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "panel_quantity_actual": {
+          "name": "panel_quantity_actual",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "panel_capacity": {
+          "name": "panel_capacity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inverter_to_order": {
+          "name": "inverter_to_order",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inverter_collected": {
+          "name": "inverter_collected",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inverter_date": {
+          "name": "inverter_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inverter_serial_number": {
+          "name": "inverter_serial_number",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scaffolding_removal": {
+          "name": "scaffolding_removal",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scaffolding_removal_date": {
+          "name": "scaffolding_removal_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inverter_commission_grid_connection": {
+          "name": "inverter_commission_grid_connection",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "commission_date": {
+          "name": "commission_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rcb_breaker_replacement": {
+          "name": "rcb_breaker_replacement",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rcb_breaker_replacement_date": {
+          "name": "rcb_breaker_replacement_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "electricity_retailer_id": {
+          "name": "electricity_retailer_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retailer_contract_end_date": {
+          "name": "retailer_contract_end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sp_application_status": {
+          "name": "sp_application_status",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sp_submission_date": {
+          "name": "sp_submission_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pvl_received_date": {
+          "name": "pvl_received_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pre_inspection_date": {
+          "name": "pre_inspection_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sp_appointment_letter_received_date": {
+          "name": "sp_appointment_letter_received_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meter_replacement_date": {
+          "name": "meter_replacement_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sp_turn_on_inspection_date": {
+          "name": "sp_turn_on_inspection_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "as_built_pv_layout": {
+          "name": "as_built_pv_layout",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fusion_solar_app_access": {
+          "name": "fusion_solar_app_access",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "projects_homeowner_id_users_uid_fk": {
+          "name": "projects_homeowner_id_users_uid_fk",
+          "tableFrom": "projects",
+          "columnsFrom": [
+            "homeowner_id"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "uid"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "projects_electricity_retailer_id_electricity_retailers_retailer_id_fk": {
+          "name": "projects_electricity_retailer_id_electricity_retailers_retailer_id_fk",
+          "tableFrom": "projects",
+          "columnsFrom": [
+            "electricity_retailer_id"
+          ],
+          "tableTo": "electricity_retailers",
+          "columnsTo": [
+            "retailer_id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "uid": {
+          "name": "uid",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "clerk_user_id": {
+          "name": "clerk_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_type": {
+          "name": "user_type",
+          "type": "user_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_no": {
+          "name": "contact_no",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ic_last4": {
+          "name": "ic_last4",
+          "type": "varchar(4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(320)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "users_email_lower_idx": {
+          "name": "users_email_lower_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_clerk_user_id_unique": {
+          "name": "users_clerk_user_id_unique",
+          "columns": [
+            "clerk_user_id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "users_ic_last4_format": {
+          "name": "users_ic_last4_format",
+          "value": "\"users\".\"ic_last4\" ~ '^[0-9]{3}[A-Za-z]$'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.audit_action": {
+      "name": "audit_action",
+      "schema": "public",
+      "values": [
+        "insert",
+        "update",
+        "delete"
+      ]
+    },
+    "public.file_category": {
+      "name": "file_category",
+      "schema": "public",
+      "values": [
+        "panel_pictures",
+        "inverter_pictures",
+        "utility_bill",
+        "moc_change",
+        "gst_proof",
+        "sp_forms_signed",
+        "sp_submission_screenshot",
+        "pvl_letter",
+        "sp_appointment_letter",
+        "final_submission_documents",
+        "handover_docs",
+        "completion_form_signed"
+      ]
+    },
+    "public.user_type": {
+      "name": "user_type",
+      "schema": "public",
+      "values": [
+        "homeowner",
+        "project_manager",
+        "contractor",
+        "epc_team"
+      ]
+    }
+  },
+  "schemas": {},
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
