@@ -143,3 +143,56 @@ export async function geocode(query: string): Promise<GeocodeResult> {
     candidates: usable.length,
   };
 }
+
+export type ResolvedLocation = {
+  address: string;
+  postalCode: string | null;
+  lat: number;
+  lng: number;
+  /** Which field the caller supplied, and which was filled in for them. */
+  derived: "address" | "postalCode" | "none";
+};
+
+/**
+ * Fills in whichever of address and postal code is missing.
+ *
+ * Both directions work because OneMap's search returns the full record either
+ * way: give it a postal code and you get the address back, give it an address
+ * and you get the postal code. When both are supplied, the postal code wins —
+ * it identifies one building, where street text frequently does not.
+ */
+export async function resolveLocation(input: {
+  address?: string | null;
+  postalCode?: string | null;
+}): Promise<ResolvedLocation> {
+  const address = input.address?.trim() || null;
+  const postalCode = input.postalCode?.trim() || null;
+
+  if (!address && !postalCode) {
+    throw new GeocodeError(
+      "Enter either an address or a postal code.",
+      "invalid_query"
+    );
+  }
+
+  if (postalCode && !SG_POSTAL.test(postalCode)) {
+    throw new GeocodeError(
+      `"${postalCode}" is not a 6-digit Singapore postal code.`,
+      "invalid_query"
+    );
+  }
+
+  // Prefer the postal code whenever we have one, including when both were
+  // given: it is the unambiguous key, and a mistyped street name should not
+  // silently relocate the project.
+  const query = postalCode ?? address!;
+  const result = await geocode(query);
+
+  return {
+    address: result.address,
+    postalCode: result.postalCode ?? postalCode,
+    lat: result.lat,
+    lng: result.lng,
+    derived: postalCode ? (address ? "none" : "address") : "postalCode",
+  };
+}

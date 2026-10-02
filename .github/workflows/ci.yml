@@ -42,3 +42,16 @@ jobs:
       # database, or a Neon outage becomes a deploy outage.
       - name: Build
         run: npm run build
+
+      # The Python side ships in the same deployment, so it is gated the same
+      # way. No database here either: these are lint and type checks only.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt ruff
+
+      - name: Lint Python
+        run: ruff check api tests_py

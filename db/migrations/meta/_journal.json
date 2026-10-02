@@ -57,6 +57,20 @@
       "when": 1790928228812,
       "tag": "0007_geofence_enforcement",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790929348368,
+      "tag": "0008_completeness",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790929351012,
+      "tag": "0009_signature_audit",
+      "breakpoints": true
     }
   ]
 }

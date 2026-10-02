@@ -154,6 +154,15 @@ export const users = pgTable(
 
     email: varchar("email", { length: 320 }).notNull(),
 
+    /**
+     * Either may be entered and the other derived from it through OneMap —
+     * a postal code lookup returns the address, and an address lookup returns
+     * the postal code. Stored rather than looked up on demand, because OneMap
+     * rate-limits and a person's address does not change often.
+     */
+    address: text("address"),
+    postalCode: varchar("postal_code", { length: 6 }),
+
     active: boolean("active").notNull().default(true),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -182,7 +191,25 @@ export const electricityRetailers = pgTable("electricity_retailers", {
 export const projects = pgTable("projects", {
   projectId: serial("project_id").primaryKey(),
 
+  /** How the project is identified everywhere a person sees it. */
+  name: varchar("name", { length: 200 }).notNull().default(""),
+
   address: text("address").notNull(),
+
+  /**
+   * The 9 Solar Home project manager who owns this project. Separate from the
+   * contractor: the PM approves, overrides and closes, and the dashboard is
+   * grouped by them.
+   */
+  projectManagerId: integer("project_manager_id").references(() => users.uid, {
+    onDelete: "set null",
+  }),
+
+  /** Salesperson or deal reference that brought the project in. */
+  sales: varchar("sales", { length: 160 }),
+
+  /** Free-running stage counter the admin team maintains alongside milestones. */
+  currentStage: integer("current_stage"),
 
   /**
    * One homeowner per project, per the spec. Restricted rather than cascading:
@@ -546,6 +573,46 @@ export const projectMilestones = pgTable(
       "project_milestones_no_range",
       sql`${table.milestoneNo} between 1 and 3`
     ),
+  ]
+);
+
+// ------------------------------------------------------------- signatures
+
+/**
+ * The homeowner's e-signature on the handover certificate.
+ *
+ * Kept apart from project_files because a signature is not an upload: it
+ * carries legal weight, so it records who signed, when, from where, and what
+ * exactly they were shown. certificateHash pins the document version — a
+ * signature that cannot prove what it was applied to is worth little.
+ */
+export const projectSignatures = pgTable(
+  "project_signatures",
+  {
+    signatureId: serial("signature_id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.projectId, { onDelete: "cascade" }),
+    signedBy: integer("signed_by")
+      .notNull()
+      .references(() => users.uid, { onDelete: "restrict" }),
+    signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+
+    /** Object-storage URL of the captured signature image. */
+    signatureUrl: text("signature_url").notNull(),
+
+    /** SHA-256 of the certificate as rendered at signing time. */
+    certificateHash: varchar("certificate_hash", { length: 64 }),
+    certificateUrl: text("certificate_url"),
+
+    /** Weak evidence on its own, but worth having if a signature is disputed. */
+    signedIp: varchar("signed_ip", { length: 45 }),
+    signedUserAgent: text("signed_user_agent"),
+  },
+  (table) => [
+    // One signature per project. Re-signing means voiding and reissuing, which
+    // should be a deliberate act rather than a silent second row.
+    uniqueIndex("project_signatures_project_idx").on(table.projectId),
   ]
 );
 

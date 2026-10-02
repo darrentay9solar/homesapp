@@ -1,0 +1,16 @@
+[tool.ruff]
+# Matches .nvmrc's intent: pin the version CI and production actually run.
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv", "node_modules", ".next"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Vercel requires a lowercase class named `handler`.
+"api/*.py" = ["N801"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests_py"]
+pythonpath = ["api"]

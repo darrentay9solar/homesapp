@@ -13,3 +13,10 @@ next-env.d.ts
 # local tooling output
 build.log
 analyze.txt
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
