@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A second push supersedes the first; no point burning minutes on stale commits.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # The reason this workflow exists. Vercel refused a deploy over a Next.js
+      # CVE that nothing in the repo would otherwise have caught.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      # No DATABASE_URL on purpose: the build must not depend on a live
+      # database, or a Neon outage becomes a deploy outage.
+      - name: Build
+        run: npm run build
