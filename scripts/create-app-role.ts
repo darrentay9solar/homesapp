@@ -45,11 +45,60 @@ function raw(client: unknown, text: string): Promise<unknown> {
   );
 }
 
-function readEnv(): { text: string; url: string } {
+function envValue(text: string, key: string): string | null {
+  const match = text.match(new RegExp(`^\\s*${key}\\s*=\\s*"?([^"\\n]+)"?`, "m"));
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Picks the database to operate on.
+ *
+ * Creating a role needs the schema owner, so MIGRATION_DATABASE_URL is the
+ * default — never DATABASE_URL, which by design is the restricted role and
+ * would simply be refused.
+ *
+ * Pass a different key to target another Neon branch, e.g.
+ *   npm run db:app-role -- --key=DEV_MIGRATION_DATABASE_URL
+ */
+function readEnv(): { text: string; url: string; key: string } {
   const text = readFileSync(ENV_PATH, "utf8");
-  const match = text.match(/^\s*(?:MIGRATION_)?DATABASE_URL\s*=\s*"?([^"\n]+)"?/m);
-  if (!match) throw new Error("No DATABASE_URL found in .env.local");
-  return { text, url: match[1].trim() };
+  const arg = process.argv.find((a) => a.startsWith("--key="));
+  const key = arg ? arg.slice("--key=".length) : "MIGRATION_DATABASE_URL";
+
+  const url = envValue(text, key);
+  if (!url) {
+    throw new Error(
+      `${key} is not set in .env.local.\n` +
+        "  Role creation requires the schema owner's connection string.\n" +
+        "  To target another Neon branch, add e.g. DEV_MIGRATION_DATABASE_URL\n" +
+        "  and run: npm run db:app-role -- --key=DEV_MIGRATION_DATABASE_URL"
+    );
+  }
+  return { text, url, key };
+}
+
+/**
+ * Refuses to touch whatever production is currently using, because rotating
+ * that role's password breaks the live deployment until Vercel is updated.
+ * Neon gives each branch its own endpoint hostname, so comparing hosts is
+ * enough to tell branches apart.
+ */
+function guardProduction(text: string, targetUrl: string) {
+  if (process.argv.includes("--force")) return;
+  const live = envValue(text, "DATABASE_URL");
+  if (!live) return;
+  try {
+    if (new URL(live).hostname !== new URL(targetUrl).hostname) return;
+  } catch {
+    return;
+  }
+  throw new Error(
+    "Refusing to run: this targets the same Neon endpoint that DATABASE_URL\n" +
+      "  points at, so it would rotate the password production is using and\n" +
+      "  break the live site until Vercel is updated.\n\n" +
+      "  Create a separate Neon branch and target it with --key=..., or pass\n" +
+      "  --force if rotating the live credential is genuinely what you want."
+  );
 }
 
 /** Rewrites or appends a key in a .env file without disturbing the rest. */
@@ -60,10 +109,12 @@ function upsert(text: string, key: string, value: string): string {
 }
 
 async function main() {
-  const { text, url } = readEnv();
+  const { text, url, key } = readEnv();
+  guardProduction(text, url);
   const owner = new URL(url);
 
   console.log("\nCreate least-privilege app role\n" + "-".repeat(48));
+  console.log(`  source   : ${key}`);
   console.log(`  host     : ${owner.hostname}`);
   console.log(`  database : ${owner.pathname.replace(/^\//, "")}`);
   console.log(`  as       : ${decodeURIComponent(owner.username)}`);
@@ -126,14 +177,19 @@ async function main() {
       : "  WARNING: app role was able to create a table — check grants"
   );
 
-  let updated = upsert(text, "MIGRATION_DATABASE_URL", url);
-  updated = upsert(updated, "DATABASE_URL", appUrl);
+  // Write back to the keys matching whichever branch was targeted, so running
+  // this against a development branch cannot overwrite the production pair.
+  const prefix = key.replace(/MIGRATION_DATABASE_URL$/, "");
+  const appKey = `${prefix}DATABASE_URL`;
+
+  let updated = upsert(text, key, url);
+  updated = upsert(updated, appKey, appUrl);
   writeFileSync(ENV_PATH, updated, "utf8");
 
   console.log("\n  DONE\n");
   console.log("  .env.local now holds:");
-  console.log(`    DATABASE_URL           -> ${APP_ROLE} (runtime, least privilege)`);
-  console.log("    MIGRATION_DATABASE_URL -> neondb_owner (migrations only)");
+  console.log(`    ${appKey} -> ${APP_ROLE} (runtime, least privilege)`);
+  console.log(`    ${key} -> schema owner (migrations only)`);
   console.log("\n  Update DATABASE_URL in Vercel to the new value:");
   console.log("    (Get-Content .env.local | Select-String '^DATABASE_URL') -replace");
   console.log("      '^DATABASE_URL=\"?|\"?$' | Set-Clipboard\n");

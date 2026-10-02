@@ -23,13 +23,36 @@ Git commit metadata, and Neon connectivity.
 
 ## Environment
 
-| Variable | Used by | Set where |
-| --- | --- | --- |
-| `DATABASE_URL` | the running app | `.env.local` and Vercel |
-| `MIGRATION_DATABASE_URL` | migrations only | `.env.local` and CI — **never Vercel** |
+| Variable | Branch | Used by | Set where |
+| --- | --- | --- | --- |
+| `DATABASE_URL` | development | local dev, Vercel Preview | `.env.local`, Vercel (Preview + Development) |
+| `MIGRATION_DATABASE_URL` | development | migrations | `.env.local` — **never Vercel** |
+| `PROD_DATABASE_URL` | production | reference | Vercel (Production) holds this value |
+| `PROD_MIGRATION_DATABASE_URL` | production | production migrations | `.env.local` — **never Vercel** |
 
-Both are Neon **pooled** connection strings (host contains `-pooler`). The
+All are Neon **pooled** connection strings (host contains `-pooler`). The
 non-pooled host works locally but exhausts connections on serverless functions.
+
+### Two branches, and why the default is the safe one
+
+Neon branches the database like git branches code. `development` is a
+copy-on-write branch of `production`.
+
+The unprefixed variables point at **development**, deliberately. `npm run dev`,
+and any migration run without arguments, therefore hit a database you can
+afford to break. Production has to be named explicitly:
+
+```bash
+npm run db:app-role -- --key=PROD_MIGRATION_DATABASE_URL
+```
+
+`npm run db:env` reports every connection string in `.env.local` — which role
+it authenticates as, and whether it can create tables. Run it whenever you are
+unsure what you are pointed at. It prints no passwords.
+
+Without this split, a preview deployment testing "delete project" would delete
+real projects, and a schema change on a feature branch would alter production
+tables.
 
 ### Two roles, deliberately
 
@@ -54,6 +77,7 @@ Recreate or rotate the app role with `npm run db:app-role`.
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint |
 | `npm run db:check` | Neon connectivity, with the common failures decoded |
+| `npm run db:env` | audits every connection string: role, privileges, branch |
 | `npm run db:roles` | lists roles and databases that actually exist |
 | `npm run db:rotate` | rotates the password in `MIGRATION_DATABASE_URL`'s role |
 | `npm run db:app-role` | creates/rotates the least-privilege runtime role |

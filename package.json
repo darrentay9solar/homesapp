@@ -14,7 +14,8 @@
     "db:check": "tsx scripts/check-db.ts",
     "db:roles": "tsx scripts/roles.ts",
     "db:rotate": "tsx scripts/rotate-password.ts",
-    "db:app-role": "tsx scripts/create-app-role.ts"
+    "db:app-role": "tsx scripts/create-app-role.ts",
+    "db:env": "tsx scripts/env-audit.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
