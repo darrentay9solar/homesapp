@@ -20,3 +20,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+
+# python build artefacts
+*.egg-info/

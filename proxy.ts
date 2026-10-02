@@ -10,9 +10,13 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 const isPublic = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
-  // The health check must stay reachable: an uptime monitor cannot sign in,
-  // and it deliberately exposes no project data.
+  // The health checks must stay reachable: an uptime monitor cannot sign in,
+  // and they deliberately expose no project data.
   "/api/health",
+  // The Python runtime's equivalent. Only this one Python route is public —
+  // anything that does real work stays behind the proxy, and scheduled jobs
+  // will authenticate with a shared secret rather than a session.
+  "/api/health.py",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

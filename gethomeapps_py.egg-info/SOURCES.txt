@@ -1,7 +1,0 @@
-README.md
-pyproject.toml
-gethomeapps_py.egg-info/PKG-INFO
-gethomeapps_py.egg-info/SOURCES.txt
-gethomeapps_py.egg-info/dependency_links.txt
-gethomeapps_py.egg-info/requires.txt
-gethomeapps_py.egg-info/top_level.txt
