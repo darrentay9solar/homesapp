@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -55,6 +56,7 @@ export const fileCategoryEnum = pgEnum("file_category", [
   "final_submission_documents",
   "handover_docs",
   "completion_form_signed",
+  "as_built_pv_layout",
 ]);
 
 /**
@@ -95,6 +97,23 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "signature_request",
   "signed",
   "project_closed",
+  // Account lifecycle: a PM created your account; someone asked for one and
+  // a PM should look; your request was approved or turned down.
+  "account_created",
+  "account_request",
+  "account_approved",
+  "account_rejected",
+]);
+
+/**
+ * A self sign-up waiting on a project manager. Approved and rejected requests
+ * are kept, not deleted: who let whom in, and when, is exactly the question an
+ * access review asks.
+ */
+export const accountRequestStatusEnum = pgEnum("account_request_status", [
+  "pending",
+  "approved",
+  "rejected",
 ]);
 
 export const notificationChannelEnum = pgEnum("notification_channel", [
@@ -165,6 +184,20 @@ export const users = pgTable(
 
     active: boolean("active").notNull().default(true),
 
+    /**
+     * Set when a project manager created the account and an invitation went
+     * out. An invited user with no clerkUserId has not accepted yet; one with
+     * neither was approved from a self sign-up, so already has a Clerk login.
+     *
+     * Only a project manager may insert into this table — enforced by a
+     * trigger, not just by the admin page (see migration 0012).
+     */
+    invitedAt: timestamp("invited_at", { withTimezone: true }),
+    invitedBy: integer("invited_by").references((): AnyPgColumn => users.uid, {
+      onDelete: "set null",
+    }),
+    clerkInvitationId: text("clerk_invitation_id"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -175,6 +208,54 @@ export const users = pgTable(
     // Three digits then the checksum letter. Rejects a full NRIC outright, so
     // one cannot arrive through a stray import, a seed script or a fixture.
     check("users_ic_last4_format", sql`${table.icLast4} ~ '^[0-9]{3}[A-Za-z]$'`),
+  ]
+);
+
+// ------------------------------------------------------- account requests
+
+/**
+ * Someone who signed up through Clerk by themselves and is asking for access.
+ *
+ * Kept apart from users on purpose: a row in users is an account, and an
+ * account exists only once a project manager has said so. Until then the
+ * person can sign in to Clerk but the app shows them nothing except "waiting
+ * for approval". On approval a users row is created from this one and linked
+ * through grantedUid.
+ */
+export const accountRequests = pgTable(
+  "account_requests",
+  {
+    requestId: serial("request_id").primaryKey(),
+
+    /** The Clerk identity asking. Verified by Clerk before this row exists. */
+    clerkUserId: text("clerk_user_id").notNull(),
+    email: varchar("email", { length: 320 }).notNull(),
+
+    fullName: text("full_name").notNull(),
+    /** What they asked to be. The approving PM may grant something else. */
+    requestedType: userTypeEnum("requested_type").notNull(),
+    contactNo: varchar("contact_no", { length: 32 }),
+    icLast4: varchar("ic_last4", { length: 4 }),
+    address: text("address"),
+    postalCode: varchar("postal_code", { length: 6 }),
+    /** Free text from the requester — "I'm with ABC Electrical", say. */
+    note: text("note"),
+
+    status: accountRequestStatusEnum("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: integer("decided_by").references(() => users.uid, { onDelete: "set null" }),
+    decisionNote: text("decision_note"),
+    grantedUid: integer("granted_uid").references(() => users.uid, { onDelete: "set null" }),
+  },
+  (table) => [
+    // One open request per person; a rejected one can be followed by another.
+    uniqueIndex("account_requests_one_pending_idx")
+      .on(table.clerkUserId)
+      .where(sql`${table.status} = 'pending'`),
+    index("account_requests_status_idx").on(table.status, table.createdAt),
+    check("account_requests_ic_last4_format", sql`${table.icLast4} ~ '^[0-9]{3}[A-Za-z]$'`),
   ]
 );
 
@@ -233,7 +314,12 @@ export const projects = pgTable("projects", {
   panelQuantityEstimate: integer("panel_quantity_estimate"),
   panelQuantityActual: integer("panel_quantity_actual"),
 
-  /** Watt-peak per panel. Stored as an integer; see README on units. */
+  /**
+   * Watts per panel, not kilowatts and not the system total.
+   * (Left as panel_capacity rather than panel_capacity_w: renaming a column
+   * makes drizzle-kit ask whether it is a rename or a new column, which needs
+   * an interactive prompt. Not worth it for a suffix.)
+   */
   panelCapacity: integer("panel_capacity"),
 
   inverterToOrder: text("inverter_to_order"),
@@ -259,7 +345,15 @@ export const projects = pgTable("projects", {
   retailerContractEndDate: date("retailer_contract_end_date"),
 
   // ---- SP Group ----------------------------------------------------------
-  spApplicationStatus: boolean("sp_application_status"),
+  /**
+   * 1 = submitted to LEW, 2 = LEW submitted to SP, 3 = unchecked.
+   *
+   * NOT NULL defaulting to 3 on purpose: if null were also allowed there would
+   * be two ways to say "not started", and every report would have to handle
+   * both. A CHECK constraint (added in migration 0010 by hand) rejects any
+   * value other than 1, 2 or 3.
+   */
+  spApplicationStatus: integer("sp_application_status").notNull().default(3),
   spSubmissionDate: date("sp_submission_date"),
   pvlReceivedDate: date("pvl_received_date"),
   preInspectionDate: date("pre_inspection_date"),
@@ -268,7 +362,6 @@ export const projects = pgTable("projects", {
   spTurnOnInspectionDate: date("sp_turn_on_inspection_date"),
 
   // ---- handover ----------------------------------------------------------
-  asBuiltPvLayout: boolean("as_built_pv_layout"),
   fusionSolarAppAccess: boolean("fusion_solar_app_access"),
 
   // ---- workflow ----------------------------------------------------------
@@ -716,4 +809,7 @@ export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ElectricityRetailer = typeof electricityRetailers.$inferSelect;
 export type ProjectFile = typeof projectFiles.$inferSelect;
+export type AccountRequest = typeof accountRequests.$inferSelect;
+export type UserType = (typeof userTypeEnum.enumValues)[number];
+export type FileCategory = (typeof fileCategoryEnum.enumValues)[number];
 export type NewProjectFile = typeof projectFiles.$inferInsert;

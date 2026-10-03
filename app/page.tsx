@@ -1,6 +1,9 @@
 import { currentUser } from "@clerk/nextjs/server";
 import { SignOutButton } from "@clerk/nextjs";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
+import { type AccountState, ROLE_LABEL, resolveAccount } from "@/lib/account";
 import { checkAuth } from "@/lib/auth-check";
 import { checkDatabase } from "@/lib/db";
 
@@ -12,6 +15,16 @@ export default async function Home() {
   // The middleware already requires a session to reach this page, so a null
   // user here would mean Clerk is misconfigured rather than signed out.
   const user = auth.ok ? await currentUser() : null;
+
+  // Signing in to Clerk is not the same as having an account. Anyone without
+  // an active one is sent to request access — unless the database itself is
+  // down, in which case this diagnostic page is exactly what is needed.
+  let account: AccountState | null = null;
+  if (db.ok && auth.ok) {
+    account = await resolveAccount();
+    if (account.state !== "active") redirect("/onboarding");
+  }
+  const me = account?.state === "active" ? account.user : null;
   const onVercel = Boolean(process.env.VERCEL);
   const env = process.env.VERCEL_ENV ?? "local";
   const commit = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null;
@@ -26,6 +39,12 @@ export default async function Home() {
           Three links in the chain. All three have to be green before the real
           app is worth building on top.
         </p>
+        {me && (
+          <nav className="nav">
+            <span className="pill ok">{ROLE_LABEL[me.userType]}</span>
+            {me.userType === "project_manager" && <Link href="/admin/users">Accounts</Link>}
+          </nav>
+        )}
       </header>
 
       <section className="checks">

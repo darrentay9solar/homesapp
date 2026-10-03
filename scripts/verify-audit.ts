@@ -73,16 +73,16 @@ async function main() {
       afterUpdate[0]?.changes?.full_name?.to === "Audit Probe Renamed"
   );
 
-  // ---- the application role cannot read the log ------------------------
-  let appCanRead = false;
-  let denial = "";
-  try {
-    await app`select 1 from audit_log limit 1`;
-    appCanRead = true;
-  } catch (err) {
-    denial = (err as Error).message.split("\n")[0];
-  }
-  record("app role CANNOT read audit_log", !appCanRead, denial);
+  // ---- the application role sees nothing without a PM actor ------------
+  // Since migration 0003 the rule is row level security, not a missing grant:
+  // the query succeeds and returns no rows. verify-audit-rls covers the
+  // PM-versus-everyone-else cases in full.
+  const visible = (await app`select count(*)::int as n from audit_log`) as Array<{ n: number }>;
+  record(
+    "app role sees NO entries without a PM actor",
+    visible[0].n === 0,
+    `${visible[0].n} visible`
+  );
 
   // ---- nor write to it directly ----------------------------------------
   let appCanWrite = false;

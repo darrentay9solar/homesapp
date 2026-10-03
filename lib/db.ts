@@ -29,6 +29,33 @@ export function sql() {
   return neon(databaseUrl());
 }
 
+type Sql = ReturnType<typeof sql>;
+type Query = ReturnType<Sql>;
+
+/**
+ * Runs statements as a particular person, so the audit log attributes them
+ * and the database's own rules (only a PM may create accounts, and so on)
+ * judge them.
+ *
+ * The HTTP driver opens a fresh connection per call, so a plain SET would be
+ * gone by the next statement. A transaction keeps one connection, and
+ * set_config(..., true) scopes the setting to it — it cannot leak into
+ * another request. Returns the result of the last statement.
+ *
+ * `uid` null runs with no actor, which the database treats as nobody.
+ */
+export async function asActor<T = Record<string, unknown>>(
+  uid: number | null,
+  build: (tx: Sql) => Query[]
+): Promise<T[]> {
+  const db = sql();
+  const results = await db.transaction((tx) => [
+    tx`select set_config('app.actor_uid', ${uid === null ? "" : String(uid)}, true)`,
+    ...build(tx as unknown as Sql),
+  ]);
+  return results[results.length - 1] as T[];
+}
+
 /**
  * A short, stable hash of the Neon endpoint hostname.
  *

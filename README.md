@@ -81,6 +81,23 @@ Recreate or rotate the app role with `npm run db:app-role`.
 | `npm run db:roles` | lists roles and databases that actually exist |
 | `npm run db:rotate` | rotates the password in `MIGRATION_DATABASE_URL`'s role |
 | `npm run db:app-role` | creates/rotates the least-privilege runtime role |
+| `npm run db:status` | which migrations a branch has applied |
+| `npm run db:bootstrap-pm -- --email=… --name="…"` | creates the first project manager (add `--prod --confirm` for production) |
+| `npm run db:verify-accounts` | proves only PMs can create/approve accounts |
+| `npm run db:verify-geofence` | proves the 100 m check-in fence, including tamper cases |
+| `npm run db:verify-fields` | checks the SP status / As Built PV Layout field decisions |
+
+## Accounts
+
+Only a project manager can create an account (`/admin/users`); the database
+refuses anyone else, whatever the app does. People can also sign up through
+Clerk themselves: they land on `/onboarding`, ask for a role, and wait until a
+PM approves. Signing in to Clerk alone grants nothing.
+
+The very first PM has to come from outside the app — `npm run db:bootstrap-pm`.
+
+Setup guides: [file storage (R2)](docs/r2.md) ·
+[email and WhatsApp](docs/whatsapp.md).
 
 None of these print a password. `db:check` reports the connection string's
 *shape* — host, database, user, sslmode, password length — so a broken string

@@ -35,8 +35,16 @@ jobs:
 
       # The reason this workflow exists. Vercel refused a deploy over a Next.js
       # CVE that nothing in the repo would otherwise have caught.
-      - name: Audit dependencies
-        run: npm audit --audit-level=high
+      #
+      # Gates on what ships. Dev tooling is reported but not blocking: in
+      # October 2026 `braces` (pulled in by eslint-config-next) gained a high
+      # advisory with no patched version, which would otherwise block every
+      # push over code that never reaches a user.
+      - name: Audit dependencies (shipped)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Audit dependencies (dev tooling, report only)
+        run: npm audit --audit-level=high || true
 
       # No DATABASE_URL on purpose: the build must not depend on a live
       # database, or a Neon outage becomes a deploy outage.

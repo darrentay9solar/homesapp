@@ -71,6 +71,34 @@
       "when": 1790929351012,
       "tag": "0009_signature_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790930993589,
+      "tag": "0010_field_decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790955652330,
+      "tag": "0011_account_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790955681681,
+      "tag": "0012_account_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790956154527,
+      "tag": "0013_geofence_hardening",
+      "breakpoints": true
     }
   ]
 }

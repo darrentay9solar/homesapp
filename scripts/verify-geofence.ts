@@ -44,6 +44,12 @@ async function main() {
     insert into users (email, user_type, full_name)
     values (${`geo-${stamp}@example.com`}, 'epc_team', ${"Crew Lead"}) returning uid
   `) as Array<{ uid: number }>;
+  // Only one open check-in per person per site is allowed, so each accepted
+  // attempt below that is not checked out needs its own crew member.
+  const [u2] = (await sql`
+    insert into users (email, user_type, full_name)
+    values (${`geo2-${stamp}@example.com`}, 'contractor', ${"Second Crew"}) returning uid
+  `) as Array<{ uid: number }>;
 
   const [p] = (await sql`
     insert into projects (address, postal_code, site_lat, site_lng,
@@ -58,12 +64,13 @@ async function main() {
     label: string,
     lat: number | null,
     lng: number | null,
-    accuracy: number | null
+    accuracy: number | null,
+    userId: number = u.uid
   ) => {
     try {
       const rows = (await sql`
         insert into site_check_ins (project_id, user_id, crew_in, lat, lng, accuracy_m)
-        values (${p.project_id}, ${u.uid}, 4, ${lat}, ${lng}, ${accuracy})
+        values (${p.project_id}, ${userId}, 4, ${lat}, ${lng}, ${accuracy})
         returning check_in_id, distance_m
       `) as Array<{ check_in_id: number; distance_m: number }>;
       return { ok: true, id: rows[0].check_in_id, distance: rows[0].distance_m, error: "" };
@@ -104,7 +111,7 @@ async function main() {
   // Just over the line, to confirm the boundary is where it should be.
   const justOut = await attempt("105 m away", metresNorth(geo.lat, 105), geo.lng, 8);
   rec("105 m away is BLOCKED", !justOut.ok);
-  const justIn = await attempt("95 m away", metresNorth(geo.lat, 95), geo.lng, 8);
+  const justIn = await attempt("95 m away", metresNorth(geo.lat, 95), geo.lng, 8, u2.uid);
   rec("95 m away is ACCEPTED", justIn.ok, justIn.ok ? `${justIn.distance?.toFixed(1)} m` : justIn.error);
 
   // ---- weak or missing fixes -------------------------------------------
@@ -158,6 +165,56 @@ async function main() {
   }
   rec("check-out on site is ACCEPTED", checkoutNearOk, checkoutDist ? `${checkoutDist.toFixed(1)} m` : "");
 
+  // ---- tampering after the fact (migration 0013) ------------------------
+  const refused = async (q: Promise<unknown>) => {
+    try {
+      await q;
+      return { refused: false, msg: "" };
+    } catch (err) {
+      return { refused: true, msg: err instanceof Error ? err.message.split("\n")[0] : String(err) };
+    }
+  };
+
+  const moveCheckout = await refused(sql`
+    update site_check_ins set checked_out_at = now() - interval '3 hours'
+     where check_in_id = ${inside.id}`);
+  rec("completed check-out cannot be moved", moveCheckout.refused, moveCheckout.msg);
+
+  const moveCheckIn = await refused(sql`
+    update site_check_ins set lat = ${far.lat} where check_in_id = ${justIn.id}`);
+  rec("check-in location cannot be edited", moveCheckIn.refused, moveCheckIn.msg);
+
+  const crewFix = await refused(sql`
+    update site_check_ins set crew_in = 5 where check_in_id = ${justIn.id}`);
+  rec("crew count CAN be corrected", !crewFix.refused, crewFix.msg);
+
+  const double = await attempt("second open check-in", near.lat, near.lng, 8, u2.uid);
+  rec("second open check-in is BLOCKED", !double.ok, double.error);
+
+  // A phone that claims it arrived at 6 am. The database's clock wins.
+  const [backdated] = (await sql`
+    insert into site_check_ins (project_id, user_id, crew_in, lat, lng, accuracy_m, checked_in_at)
+    values (${p.project_id}, ${u.uid}, 3, ${near.lat}, ${near.lng}, 8, now() - interval '5 hours')
+    returning check_in_id, extract(epoch from (now() - checked_in_at))::int as age_s
+  `) as Array<{ check_in_id: number; age_s: number }>;
+  rec("client-supplied time is ignored", backdated.age_s < 60, `${backdated.age_s}s old`);
+
+  const preCheckedOut = await refused(sql`
+    insert into site_check_ins (project_id, user_id, crew_in, lat, lng, accuracy_m,
+                                checked_out_at, crew_out, checkout_lat, checkout_lng, checkout_accuracy_m)
+    values (${p.project_id}, ${u2.uid}, 3, ${near.lat}, ${near.lng}, 8,
+            now(), 3, ${far.lat}, ${far.lng}, 8)`);
+  rec("insert already checked out is BLOCKED", preCheckedOut.refused, preCheckedOut.msg);
+
+  // ---- a new postal code clears the old fence ---------------------------
+  const [moved] = (await sql`
+    update projects set postal_code = '560123' where project_id = ${p.project_id}
+    returning site_lat, geocoded_at`) as Array<{ site_lat: number | null; geocoded_at: string | null }>;
+  rec(
+    "postal change clears stale coordinates",
+    moved.site_lat === null && moved.geocoded_at === null
+  );
+
   // ---- the two implementations agree ------------------------------------
   const tsDistance = distanceMetres(geo.lat, geo.lng, near.lat, near.lng);
   rec(
@@ -167,11 +224,11 @@ async function main() {
   );
 
   await sql`delete from projects where project_id in (${p.project_id}, ${bare.project_id})`;
-  await sql`delete from users where uid = ${u.uid}`;
+  await sql`delete from users where uid in (${u.uid}, ${u2.uid})`;
 
   console.log("\nGeofence enforcement\n" + "=".repeat(72));
   for (const [n, pass, d] of out) {
-    console.log(`  ${pass ? "ok  " : "FAIL"}  ${n.padEnd(36)}${d}`);
+    console.log(`  ${pass ? "ok  " : "FAIL"}  ${n.padEnd(44)}${d}`);
   }
   const failed = out.filter(([, pass]) => !pass).length;
   console.log("=".repeat(72));
