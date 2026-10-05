@@ -2289,11 +2289,9 @@ button.urow:hover {
   justify-content: center;
 }
 
-/* Desktop-only pieces. Phones and tablets use the back arrow in the green
-   header instead of the separate Back button. */
+/* Desktop-only pieces. */
 .auth-side,
 .deskbar,
-.deskback,
 .mainwaves {
   display: none;
 }
@@ -2402,25 +2400,7 @@ button.urow:hover {
     font-weight: 600;
   }
 
-  .deskback {
-    align-self: flex-start;
-    margin-bottom: 22px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 36px;
-    padding: 0 12px 0 8px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--tx-2);
-  }
 
-  .deskback:hover {
-    color: var(--tx);
-    border-color: var(--hair-hi);
-  }
 
   .auth .content {
     padding: 0;
@@ -2761,14 +2741,12 @@ button.urow:hover {
     color: rgba(255, 255, 255, 0.72);
   }
 
-  .card-auth .deskbar .icobtn,
-  .card-auth .deskback {
+  .card-auth .deskbar .icobtn {
     color: #fff;
     border-color: rgba(255, 255, 255, 0.4);
   }
 
-  .card-auth .deskbar .icobtn:hover,
-  .card-auth .deskback:hover {
+  .card-auth .deskbar .icobtn:hover {
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
     border-color: rgba(255, 255, 255, 0.7);
@@ -2921,10 +2899,6 @@ button.urow:hover {
     padding-bottom: 56px;
   }
 
-  .auth.compact .deskback {
-    align-self: center;
-    margin-bottom: 18px;
-  }
 
   .auth.compact .card-auth h2 {
     text-align: center;

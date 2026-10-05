@@ -55,12 +55,6 @@ export function AuthShell({
           </span>
           <ThemeButton />
         </div>
-        {goBack && (
-          <button className="deskback" onClick={goBack}>
-            <I.back size={16} />
-            Back
-          </button>
-        )}
         <div className="band">
           {/* Left edge lower, right edge higher — as in the template. */}
           <svg className="wave" viewBox="0 0 440 176" preserveAspectRatio="none" aria-hidden="true">
