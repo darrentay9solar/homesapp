@@ -9,6 +9,7 @@ import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
 import GroupAddRoundedIcon from "@mui/icons-material/GroupAddRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
+import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
@@ -17,6 +18,7 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
 import Alert from "@mui/material/Alert";
 import AvatarGroup from "@mui/material/AvatarGroup";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
@@ -42,11 +44,12 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
-import { MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, SectionTitle } from "@/components/m";
-import { Header, Page } from "@/components/shell";
+import { MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip } from "@/components/m";
+import { Page } from "@/components/shell";
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
@@ -92,11 +95,11 @@ const TABS: Array<[Role | "all", string]> = [
 const STATUS_LABEL: Record<Status, string> = { active: "Active", invited: "Invited", disabled: "Disabled" };
 const HERO_BG = "linear-gradient(145deg, #0E7F53 0%, #0A5C3E 55%, #073f2b 100%)";
 
-/** Three columns on desktop, two on tablets, one on phones. */
+/** One card per row on phones and tablets; two per row on desktop. */
 const GRID = {
   display: "grid",
-  gap: 2,
-  gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))" },
+  gap: { xs: 1.25, lg: 2 },
+  gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "repeat(2, minmax(0, 1fr))" },
 } as const;
 
 type DialogState =
@@ -154,148 +157,107 @@ export default function PeoplePage() {
   const shown = filterPeople(searchable, { query: q, role, status });
   const count = (r: Role | "all") => searchable.filter((u) => r === "all" || u.role === r).length;
   const filtering = q.trim() !== "" || role !== "all" || status !== "all";
+  const tabLabel = TABS.find(([v]) => v === role)?.[1] ?? "All";
   const close = () => setDialog(null);
 
   return (
     <>
-      <Header
+      {/* Green header, after the reference's "My Task" screen. */}
+      <TopBar
         title="People"
-        sub="Accounts & contractor groups"
-        right={
-          <Button
-            variant="contained"
-            startIcon={<PersonAddAlt1RoundedIcon />}
-            onClick={() => setDialog({ kind: "newuser" })}
-            sx={{ display: { xs: "none", sm: "inline-flex" } }}
-          >
-            New account
-          </Button>
+        onAdd={() => setDialog({ kind: "newuser" })}
+        search={
+          <Stack direction="row" sx={{ gap: 1 }}>
+            <SearchBox value={q} onChange={setQ} />
+            <StatusMenu value={status} onChange={setStatus} />
+          </Stack>
         }
+        tabs={<SegTabs value={role} onChange={setRole} options={TABS.map(([v, l]) => ({ value: v, label: l, count: count(v) }))} />}
       />
-      <Page>
-        {error && (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {error.message}
-          </Alert>
-        )}
-        {!data && !error && <Loading />}
 
-        {data && (
-          <>
-            {/* ------------------------------------------------ hero */}
-            <Hero>
-              <Typography sx={{ fontWeight: 600, fontSize: { xs: 18, md: 22 } }}>Everyone at 9 Solar Home</Typography>
-              <Typography sx={{ opacity: 0.75, fontSize: 13 }}>
-                {data.users.filter((u) => u.active).length} active accounts · {data.groups.length} contractor groups
-              </Typography>
+      {/* The light panel that slides over the green. */}
+      <Box sx={{ mt: "-18px", position: "relative", borderRadius: "22px 22px 0 0", bgcolor: "background.default", flex: 1 }}>
+        <Page>
+          {error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {error.message}
+            </Alert>
+          )}
+          {!data && !error && <Loading />}
 
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", my: 2.5 }}>
-                <Stat n={count("homeowner")} label="Homeowners" />
-                <Stat n={count("contractor") + count("epc_team")} label="Contractors & EPC" divider />
-                <Stat n={count("project_manager")} label="Project managers" divider />
-                <Stat n={data.requests.length} label="Waiting approval" divider highlight={data.requests.length > 0} />
-              </Box>
+          {data && (
+            <>
+              {data.requests.length > 0 && !filtering && (
+                <>
+                  <Heading title="Waiting for approval" count={data.requests.length} />
+                  <Box sx={GRID}>
+                    {data.requests.map((r) => (
+                      <RequestCard key={r.id} r={r} onReview={() => setDialog({ kind: "review", id: r.id })} />
+                    ))}
+                  </Box>
+                </>
+              )}
 
-              <Stack direction="row" sx={{ gap: 1, alignItems: "center" }}>
-                <SearchBox value={q} onChange={setQ} />
-                <StatusMenu value={status} onChange={setStatus} />
-              </Stack>
-              <SegTabs value={role} onChange={setRole} options={TABS.map(([v, l]) => ({ value: v, label: l, count: count(v) }))} />
-            </Hero>
-
-            {/* -------------------------------------------- requests */}
-            {data.requests.length > 0 && (
-              <>
-                <SectionTitle title="Waiting for approval" count={data.requests.length} />
-                <Box sx={GRID}>
-                  {data.requests.map((r) => (
-                    <RequestCard key={r.id} r={r} onReview={() => setDialog({ kind: "review", id: r.id })} />
+              <Heading
+                title={role === "all" ? "All people" : tabLabel}
+                count={shown.length}
+                action={
+                  filtering && (
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setQ("");
+                        setRole("all");
+                        setStatus("all");
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  )
+                }
+              />
+              {shown.length === 0 ? (
+                <Card sx={{ p: 4, textAlign: "center" }} data-testid="people-empty">
+                  <SearchRoundedIcon sx={{ fontSize: 36, color: "text.disabled" }} />
+                  <Typography sx={{ fontWeight: 600, mt: 1 }}>Nobody matches</Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+                    Try a name, email, phone, role, group or status — e.g. &ldquo;apex epc&rdquo;.
+                  </Typography>
+                </Card>
+              ) : (
+                <Box sx={GRID} data-testid="people-grid">
+                  {shown.map((u) => (
+                    <PersonCard key={u.uid} person={u} groupNames={u.groupNames} onOpen={() => setDialog({ kind: "person", uid: u.uid })} />
                   ))}
                 </Box>
-              </>
-            )}
+              )}
 
-            {/* -------------------------------------------- accounts */}
-            <SectionTitle
-              title={filtering ? `Showing ${shown.length} of ${data.users.length}` : "All accounts"}
-              count={filtering ? undefined : data.users.length}
-              action={
-                filtering && (
-                  <Button
-                    size="small"
-                    onClick={() => {
-                      setQ("");
-                      setRole("all");
-                      setStatus("all");
-                    }}
-                  >
-                    Clear filters
-                  </Button>
-                )
-              }
-            />
-            {shown.length === 0 ? (
-              <Card sx={{ p: 5, textAlign: "center" }} data-testid="people-empty">
-                <SearchRoundedIcon sx={{ fontSize: 40, color: "text.disabled" }} />
-                <Typography sx={{ fontWeight: 600, mt: 1 }}>Nobody matches</Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-                  Search by name, email, phone, role, group or status — e.g. &ldquo;apex epc&rdquo; or &ldquo;invited&rdquo;.
-                </Typography>
-              </Card>
-            ) : (
-              <Box sx={GRID} data-testid="people-grid">
-                {shown.map((u) => (
-                  <PersonCard key={u.uid} person={u} groupNames={u.groupNames} onOpen={() => setDialog({ kind: "person", uid: u.uid })} />
-                ))}
-              </Box>
-            )}
-
-            {/* ---------------------------------------------- groups */}
-            <SectionTitle
-              title="Contractor groups"
-              count={data.groups.length}
-              action={
-                <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDialog({ kind: "newgroup" })}>
-                  New group
-                </Button>
-              }
-            />
-            {data.groups.length === 0 ? (
-              <Card sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>No groups yet.</Card>
-            ) : (
-              <Box sx={GRID}>
-                {data.groups.map((g) => (
-                  <GroupCard key={g.id} group={g} byId={byId} reload={reload} onAdd={() => setDialog({ kind: "addmember", id: g.id })} />
-                ))}
-              </Box>
-            )}
-            <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 2 }}>
-              Moving someone between groups changes which projects they can open. Every change is written to the audit log.
-            </Typography>
-          </>
-        )}
-      </Page>
-
-      {/* Phones: floating "new account" button. */}
-      <Button
-        variant="contained"
-        aria-label="New account"
-        onClick={() => setDialog({ kind: "newuser" })}
-        sx={{
-          display: { xs: "inline-flex", sm: "none" },
-          position: "fixed",
-          right: 16,
-          bottom: "calc(80px + env(safe-area-inset-bottom))",
-          minWidth: 0,
-          width: 56,
-          height: 56,
-          borderRadius: "16px",
-          boxShadow: 6,
-          zIndex: 5,
-        }}
-      >
-        <PersonAddAlt1RoundedIcon />
-      </Button>
+              {!filtering && (
+                <>
+                  <Heading
+                    title="Contractor groups"
+                    count={data.groups.length}
+                    action={
+                      <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDialog({ kind: "newgroup" })}>
+                        New group
+                      </Button>
+                    }
+                  />
+                  {data.groups.length === 0 ? (
+                    <Card sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>No groups yet.</Card>
+                  ) : (
+                    <Box sx={GRID}>
+                      {data.groups.map((g) => (
+                        <GroupCard key={g.id} group={g} byId={byId} reload={reload} onAdd={() => setDialog({ kind: "addmember", id: g.id })} />
+                      ))}
+                    </Box>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </Page>
+      </Box>
 
       {data && dialog?.kind === "review" && data.requests.find((r) => r.id === dialog.id) && (
         <ReviewDialog request={data.requests.find((r) => r.id === dialog.id)!} reload={reload} onClose={close} />
@@ -312,55 +274,64 @@ export default function PeoplePage() {
   );
 }
 
-// ---------------------------------------------------------------- hero
+// ---------------------------------------------------------- top bar
 
-/** The green header panel, from the reference: stats, search and filter tabs. */
-function Hero({ children }: { children: ReactNode }) {
+/**
+ * The compact green header: title with "New" and alerts, then search, then
+ * the pill tabs. Scrolls away with the page so it never takes over a phone.
+ */
+function TopBar({ title, onAdd, search, tabs }: { title: string; onAdd: () => void; search: ReactNode; tabs: ReactNode }) {
+  const { me } = useApp();
+  const unread = me?.unread ?? 0;
   return (
     <Box
+      component="header"
       sx={{
-        mt: 2,
-        p: { xs: 2.25, md: 3.5 },
-        borderRadius: "24px",
-        color: "#fff",
-        position: "relative",
-        overflow: "hidden",
         background: HERO_BG,
-        boxShadow: "0 24px 50px -30px rgba(7, 63, 43, 0.9)",
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          width: 340,
-          height: 340,
-          borderRadius: "50%",
-          right: -120,
-          top: -160,
-          background: "rgba(255,255,255,0.06)",
-        },
-        "& > *": { position: "relative" },
+        color: "#fff",
+        px: { xs: 2, sm: 3, lg: 4 },
+        pt: { xs: "calc(10px + env(safe-area-inset-top))", lg: 3 },
+        pb: "30px",
       }}
     >
-      {children}
+      <Box sx={{ maxWidth: 1240 }}>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1, minHeight: 44 }}>
+          <Typography component="h1" sx={{ flex: 1, fontWeight: 600, fontSize: { xs: 20, lg: 24 } }}>
+            {title}
+          </Typography>
+          <Button
+            onClick={onAdd}
+            startIcon={<PersonAddAlt1RoundedIcon />}
+            sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}
+          >
+            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+              New account
+            </Box>
+            <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+              New
+            </Box>
+          </Button>
+          <IconButton component={Link} href="/alerts" aria-label={unread ? `${unread} unread alerts` : "Alerts"} sx={{ color: "#fff" }}>
+            <Badge color="warning" variant="dot" invisible={!unread}>
+              <NotificationsRoundedIcon />
+            </Badge>
+          </IconButton>
+        </Stack>
+        <Box sx={{ mt: 1 }}>{search}</Box>
+        {tabs}
+      </Box>
     </Box>
   );
 }
 
-function Stat({ n, label, divider, highlight }: { n: number; label: string; divider?: boolean; highlight?: boolean }) {
+function Heading({ title, count, action }: { title: string; count?: number; action?: ReactNode }) {
   return (
-    <Box sx={{ pl: divider ? { xs: 1.25, md: 2.5 } : 0, borderLeft: divider ? "1px solid rgba(255,255,255,0.18)" : 0, minWidth: 0 }}>
-      <Typography
-        sx={{
-          fontWeight: 600,
-          fontSize: { xs: 28, md: 40 },
-          lineHeight: 1.1,
-          color: highlight ? "#FFD27A" : "#7EF0B8",
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {String(n).padStart(2, "0")}
-      </Typography>
-      <Typography sx={{ fontSize: { xs: 11, md: 13 }, opacity: 0.85, mt: 0.5, lineHeight: 1.3 }}>{label}</Typography>
-    </Box>
+    <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 2.5, mb: 1.25 }}>
+      <Typography sx={{ fontWeight: 600, fontSize: { xs: 17, lg: 19 } }}>{title}</Typography>
+      {count !== undefined && <Chip size="small" label={count} sx={{ height: 20, fontSize: 11 }} />}
+      <Box sx={{ flex: 1 }} />
+      {action}
+    </Stack>
   );
 }
 
@@ -372,33 +343,33 @@ function SearchBox({ value, onChange }: { value: string; onChange: (v: string) =
         minWidth: 0,
         display: "flex",
         alignItems: "center",
-        gap: 1,
-        px: 1.5,
-        height: 48,
-        borderRadius: "14px",
+        gap: 0.75,
+        px: 1.25,
+        height: 40,
+        borderRadius: "12px",
         bgcolor: "rgba(255,255,255,0.12)",
-        border: "1px solid rgba(255,255,255,0.22)",
-        "&:focus-within": { bgcolor: "rgba(255,255,255,0.18)", borderColor: "rgba(255,255,255,0.6)" },
+        border: "1px solid rgba(255,255,255,0.2)",
+        "&:focus-within": { bgcolor: "rgba(255,255,255,0.18)", borderColor: "rgba(255,255,255,0.55)" },
       }}
     >
-      <SearchRoundedIcon sx={{ opacity: 0.8 }} />
+      <SearchRoundedIcon sx={{ fontSize: 20, opacity: 0.8 }} />
       <InputBase
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search name, email, phone, role, group…"
+        placeholder="Search people"
         inputProps={{ "aria-label": "Search people", "data-testid": "people-search" }}
-        sx={{ flex: 1, minWidth: 0, color: "#fff", fontSize: 16, "& input::placeholder": { color: "rgba(255,255,255,0.6)", opacity: 1 } }}
+        sx={{ flex: 1, minWidth: 0, color: "#fff", fontSize: 16, "& input::placeholder": { color: "rgba(255,255,255,0.65)", opacity: 1 } }}
       />
       {value && (
-        <IconButton size="small" aria-label="Clear search" onClick={() => onChange("")} sx={{ color: "#fff" }}>
-          <CloseRoundedIcon fontSize="small" />
+        <IconButton size="small" aria-label="Clear search" onClick={() => onChange("")} sx={{ color: "#fff", p: 0.5 }}>
+          <CloseRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       )}
     </Box>
   );
 }
 
-/** Status filter. Icon only on phones (it would crowd the search box), labelled on wider screens. */
+/** Status filter: a 40px icon button, labelled on desktop. */
 function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: Status | "all") => void }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const label = value === "all" ? "Any status" : STATUS_LABEL[value];
@@ -408,19 +379,19 @@ function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: 
         onClick={(e) => setAnchor(e.currentTarget)}
         aria-label={`Status filter: ${label}`}
         sx={{
-          height: 48,
-          minWidth: 48,
-          px: { xs: 0, sm: 2 },
-          gap: 1,
+          height: 40,
+          minWidth: 40,
+          px: { xs: 0, lg: 1.5 },
+          gap: 0.75,
           flex: "0 0 auto",
           color: "#fff",
-          borderRadius: "14px",
-          border: "1px solid rgba(255,255,255,0.22)",
-          bgcolor: value === "all" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.26)",
+          borderRadius: "12px",
+          border: "1px solid rgba(255,255,255,0.2)",
+          bgcolor: value === "all" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.28)",
         }}
       >
-        <FilterListRoundedIcon />
-        <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+        <FilterListRoundedIcon sx={{ fontSize: 20 }} />
+        <Box component="span" sx={{ display: { xs: "none", lg: "inline" }, fontSize: 13 }}>
           {label}
         </Box>
       </Button>
@@ -443,9 +414,8 @@ function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: 
 }
 
 /**
- * Pill tabs in a translucent track (the reference's "All / Pending / Ongoing").
- * Scrolls sideways when the tabs don't fit — on a narrow phone — with a fade
- * at the edge as a cue, and keeps the chosen tab in view.
+ * Pill tabs in a translucent track (the reference's "All / Pending / Ongoing /
+ * Completed"). Slides sideways if they don't fit, keeping the chosen tab in view.
  */
 function SegTabs<T extends string>({
   value,
@@ -462,82 +432,52 @@ function SegTabs<T extends string>({
   }, [value]);
   return (
     <Box
+      ref={track}
+      role="tablist"
+      aria-label="Filter by role"
       sx={{
-        mt: 1.5,
-        position: "relative",
-        borderRadius: "14px",
-        bgcolor: "rgba(0,0,0,0.18)",
+        mt: 1,
+        display: "flex",
+        gap: 0.25,
+        p: "3px",
+        borderRadius: "12px",
+        bgcolor: "rgba(0,0,0,0.2)",
         border: "1px solid rgba(255,255,255,0.14)",
-        overflow: "hidden",
-        "&::after": {
-          content: '""',
-          position: "absolute",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: 28,
-          pointerEvents: "none",
-          background: "linear-gradient(90deg, transparent, rgba(7,63,43,0.9))",
-          display: { md: "none" },
-        },
+        overflowX: "auto",
+        scrollbarWidth: "none",
+        "&::-webkit-scrollbar": { display: "none" },
       }}
     >
-      <Box
-        ref={track}
-        role="tablist"
-        aria-label="Filter by role"
-        sx={{
-          display: "flex",
-          gap: 0.5,
-          p: 0.5,
-          pr: { xs: 3, md: 0.5 },
-          overflowX: "auto",
-          scrollSnapType: "x proximity",
-          scrollbarWidth: "none",
-          "&::-webkit-scrollbar": { display: "none" },
-        }}
-      >
-        {options.map((o) => {
-          const on = o.value === value;
-          return (
-            <ButtonBase
-              key={o.value}
-              role="tab"
-              aria-selected={on}
-              onClick={() => onChange(o.value)}
-              sx={{
-                flex: { xs: "0 0 auto", md: 1 },
-                scrollSnapAlign: "start",
-                gap: 0.75,
-                px: 1.75,
-                height: 40,
-                borderRadius: "10px",
-                fontFamily: "inherit",
-                fontSize: 13.5,
-                fontWeight: on ? 600 : 500,
-                color: on ? "#073f2b" : "rgba(255,255,255,0.85)",
-                bgcolor: on ? "#fff" : "transparent",
-                transition: "background-color .18s, color .18s",
-                "&:hover": { bgcolor: on ? "#fff" : "rgba(255,255,255,0.1)" },
-              }}
-            >
-              {o.label}
-              <Box
-                component="span"
-                sx={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  px: 0.75,
-                  borderRadius: "6px",
-                  bgcolor: on ? alpha("#0A9A63", 0.14) : "rgba(255,255,255,0.14)",
-                }}
-              >
-                {o.count}
-              </Box>
-            </ButtonBase>
-          );
-        })}
-      </Box>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <ButtonBase
+            key={o.value}
+            role="tab"
+            aria-selected={on}
+            onClick={() => onChange(o.value)}
+            sx={{
+              flex: "1 0 auto",
+              gap: 0.5,
+              px: 1.25,
+              height: 32,
+              borderRadius: "9px",
+              fontFamily: "inherit",
+              fontSize: 13,
+              fontWeight: on ? 600 : 500,
+              whiteSpace: "nowrap",
+              color: on ? "#073f2b" : "rgba(255,255,255,0.85)",
+              bgcolor: on ? "#fff" : "transparent",
+              transition: "background-color .18s, color .18s",
+            }}
+          >
+            {o.label}
+            <Box component="span" sx={{ fontSize: 10.5, opacity: 0.7 }}>
+              {o.count}
+            </Box>
+          </ButtonBase>
+        );
+      })}
     </Box>
   );
 }
@@ -545,10 +485,9 @@ function SegTabs<T extends string>({
 function Loading() {
   return (
     <>
-      <Skeleton variant="rounded" height={260} sx={{ mt: 2, borderRadius: "24px" }} />
-      <Box sx={{ ...GRID, mt: 4 }}>
+      <Box sx={{ ...GRID, mt: 3 }}>
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} variant="rounded" height={190} sx={{ borderRadius: "18px" }} />
+          <Skeleton key={i} variant="rounded" height={128} sx={{ borderRadius: "18px" }} />
         ))}
       </Box>
     </>
@@ -573,8 +512,8 @@ function EdgeCard({ color, children, dim }: { color: (t: Theme) => string; child
           content: '""',
           position: "absolute",
           left: 0,
-          top: 16,
-          bottom: 16,
+          top: 12,
+          bottom: 12,
           width: 4,
           borderRadius: "0 4px 4px 0",
           bgcolor: color(t),
@@ -598,9 +537,9 @@ function StatusBadge({ status }: { status: Status }) {
 
 function ContactLine({ icon, text }: { icon: ReactNode; text: string }) {
   return (
-    <Stack direction="row" sx={{ gap: 1, alignItems: "center", color: "text.secondary", minWidth: 0, mt: 0.6 }}>
-      <Box sx={{ display: "grid", flex: "0 0 auto", "& svg": { fontSize: 16 } }}>{icon}</Box>
-      <Typography variant="body2" noWrap>
+    <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", color: "text.secondary", minWidth: 0, mt: 0.25 }}>
+      <Box sx={{ display: "grid", flex: "0 0 auto", "& svg": { fontSize: 15 } }}>{icon}</Box>
+      <Typography variant="body2" noWrap sx={{ fontSize: 13 }}>
         {text}
       </Typography>
     </Stack>
@@ -612,24 +551,24 @@ function PersonCard({ person: u, groupNames, onOpen }: { person: Person; groupNa
   return (
     <EdgeCard color={roleColor(u.role)} dim={!u.active}>
       <CardActionArea onClick={onOpen} data-testid="person-card" sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "stretch" }}>
-        <Box sx={{ p: 2.25, pl: 2.75, flex: 1 }}>
+        <Box sx={{ p: 1.5, pl: 2.25, flex: 1 }}>
           <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1.5 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", color: "text.secondary" }}>
                 <BadgeRoundedIcon sx={{ fontSize: 15 }} />
                 <Typography variant="caption">#{String(u.uid).padStart(4, "0")}</Typography>
               </Stack>
-              <Typography noWrap sx={{ fontWeight: 600, fontSize: 16.5, mt: 0.75 }}>
+              <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
                 {u.fullName ?? u.email}
               </Typography>
               <ContactLine icon={<MailOutlineRoundedIcon />} text={u.email} />
               <ContactLine icon={<PhoneRoundedIcon />} text={u.contactNo ?? "No mobile on file"} />
             </Box>
-            <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={50} />
+            <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={42} />
           </Stack>
         </Box>
         <Divider />
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 2.25, pl: 2.75, py: 1.5 }}>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pl: 2.25, py: 1 }}>
           <RoleChip role={u.role} />
           <Typography variant="caption" noWrap sx={{ color: "text.secondary", flex: 1, minWidth: 0 }}>
             {groupNames.join(", ")}
@@ -644,23 +583,23 @@ function PersonCard({ person: u, groupNames, onOpen }: { person: Person; groupNa
 function RequestCard({ r, onReview }: { r: Request; onReview: () => void }) {
   return (
     <EdgeCard color={(t) => t.palette.warning.main}>
-      <Box sx={{ p: 2.25, pl: 2.75, flex: 1 }}>
+      <Box sx={{ p: 1.5, pl: 2.25, flex: 1 }}>
         <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1.5 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="caption" sx={{ color: "warning.main", fontWeight: 600 }}>
               Requested {ago(r.createdAt)}
             </Typography>
-            <Typography noWrap sx={{ fontWeight: 600, fontSize: 16.5, mt: 0.5 }}>
+            <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
               {r.fullName}
             </Typography>
             <ContactLine icon={<MailOutlineRoundedIcon />} text={r.email} />
             <ContactLine icon={<PhoneRoundedIcon />} text={r.contactNo ?? "No mobile given"} />
           </Box>
-          <RoleAvatar name={r.fullName} role={r.role} size={50} />
+          <RoleAvatar name={r.fullName} role={r.role} size={42} />
         </Stack>
       </Box>
       <Divider />
-      <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 2.25, pl: 2.75, py: 1.25 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pl: 2.25, py: 0.75 }}>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
           Asked for
         </Typography>
@@ -679,8 +618,8 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
   const members = group.members.map((id) => byId.get(id)).filter((u): u is Person => Boolean(u));
   return (
     <EdgeCard color={(t) => t.palette.primary.main}>
-      <Stack direction="row" sx={{ gap: 1.5, alignItems: "center", p: 2.25, pl: 2.75 }}>
-        <Box sx={{ width: 50, height: 50, flex: "0 0 auto", borderRadius: "14px", display: "grid", placeItems: "center", fontWeight: 700, color: "#fff", background: HERO_BG }}>
+      <Stack direction="row" sx={{ gap: 1.5, alignItems: "center", p: 1.5, pl: 2.25 }}>
+        <Box sx={{ width: 42, height: 42, flex: "0 0 auto", borderRadius: "12px", display: "grid", placeItems: "center", fontWeight: 700, color: "#fff", background: HERO_BG }}>
           {initials(group.name)}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
