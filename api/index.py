@@ -17,7 +17,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from fastapi import FastAPI
 
 from _lib.web import install_error_handlers
-from _routes import me, onboarding, people
+from _routes import audit, me, onboarding, people
 
 app = FastAPI(
     title="GetHomeApps API",
@@ -32,6 +32,7 @@ PREFIX = "/api/py"
 app.include_router(me.router, prefix=PREFIX)
 app.include_router(onboarding.router, prefix=PREFIX)
 app.include_router(people.router, prefix=PREFIX)
+app.include_router(audit.router, prefix=PREFIX)
 
 
 @app.get(f"{PREFIX}/ping")

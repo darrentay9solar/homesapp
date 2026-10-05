@@ -497,6 +497,21 @@ export const auditLog = pgTable(
      * view can show "↩ reverts #412" instead of two unrelated-looking edits.
      */
     revertsAuditId: bigint("reverts_audit_id", { mode: "number" }),
+
+    /**
+     * The row's full primary key, `{ "project_id": 7, "milestone_no": 2 }`.
+     * entity_id holds only the first column, which cannot identify a row in
+     * a table with a composite key — and a revert has to find the exact row.
+     */
+    entityKey: jsonb("entity_key"),
+
+    /**
+     * The project the row belonged to, read from the whole row rather than
+     * the diff, so "everything that happened on this job" is one query even
+     * for an update that never touched project_id. No foreign key: the
+     * history must outlive the project.
+     */
+    projectId: integer("project_id"),
   },
   (table) => [
     // "What happened to this project" — the audit page's main query.
@@ -507,6 +522,8 @@ export const auditLog = pgTable(
     ),
     // "What has this person done" — the other way people read an audit log.
     index("audit_log_actor_idx").on(table.actorUid, table.occurredAt.desc()),
+    index("audit_log_project_idx").on(table.projectId, table.occurredAt.desc()),
+    index("audit_log_reverts_idx").on(table.revertsAuditId),
   ]
 );
 

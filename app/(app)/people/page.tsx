@@ -7,13 +7,11 @@ import FingerprintRoundedIcon from "@mui/icons-material/FingerprintRounded";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
 import GroupAddRoundedIcon from "@mui/icons-material/GroupAddRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
-import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
@@ -22,17 +20,14 @@ import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
 import Alert from "@mui/material/Alert";
 import AvatarGroup from "@mui/material/AvatarGroup";
-import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
-import InputBase from "@mui/material/InputBase";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemAvatar from "@mui/material/ListItemAvatar";
@@ -48,17 +43,16 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, WaveHeader } from "@/components/m";
 import { splitPhone } from "@/components/phone-input";
-import { PAGE_COLUMN, PAGE_GUTTER, Page } from "@/components/shell";
+import { Page } from "@/components/shell";
+import { EdgeCard, GRID, HERO_BG, Heading, SearchBox, SegTabs, TopBar, roleColor } from "@/components/topbar";
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
-import { ROLE_COLOR } from "@/lib/client/mui-theme";
 import { type Status, filterPeople, statusOf } from "@/lib/client/people-search";
 
 type Person = {
@@ -98,14 +92,6 @@ const TABS: Array<[Role | "all", string]> = [
   ["project_manager", "PMs"],
 ];
 const STATUS_LABEL: Record<Status, string> = { active: "Active", invited: "Invited", disabled: "Disabled" };
-const HERO_BG = "linear-gradient(145deg, #0E7F53 0%, #0A5C3E 55%, #073f2b 100%)";
-
-/** One card per row on phones and tablets; two per row on desktop. */
-const GRID = {
-  display: "grid",
-  gap: { xs: 1.25, lg: 2 },
-  gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "repeat(2, minmax(0, 1fr))" },
-} as const;
 
 type DialogState =
   | { kind: "review"; id: number }
@@ -170,14 +156,27 @@ export default function PeoplePage() {
       {/* Green header, after the reference's "My Task" screen. */}
       <TopBar
         title="People"
-        onAdd={() => setDialog({ kind: "newuser" })}
+        action={
+          <Button
+            onClick={() => setDialog({ kind: "newuser" })}
+            startIcon={<PersonAddAlt1RoundedIcon />}
+            sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}
+          >
+            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+              New account
+            </Box>
+            <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+              New
+            </Box>
+          </Button>
+        }
         search={
           <Stack direction="row" sx={{ gap: 1 }}>
-            <SearchBox value={q} onChange={setQ} />
+            <SearchBox value={q} onChange={setQ} placeholder="Search people" testId="people-search" />
             <StatusMenu value={status} onChange={setStatus} />
           </Stack>
         }
-        tabs={<SegTabs value={role} onChange={setRole} options={TABS.map(([v, l]) => ({ value: v, label: l, count: count(v) }))} />}
+        tabs={<SegTabs label="Filter by role" value={role} onChange={setRole} options={TABS.map(([v, l]) => ({ value: v, label: l, count: count(v) }))} />}
       />
 
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
@@ -280,112 +279,6 @@ export default function PeoplePage() {
 
 // ---------------------------------------------------------- top bar
 
-/**
- * The compact green header: title with "New" and alerts, then search, then
- * the pill tabs. Scrolls away with the page so it never takes over a phone.
- */
-function TopBar({ title, onAdd, search, tabs }: { title: string; onAdd: () => void; search: ReactNode; tabs: ReactNode }) {
-  const { me } = useApp();
-  const unread = me?.unread ?? 0;
-  return (
-    <Box
-      component="header"
-      sx={{
-        background: HERO_BG,
-        color: "#fff",
-        px: PAGE_GUTTER,
-        pt: { xs: "calc(10px + env(safe-area-inset-top))", lg: 3 },
-        // Room for the wave, which is drawn over the bottom of the header.
-        pb: { xs: "40px", lg: "52px" },
-        position: "relative",
-      }}
-    >
-      <Box sx={PAGE_COLUMN}>
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1, minHeight: 44 }}>
-          <Typography component="h1" sx={{ flex: 1, fontWeight: 600, fontSize: { xs: 20, lg: 24 } }}>
-            {title}
-          </Typography>
-          <Button
-            onClick={onAdd}
-            startIcon={<PersonAddAlt1RoundedIcon />}
-            sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}
-          >
-            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-              New account
-            </Box>
-            <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
-              New
-            </Box>
-          </Button>
-          <IconButton component={Link} href="/alerts" aria-label={unread ? `${unread} unread alerts` : "Alerts"} sx={{ color: "#fff" }}>
-            <Badge color="warning" variant="dot" invisible={!unread}>
-              <NotificationsRoundedIcon />
-            </Badge>
-          </IconButton>
-        </Stack>
-        <Box sx={{ mt: 1 }}>{search}</Box>
-        {tabs}
-      </Box>
-      {/* The wavy bottom edge from the account screens: lower on the left,
-          rising to the right. The page colour fills in below the curve. */}
-      <Box
-        component="svg"
-        viewBox="0 0 440 40"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-        sx={{ position: "absolute", left: 0, right: 0, bottom: -1, width: "100%", height: { xs: 30, lg: 42 }, display: "block" }}
-      >
-        <path d="M0 40V30C76 27 150 16 240 18C320 20 384 22 440 0V40Z" fill="var(--mui-palette-background-default)" />
-      </Box>
-    </Box>
-  );
-}
-
-function Heading({ title, count, action }: { title: string; count?: number; action?: ReactNode }) {
-  return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 2.5, mb: 1.25 }}>
-      <Typography sx={{ fontWeight: 600, fontSize: { xs: 17, lg: 19 } }}>{title}</Typography>
-      {count !== undefined && <Chip size="small" label={count} sx={{ height: 20, fontSize: 11 }} />}
-      <Box sx={{ flex: 1 }} />
-      {action}
-    </Stack>
-  );
-}
-
-function SearchBox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <Box
-      sx={{
-        flex: 1,
-        minWidth: 0,
-        display: "flex",
-        alignItems: "center",
-        gap: 0.75,
-        px: 1.25,
-        height: 40,
-        borderRadius: "12px",
-        bgcolor: "rgba(255,255,255,0.12)",
-        border: "1px solid rgba(255,255,255,0.2)",
-        "&:focus-within": { bgcolor: "rgba(255,255,255,0.18)", borderColor: "rgba(255,255,255,0.55)" },
-      }}
-    >
-      <SearchRoundedIcon sx={{ fontSize: 20, opacity: 0.8 }} />
-      <InputBase
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Search people"
-        inputProps={{ "aria-label": "Search people", "data-testid": "people-search" }}
-        sx={{ flex: 1, minWidth: 0, color: "#fff", fontSize: 16, "& input::placeholder": { color: "rgba(255,255,255,0.65)", opacity: 1 } }}
-      />
-      {value && (
-        <IconButton size="small" aria-label="Clear search" onClick={() => onChange("")} sx={{ color: "#fff", p: 0.5 }}>
-          <CloseRoundedIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      )}
-    </Box>
-  );
-}
-
 /** Status filter: a 40px icon button, labelled on desktop. */
 function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: Status | "all") => void }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -430,75 +323,6 @@ function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: 
   );
 }
 
-/**
- * Pill tabs in a translucent track (the reference's "All / Pending / Ongoing /
- * Completed"). Slides sideways if they don't fit, keeping the chosen tab in view.
- */
-function SegTabs<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: Array<{ value: T; label: string; count: number }>;
-}) {
-  const track = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    track.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [value]);
-  return (
-    <Box
-      ref={track}
-      role="tablist"
-      aria-label="Filter by role"
-      sx={{
-        mt: 1,
-        display: "flex",
-        gap: 0.25,
-        p: "3px",
-        borderRadius: "12px",
-        bgcolor: "rgba(0,0,0,0.2)",
-        border: "1px solid rgba(255,255,255,0.14)",
-        overflowX: "auto",
-        scrollbarWidth: "none",
-        "&::-webkit-scrollbar": { display: "none" },
-      }}
-    >
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <ButtonBase
-            key={o.value}
-            role="tab"
-            aria-selected={on}
-            onClick={() => onChange(o.value)}
-            sx={{
-              flex: "1 0 auto",
-              gap: 0.5,
-              px: 1.25,
-              height: 32,
-              borderRadius: "9px",
-              fontFamily: "inherit",
-              fontSize: 13,
-              fontWeight: on ? 600 : 500,
-              whiteSpace: "nowrap",
-              color: on ? "#073f2b" : "rgba(255,255,255,0.85)",
-              bgcolor: on ? "#fff" : "transparent",
-              transition: "background-color .18s, color .18s",
-            }}
-          >
-            {o.label}
-            <Box component="span" sx={{ fontSize: 10.5, opacity: 0.7 }}>
-              {o.count}
-            </Box>
-          </ButtonBase>
-        );
-      })}
-    </Box>
-  );
-}
-
 function Loading() {
   return (
     <>
@@ -512,38 +336,6 @@ function Loading() {
 }
 
 // --------------------------------------------------------------- cards
-
-/** A card with a coloured edge on the left, like the reference's task cards. */
-function EdgeCard({ color, children, dim }: { color: (t: Theme) => string; children: ReactNode; dim?: boolean }) {
-  return (
-    <Card
-      sx={(t) => ({
-        position: "relative",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        opacity: dim ? 0.6 : 1,
-        transition: "box-shadow .2s, transform .2s",
-        "&:hover": { boxShadow: "0 18px 40px -26px rgba(0,0,0,0.45)" },
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          left: 0,
-          top: 12,
-          bottom: 12,
-          width: 4,
-          borderRadius: "0 4px 4px 0",
-          bgcolor: color(t),
-          zIndex: 1,
-        },
-      })}
-    >
-      {children}
-    </Card>
-  );
-}
-
-const roleColor = (role: Role) => (t: Theme) => (t.palette.mode === "dark" ? ROLE_COLOR[role].dark : ROLE_COLOR[role].light);
 
 function StatusBadge({ status }: { status: Status }) {
   const color = status === "active" ? "success" : status === "invited" ? "secondary" : "error";
