@@ -121,7 +121,7 @@ function SignUpFlow() {
 
   if (step === "verify") {
     return (
-      <AuthShell title="Email Verification" back={() => setStep("form")}>
+      <AuthShell title="Email Verification" back={() => setStep("form")} compact>
         <h2>Get your code</h2>
         <p className="subtitle">
           Enter the 6-digit code we sent to <b>{email.trim()}</b>.
@@ -137,7 +137,7 @@ function SignUpFlow() {
   }
 
   return (
-    <AuthShell title="Create Account" back="/sign-in">
+    <AuthShell title="Create Account" back="/sign-in" compact>
       <Mark />
       <h2>{ticket ? "Set up your login" : "Create your login"}</h2>
       <p className="subtitle">

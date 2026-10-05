@@ -22,16 +22,19 @@ import { ThemeButton } from "./theme-button";
 export function AuthShell({
   title,
   back,
+  compact,
   children,
 }: {
   title: string;
   back?: string | (() => void);
+  /** Desktop: a narrower, centred column for longer forms (Create Account). */
+  compact?: boolean;
   children: ReactNode;
 }) {
   const router = useRouter();
   const goBack = back ? () => (typeof back === "string" ? router.push(back) : back()) : null;
   return (
-    <main className="auth">
+    <main className={`auth${compact ? " compact" : ""}`}>
       <div className="auth-main">
       {/* Desktop only: the green brand panel's soft waves behind the form card. */}
       <svg className="mainwaves" viewBox="0 0 600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">

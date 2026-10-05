@@ -2893,3 +2893,83 @@ button.urow:hover {
     background: rgba(255, 255, 255, 0.16);
   }
 }
+
+/* ====== Compact, centred desktop form (Create Account), after the reference ======
+   A narrow column centred in the panel, centred heading, compact fields and a
+   centred pill button — rather than fields stretched across the whole half. */
+@media (min-width: 1024px) {
+  .auth.compact .card-auth {
+    position: static; /* so the logo bar pins to the panel corners */
+    max-width: 420px;
+  }
+
+  .auth.compact .deskbar {
+    position: absolute;
+    top: 28px;
+    left: 36px;
+    right: 36px;
+    margin: 0;
+  }
+
+  .auth.compact .auth-main {
+    padding-top: 112px;
+    padding-bottom: 56px;
+  }
+
+  .auth.compact .deskback {
+    align-self: center;
+    margin-bottom: 18px;
+  }
+
+  .auth.compact .card-auth h2 {
+    text-align: center;
+    font-size: clamp(30px, 2.3vw, 40px);
+  }
+
+  .auth.compact .subtitle {
+    text-align: center;
+    margin: 10px auto 30px;
+    max-width: 34ch;
+    font-size: 14px;
+  }
+
+  .auth.compact .af {
+    height: 50px;
+    margin-bottom: 18px;
+  }
+
+  .auth.compact .af input {
+    font-size: 15px;
+  }
+
+  .auth.compact .rules {
+    justify-content: center;
+    font-size: 12px !important;
+    margin: -6px 0 22px;
+  }
+
+  .auth.compact .btn.p {
+    display: flex;
+    width: 62%;
+    height: 50px;
+    margin: 0 auto;
+    border-radius: 999px;
+    font-size: 15px;
+    letter-spacing: 0.04em;
+  }
+
+  .auth.compact .alt,
+  .auth.compact .err {
+    text-align: center;
+  }
+
+  .auth.compact .otp {
+    justify-content: center;
+  }
+
+  .auth.compact .otp input {
+    width: 50px;
+    height: 56px;
+    font-size: 22px;
+  }
+}
