@@ -17,6 +17,10 @@ const isPublic = createRouteMatcher([
   // anything that does real work stays behind the proxy, and scheduled jobs
   // will authenticate with a shared secret rather than a session.
   "/api/health.py",
+  // The Python API verifies the Clerk session on every request itself
+  // (api/_lib/auth.py). Letting it through here means an expired session
+  // gets a JSON 401 the app can handle, not an HTML redirect to sign-in.
+  "/api/py(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

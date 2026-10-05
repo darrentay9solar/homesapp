@@ -11,12 +11,16 @@ requires-python = ">=3.12"
 # truth. uv reads this; so does `pip install .`.
 dependencies = [
     "psycopg[binary]==3.2.3",
+    "fastapi==0.115.12",
+    "pyjwt[crypto]==2.10.1",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff==0.8.4",
     "pytest==8.3.4",
+    "uvicorn==0.34.2",
+    "httpx==0.28.1",
 ]
 
 [build-system]
@@ -31,11 +35,17 @@ packages = []
 [tool.ruff]
 # Pin what CI and the Vercel runtime actually run, as .nvmrc does for Node.
 target-version = "py312"
-line-length = 100
+line-length = 110
 extend-exclude = [".venv", "node_modules", ".next"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
+# B008: `x = Depends(...)` in a signature is how FastAPI declares dependencies.
+ignore = ["B008"]
+
+[tool.ruff.lint.isort]
+# The API's own modules, imported via the api/ directory on sys.path.
+known-first-party = ["_lib", "_routes", "index", "conftest"]
 
 [tool.ruff.lint.per-file-ignores]
 # Vercel requires a lowercase class named `handler`, and

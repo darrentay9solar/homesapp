@@ -23,7 +23,13 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
-__all__ = ["DatabaseNotConfiguredError", "connect", "fetch_all", "fetch_one"]
+__all__ = [
+    "DatabaseNotConfiguredError",
+    "connect",
+    "fetch_all",
+    "fetch_one",
+    "transaction",
+]
 
 
 class DatabaseNotConfiguredError(RuntimeError):
@@ -78,6 +84,28 @@ def connect(actor_uid: int | None = None) -> Iterator[psycopg.Connection]:
             with conn.cursor() as cur:
                 cur.execute("select set_config('app.actor_uid', %s, false)", (str(actor_uid),))
         yield conn
+
+
+@contextmanager
+def transaction(actor_uid: int | None) -> Iterator[psycopg.Cursor]:
+    """One transaction, acting as ``actor_uid``. Commits on success, rolls back on error.
+
+    The actor is set with ``set_config(..., true)`` — local to this
+    transaction — so it can never leak into another request, even if a
+    connection were ever reused. Every write the API makes goes through here,
+    which is what lets the audit log attribute it and lets the database's own
+    guards (only a PM may create accounts, the geofence, ...) judge it.
+    """
+    with (
+        psycopg.connect(_database_url(), row_factory=dict_row) as conn,
+        conn.transaction(),
+        conn.cursor() as cur,
+    ):
+        cur.execute(
+            "select set_config('app.actor_uid', %s, true)",
+            ("" if actor_uid is None else str(actor_uid),),
+        )
+        yield cur
 
 
 def fetch_all(

@@ -38,6 +38,7 @@ def test_sees_the_expected_tables() -> None:
 def test_cannot_alter_the_schema() -> None:
     """Python inherits the same restriction as the web app, by design."""
     import psycopg
+
     from _lib.db import connect
 
     try:

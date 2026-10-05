@@ -23,3 +23,6 @@ __pycache__/
 
 # python build artefacts
 *.egg-info/
+
+# Local Claude Code launch config
+.claude/

@@ -2,11 +2,13 @@ import type { Metadata, Viewport } from "next";
 
 import { ClerkProvider } from "@clerk/nextjs";
 
+import { THEME_BOOT_SCRIPT } from "@/lib/client/theme";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GetHomeApps — Deployment health",
-  description: "GitHub → Vercel → Neon → Clerk connectivity check for 9 Solar Home.",
+  title: "GetHomeApps — 9 Solar Home",
+  description: "Rooftop solar, tracked to the day. Milestones, site visits, documents and handover.",
   manifest: "/manifest.webmanifest",
   applicationName: "GetHomeApps",
   icons: {
@@ -18,8 +20,7 @@ export const metadata: Metadata = {
     // iOS only honours standalone display through these tags, not the manifest.
     capable: true,
     title: "GetHomeApps",
-    // "black-translucent" lets the page paint under the status bar, which is
-    // what the safe-area insets are already accounting for.
+    // Paint under the status bar; the safe-area insets account for it.
     statusBarStyle: "black-translucent",
   },
   // A rooftop tool should never have a phone number turned into a call link
@@ -31,38 +32,44 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   // Lets the layout paint behind the notch and home indicator, which is what
-  // makes the env(safe-area-inset-*) padding meaningful. Without it those
-  // values are always 0 and an installed app gets letterboxed.
+  // makes the env(safe-area-inset-*) padding meaningful.
   viewportFit: "cover",
-  // Pinch-zoom stays available deliberately: this app is used outdoors on a
-  // roof, and disabling zoom fails accessibility for anyone who needs it.
+  // Pinch-zoom stays available: this app is used outdoors on a roof.
   maximumScale: 5,
   userScalable: true,
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#08090a" },
-    { media: "(prefers-color-scheme: light)", color: "#08090a" },
-  ],
+  themeColor: "#08090a",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    // Clerk's own UI follows the app's dark palette rather than its defaults,
-    // so a sign-in page does not look like a different product.
+    // Clerk's own screens use the app's tokens, so sign-in follows the
+    // Black/Light choice instead of looking like a different product.
     <ClerkProvider
       appearance={{
         variables: {
-          colorPrimary: "#16c47f",
-          colorBackground: "#0e1011",
-          colorForeground: "#f4f6f5",
+          colorPrimary: "var(--brand)",
+          colorBackground: "var(--card)",
+          colorForeground: "var(--tx)",
+          colorMutedForeground: "var(--tx-3)",
+          colorInput: "var(--card-2)",
+          colorInputForeground: "var(--tx)",
+          colorNeutral: "var(--tx)",
+          colorPrimaryForeground: "var(--on-brand)",
           borderRadius: "11px",
+          fontFamily: "var(--ff)",
+        },
+        elements: {
+          cardBox: { boxShadow: "none", border: "1px solid var(--line-soft)", width: "100%" },
+          rootBox: { width: "100%" },
         },
       }}
     >
-      <html lang="en">
+      {/* suppressHydrationWarning: data-theme is set by the boot script
+          before React hydrates, so it legitimately differs from the server. */}
+      <html lang="en-SG" suppressHydrationWarning>
+        <head>
+          <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        </head>
         <body>{children}</body>
       </html>
     </ClerkProvider>
