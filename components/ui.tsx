@@ -123,6 +123,17 @@ export function d2s(d: string | Date | null | undefined): string {
   });
 }
 
+/** "just now", "5 min ago", "2 h ago", "3 d ago", then a date. */
+export function ago(d: string | Date | null | undefined): string {
+  if (!d) return "";
+  const s = (Date.now() - new Date(d).getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)} d ago`;
+  return d2s(d);
+}
+
 /** "29 Jul 2026 14:05" in Singapore time, whatever the device's clock says. */
 export function dt2s(d: string | Date | null | undefined): string {
   if (!d) return "";
