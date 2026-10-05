@@ -2299,6 +2299,7 @@ button.urow:hover {
   .auth {
     display: grid;
     grid-template-columns: 1fr minmax(520px, 46%);
+    align-items: start;
     padding: 0;
     background: var(--band);
   }
@@ -2364,16 +2365,16 @@ button.urow:hover {
   }
 
   .auth .card-auth {
-    /* Grows with the screen so the form stays in proportion on large
-       monitors; a card floating on the green panel. */
+    /* The form sits straight on the green panel — no card — and grows with
+       the screen so it stays in proportion on large monitors. */
     position: relative;
     max-width: clamp(440px, 34vw, 600px);
-    padding: clamp(32px, 3vw, 48px);
-    border: 1px solid var(--line-soft);
-    border-radius: 28px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
     overflow: visible;
-    background: var(--surface);
-    box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.55);
+    background: transparent;
+    color: #fff;
   }
 
   .auth .band,
@@ -2397,6 +2398,7 @@ button.urow:hover {
   }
 
   .deskback {
+    align-self: flex-start;
     margin-bottom: 22px;
     display: inline-flex;
     align-items: center;
@@ -2718,4 +2720,162 @@ button.urow:hover {
   margin: 12px 0 0;
   font-size: 13.5px;
   color: rgba(255, 255, 255, 0.65);
+}
+
+/* ===================== FORM ON THE GREEN PANEL (desktop) ===================== */
+@media (min-width: 1024px) {
+  .deskmark {
+    --brand: #ffffff;
+    width: 56px;
+    height: 56px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .deskbrand b {
+    color: #fff;
+  }
+
+  .deskbrand small {
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .card-auth .deskbar .icobtn,
+  .card-auth .deskback {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+
+  .card-auth .deskbar .icobtn:hover,
+  .card-auth .deskback:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.7);
+  }
+
+  .card-auth h2 {
+    color: #fff !important;
+  }
+
+  .card-auth .subtitle {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .card-auth .subtitle b {
+    color: #fff;
+  }
+
+  /* Fields: translucent white on the green. */
+  .card-auth .af {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.38);
+  }
+
+  .card-auth .af:focus-within {
+    border-color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+  }
+
+  .card-auth .af.bad {
+    border-color: #ffd2d2;
+  }
+
+  /* The label sits on the border, so it needs the panel's colour behind it. */
+  .card-auth .af > label {
+    background: var(--band);
+    color: #fff;
+    border-radius: 4px;
+  }
+
+  .card-auth .af > svg,
+  .card-auth .af .eye {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .card-auth .af input {
+    color: #fff;
+  }
+
+  .card-auth .af input::placeholder {
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  .card-auth .af input:-webkit-autofill {
+    -webkit-text-fill-color: #fff;
+    transition: background-color 9999s;
+  }
+
+  .card-auth .af .cc {
+    color: #fff;
+    border-right-color: rgba(255, 255, 255, 0.35);
+  }
+
+  /* Primary button: white with green text. */
+  .card-auth .btn.p {
+    background: #fff;
+    color: #07603e;
+    box-shadow: 0 14px 30px -16px rgba(0, 0, 0, 0.45);
+  }
+
+  .card-auth .btn.p:hover {
+    background: #eafff4;
+  }
+
+  .card-auth .btn.p:disabled {
+    opacity: 0.5;
+  }
+
+  .card-auth .btn.g {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+
+  .card-auth .alt {
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  .card-auth .alt a,
+  .card-auth .alt button,
+  .card-auth .textlink {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .card-auth .rules {
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  .card-auth .rules .ok {
+    color: #fff;
+  }
+
+  .card-auth .fielderr {
+    color: #ffe1e1;
+  }
+
+  .card-auth .err {
+    color: #fff;
+    background: rgba(140, 20, 24, 0.35);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .card-auth .otp input {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    caret-color: #fff;
+  }
+
+  .card-auth .otp input:focus {
+    border-color: #fff;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+  }
+
+  .card-auth .badge {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.16);
+  }
 }

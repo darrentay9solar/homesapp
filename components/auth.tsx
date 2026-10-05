@@ -42,7 +42,9 @@ export function AuthShell({
       <div className="card-auth">
         <div className="deskbar">
           <span className="deskbrand">
-            <Logo size={34} />
+            <span className="deskmark">
+              <Logo size={36} />
+            </span>
             <span>
               <b>GETHOMEAPPS</b>
               <small>9 SOLAR HOME · 九太阳家</small>
