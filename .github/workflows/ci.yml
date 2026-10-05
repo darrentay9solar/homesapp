@@ -33,6 +33,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Unit tests (front end)
+        run: npm run test:web
+
       # The reason this workflow exists. Vercel refused a deploy over a Next.js
       # CVE that nothing in the repo would otherwise have caught.
       #

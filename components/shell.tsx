@@ -142,7 +142,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           direction="row"
           component={Link}
           href="/account"
-          sx={{ alignItems: "center", gap: 1.5, p: 1.5, borderRadius: 3, border: 1, borderColor: "divider" }}
+          sx={{ alignItems: "center", gap: 1.5, p: 1.5, borderRadius: "14px", border: 1, borderColor: "divider" }}
         >
           <RoleAvatar name={me.fullName ?? me.email} role={me.role} size={38} />
           <Box sx={{ minWidth: 0 }}>

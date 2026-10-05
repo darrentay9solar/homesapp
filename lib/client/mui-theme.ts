@@ -106,7 +106,7 @@ export const theme = createTheme({
       },
     },
     MuiDialog: {
-      styleOverrides: { paper: { borderRadius: 22 } },
+      styleOverrides: { paper: { borderRadius: 22 }, paperFullScreen: { borderRadius: 0 } },
     },
     MuiDialogTitle: {
       styleOverrides: { root: { fontWeight: 600 } },
