@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 
 import { ClerkProvider } from "@clerk/nextjs";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
-import { Poppins } from "next/font/google";
+import { Fraunces, Poppins } from "next/font/google";
 
 import { Providers } from "@/components/providers";
 
@@ -17,6 +17,16 @@ const poppins = Poppins({
   weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-poppins",
+});
+
+// The welcome headline only: a soft, curved display face to sit against
+// Poppins' geometric UI type.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  axes: ["SOFT", "opsz"],
+  display: "swap",
+  variable: "--font-display",
 });
 
 export const metadata: Metadata = {
@@ -79,7 +89,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       {/* suppressHydrationWarning: data-theme is set by the boot script
           before React hydrates, so it legitimately differs from the server. */}
-      <html lang="en-SG" className={poppins.variable} suppressHydrationWarning>
+      <html lang="en-SG" className={`${poppins.variable} ${fraunces.variable}`} suppressHydrationWarning>
         <head>
           <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         </head>

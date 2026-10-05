@@ -284,9 +284,8 @@ export function SkyScene() {
         <h2>
           Rooftop solar,
           <br />
-          tracked to the day.
+          <em>tracked to the day.</em>
         </h2>
-        <p>Milestones from panels to SP turn-on · GPS site check-in · Handover signed on any device</p>
       </div>
     </div>
   );

@@ -2699,27 +2699,41 @@ button.urow:hover {
   color: rgba(255, 255, 255, 0.72);
 }
 
+/* Up in the open sky, clear of the clock and of the Earth's curve. */
 .sky-copy {
   position: absolute;
-  left: 48px;
-  right: 48px;
-  bottom: 40px;
+  left: clamp(40px, 5vw, 88px);
+  right: 40px;
+  top: 30%;
   color: #fff;
+  pointer-events: none;
 }
 
 .auth .sky-copy h2 {
   margin: 0;
   text-align: left;
   color: #fff;
-  font-size: clamp(30px, 2.6vw, 44px);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 350;
+  font-size: clamp(44px, 4.2vw, 76px);
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  /* Fraunces' "soft" axis rounds every terminal — curves, not blunt ends. */
+  font-variation-settings: "SOFT" 100, "opsz" 144;
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.35);
 }
 
-.sky-copy p {
-  margin: 12px 0 0;
-  font-size: 13.5px;
-  color: rgba(255, 255, 255, 0.65);
+.auth .sky-copy h2 em {
+  font-style: italic;
+  font-weight: 300;
+  /* Lit by the sunrise. */
+  background: linear-gradient(90deg, #ffe2b8, #ffb36b 60%, #ff9a5c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  padding-right: 0.08em;
+  /* A shadow would show through the clipped gradient and muddy it. */
+  text-shadow: none;
 }
 
 /* ===================== FORM ON THE GREEN PANEL (desktop) ===================== */
