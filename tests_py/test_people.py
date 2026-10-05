@@ -79,7 +79,7 @@ def test_create_user_invites_and_records(client, pm, fx) -> None:
     dup = client.post(
         "/api/py/people",
         headers=bearer(pm["clerk_user_id"]),
-        json={"fullName": "X Y", "email": email, "role": "homeowner"},
+        json={"fullName": "X Y", "email": email, "role": "homeowner", "contactNo": "+65 9123 4567"},
     )
     assert dup.status_code == 409
 
@@ -172,3 +172,39 @@ def test_non_pm_cannot_change_groups_even_directly(fx) -> None:
 
 def test_clerk_module_untouched() -> None:
     assert callable(clerk.create_invitation)
+
+
+def test_create_user_requires_a_mobile(client, pm) -> None:
+    r = client.post(
+        "/api/py/people",
+        headers=bearer(pm["clerk_user_id"]),
+        json={
+            "fullName": "No Phone",
+            "email": f"pytest-nophone-{uuid.uuid4().hex[:8]}@example.com",
+            "role": "homeowner",
+        },
+    )
+    assert r.status_code == 400
+    assert "mobile" in r.json()["error"].lower()
+
+
+def test_approve_can_place_crew_in_a_group(client, pm, fx, cleanup) -> None:
+    groups, requests = cleanup
+    h = bearer(pm["clerk_user_id"])
+    gid = client.post("/api/py/groups", headers=h, json={"name": f"Pytest Crew {uuid.uuid4().hex[:6]}"}).json()["id"]
+    groups.append(gid)
+    rid = fx.conn.execute(
+        "insert into account_requests (clerk_user_id, email, full_name, requested_type, contact_no) "
+        "values (%s, %s, 'Kelvin Lim', 'epc_team', '+65 8222 1100') returning request_id",
+        (f"user_test_req_{uuid.uuid4().hex[:8]}", f"pytest-req-{uuid.uuid4().hex[:8]}@example.com"),
+    ).fetchone()["request_id"]
+    requests.append(rid)
+
+    r = client.post(f"/api/py/account-requests/{rid}/approve", headers=h, json={"role": "epc_team", "groupId": gid})
+    assert r.status_code == 200, r.text
+    uid = r.json()["uid"]
+    fx.uids.append(uid)
+    member = fx.conn.execute(
+        "select added_by from contractor_group_members where group_id = %s and user_id = %s", (gid, uid)
+    ).fetchone()
+    assert member == {"added_by": pm["uid"]}

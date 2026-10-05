@@ -2952,3 +2952,58 @@ button.urow:hover {
     font-size: 22px;
   }
 }
+
+/* Role cards and progress steps on the green panel (desktop request-access). */
+@media (min-width: 1024px) {
+  .card-auth .rl {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .card-auth .rl:hover {
+    border-color: rgba(255, 255, 255, 0.7);
+  }
+
+  .card-auth .rl .e {
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .card-auth .rl.on {
+    background: #fff;
+    border-color: #fff;
+    box-shadow: none;
+  }
+
+  .card-auth .rl.on .r {
+    color: #07603e;
+  }
+
+  .card-auth .rl.on .e {
+    color: #3f6b58;
+  }
+
+  .card-auth .steps .s::before {
+    background: rgba(255, 255, 255, 0.3);
+  }
+
+  .card-auth .steps .b {
+    border-color: rgba(255, 255, 255, 0.45);
+    color: #fff;
+  }
+
+  .card-auth .steps .s.done .b {
+    background: #fff;
+    border-color: #fff;
+    color: #07603e;
+  }
+
+  .card-auth .steps .s.now .b {
+    border-color: #ffd27a;
+    color: #ffd27a;
+  }
+
+  .card-auth .steps .d {
+    color: rgba(255, 255, 255, 0.72);
+  }
+}

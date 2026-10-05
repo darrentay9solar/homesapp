@@ -43,7 +43,9 @@ def test_no_account_then_request_then_pending(client, newcomer) -> None:
     assert me["request"]["requestedRole"] == "contractor"
 
     again = client.post(
-        "/api/py/account-requests", headers=h, json={"fullName": "Aisha Rahman", "role": "contractor"}
+        "/api/py/account-requests",
+        headers=h,
+        json={"fullName": "Aisha Rahman", "role": "contractor", "contactNo": "+65 9123 4567"},
     )
     assert again.status_code == 409
 
@@ -53,9 +55,10 @@ def test_no_account_then_request_then_pending(client, newcomer) -> None:
     [
         ({"fullName": "A", "role": "homeowner"}, "full name"),
         ({"fullName": "Aisha", "role": "boss"}, "Choose a role"),
-        ({"fullName": "Aisha", "role": "homeowner", "icLast4": "S1234567D"}, "last 4"),
-        ({"fullName": "Aisha", "role": "homeowner", "icLast4": "12AB"}, "three digits"),
-        ({"fullName": "Aisha", "role": "homeowner", "postalCode": "12345"}, "6 digits"),
+        ({"fullName": "Aisha", "role": "homeowner", "contactNo": "+65 9123 4567", "icLast4": "S1234567D"}, "last 4"),
+        ({"fullName": "Aisha", "role": "homeowner", "contactNo": "+65 9123 4567", "icLast4": "12AB"}, "three digits"),
+        ({"fullName": "Aisha", "role": "homeowner", "contactNo": "+65 9123 4567", "postalCode": "12345"}, "6 digits"),
+        ({"fullName": "Aisha", "role": "homeowner"}, "mobile number"),
         ({"fullName": "Aisha", "role": "homeowner", "contactNo": "call me"}, "mobile number"),
     ],
 )
@@ -69,7 +72,13 @@ def test_postal_code_fills_in_address(client, newcomer, fx) -> None:
     r = client.post(
         "/api/py/account-requests",
         headers=bearer(newcomer.id),
-        json={"fullName": "Aisha Rahman", "role": "homeowner", "postalCode": "569933", "icLast4": "567d"},
+        json={
+            "fullName": "Aisha Rahman",
+            "role": "homeowner",
+            "contactNo": "+65 9123 4567",
+            "postalCode": "569933",
+            "icLast4": "567d",
+        },
     )
     assert r.status_code == 200, r.text
     row = fx.conn.execute(

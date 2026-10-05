@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
 import { AppShell } from "@/components/shell";
@@ -64,6 +65,14 @@ const FIXTURES: Record<string, unknown> = {
 
 function answer(method: string, path: string): unknown {
   const key = `${method} ${path}`;
+  // /dev-preview/onboarding?as=pending shows the waiting screen instead.
+  if (key === "GET /me" && window.location.pathname.startsWith("/dev-preview/onboarding")) {
+    const as = new URLSearchParams(window.location.search).get("as");
+    if (as === "pending") {
+      return { state: "pending", request: { requestedRole: "homeowner", requestedRoleLabel: "Homeowner", decisionNote: null, createdAt: iso(30) }, clerk: { fullName: "Aisha Rahman", email: "aisha@example.com", phone: "+65 9123 4567" } };
+    }
+    return { state: "no_account", clerk: { fullName: "Aisha Rahman", email: "aisha@example.com", phone: "+65 9123 4567" } };
+  }
   if (key in FIXTURES) return FIXTURES[key];
   if (/^GET \/people\/\d+\/projects$/.test(key)) {
     return [
@@ -92,6 +101,9 @@ function install() {
 export function MockApi({ children }: { children: ReactNode }) {
   // Installed during the first render, before any child effect fetches.
   useState(install);
+  const pathname = usePathname();
+  // The sign-up screens stand alone, outside the signed-in app shell.
+  if (pathname.startsWith("/dev-preview/onboarding")) return <>{children}</>;
   return (
     <AppProvider>
       <AppShell>{children}</AppShell>

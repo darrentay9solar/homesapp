@@ -1,18 +1,20 @@
 "use client";
 
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
 import Slide from "@mui/material/Slide";
 import Stack from "@mui/material/Stack";
 import { alpha, type SxProps, type Theme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import TextField from "@mui/material/TextField";
+import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import type { TransitionProps } from "@mui/material/transitions";
 import Typography from "@mui/material/Typography";
 import { forwardRef, type ReactElement, type ReactNode, type Ref, useState } from "react";
@@ -69,18 +71,28 @@ const SlideUp = forwardRef(function SlideUp(props: TransitionProps & { children:
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-/** A dialog: full screen and sliding up on phones, centred on larger screens. */
+/**
+ * Every dialog in the app, in the account screens' design: a green header
+ * with a wavy bottom edge, back arrow and centred title; then an optional
+ * centred heading and subtitle, the fields, and one green button. Full screen
+ * and sliding up on phones, a centred card on larger screens — the same
+ * design either way.
+ */
 export function MDialog({
   open = true,
   onClose,
   title,
+  heading,
   subtitle,
   children,
   maxWidth = "sm",
 }: {
   open?: boolean;
   onClose: () => void;
+  /** Shown in the green header. */
   title: string;
+  /** The big centred line under the header, as on the sign-up screens. */
+  heading?: string;
   subtitle?: string;
   children: ReactNode;
   maxWidth?: "xs" | "sm" | "md";
@@ -94,69 +106,139 @@ export function MDialog({
       fullWidth
       maxWidth={maxWidth}
       slots={{ transition: phone ? SlideUp : undefined }}
+      slotProps={{ paper: { sx: { overflowX: "hidden" } } }}
     >
-      <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1, px: 3, pt: 2.5, pb: 1.5 }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="h6" sx={{ lineHeight: 1.3 }}>
-            {title}
+      <WaveHeader title={title} onBack={onClose} />
+      <DialogContent sx={{ px: { xs: 3, sm: 4 }, pt: 0.5, pb: { xs: "calc(28px + env(safe-area-inset-bottom))", sm: 4 } }}>
+        {heading && (
+          <Typography sx={{ textAlign: "center", color: "primary.main", fontWeight: 600, fontSize: { xs: 19, sm: 21 } }}>
+            {heading}
           </Typography>
-          {subtitle && (
-            <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
-        <IconButton onClick={onClose} aria-label="Close" edge="end">
-          <CloseRoundedIcon />
-        </IconButton>
-      </Stack>
-      <DialogContent sx={{ pt: 1, pb: 3 }}>{children}</DialogContent>
+        )}
+        {subtitle && (
+          <Typography
+            variant="body2"
+            sx={{ textAlign: "center", color: "text.secondary", mt: heading ? 0.75 : 0, mb: 3, mx: "auto", maxWidth: "40ch" }}
+          >
+            {subtitle}
+          </Typography>
+        )}
+        {!subtitle && heading && <Box sx={{ mb: 3 }} />}
+        {children}
+      </DialogContent>
     </Dialog>
   );
 }
 
-/** Mobile number with a country code picker, stored as "+65 9123 4567". */
+/** The green band with a wavy bottom edge (lower left, rising right) from the account screens. */
+export function WaveHeader({ title, onBack, height = 112 }: { title: string; onBack: () => void; height?: number }) {
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        flex: "0 0 auto",
+        height: `calc(${height}px + env(safe-area-inset-top))`,
+        color: "#fff",
+        "@media (min-width: 600px)": { height },
+      }}
+    >
+      <Box component="svg" viewBox="0 0 440 112" preserveAspectRatio="none" aria-hidden="true" sx={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+        <defs>
+          <linearGradient id="waveHeaderFill" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#0E7F53" />
+            <stop offset="1" stopColor="#0A5C3E" />
+          </linearGradient>
+        </defs>
+        <path d="M0 0H440V62C380 88 320 78 244 80C156 83 76 92 0 110Z" fill="url(#waveHeaderFill)" />
+      </Box>
+      <Stack direction="row" sx={{ position: "relative", alignItems: "center", px: 1, pt: { xs: "calc(8px + env(safe-area-inset-top))", sm: 1 } }}>
+        <IconButton onClick={onBack} aria-label="Back" sx={{ color: "#fff" }}>
+          <ArrowBackRoundedIcon />
+        </IconButton>
+        <Typography noWrap sx={{ flex: 1, textAlign: "center", fontWeight: 600, fontSize: 17, mr: 5 }}>
+          {title}
+        </Typography>
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * A text field in the sign-up style: an icon at the start and the label
+ * always sitting on the border.
+ */
+export function Field({ icon, ...props }: TextFieldProps & { icon?: ReactNode }) {
+  return (
+    <TextField
+      {...props}
+      slotProps={{
+        ...props.slotProps,
+        inputLabel: { shrink: true, ...(props.slotProps?.inputLabel as object) },
+        input: {
+          ...(icon ? { startAdornment: <InputAdornment position="start" sx={{ color: "text.secondary", "& svg": { fontSize: 20 } }}>{icon}</InputAdornment> } : {}),
+          ...(props.slotProps?.input as object),
+        },
+      }}
+    />
+  );
+}
+
+/**
+ * Mobile number in the sign-up style: one field, the country code picker
+ * inside it on the left ("SG +65 ▾ | 9123 4567"). Stored as "+65 9123 4567".
+ */
 export function PhoneField({
   value,
   onChange,
   label = "Mobile",
   helperText,
+  required,
 }: {
   value: string;
   onChange: (v: string) => void;
   label?: string;
   helperText?: string;
+  required?: boolean;
 }) {
   const [dial, setDial] = useState(() => splitPhone(value).dial);
   const { local } = splitPhone(value);
   return (
-    <Stack direction="row" sx={{ gap: 1 }}>
-      <TextField
-        select
-        label="Code"
-        value={dial}
-        onChange={(e) => {
-          setDial(e.target.value);
-          onChange(joinPhone(e.target.value, local));
-        }}
-        sx={{ width: 118, flex: "0 0 auto" }}
-        slotProps={{ select: { renderValue: (v) => `${COUNTRIES.find((c) => c.dial === v)?.code ?? ""} +${v}` } }}
-      >
-        {COUNTRIES.map((c) => (
-          <MenuItem key={c.code} value={c.dial}>
-            {c.name} (+{c.dial})
-          </MenuItem>
-        ))}
-      </TextField>
-      <TextField
-        label={label}
-        type="tel"
-        value={local}
-        placeholder={dial === "65" ? "9123 4567" : ""}
-        helperText={helperText}
-        onChange={(e) => onChange(joinPhone(dial, e.target.value.replace(/^\+/, "")))}
-        slotProps={{ htmlInput: { inputMode: "tel", autoComplete: "tel-national" } }}
-      />
-    </Stack>
+    <TextField
+      label={label}
+      required={required}
+      type="tel"
+      value={local}
+      placeholder={dial === "65" ? "9123 4567" : "Mobile number"}
+      helperText={helperText}
+      onChange={(e) => onChange(joinPhone(dial, e.target.value.replace(/^\+/, "")))}
+      slotProps={{
+        inputLabel: { shrink: true },
+        htmlInput: { inputMode: "tel", autoComplete: "tel-national" },
+        input: {
+          startAdornment: (
+            <InputAdornment position="start" sx={{ mr: 1.25, pr: 1.25, height: "auto", alignSelf: "stretch", maxHeight: "none", borderRight: 1, borderColor: "divider" }}>
+              <Select
+                variant="standard"
+                disableUnderline
+                value={dial}
+                onChange={(e) => {
+                  setDial(e.target.value);
+                  onChange(joinPhone(e.target.value, local));
+                }}
+                renderValue={(v) => `${COUNTRIES.find((c) => c.dial === v)?.code ?? ""} +${v}`}
+                inputProps={{ "aria-label": "Country code" }}
+                sx={{ fontWeight: 500, fontSize: 15, "& .MuiSelect-select": { py: 0, pr: "22px !important" } }}
+              >
+                {COUNTRIES.map((c) => (
+                  <MenuItem key={c.code} value={c.dial}>
+                    {c.name} (+{c.dial})
+                  </MenuItem>
+                ))}
+              </Select>
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
   );
 }

@@ -32,7 +32,7 @@ def request_account(body: RequestIn, acct: Account = Depends(account)) -> dict[s
     if not cu or not cu.primary_email or cu.primary_email not in cu.verified_emails:
         raise HTTPException(400, "Verify your email address first.")
 
-    p = clean_profile(body)
+    p = clean_profile(body, require_mobile=True)
     note = (body.note or "").strip()[:500] or None
 
     # No actor: the requester has no account yet.

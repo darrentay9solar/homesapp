@@ -26,8 +26,13 @@ def bad(message: str) -> HTTPException:
     return HTTPException(400, message)
 
 
-def clean_profile(p: ProfileIn) -> dict[str, Any]:
-    """Validated columns for users / account_requests. Raises a 400 people can read."""
+def clean_profile(p: ProfileIn, *, require_mobile: bool = False) -> dict[str, Any]:
+    """Validated columns for users / account_requests. Raises a 400 people can read.
+
+    require_mobile: both ways onto the system (self sign-up and a PM creating
+    the account) need a mobile, because approvals and updates go out by
+    WhatsApp, or SMS when WhatsApp can't deliver.
+    """
     name = p.fullName.strip()
     if len(name) < 2:
         raise bad("Enter a full name.")
@@ -35,6 +40,8 @@ def clean_profile(p: ProfileIn) -> dict[str, Any]:
         raise bad("Choose a role.")
 
     contact = clean_phone(p.contactNo)
+    if require_mobile and not contact:
+        raise bad("Enter a mobile number — updates are sent by WhatsApp or SMS.")
 
     # Last four only: three digits and the checksum letter. The database
     # enforces the same pattern, so a full NRIC can never be stored.

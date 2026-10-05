@@ -66,8 +66,16 @@ export const theme = createTheme({
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: { borderRadius: 12 },
-        sizeLarge: { minHeight: 48, fontSize: "0.95rem" },
+        root: ({ theme: t }) => ({
+          borderRadius: 12,
+          // Disabled stays recognisably green (dimmed), as on the sign-up screens.
+          "&.MuiButton-containedPrimary.Mui-disabled": {
+            backgroundColor: (t.vars ?? t).palette.primary.main,
+            color: (t.vars ?? t).palette.primary.contrastText,
+            opacity: 0.38,
+          },
+        }),
+        sizeLarge: { minHeight: 50, borderRadius: 10, fontSize: "0.95rem" },
       },
     },
     MuiCard: {
@@ -100,13 +108,17 @@ export const theme = createTheme({
     },
     MuiOutlinedInput: {
       styleOverrides: {
-        root: { borderRadius: 12 },
+        root: { borderRadius: 10 },
         // 16px on phones: anything smaller makes iOS Safari zoom on focus.
         input: { fontSize: 16, "@media (min-width: 768px)": { fontSize: 15 } },
       },
     },
     MuiDialog: {
       styleOverrides: { paper: { borderRadius: 22 }, paperFullScreen: { borderRadius: 0 } },
+    },
+    MuiInputLabel: {
+      // Labels sitting on the border are green, as on the sign-up screens.
+      styleOverrides: { shrink: ({ theme: t }) => ({ color: (t.vars ?? t).palette.primary.main, fontWeight: 500 }) },
     },
     MuiDialogTitle: {
       styleOverrides: { root: { fontWeight: 600 } },

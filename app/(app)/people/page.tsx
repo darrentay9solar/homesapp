@@ -1,8 +1,12 @@
 "use client";
 
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
-import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
+import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
+import FingerprintRoundedIcon from "@mui/icons-material/FingerprintRounded";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
+import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
@@ -48,7 +52,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
-import { MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip } from "@/components/m";
+import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, WaveHeader } from "@/components/m";
+import { splitPhone } from "@/components/phone-input";
 import { PAGE_COLUMN, PAGE_GUTTER, Page } from "@/components/shell";
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
@@ -259,7 +264,7 @@ export default function PeoplePage() {
       </Box>
 
       {data && dialog?.kind === "review" && data.requests.find((r) => r.id === dialog.id) && (
-        <ReviewDialog request={data.requests.find((r) => r.id === dialog.id)!} reload={reload} onClose={close} />
+        <ReviewDialog request={data.requests.find((r) => r.id === dialog.id)!} groups={data.groups} reload={reload} onClose={close} />
       )}
       {data && dialog?.kind === "newuser" && <NewUserDialog groups={data.groups} reload={reload} onClose={close} />}
       {data && dialog?.kind === "newgroup" && <NewGroupDialog reload={reload} onClose={close} />}
@@ -726,8 +731,9 @@ function Detail({ k, v }: { k: string; v: string }) {
   );
 }
 
-function ReviewDialog({ request: r, reload, onClose }: { request: Request; reload: () => Promise<void>; onClose: () => void }) {
+function ReviewDialog({ request: r, groups, reload, onClose }: { request: Request; groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
   const [grant, setGrant] = useState<Role>(r.role);
+  const [groupId, setGroupId] = useState("");
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
   const { run, busy } = useAction(reload);
@@ -735,8 +741,16 @@ function ReviewDialog({ request: r, reload, onClose }: { request: Request; reloa
 
   if (declining) {
     return (
-      <MDialog title={`Decline ${first}'s request?`} subtitle="They'll be told by email, and WhatsApp or SMS" onClose={onClose}>
-        <TextField label="Reason (sent to them)" multiline minRows={3} placeholder="e.g. We couldn't find a project at this address yet — please call us." value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1 }} />
+      <MDialog title="Decline Request" heading={`Decline ${first}'s request?`} subtitle="They'll be told by email, and by WhatsApp or SMS. They can ask again later." onClose={onClose}>
+        <Field
+          label="Reason (sent to them)"
+          icon={<ChatBubbleOutlineRoundedIcon />}
+          multiline
+          minRows={3}
+          placeholder="e.g. We couldn't find a project at this address yet — please call us."
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
         <Stack sx={{ gap: 1, mt: 3 }}>
           <Button
             size="large"
@@ -747,7 +761,7 @@ function ReviewDialog({ request: r, reload, onClose }: { request: Request; reloa
               if (await run(`/account-requests/${r.id}/reject`, { method: "POST", json: { note: reason } })) onClose();
             }}
           >
-            {busy ? "Declining…" : "Decline request"}
+            {busy ? "Declining…" : "Decline Request"}
           </Button>
           <Button size="large" onClick={() => setDeclining(false)}>
             Cancel
@@ -758,20 +772,21 @@ function ReviewDialog({ request: r, reload, onClose }: { request: Request; reloa
   }
 
   return (
-    <MDialog title="Review request" subtitle={`Sent ${ago(r.createdAt)}`} onClose={onClose}>
-      <Stack sx={{ alignItems: "center", textAlign: "center", mb: 2 }}>
+    <MDialog title="Review Request" onClose={onClose}>
+      <Stack sx={{ alignItems: "center", textAlign: "center", mb: 2.5 }}>
         <RoleAvatar name={r.fullName} role={r.role} size={68} />
-        <Typography variant="h6" sx={{ mt: 1.5 }}>
-          {r.fullName}
-        </Typography>
+        <Typography sx={{ mt: 1.25, color: "primary.main", fontWeight: 600, fontSize: 20 }}>{r.fullName}</Typography>
         <Stack direction="row" sx={{ gap: 1, alignItems: "center", mt: 0.5 }}>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
             Asked for
           </Typography>
           <RoleChip role={r.role} />
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            · {ago(r.createdAt)}
+          </Typography>
         </Stack>
       </Stack>
-      <Card sx={{ px: 2, py: 0.5, mb: 2.5 }}>
+      <Card sx={{ px: 2, py: 0.5, mb: 3 }}>
         <Detail k="Email" v={`${r.email}  ✓ verified`} />
         <Divider />
         <Detail k="Mobile" v={r.contactNo ?? "—"} />
@@ -780,21 +795,34 @@ function ReviewDialog({ request: r, reload, onClose }: { request: Request; reloa
         <Divider />
         <Detail k="Note" v={r.note ? `“${r.note}”` : "—"} />
       </Card>
-      <TextField select label="Grant role" value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText="You can grant a different role from the one they asked for.">
-        {ROLES.map((k) => (
-          <MenuItem key={k} value={k}>
-            {ROLE_NAME[k]}
-            {k === r.role ? " (requested)" : ""}
-          </MenuItem>
-        ))}
-      </TextField>
+      <Stack sx={{ gap: 2.5 }}>
+        <Field select label="Grant role" icon={<BadgeRoundedIcon />} value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText="You can grant a different role from the one they asked for.">
+          {ROLES.map((k) => (
+            <MenuItem key={k} value={k}>
+              {ROLE_NAME[k]}
+              {k === r.role ? " (requested)" : ""}
+            </MenuItem>
+          ))}
+        </Field>
+        {CREW.includes(grant) && (
+          <Field select label="Contractor group" icon={<GroupsRoundedIcon />} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+            <MenuItem value="">None for now</MenuItem>
+            {groups.map((g) => (
+              <MenuItem key={g.id} value={String(g.id)}>
+                {g.name}
+              </MenuItem>
+            ))}
+          </Field>
+        )}
+      </Stack>
       <Stack sx={{ gap: 1, mt: 3 }}>
         <Button
           size="large"
           variant="contained"
           disabled={busy}
           onClick={async () => {
-            if (await run(`/account-requests/${r.id}/approve`, { method: "POST", json: { role: grant } })) onClose();
+            const json = { role: grant, groupId: groupId ? Number(groupId) : null };
+            if (await run(`/account-requests/${r.id}/approve`, { method: "POST", json })) onClose();
           }}
         >
           {busy ? "Approving…" : `Approve as ${ROLE_NAME[grant]}`}
@@ -811,36 +839,44 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
   const { run, busy } = useAction(reload);
   const [f, setF] = useState({ fullName: "", email: "", role: "homeowner" as Role, contactNo: "", groupId: "", postalCode: "", address: "", icLast4: "" });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
-  const ok = f.fullName.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim());
+  const mobileOk = splitPhone(f.contactNo).local.replace(/\D/g, "").length >= 6;
+  const ok = f.fullName.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim()) && mobileOk;
 
   return (
-    <MDialog title="New account" subtitle="Creates a login and sends them an invitation" onClose={onClose}>
-      <Stack sx={{ gap: 2.25, mt: 1 }}>
-        <TextField label="Full name" required value={f.fullName} onChange={set("fullName")} autoComplete="off" />
-        <TextField label="Email" required type="email" value={f.email} onChange={set("email")} autoComplete="off" />
-        <PhoneField value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} helperText="For WhatsApp, or SMS if WhatsApp can't deliver" />
-        <TextField select label="Role" required value={f.role} onChange={set("role")}>
+    <MDialog
+      title="New Account"
+      heading="Create their login"
+      subtitle="They'll get an email, and a WhatsApp (or SMS) message, inviting them in with this role."
+      onClose={onClose}
+    >
+      <Stack sx={{ gap: 2.5 }}>
+        <Field label="Full name" required icon={<PersonOutlineRoundedIcon />} placeholder="e.g. Aisha Rahman" value={f.fullName} onChange={set("fullName")} autoComplete="off" />
+        <Field label="Email" required type="email" icon={<MailOutlineRoundedIcon />} placeholder="name@example.com" value={f.email} onChange={set("email")} autoComplete="off" />
+        <PhoneField required value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} helperText="For WhatsApp, or SMS if WhatsApp can't deliver" />
+        <Field select label="Role" required icon={<BadgeRoundedIcon />} value={f.role} onChange={set("role")}>
           {ROLES.map((k) => (
             <MenuItem key={k} value={k}>
               {ROLE_NAME[k]}
             </MenuItem>
           ))}
-        </TextField>
+        </Field>
         {CREW.includes(f.role) && (
-          <TextField select label="Contractor group" value={f.groupId} onChange={set("groupId")}>
+          <Field select label="Contractor group" icon={<GroupsRoundedIcon />} value={f.groupId} onChange={set("groupId")}>
             <MenuItem value="">None for now</MenuItem>
             {groups.map((g) => (
               <MenuItem key={g.id} value={String(g.id)}>
                 {g.name}
               </MenuItem>
             ))}
-          </TextField>
+          </Field>
         )}
         <Stack direction="row" sx={{ gap: 1.5 }}>
-          <TextField label="Postal code" value={f.postalCode} onChange={set("postalCode")} slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }} />
-          {f.role === "homeowner" && <TextField label="NRIC last 4" placeholder="567D" value={f.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4 } }} />}
+          <Field label="Postal code" icon={<PlaceOutlinedIcon />} placeholder="6 digits" value={f.postalCode} onChange={set("postalCode")} slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }} />
+          {f.role === "homeowner" && (
+            <Field label="NRIC last 4" icon={<FingerprintRoundedIcon />} placeholder="567D" value={f.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4 } }} />
+          )}
         </Stack>
-        <TextField label="Address" placeholder="Filled in from the postal code" value={f.address} onChange={set("address")} />
+        <Field label="Address" icon={<HomeOutlinedIcon />} placeholder="Filled in from the postal code" value={f.address} onChange={set("address")} />
       </Stack>
       <Button
         fullWidth
@@ -852,10 +888,10 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
           if (await run("/people", { method: "POST", json: { ...f, groupId: f.groupId ? Number(f.groupId) : null } })) onClose();
         }}
       >
-        {busy ? "Creating…" : "Create account & notify"}
+        {busy ? "Creating…" : "Create Account"}
       </Button>
-      <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "text.secondary", mt: 1 }}>
-        {ok ? "They get an email, plus WhatsApp (or SMS) if a mobile is given." : "Enter a name and a valid email."}
+      <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "text.secondary", mt: 1.25 }}>
+        {ok ? "We never ask for a full NRIC." : "Enter their name, email and mobile."}
       </Typography>
     </MDialog>
   );
@@ -865,8 +901,8 @@ function NewGroupDialog({ reload, onClose }: { reload: () => Promise<void>; onCl
   const [name, setName] = useState("");
   const { run, busy } = useAction(reload);
   return (
-    <MDialog title="New contractor group" subtitle="Groups can be assigned to projects as one unit" onClose={onClose} maxWidth="xs">
-      <TextField label="Group name" placeholder="e.g. Northline Roofing Pte Ltd" value={name} onChange={(e) => setName(e.target.value)} sx={{ mt: 1 }} />
+    <MDialog title="New Group" heading="Create a contractor group" subtitle="Groups can be assigned to projects as one unit." onClose={onClose} maxWidth="xs">
+      <Field label="Group name" required icon={<GroupsRoundedIcon />} placeholder="e.g. Northline Roofing Pte Ltd" value={name} onChange={(e) => setName(e.target.value)} />
       <Button
         fullWidth
         size="large"
@@ -877,7 +913,7 @@ function NewGroupDialog({ reload, onClose }: { reload: () => Promise<void>; onCl
           if (await run("/groups", { method: "POST", json: { name } })) onClose();
         }}
       >
-        Create group
+        Create Group
       </Button>
     </MDialog>
   );
@@ -887,21 +923,23 @@ function AddMemberDialog({ group, users, groupById, reload, onClose }: { group: 
   const { run, busy } = useAction(reload);
   const avail = users.filter((u) => CREW.includes(u.role) && u.active && !group.members.includes(u.uid));
   return (
-    <MDialog title="Add member" subtitle={group.name} onClose={onClose}>
+    <MDialog title="Add Member" heading={group.name} subtitle="Contractor admins and EPC crew. A person can be in more than one group." onClose={onClose}>
       {avail.length === 0 ? (
         <Alert severity="info">Everyone eligible is already a member. Create a contractor admin or EPC account first.</Alert>
       ) : (
-        <List disablePadding>
-          {avail.map((u) => (
-            <ListItemButton key={u.uid} disabled={busy} onClick={() => void run(`/groups/${group.id}/members`, { method: "POST", json: { uid: u.uid } })}>
-              <ListItemAvatar>
-                <RoleAvatar name={u.fullName ?? u.email} role={u.role} />
-              </ListItemAvatar>
-              <ListItemText primary={u.fullName ?? u.email} secondary={`${ROLE_NAME[u.role]}${u.groups.length ? ` · in ${u.groups.map((g) => groupById.get(g)?.name).join(", ")}` : ""}`} />
-              <Chip size="small" color="primary" label="Add" />
-            </ListItemButton>
-          ))}
-        </List>
+        <Card>
+          <List disablePadding>
+            {avail.map((u, i) => (
+              <ListItemButton key={u.uid} divider={i < avail.length - 1} disabled={busy} onClick={() => void run(`/groups/${group.id}/members`, { method: "POST", json: { uid: u.uid } })}>
+                <ListItemAvatar>
+                  <RoleAvatar name={u.fullName ?? u.email} role={u.role} />
+                </ListItemAvatar>
+                <ListItemText primary={u.fullName ?? u.email} secondary={`${ROLE_NAME[u.role]}${u.groups.length ? ` · in ${u.groups.map((g) => groupById.get(g)?.name).join(", ")}` : ""}`} />
+                <Chip size="small" color="primary" label="Add" />
+              </ListItemButton>
+            ))}
+          </List>
+        </Card>
       )}
     </MDialog>
   );
@@ -938,16 +976,9 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
   return (
     <Dialog open onClose={onClose} fullScreen={phone} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { bgcolor: "background.default", overflowX: "hidden" } } }}>
       <Box sx={{ position: "relative", pb: 3 }}>
-        <Box sx={{ height: 150, background: HERO_BG, color: "#fff", px: 1, pt: "env(safe-area-inset-top)" }}>
-          <Stack direction="row" sx={{ alignItems: "center", height: 64 }}>
-            <IconButton onClick={onClose} aria-label="Back" sx={{ color: "#fff" }}>
-              <ArrowBackRoundedIcon />
-            </IconButton>
-            <Typography sx={{ flex: 1, textAlign: "center", fontWeight: 600, fontSize: 17, mr: 5 }}>Profile</Typography>
-          </Stack>
-        </Box>
+        <WaveHeader title="Profile" onBack={onClose} height={150} />
 
-        <Card sx={{ mx: 2.5, mt: -6, pt: 6.5, pb: 2.5, px: 2, textAlign: "center", overflow: "visible", position: "relative" }}>
+        <Card sx={{ mx: 2.5, mt: -4, pt: 6.5, pb: 2.5, px: 2, textAlign: "center", overflow: "visible", position: "relative" }}>
           <Box sx={{ position: "absolute", left: "50%", top: -40, transform: "translateX(-50%)", borderRadius: "50%", p: 0.5, bgcolor: "background.paper" }}>
             <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={76} />
           </Box>

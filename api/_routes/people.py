@@ -118,7 +118,7 @@ class NewUserIn(ProfileIn):
 @router.post("/people")
 def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     email = clean_email(body.email)
-    p = clean_profile(body)
+    p = clean_profile(body, require_mobile=True)
     if fetch_one("select 1 from users where lower(email) = %s", (email,)):
         raise HTTPException(409, "An account with that email already exists.")
 
@@ -209,6 +209,9 @@ def update_user(uid: int, body: UserPatch, acct: Account = Depends(pm_only)) -> 
 class DecisionIn(BaseModel):
     role: str | None = None
     note: str | None = None
+    # Contractor admins and EPC crew can be put into a group as they're approved,
+    # the same as when a PM creates their account directly.
+    groupId: int | None = None
 
 
 @router.post("/account-requests/{request_id}/approve")
@@ -223,13 +226,19 @@ def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only))
     if fetch_one("select 1 from users where lower(email) = lower(%s)", (req["email"],)):
         raise HTTPException(409, "An account with that email already exists. Decline this request instead.")
 
-    # One statement: the account and the approval exist together or not at all.
+    # One transaction: the account, the approval and any group membership
+    # exist together or not at all.
     with transaction(acct.uid) as cur:
         cur.execute(
             "select approve_account_request(%s, %s, %s) as uid",
             (request_id, body.role, (body.note or "").strip() or None),
         )
         uid = cur.fetchone()["uid"]
+        if body.groupId and body.role in CREW_ROLES:
+            cur.execute(
+                "insert into contractor_group_members (group_id, user_id, added_by) values (%s, %s, %s)",
+                (body.groupId, uid, acct.uid),
+            )
     user = fetch_one("select full_name, email, contact_no from users where uid = %s", (uid,))
     assert user is not None
     role_label = ROLE_LABEL[body.role]
