@@ -7,6 +7,7 @@ from collections.abc import Callable
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from _lib.account import Account, resolve
 from _lib.auth import AuthError, ClerkIdentity, verify_token
@@ -44,8 +45,9 @@ def role(*roles: str) -> Callable[[Account], Account]:
 
 
 def install_error_handlers(app: FastAPI) -> None:
-    @app.exception_handler(HTTPException)
-    async def http_error(_req: Request, exc: HTTPException) -> JSONResponse:
+    # Starlette's base class, so 404s for unknown paths are JSON {"error"} too.
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error(_req: Request, exc: StarletteHTTPException) -> JSONResponse:
         return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
 
     @app.exception_handler(psycopg.Error)

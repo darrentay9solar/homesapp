@@ -35,13 +35,14 @@ packages = []
 [tool.ruff]
 # Pin what CI and the Vercel runtime actually run, as .nvmrc does for Node.
 target-version = "py312"
-line-length = 110
+line-length = 120
 extend-exclude = [".venv", "node_modules", ".next"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
 # B008: `x = Depends(...)` in a signature is how FastAPI declares dependencies.
-ignore = ["B008"]
+# N815: request models mirror the camelCase JSON the browser sends.
+ignore = ["B008", "N815"]
 
 [tool.ruff.lint.isort]
 # The API's own modules, imported via the api/ directory on sys.path.
