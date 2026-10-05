@@ -1,12 +1,41 @@
 "use client";
 
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import GroupAddRoundedIcon from "@mui/icons-material/GroupAddRounded";
+import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
+import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
+import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
+import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
+import Alert from "@mui/material/Alert";
+import AvatarGroup from "@mui/material/AvatarGroup";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import CardActionArea from "@mui/material/CardActionArea";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemAvatar from "@mui/material/ListItemAvatar";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemText from "@mui/material/ListItemText";
+import MenuItem from "@mui/material/MenuItem";
+import Skeleton from "@mui/material/Skeleton";
+import Stack from "@mui/material/Stack";
+import { alpha } from "@mui/material/styles";
+import Switch from "@mui/material/Switch";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { I } from "@/components/icons";
-import { PhoneInput } from "@/components/phone-input";
-import { Header } from "@/components/shell";
-import { Pill, Sec, Sheet, ago, d2s, initials } from "@/components/ui";
+import { MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, SectionTitle } from "@/components/m";
+import { Header, Page } from "@/components/shell";
+import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 
@@ -37,29 +66,25 @@ type Request = {
 };
 type Data = { me: number; users: Person[]; groups: Group[]; requests: Request[] };
 
-const ROLE_NAME: Record<Role, string> = {
-  homeowner: "Homeowner",
-  contractor: "Contractor Admin",
-  epc_team: "EPC Team",
-  project_manager: "Project Manager",
-};
-const ROLE_SHORT: Record<Role, string> = {
-  homeowner: "Homeowner",
-  contractor: "Admin",
-  epc_team: "EPC",
-  project_manager: "PM",
-};
+const ROLES = Object.keys(ROLE_NAME) as Role[];
 const CREW: Role[] = ["contractor", "epc_team"];
+const FILTERS: Array<[Role | "all", string]> = [
+  ["all", "All"],
+  ["homeowner", "Homeowners"],
+  ["contractor", "Contractor admins"],
+  ["epc_team", "EPC team"],
+  ["project_manager", "Project managers"],
+];
 
-type SheetState =
-  | { kind: "review"; request: Request }
+type DialogState =
+  | { kind: "review"; id: number }
   | { kind: "newuser" }
   | { kind: "newgroup" }
-  | { kind: "addmember"; group: Group }
-  | { kind: "user"; uid: number }
+  | { kind: "addmember"; id: number }
+  | { kind: "person"; uid: number }
   | null;
 
-/** Hook for one write: runs it, toasts the server's message, reloads. */
+/** One write: run it, show the server's message, reload. */
 function useAction(reload: () => Promise<void>) {
   const fetcher = useFetcher();
   const { toast } = useApp();
@@ -85,18 +110,27 @@ export default function PeoplePage() {
   const me = useMe();
   const router = useRouter();
   const { data, error, reload } = useApi<Data>(me?.role === "project_manager" ? "/people" : null);
-  const [sheet, setSheet] = useState<SheetState>(null);
+  const [dialog, setDialog] = useState<DialogState>(null);
   const [filter, setFilter] = useState<Role | "all">("all");
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     if (me && me.role !== "project_manager") router.replace("/");
   }, [me, router]);
 
   const byId = useMemo(() => new Map((data?.users ?? []).map((u) => [u.uid, u])), [data]);
-  const groupName = (id: number) => data?.groups.find((g) => g.id === id)?.name ?? "";
+  const groupById = useMemo(() => new Map((data?.groups ?? []).map((g) => [g.id, g])), [data]);
 
   if (!me || me.role !== "project_manager") return null;
-  const list = (data?.users ?? []).filter((u) => filter === "all" || u.role === filter);
+
+  const needle = q.trim().toLowerCase();
+  const people = (data?.users ?? []).filter(
+    (u) =>
+      (filter === "all" || u.role === filter) &&
+      (!needle || `${u.fullName ?? ""} ${u.email}`.toLowerCase().includes(needle))
+  );
+  const counts = (r: Role | "all") => (data?.users ?? []).filter((u) => r === "all" || u.role === r).length;
+  const close = () => setDialog(null);
 
   return (
     <>
@@ -104,153 +138,251 @@ export default function PeoplePage() {
         title="People"
         sub="Accounts & contractor groups"
         right={
-          <button className="icobtn brand" aria-label="New account" onClick={() => setSheet({ kind: "newuser" })}>
-            <I.plus size={19} />
-          </button>
+          <Button
+            variant="contained"
+            startIcon={<PersonAddAlt1RoundedIcon />}
+            onClick={() => setDialog({ kind: "newuser" })}
+            sx={{ display: { xs: "none", sm: "inline-flex" } }}
+          >
+            New account
+          </Button>
         }
       />
-      <div className="scroll">
-        {error && <div className="err" style={{ marginTop: 14 }}>{error.message}</div>}
-        {!data && !error && <div className="skeleton" style={{ height: 320, marginTop: 18 }} />}
+      <Page>
+        {error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error.message}
+          </Alert>
+        )}
+        {!data && !error && <LoadingCards />}
 
         {data && (
-          <div className="cols">
-            <div>
-              {data.requests.length > 0 && (
-                <>
-                  <Sec title="Waiting for approval" right={<Pill tone="warn">{data.requests.length}</Pill>} />
-                  <div className="plist">
-                    {data.requests.map((r) => (
-                      <div key={r.id} className="card">
-                        <div className="row">
-                          <span className="ava">{initials(r.fullName)}</span>
-                          <div className="grow">
-                            <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.fullName}</div>
-                            <div className="tiny">
-                              Asked for {r.roleLabel} · {ago(r.createdAt)}
-                            </div>
-                          </div>
-                          <Pill tone="warn">New</Pill>
-                        </div>
-                        <button
-                          className="btn p full"
-                          style={{ height: 40, marginTop: 12, fontSize: 13.5 }}
-                          onClick={() => setSheet({ kind: "review", request: r })}
-                        >
-                          Review
-                        </button>
-                      </div>
+          <>
+            {/* -------------------------------------------- requests */}
+            {data.requests.length > 0 && (
+              <>
+                <SectionTitle title="Waiting for approval" count={data.requests.length} />
+                <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr", xl: "1fr 1fr 1fr" } }}>
+                  {data.requests.map((r) => (
+                    <Card
+                      key={r.id}
+                      sx={(t) => ({
+                        p: 2,
+                        borderLeft: `4px solid ${t.palette.warning.main}`,
+                        bgcolor: alpha(t.palette.warning.main, 0.05),
+                      })}
+                    >
+                      <Stack direction="row" sx={{ gap: 1.5, alignItems: "center" }}>
+                        <RoleAvatar name={r.fullName} role={r.role} size={46} />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography noWrap sx={{ fontWeight: 600 }}>
+                            {r.fullName}
+                          </Typography>
+                          <Typography noWrap variant="body2" sx={{ color: "text.secondary" }}>
+                            {r.email}
+                          </Typography>
+                        </Box>
+                        <Chip size="small" color="warning" label="New" />
+                      </Stack>
+                      <Stack direction="row" sx={{ gap: 1, mt: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+                        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                          Asked for
+                        </Typography>
+                        <RoleChip role={r.role} />
+                        <Typography variant="caption" sx={{ color: "text.secondary", ml: "auto" }}>
+                          {ago(r.createdAt)}
+                        </Typography>
+                      </Stack>
+                      <Button fullWidth variant="contained" sx={{ mt: 2 }} onClick={() => setDialog({ kind: "review", id: r.id })}>
+                        Review request
+                      </Button>
+                    </Card>
+                  ))}
+                </Box>
+              </>
+            )}
+
+            <Box
+              sx={{
+                display: "grid",
+                gap: { xs: 0, lg: 4 },
+                gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) 360px" },
+                alignItems: "start",
+              }}
+            >
+              {/* ---------------------------------------- accounts */}
+              <Box>
+                <SectionTitle title="All accounts" count={data.users.length} />
+                <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, mb: 2, alignItems: { md: "center" }, minWidth: 0 }}>
+                  <TextField
+                    size="small"
+                    placeholder="Search by name or email"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    sx={{ maxWidth: { md: 300 } }}
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchRoundedIcon fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                  <Stack direction="row" sx={{ gap: 1, overflowX: "auto", pb: 0.5, scrollbarWidth: "none" }}>
+                    {FILTERS.map(([k, l]) => (
+                      <Chip
+                        key={k}
+                        label={`${l} · ${counts(k)}`}
+                        color={filter === k ? "primary" : "default"}
+                        variant={filter === k ? "filled" : "outlined"}
+                        onClick={() => setFilter(k)}
+                        sx={{ flex: "0 0 auto" }}
+                      />
                     ))}
-                  </div>
-                </>
-              )}
+                  </Stack>
+                </Stack>
 
-              <Sec title="All accounts" right={<span className="tiny">{data.users.length}</span>} />
-              <div className="filters">
-                {(
-                  [
-                    ["all", "All"],
-                    ["homeowner", "Homeowners"],
-                    ["contractor", "Contractor admin"],
-                    ["epc_team", "EPC team"],
-                    ["project_manager", "Project managers"],
-                  ] as Array<[Role | "all", string]>
-                ).map(([k, l]) => (
-                  <button key={k} className={filter === k ? "on" : ""} onClick={() => setFilter(k)}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-              <div className="card" style={{ padding: "1px 15px", marginTop: 10 }}>
-                {list.length === 0 && <div className="empty">No accounts match this filter.</div>}
-                {list.map((u) => (
-                  <button
-                    key={u.uid}
-                    className={`urow ${u.active ? "" : "off"}`}
-                    onClick={() => setSheet({ kind: "user", uid: u.uid })}
+                {people.length === 0 ? (
+                  <Card sx={{ p: 5, textAlign: "center", color: "text.secondary" }}>No accounts match.</Card>
+                ) : (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "1fr 1fr 1fr", lg: "1fr 1fr" },
+                    }}
                   >
-                    <span className={`ava ${u.role === "project_manager" ? "brand" : ""}`}>
-                      {initials(u.fullName ?? u.email)}
-                    </span>
-                    <span className="grow">
-                      <span className="un">
-                        {u.fullName ?? u.email}
-                        {u.active ? "" : " · disabled"}
-                      </span>
-                      <span className="ue">
-                        {u.email}
-                        {!u.linked && u.invitedAt ? " · invited, not signed in yet" : ""}
-                      </span>
-                    </span>
-                    <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5 }}>
-                      <Pill>{ROLE_SHORT[u.role]}</Pill>
-                      {u.groups.length > 0 && (
-                        <span className="tiny" style={{ fontSize: 9 }}>
-                          {u.groups.map((g) => initials(groupName(g))).join(" · ")}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="tiny" style={{ marginTop: 12 }}>
-                Moving someone between groups changes which projects they can open. Every change here is written to
-                the audit log.
-              </div>
-            </div>
+                    {people.map((u) => (
+                      <PersonCard
+                        key={u.uid}
+                        person={u}
+                        groupNames={u.groups.map((g) => groupById.get(g)?.name ?? "")}
+                        onOpen={() => setDialog({ kind: "person", uid: u.uid })}
+                      />
+                    ))}
+                  </Box>
+                )}
+                <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 1.5 }}>
+                  Moving someone between groups changes which projects they can open. Every change is written to the
+                  audit log.
+                </Typography>
+              </Box>
 
-            <div>
-              <Sec
-                title="Contractor groups"
-                right={
-                  <button className="link" onClick={() => setSheet({ kind: "newgroup" })}>
-                    New group
-                  </button>
-                }
-              />
-              {data.groups.length === 0 && <div className="empty">No groups yet.</div>}
-              {data.groups.map((g) => (
-                <GroupCard
-                  key={g.id}
-                  group={g}
-                  byId={byId}
-                  reload={reload}
-                  onAdd={() => setSheet({ kind: "addmember", group: g })}
+              {/* ------------------------------------------ groups */}
+              <Box>
+                <SectionTitle
+                  title="Contractor groups"
+                  count={data.groups.length}
+                  action={
+                    <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDialog({ kind: "newgroup" })}>
+                      New group
+                    </Button>
+                  }
                 />
-              ))}
-            </div>
-          </div>
+                <Stack sx={{ gap: 1.5 }}>
+                  {data.groups.length === 0 && (
+                    <Card sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>No groups yet.</Card>
+                  )}
+                  {data.groups.map((g) => (
+                    <GroupCard
+                      key={g.id}
+                      group={g}
+                      byId={byId}
+                      reload={reload}
+                      onAdd={() => setDialog({ kind: "addmember", id: g.id })}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            </Box>
+          </>
         )}
-      </div>
+      </Page>
 
-      {data && sheet?.kind === "review" && (
-        <ReviewSheet request={sheet.request} reload={reload} onClose={() => setSheet(null)} />
+      {/* Phones: a floating "new account" button instead of the header one. */}
+      <Button
+        variant="contained"
+        aria-label="New account"
+        onClick={() => setDialog({ kind: "newuser" })}
+        sx={{
+          display: { xs: "inline-flex", sm: "none" },
+          position: "fixed",
+          right: 16,
+          bottom: "calc(80px + env(safe-area-inset-bottom))",
+          minWidth: 0,
+          width: 56,
+          height: 56,
+          borderRadius: 4,
+          boxShadow: 6,
+        }}
+      >
+        <PersonAddAlt1RoundedIcon />
+      </Button>
+
+      {data && dialog?.kind === "review" && data.requests.find((r) => r.id === dialog.id) && (
+        <ReviewDialog request={data.requests.find((r) => r.id === dialog.id)!} reload={reload} onClose={close} />
       )}
-      {data && sheet?.kind === "newuser" && <NewUserSheet groups={data.groups} reload={reload} onClose={() => setSheet(null)} />}
-      {data && sheet?.kind === "newgroup" && <NewGroupSheet reload={reload} onClose={() => setSheet(null)} />}
-      {data && sheet?.kind === "addmember" && (
-        <AddMemberSheet
-          group={data.groups.find((g) => g.id === sheet.group.id) ?? sheet.group}
-          users={data.users}
-          groupName={groupName}
-          reload={reload}
-          onClose={() => setSheet(null)}
-        />
+      {data && dialog?.kind === "newuser" && <NewUserDialog groups={data.groups} reload={reload} onClose={close} />}
+      {data && dialog?.kind === "newgroup" && <NewGroupDialog reload={reload} onClose={close} />}
+      {data && dialog?.kind === "addmember" && groupById.get(dialog.id) && (
+        <AddMemberDialog group={groupById.get(dialog.id)!} users={data.users} groupById={groupById} reload={reload} onClose={close} />
       )}
-      {data && sheet?.kind === "user" && byId.get(sheet.uid) && (
-        <UserSheet
-          user={byId.get(sheet.uid)!}
-          isMe={sheet.uid === data.me}
+      {data && dialog?.kind === "person" && byId.get(dialog.uid) && (
+        <PersonDialog
+          person={byId.get(dialog.uid)!}
+          isMe={dialog.uid === data.me}
           groups={data.groups}
           reload={reload}
-          onClose={() => setSheet(null)}
+          onClose={close}
         />
       )}
     </>
   );
 }
 
-// ------------------------------------------------------------- groups
+function LoadingCards() {
+  return (
+    <Box sx={{ display: "grid", gap: 1.5, mt: 4, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" } }}>
+      {Array.from({ length: 6 }, (_, i) => (
+        <Skeleton key={i} variant="rounded" height={124} sx={{ borderRadius: 4.5 }} />
+      ))}
+    </Box>
+  );
+}
+
+// ------------------------------------------------------------- cards
+
+function PersonCard({ person: u, groupNames, onOpen }: { person: Person; groupNames: string[]; onOpen: () => void }) {
+  return (
+    <Card sx={{ opacity: u.active ? 1 : 0.55 }}>
+      <CardActionArea onClick={onOpen} sx={{ p: 2, height: "100%", display: "flex", alignItems: "flex-start", flexDirection: "column" }}>
+        <Stack direction="row" sx={{ gap: 1.5, alignItems: "center", width: "100%" }}>
+          <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={46} />
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography noWrap sx={{ fontWeight: 600 }}>
+              {u.fullName ?? u.email}
+            </Typography>
+            <Typography noWrap variant="body2" sx={{ color: "text.secondary" }}>
+              {u.email}
+            </Typography>
+          </Box>
+        </Stack>
+        <Stack direction="row" sx={{ gap: 0.75, mt: 1.5, flexWrap: "wrap" }}>
+          <RoleChip role={u.role} />
+          {!u.active && <Chip size="small" color="error" variant="outlined" label="Disabled" />}
+          {u.active && !u.linked && u.invitedAt && (
+            <Chip size="small" variant="outlined" icon={<MailOutlineRoundedIcon />} label="Invited" />
+          )}
+          {groupNames.map((g) => (
+            <Chip key={g} size="small" variant="outlined" label={g} />
+          ))}
+        </Stack>
+      </CardActionArea>
+    </Card>
+  );
+}
 
 function GroupCard({
   group,
@@ -264,161 +396,114 @@ function GroupCard({
   onAdd: () => void;
 }) {
   const { run, busy } = useAction(reload);
+  const members = group.members.map((id) => byId.get(id)).filter((u): u is Person => Boolean(u));
   return (
-    <div className="gcard">
-      <div className="gh">
-        <span className="ava brand">{initials(group.name)}</span>
-        <div className="grow">
-          <div className="gn">{group.name}</div>
-          <div className="gs">
-            {group.members.length} member{group.members.length === 1 ? "" : "s"} · {group.projects} project
-            {group.projects === 1 ? "" : "s"}
-          </div>
-        </div>
-        <button
-          className="rmx"
-          title="Delete group"
-          aria-label={`Delete ${group.name}`}
-          disabled={busy}
-          onClick={() => {
-            if (confirm(`Delete ${group.name}?`)) void run(`/groups/${group.id}`, { method: "DELETE" });
-          }}
+    <Card>
+      <Stack direction="row" sx={{ gap: 1.5, alignItems: "center", p: 2 }}>
+        <Box
+          sx={(t) => ({
+            width: 46,
+            height: 46,
+            borderRadius: 3,
+            display: "grid",
+            placeItems: "center",
+            fontWeight: 700,
+            fontSize: 14,
+            color: "primary.contrastText",
+            background: `linear-gradient(135deg, ${t.palette.primary.main}, ${t.palette.primary.dark})`,
+          })}
         >
-          <I.x size={14} />
-        </button>
-      </div>
-      <div className="gb">
-        {group.members.length === 0 && (
-          <div className="tiny" style={{ padding: "15px 0" }}>
-            No members yet.
-          </div>
-        )}
-        {group.members.map((uid) => {
-          const u = byId.get(uid);
-          if (!u) return null;
-          return (
-            <div key={uid} className={`urow ${u.active ? "" : "off"}`}>
-              <span className="ava">{initials(u.fullName ?? u.email)}</span>
-              <span className="grow">
-                <span className="un">{u.fullName ?? u.email}</span>
-                <span className="ue">
-                  {ROLE_NAME[u.role]} · {u.email}
-                </span>
-              </span>
-              <button
-                className="rmx"
-                title="Remove from group"
-                aria-label={`Remove ${u.fullName ?? u.email}`}
-                disabled={busy}
-                onClick={() => void run(`/groups/${group.id}/members/${uid}`, { method: "DELETE" })}
-              >
-                <I.minus size={14} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      <div className="gf">
-        <button className="link" onClick={onAdd}>
-          + Add member
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function NewGroupSheet({ reload, onClose }: { reload: () => Promise<void>; onClose: () => void }) {
-  const [name, setName] = useState("");
-  const { run, busy } = useAction(reload);
-  return (
-    <Sheet title="New Contractor Group" sub="Groups can be assigned to projects as one unit" onClose={onClose}>
-      <div className="fld">
-        <label htmlFor="ng-name">
-          Group name<span className="req">*</span>
-        </label>
-        <input
-          id="ng-name"
-          className="inp"
-          placeholder="e.g. Northline Roofing Pte Ltd"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </div>
-      <button
-        className="btn p full"
-        disabled={busy || name.trim().length < 3}
-        onClick={async () => {
-          if (await run("/groups", { method: "POST", json: { name } })) onClose();
-        }}
-      >
-        Create group
-      </button>
-      <div className="tiny" style={{ textAlign: "center", marginTop: 10 }}>
-        Add members after the group is created.
-      </div>
-    </Sheet>
-  );
-}
-
-function AddMemberSheet({
-  group,
-  users,
-  groupName,
-  reload,
-  onClose,
-}: {
-  group: Group;
-  users: Person[];
-  groupName: (id: number) => string;
-  reload: () => Promise<void>;
-  onClose: () => void;
-}) {
-  const { run, busy } = useAction(reload);
-  const avail = users.filter((u) => CREW.includes(u.role) && u.active && !group.members.includes(u.uid));
-  return (
-    <Sheet title="Add Member" sub={group.name} onClose={onClose}>
-      {avail.length === 0 ? (
-        <div className="empty">Everyone eligible is already a member. Create a contractor or EPC account first.</div>
-      ) : (
-        <div className="card" style={{ padding: "1px 15px" }}>
-          {avail.map((u) => (
-            <button
-              key={u.uid}
-              className="urow"
-              disabled={busy}
-              onClick={() => void run(`/groups/${group.id}/members`, { method: "POST", json: { uid: u.uid } })}
-            >
-              <span className="ava">{initials(u.fullName ?? u.email)}</span>
-              <span className="grow">
-                <span className="un">{u.fullName ?? u.email}</span>
-                <span className="ue">
-                  {ROLE_NAME[u.role]}
-                  {u.groups.length ? ` · currently in ${u.groups.map(groupName).join(", ")}` : ""}
-                </span>
-              </span>
-              <Pill tone="ok">Add</Pill>
-            </button>
+          {initials(group.name)}
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography noWrap sx={{ fontWeight: 600 }}>
+            {group.name}
+          </Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            {members.length} member{members.length === 1 ? "" : "s"} · {group.projects} project
+            {group.projects === 1 ? "" : "s"}
+          </Typography>
+        </Box>
+        <AvatarGroup max={4} sx={{ "& .MuiAvatar-root": { width: 28, height: 28, fontSize: 11 } }}>
+          {members.map((u) => (
+            <RoleAvatar key={u.uid} name={u.fullName ?? u.email} role={u.role} size={28} />
           ))}
-        </div>
+        </AvatarGroup>
+      </Stack>
+      <Divider />
+      {members.length === 0 ? (
+        <Typography variant="body2" sx={{ color: "text.secondary", px: 2, py: 1.5 }}>
+          No members yet.
+        </Typography>
+      ) : (
+        <List dense disablePadding>
+          {members.map((u) => (
+            <ListItem
+              key={u.uid}
+              secondaryAction={
+                <Tooltip title="Remove from group">
+                  <IconButton
+                    edge="end"
+                    size="small"
+                    disabled={busy}
+                    aria-label={`Remove ${u.fullName ?? u.email}`}
+                    onClick={() => void run(`/groups/${group.id}/members/${u.uid}`, { method: "DELETE" })}
+                  >
+                    <PersonRemoveRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              }
+            >
+              <ListItemAvatar sx={{ minWidth: 44 }}>
+                <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={32} />
+              </ListItemAvatar>
+              <ListItemText primary={u.fullName ?? u.email} secondary={ROLE_NAME[u.role]} />
+            </ListItem>
+          ))}
+        </List>
       )}
-      <div className="tiny" style={{ marginTop: 12 }}>
-        A person can belong to more than one group. Adding them here doesn&apos;t remove them from another.
-      </div>
-    </Sheet>
+      <Divider />
+      <Stack direction="row" sx={{ px: 1, py: 0.75, alignItems: "center" }}>
+        <Button size="small" startIcon={<GroupAddRoundedIcon />} onClick={onAdd}>
+          Add member
+        </Button>
+        <Box sx={{ flex: 1 }} />
+        <Tooltip title={group.projects ? "Assigned to projects — can't delete" : "Delete group"}>
+          <span>
+            <IconButton
+              size="small"
+              color="error"
+              disabled={busy || group.projects > 0}
+              aria-label={`Delete ${group.name}`}
+              onClick={() => {
+                if (confirm(`Delete ${group.name}?`)) void run(`/groups/${group.id}`, { method: "DELETE" });
+              }}
+            >
+              <DeleteOutlineRoundedIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Stack>
+    </Card>
   );
 }
 
-// ------------------------------------------------------------ requests
+// ------------------------------------------------------------ dialogs
 
-function ReviewSheet({
-  request: r,
-  reload,
-  onClose,
-}: {
-  request: Request;
-  reload: () => Promise<void>;
-  onClose: () => void;
-}) {
+function Detail({ k, v }: { k: string; v: string }) {
+  return (
+    <Stack direction="row" sx={{ justifyContent: "space-between", gap: 2, py: 1.25 }}>
+      <Typography variant="body2" sx={{ color: "text.secondary", flex: "0 0 auto" }}>
+        {k}
+      </Typography>
+      <Typography variant="body2" sx={{ textAlign: "right", overflowWrap: "anywhere" }}>
+        {v}
+      </Typography>
+    </Stack>
+  );
+}
+
+function ReviewDialog({ request: r, reload, onClose }: { request: Request; reload: () => Promise<void>; onClose: () => void }) {
   const [grant, setGrant] = useState<Role>(r.role);
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
@@ -427,117 +512,96 @@ function ReviewSheet({
 
   if (declining) {
     return (
-      <Sheet title={`Decline ${first}'s request?`} sub="They'll be told by email and WhatsApp/SMS" onClose={onClose}>
-        <div className="fld">
-          <label htmlFor="rv-reason">
-            Reason<span className="opt">Sent to them</span>
-          </label>
-          <textarea
-            id="rv-reason"
-            className="inp"
-            placeholder="e.g. We couldn't find a project at this address yet — please call us."
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </div>
-        <button
-          className="btn full"
-          style={{ background: "var(--bad)", color: "#fff" }}
-          disabled={busy}
-          onClick={async () => {
-            if (await run(`/account-requests/${r.id}/reject`, { method: "POST", json: { note: reason } })) onClose();
-          }}
-        >
-          {busy ? "Declining…" : "Decline request"}
-        </button>
-        <button className="btn g full" style={{ marginTop: 8 }} onClick={() => setDeclining(false)}>
-          Cancel
-        </button>
-        <div className="tiny" style={{ textAlign: "center", marginTop: 10 }}>
+      <MDialog title={`Decline ${first}'s request?`} subtitle="They'll be told by email, and WhatsApp or SMS" onClose={onClose}>
+        <TextField
+          label="Reason (sent to them)"
+          multiline
+          minRows={3}
+          placeholder="e.g. We couldn't find a project at this address yet — please call us."
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          sx={{ mt: 1 }}
+        />
+        <Stack sx={{ gap: 1, mt: 3 }}>
+          <Button
+            size="large"
+            variant="contained"
+            color="error"
+            disabled={busy}
+            onClick={async () => {
+              if (await run(`/account-requests/${r.id}/reject`, { method: "POST", json: { note: reason } })) onClose();
+            }}
+          >
+            {busy ? "Declining…" : "Decline request"}
+          </Button>
+          <Button size="large" onClick={() => setDeclining(false)}>
+            Cancel
+          </Button>
+        </Stack>
+        <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "text.secondary", mt: 1 }}>
           They can send a new request later. Every decision is in the audit log.
-        </div>
-      </Sheet>
+        </Typography>
+      </MDialog>
     );
   }
 
   return (
-    <Sheet title="Review Request" sub={`Sent ${ago(r.createdAt)}`} onClose={onClose}>
-      <div style={{ textAlign: "center", marginBottom: 14 }}>
-        <span className="ava brand" style={{ width: 56, height: 56, fontSize: 17, margin: "0 auto" }}>
-          {initials(r.fullName)}
-        </span>
-        <div style={{ fontSize: 16, fontWeight: 600, marginTop: 10 }}>{r.fullName}</div>
-        <div className="tiny">
-          Asked for <b style={{ color: "var(--tx)" }}>{r.roleLabel}</b>
-        </div>
-      </div>
-      <div className="card" style={{ padding: "2px 15px", marginBottom: 16 }}>
-        <Kv k="Email" v={`${r.email} ✓`} />
-        <Kv k="Mobile" v={r.contactNo ?? "—"} />
-        <Kv k="Address" v={[r.address, r.postalCode].filter(Boolean).join(", ") || "—"} />
-        <Kv k="Note" v={r.note ? `“${r.note}”` : "—"} last />
-      </div>
-      <div className="fld">
-        <label htmlFor="rv-role">Grant role</label>
-        <select id="rv-role" className="inp" value={grant} onChange={(e) => setGrant(e.target.value as Role)}>
-          {(Object.keys(ROLE_NAME) as Role[]).map((k) => (
-            <option key={k} value={k}>
-              {ROLE_NAME[k]}
-              {k === r.role ? " (requested)" : ""}
-            </option>
-          ))}
-        </select>
-        <div className="tiny" style={{ marginTop: 6 }}>
-          You can grant a different role from the one they asked for. ✓ = email verified by the sign-in provider.
-        </div>
-      </div>
-      <button
-        className="btn p full"
-        disabled={busy}
-        onClick={async () => {
-          if (await run(`/account-requests/${r.id}/approve`, { method: "POST", json: { role: grant } })) onClose();
-        }}
+    <MDialog title="Review request" subtitle={`Sent ${ago(r.createdAt)}`} onClose={onClose}>
+      <Stack sx={{ alignItems: "center", textAlign: "center", mb: 2 }}>
+        <RoleAvatar name={r.fullName} role={r.role} size={68} />
+        <Typography variant="h6" sx={{ mt: 1.5 }}>
+          {r.fullName}
+        </Typography>
+        <Stack direction="row" sx={{ gap: 1, alignItems: "center", mt: 0.5 }}>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Asked for
+          </Typography>
+          <RoleChip role={r.role} />
+        </Stack>
+      </Stack>
+      <Card sx={{ px: 2, py: 0.5, mb: 2.5 }}>
+        <Detail k="Email" v={`${r.email}  ✓ verified`} />
+        <Divider />
+        <Detail k="Mobile" v={r.contactNo ?? "—"} />
+        <Divider />
+        <Detail k="Address" v={[r.address, r.postalCode].filter(Boolean).join(", ") || "—"} />
+        <Divider />
+        <Detail k="Note" v={r.note ? `“${r.note}”` : "—"} />
+      </Card>
+      <TextField
+        select
+        label="Grant role"
+        value={grant}
+        onChange={(e) => setGrant(e.target.value as Role)}
+        helperText="You can grant a different role from the one they asked for."
       >
-        {busy ? "Approving…" : `Approve as ${ROLE_NAME[grant]}`}
-      </button>
-      <button className="btn d full" style={{ marginTop: 8 }} disabled={busy} onClick={() => setDeclining(true)}>
-        Decline
-      </button>
-    </Sheet>
+        {ROLES.map((k) => (
+          <MenuItem key={k} value={k}>
+            {ROLE_NAME[k]}
+            {k === r.role ? " (requested)" : ""}
+          </MenuItem>
+        ))}
+      </TextField>
+      <Stack sx={{ gap: 1, mt: 3 }}>
+        <Button
+          size="large"
+          variant="contained"
+          disabled={busy}
+          onClick={async () => {
+            if (await run(`/account-requests/${r.id}/approve`, { method: "POST", json: { role: grant } })) onClose();
+          }}
+        >
+          {busy ? "Approving…" : `Approve as ${ROLE_NAME[grant]}`}
+        </Button>
+        <Button size="large" variant="outlined" color="error" disabled={busy} onClick={() => setDeclining(true)}>
+          Decline
+        </Button>
+      </Stack>
+    </MDialog>
   );
 }
 
-function Kv({ k, v, last }: { k: string; v: string; last?: boolean }) {
-  return (
-    <div
-      className="row"
-      style={{
-        justifyContent: "space-between",
-        padding: "10px 0",
-        borderBottom: last ? 0 : "1px solid var(--line-soft)",
-        fontSize: 12.5,
-        alignItems: "flex-start",
-      }}
-    >
-      <span className="tiny" style={{ flex: "0 0 auto" }}>
-        {k}
-      </span>
-      <span style={{ textAlign: "right", overflowWrap: "anywhere" }}>{v}</span>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------ accounts
-
-function NewUserSheet({
-  groups,
-  reload,
-  onClose,
-}: {
-  groups: Group[];
-  reload: () => Promise<void>;
-  onClose: () => void;
-}) {
+function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
   const { run, busy } = useAction(reload);
   const [f, setF] = useState({
     fullName: "",
@@ -553,118 +617,148 @@ function NewUserSheet({
   const ok = f.fullName.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim());
 
   return (
-    <Sheet title="New Account" sub="Creates a login and sends an invitation" onClose={onClose}>
-      <div className="fld">
-        <label htmlFor="nu-name">
-          Full name<span className="req">*</span>
-        </label>
-        <input id="nu-name" className="inp" placeholder="e.g. Aisha Rahman" value={f.fullName} onChange={set("fullName")} />
-      </div>
-      <div className="fld">
-        <label htmlFor="nu-email">
-          Email<span className="req">*</span>
-        </label>
-        <input
-          id="nu-email"
-          className="inp"
-          type="email"
-          inputMode="email"
-          placeholder="name@company.sg"
-          value={f.email}
-          onChange={set("email")}
+    <MDialog title="New account" subtitle="Creates a login and sends them an invitation" onClose={onClose}>
+      <Stack sx={{ gap: 2.25, mt: 1 }}>
+        <TextField label="Full name" required value={f.fullName} onChange={set("fullName")} autoComplete="off" />
+        <TextField label="Email" required type="email" value={f.email} onChange={set("email")} autoComplete="off" />
+        <PhoneField
+          value={f.contactNo}
+          onChange={(v) => setF((x) => ({ ...x, contactNo: v }))}
+          helperText="For WhatsApp, or SMS if WhatsApp can't deliver"
         />
-      </div>
-      <div className="fld">
-        <label htmlFor="nu-phone">
-          Mobile<span className="opt">For WhatsApp / SMS</span>
-        </label>
-        <PhoneInput id="nu-phone" value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} />
-      </div>
-      <div className="fld">
-        <label htmlFor="nu-role">
-          Role<span className="req">*</span>
-        </label>
-        <select id="nu-role" className="inp" value={f.role} onChange={set("role")}>
-          {(Object.keys(ROLE_NAME) as Role[]).map((k) => (
-            <option key={k} value={k}>
+        <TextField select label="Role" required value={f.role} onChange={set("role")}>
+          {ROLES.map((k) => (
+            <MenuItem key={k} value={k}>
               {ROLE_NAME[k]}
-            </option>
+            </MenuItem>
           ))}
-        </select>
-      </div>
-      {CREW.includes(f.role) && (
-        <div className="fld">
-          <label htmlFor="nu-group">Add to contractor group</label>
-          <select id="nu-group" className="inp" value={f.groupId} onChange={set("groupId")}>
-            <option value="">— None for now —</option>
+        </TextField>
+        {CREW.includes(f.role) && (
+          <TextField select label="Contractor group" value={f.groupId} onChange={set("groupId")}>
+            <MenuItem value="">None for now</MenuItem>
             {groups.map((g) => (
-              <option key={g.id} value={g.id}>
+              <MenuItem key={g.id} value={String(g.id)}>
                 {g.name}
-              </option>
+              </MenuItem>
             ))}
-          </select>
-        </div>
-      )}
-      <div className="pair">
-        <div className="fld">
-          <label htmlFor="nu-postal">
-            Postal code<span className="opt">Optional</span>
-          </label>
-          <input
-            id="nu-postal"
-            className="inp mono"
-            inputMode="numeric"
-            maxLength={6}
+          </TextField>
+        )}
+        <Stack direction="row" sx={{ gap: 1.5 }}>
+          <TextField
+            label="Postal code"
             value={f.postalCode}
             onChange={set("postalCode")}
+            slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }}
           />
-        </div>
-        {f.role === "homeowner" && (
-          <div className="fld">
-            <label htmlFor="nu-ic">
-              NRIC last 4<span className="opt">Optional</span>
-            </label>
-            <input id="nu-ic" className="inp mono" maxLength={4} placeholder="567D" value={f.icLast4} onChange={set("icLast4")} />
-          </div>
-        )}
-      </div>
-      <div className="fld">
-        <label htmlFor="nu-addr">
-          Address<span className="opt">Optional</span>
-        </label>
-        <input
-          id="nu-addr"
-          className="inp"
-          placeholder="Filled in from the postal code"
-          value={f.address}
-          onChange={set("address")}
-        />
-      </div>
-      <button
-        className="btn p full"
+          {f.role === "homeowner" && (
+            <TextField
+              label="NRIC last 4"
+              placeholder="567D"
+              value={f.icLast4}
+              onChange={set("icLast4")}
+              slotProps={{ htmlInput: { maxLength: 4 } }}
+            />
+          )}
+        </Stack>
+        <TextField label="Address" placeholder="Filled in from the postal code" value={f.address} onChange={set("address")} />
+      </Stack>
+      <Button
+        fullWidth
+        size="large"
+        variant="contained"
         disabled={busy || !ok}
+        sx={{ mt: 3 }}
         onClick={async () => {
-          const body = { ...f, groupId: f.groupId ? Number(f.groupId) : null };
-          if (await run("/people", { method: "POST", json: body })) onClose();
+          if (await run("/people", { method: "POST", json: { ...f, groupId: f.groupId ? Number(f.groupId) : null } })) onClose();
         }}
       >
         {busy ? "Creating…" : "Create account & notify"}
-      </button>
-      <div className="tiny" style={{ textAlign: "center", marginTop: 10 }}>
+      </Button>
+      <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "text.secondary", mt: 1 }}>
         {ok ? "They get an email, plus WhatsApp (or SMS) if a mobile is given." : "Enter a name and a valid email."}
-      </div>
-    </Sheet>
+      </Typography>
+    </MDialog>
   );
 }
 
-function UserSheet({
-  user: u,
+function NewGroupDialog({ reload, onClose }: { reload: () => Promise<void>; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const { run, busy } = useAction(reload);
+  return (
+    <MDialog title="New contractor group" subtitle="Groups can be assigned to projects as one unit" onClose={onClose} maxWidth="xs">
+      <TextField label="Group name" placeholder="e.g. Northline Roofing Pte Ltd" value={name} onChange={(e) => setName(e.target.value)} sx={{ mt: 1 }} />
+      <Button
+        fullWidth
+        size="large"
+        variant="contained"
+        disabled={busy || name.trim().length < 3}
+        sx={{ mt: 3 }}
+        onClick={async () => {
+          if (await run("/groups", { method: "POST", json: { name } })) onClose();
+        }}
+      >
+        Create group
+      </Button>
+    </MDialog>
+  );
+}
+
+function AddMemberDialog({
+  group,
+  users,
+  groupById,
+  reload,
+  onClose,
+}: {
+  group: Group;
+  users: Person[];
+  groupById: Map<number, Group>;
+  reload: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const { run, busy } = useAction(reload);
+  const avail = users.filter((u) => CREW.includes(u.role) && u.active && !group.members.includes(u.uid));
+  return (
+    <MDialog title="Add member" subtitle={group.name} onClose={onClose}>
+      {avail.length === 0 ? (
+        <Alert severity="info">Everyone eligible is already a member. Create a contractor admin or EPC account first.</Alert>
+      ) : (
+        <List disablePadding>
+          {avail.map((u) => (
+            <ListItemButton
+              key={u.uid}
+              disabled={busy}
+              onClick={() => void run(`/groups/${group.id}/members`, { method: "POST", json: { uid: u.uid } })}
+            >
+              <ListItemAvatar>
+                <RoleAvatar name={u.fullName ?? u.email} role={u.role} />
+              </ListItemAvatar>
+              <ListItemText
+                primary={u.fullName ?? u.email}
+                secondary={`${ROLE_NAME[u.role]}${
+                  u.groups.length ? ` · in ${u.groups.map((g) => groupById.get(g)?.name).join(", ")}` : ""
+                }`}
+              />
+              <Chip size="small" color="primary" label="Add" />
+            </ListItemButton>
+          ))}
+        </List>
+      )}
+      <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 2 }}>
+        A person can belong to more than one group. Adding them here doesn&apos;t remove them from another.
+      </Typography>
+    </MDialog>
+  );
+}
+
+function PersonDialog({
+  person: u,
   isMe,
   groups,
   reload,
   onClose,
 }: {
-  user: Person;
+  person: Person;
   isMe: boolean;
   groups: Group[];
   reload: () => Promise<void>;
@@ -674,64 +768,60 @@ function UserSheet({
   const { data: projects } = useApi<Array<{ id: number; name: string; status: string }>>(`/people/${u.uid}/projects`);
 
   return (
-    <Sheet title={u.fullName ?? u.email} sub={u.email} onClose={onClose}>
-      <div className="row" style={{ marginBottom: 18 }}>
-        <span className="ava brand" style={{ width: 44, height: 44, fontSize: 14 }}>
-          {initials(u.fullName ?? u.email)}
-        </span>
-        <div className="grow">
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{u.fullName ?? "—"}</div>
-          <div className="tiny">
-            {u.roleLabel}
-            {u.contactNo ? ` · ${u.contactNo}` : ""}
-          </div>
-          <div className="tiny">
-            {u.linked ? "Signed in" : u.invitedAt ? `Invited ${d2s(u.invitedAt)}, not signed in yet` : "No login yet"}
-          </div>
-        </div>
-        {u.active ? <Pill tone="ok">Active</Pill> : <Pill tone="bad">Disabled</Pill>}
-      </div>
+    <MDialog title={u.fullName ?? u.email} subtitle={u.email} onClose={onClose}>
+      <Stack direction="row" sx={{ gap: 2, alignItems: "center", mb: 3 }}>
+        <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={60} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Stack direction="row" sx={{ gap: 0.75, flexWrap: "wrap" }}>
+            <RoleChip role={u.role} />
+            <Chip size="small" color={u.active ? "success" : "error"} variant="outlined" label={u.active ? "Active" : "Disabled"} />
+          </Stack>
+          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.75 }}>
+            {u.contactNo ?? "No mobile on file"}
+          </Typography>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {u.linked ? "Has signed in" : u.invitedAt ? `Invited ${d2s(u.invitedAt)} — not signed in yet` : "No login yet"}
+          </Typography>
+        </Box>
+      </Stack>
 
-      <div className="fld">
-        <label htmlFor="us-role">Role</label>
-        <select
-          id="us-role"
-          className="inp"
-          value={u.role}
-          disabled={busy}
-          onChange={(e) => {
-            const next = e.target.value as Role;
-            const leaving = CREW.includes(u.role) && !CREW.includes(next) && u.groups.length > 0;
-            if (leaving && !confirm(`${u.fullName ?? "They"} will also be removed from their contractor groups. Continue?`))
-              return;
-            void run(`/people/${u.uid}`, { method: "PATCH", json: { role: next } });
-          }}
-        >
-          {(Object.keys(ROLE_NAME) as Role[]).map((k) => (
-            <option key={k} value={k}>
-              {ROLE_NAME[k]}
-            </option>
-          ))}
-        </select>
-        <div className="tiny" style={{ marginTop: 6 }}>
-          Role controls what this person can see and edit. It takes effect immediately.
-        </div>
-      </div>
+      <TextField
+        select
+        label="Role"
+        value={u.role}
+        disabled={busy}
+        helperText="Controls what they can see and edit. Takes effect immediately."
+        onChange={(e) => {
+          const next = e.target.value as Role;
+          const leaving = CREW.includes(u.role) && !CREW.includes(next) && u.groups.length > 0;
+          if (leaving && !confirm(`${u.fullName ?? "They"} will also leave their contractor groups. Continue?`)) return;
+          void run(`/people/${u.uid}`, { method: "PATCH", json: { role: next } });
+        }}
+      >
+        {ROLES.map((k) => (
+          <MenuItem key={k} value={k}>
+            {ROLE_NAME[k]}
+          </MenuItem>
+        ))}
+      </TextField>
 
       {CREW.includes(u.role) && (
-        <div className="fld">
-          <span className="lbl" style={{ display: "flex" }}>
-            Contractor groups
-          </span>
-          <div className="row wrap" style={{ gap: 6 }}>
-            {groups.length === 0 && <span className="tiny">No groups exist yet.</span>}
+        <>
+          <SectionTitle title="Contractor groups" />
+          <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
+            {groups.length === 0 && (
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                No groups exist yet.
+              </Typography>
+            )}
             {groups.map((g) => {
               const inIt = u.groups.includes(g.id);
               return (
-                <button
+                <Chip
                   key={g.id}
-                  className={`pill ${inIt ? "ok" : ""}`}
-                  style={{ padding: "8px 12px", cursor: "pointer" }}
+                  label={g.name}
+                  color={inIt ? "primary" : "default"}
+                  variant={inIt ? "filled" : "outlined"}
                   disabled={busy}
                   onClick={() =>
                     void run(
@@ -739,54 +829,53 @@ function UserSheet({
                       inIt ? { method: "DELETE" } : { method: "POST", json: { uid: u.uid } }
                     )
                   }
-                >
-                  {inIt && <i />}
-                  {g.name}
-                </button>
+                />
               );
             })}
-          </div>
-          <div className="tiny" style={{ marginTop: 7 }}>
-            {u.groups.length ? "Tap a group to add or remove." : "Not in any group — this person sees no contractor projects."}
-          </div>
-        </div>
+          </Stack>
+          <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 1 }}>
+            {u.groups.length ? "Tap a group to add or remove." : "Not in any group — they see no contractor projects."}
+          </Typography>
+        </>
       )}
 
-      <Sec title="Projects visible to them" />
-      {!projects && <div className="skeleton" style={{ height: 50 }} />}
+      <SectionTitle title="Projects they can open" count={projects?.length} />
+      {!projects && <Skeleton variant="rounded" height={56} />}
       {projects && projects.length === 0 && (
-        <div className="tiny" style={{ padding: "4px 0 8px" }}>
-          No projects yet.
-        </div>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          None yet.
+        </Typography>
       )}
       {projects && projects.length > 0 && (
-        <div className="card" style={{ padding: "1px 15px" }}>
-          {projects.map((p) => (
-            <div key={p.id} className="urow">
-              <span className="grow">
-                <span className="un">{p.name}</span>
-                <span className="ue">{p.status.replace(/_/g, " ")}</span>
-              </span>
-            </div>
-          ))}
-        </div>
+        <Card>
+          <List dense disablePadding>
+            {projects.map((p, i) => (
+              <ListItem key={p.id} divider={i < projects.length - 1}>
+                <ListItemText primary={p.name} secondary={p.status.replace(/_/g, " ")} />
+              </ListItem>
+            ))}
+          </List>
+        </Card>
       )}
 
       {!isMe && (
-        <>
-          <button
-            className={`btn ${u.active ? "d" : "g"} full`}
-            style={{ marginTop: 18 }}
-            disabled={busy}
-            onClick={() => void run(`/people/${u.uid}`, { method: "PATCH", json: { active: !u.active } })}
-          >
-            {u.active ? "Disable account" : "Re-enable account"}
-          </button>
-          <div className="tiny" style={{ textAlign: "center", marginTop: 9 }}>
-            Disabling blocks sign-in but keeps their history in the audit log.
-          </div>
-        </>
+        <Card sx={{ mt: 3, p: 2 }}>
+          <Stack direction="row" sx={{ alignItems: "center", gap: 2 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontWeight: 600 }}>Account enabled</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Disabling blocks sign-in but keeps their history in the audit log.
+              </Typography>
+            </Box>
+            <Switch
+              checked={u.active}
+              disabled={busy}
+              onChange={() => void run(`/people/${u.uid}`, { method: "PATCH", json: { active: !u.active } })}
+              slotProps={{ input: { "aria-label": "Account enabled" } }}
+            />
+          </Stack>
+        </Card>
       )}
-    </Sheet>
+    </MDialog>
   );
 }

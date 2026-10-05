@@ -1,15 +1,17 @@
 "use client";
 
-import { Header } from "@/components/shell";
+import Card from "@mui/material/Card";
+
+import { Header, Page } from "@/components/shell";
 
 /** Placeholder until this function is built. */
-export default function Page() {
+export default function Placeholder() {
   return (
     <>
       <Header title="Audit Log" sub="Every change, attributable" />
-      <div className="scroll">
-        <div className="empty">Coming in the next build step.</div>
-      </div>
+      <Page>
+        <Card sx={{ p: 5, mt: 2, textAlign: "center", color: "text.secondary" }}>Coming in a later build step.</Card>
+      </Page>
     </>
   );
 }

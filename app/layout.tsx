@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 
 import { ClerkProvider } from "@clerk/nextjs";
+import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { Poppins } from "next/font/google";
+
+import { Providers } from "@/components/providers";
 
 import { THEME_BOOT_SCRIPT } from "@/lib/client/theme";
 
@@ -80,7 +83,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <head>
           <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         </head>
-        <body>{children}</body>
+        <body>
+          {/* Collects Material UI's styles during server rendering so pages
+              arrive styled, with no flash of unstyled components. */}
+          <AppRouterCacheProvider>
+            <Providers>{children}</Providers>
+          </AppRouterCacheProvider>
+        </body>
       </html>
     </ClerkProvider>
   );

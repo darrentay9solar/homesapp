@@ -22,6 +22,9 @@ const isPublic = createRouteMatcher([
   // (api/_lib/auth.py). Letting it through here means an expired session
   // gets a JSON 401 the app can handle, not an HTML redirect to sign-in.
   "/api/py(.*)",
+  // Development-only layout previews with sample data (app/dev-preview);
+  // the route itself refuses to render in production.
+  ...(process.env.NODE_ENV === "development" ? ["/dev-preview(.*)"] : []),
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

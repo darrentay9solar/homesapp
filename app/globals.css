@@ -91,7 +91,8 @@ body {
   font-family: var(--ff);
   font-size: 14px;
   line-height: 1.5;
-  background: var(--surface);
+  /* Material UI's page colour when its theme is loaded, else the token. */
+  background: var(--mui-palette-background-default, var(--surface));
   color: var(--tx);
   -webkit-font-smoothing: antialiased;
   letter-spacing: 0;

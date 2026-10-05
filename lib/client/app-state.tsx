@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 
-import { I } from "@/components/icons";
+import Alert from "@mui/material/Alert";
+import Snackbar from "@mui/material/Snackbar";
 
 import { useApi } from "./api";
 
@@ -51,17 +52,14 @@ export function useMe() {
 export function AppProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { data, error, reload } = useApi<Me>("/me");
-  const [toastMsg, setToastMsg] = useState<{ m: string; tone: "ok" | "bad" } | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ m: string; tone: "ok" | "bad"; key: number } | null>(null);
 
   useEffect(() => {
     if (data && data.state !== "active") router.replace("/onboarding");
   }, [data, router]);
 
   const toast = useCallback((m: string, tone: "ok" | "bad" = "ok") => {
-    setToastMsg({ m, tone });
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToastMsg(null), 3200);
+    setToastMsg({ m, tone, key: Date.now() });
   }, []);
 
   if (error) {
@@ -82,12 +80,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppCtx.Provider value={{ me: data, reloadMe: reload, toast }}>
       {data?.state === "active" ? children : <Splash />}
-      {toastMsg && (
-        <div className={`toast ${toastMsg.tone === "bad" ? "bad" : ""}`} role="status">
-          {toastMsg.tone === "bad" ? <I.alert size={17} /> : <I.bolt size={17} />}
-          <span>{toastMsg.m}</span>
-        </div>
-      )}
+      <Snackbar
+        key={toastMsg?.key}
+        open={Boolean(toastMsg)}
+        autoHideDuration={toastMsg?.tone === "bad" ? 6000 : 4500}
+        onClose={(_, reason) => reason !== "clickaway" && setToastMsg(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        sx={{ bottom: { xs: "calc(80px + env(safe-area-inset-bottom))", lg: 24 } }}
+      >
+        <Alert
+          severity={toastMsg?.tone === "bad" ? "error" : "success"}
+          variant="filled"
+          onClose={() => setToastMsg(null)}
+          sx={{ width: "100%", maxWidth: 520 }}
+        >
+          {toastMsg?.m}
+        </Alert>
+      </Snackbar>
     </AppCtx.Provider>
   );
 }
