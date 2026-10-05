@@ -6,12 +6,16 @@ import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
+import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import HowToRegRoundedIcon from "@mui/icons-material/HowToRegRounded";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
+import RestoreRoundedIcon from "@mui/icons-material/RestoreRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
 import TerminalRoundedIcon from "@mui/icons-material/TerminalRounded";
@@ -25,30 +29,38 @@ import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
+import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
 import Dialog from "@mui/material/Dialog";
 import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import IconButton from "@mui/material/IconButton";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import { alpha, type Theme } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 
-import { MDialog, RoleAvatar, RoleChip, WaveHeader } from "@/components/m";
+import { Field, MDialog, RoleAvatar, RoleChip, WaveHeader } from "@/components/m";
 import { Page } from "@/components/shell";
 import { EdgeCard, GRID, Heading, SearchBox, SegTabs, TopBar, roleColor } from "@/components/topbar";
 import { ago, dt2s } from "@/components/ui";
 import {
+  type ActionSpec,
   type AuditChange,
   type AuditEntry,
   type AuditLocation,
   type AuditLog,
   type AuditPerson,
+  type FieldHistory,
+  MIN_REASON,
+  type Preview,
+  reasonOk,
+  versionList,
   type Page as AuditPage,
-  canRevert,
   dayMonth,
   dayName,
   fieldLabel,
@@ -69,7 +81,10 @@ import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
 type View = "timeline" | "people";
 type Filter = AuditPage | "all";
-type Confirm = { entry: AuditEntry; fields: string[] };
+type Confirm = { spec: ActionSpec; entry: AuditEntry | null };
+
+/** Opens a field's version history from anywhere on the page. */
+const HistoryCtx = createContext<(auditId: number, field: string) => void>(() => {});
 
 const NO_REFS: Refs = { users: {}, groups: {}, retailers: {} };
 const NEUTRAL = "#7A847F";
@@ -93,6 +108,13 @@ export default function AuditPage() {
   const [version, setVersion] = useState(0);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [person, setPerson] = useState<AuditPerson | null>(null);
+  const [history, setHistory] = useState<{ auditId: number; field: string } | null>(null);
+  // Undoing a whole row (a link, a deleted record) or the chosen lines of a change.
+  const onRevert = (entry: AuditEntry, fields: string[]) =>
+    setConfirm({
+      spec: entry.rowUndo ? { kind: entry.rowUndo.kind, auditId: entry.id } : { kind: "revert", auditId: entry.id, fields },
+      entry,
+    });
 
   useEffect(() => {
     if (me && !pm) router.replace("/");
@@ -120,7 +142,7 @@ export default function AuditPage() {
   ];
 
   return (
-    <>
+    <HistoryCtx.Provider value={(auditId, field) => setHistory({ auditId, field })}>
       <TopBar
         title="Audit Log"
         action={<ViewSwitch value={view} onChange={setView} />}
@@ -145,22 +167,31 @@ export default function AuditPage() {
               q={q}
               filter={filter}
               onOlder={(more) => setOlder({ key: logPath ?? "", log: olderLog ? { ...more, entries: [...olderLog.entries, ...more.entries], refs: mergeRefs(olderLog.refs, more.refs) } : more })}
-              onRevert={(entry, fields) => setConfirm({ entry, fields })}
+              onRevert={onRevert}
             />
           ) : (
             <PeopleView people={people} error={peopleError} q={q} filter={filter} onOpen={setPerson} />
           )}
           <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 3 }}>
-            Entries can never be edited or deleted. A revert is a new change that points back at the one it undoes.
+            Entries can never be edited or deleted. A revert or restore is a new change, with its reason, that points back
+            at the entry it undoes.
           </Typography>
         </Page>
       </Box>
 
       {person && (
-        <PersonDialog person={person} version={version} onClose={() => setPerson(null)} onRevert={(entry, fields) => setConfirm({ entry, fields })} />
+        <PersonDialog person={person} version={version} onClose={() => setPerson(null)} onRevert={onRevert} />
+      )}
+      {history && (
+        <HistoryDialog
+          {...history}
+          version={version}
+          onClose={() => setHistory(null)}
+          onRestore={(spec) => setConfirm({ spec, entry: null })}
+        />
       )}
       {confirm && (
-        <RevertDialog
+        <ActionDialog
           {...confirm}
           refs={mergeRefs(log?.refs ?? NO_REFS, olderLog?.refs ?? NO_REFS)}
           onClose={() => setConfirm(null)}
@@ -171,7 +202,7 @@ export default function AuditPage() {
           }}
         />
       )}
-    </>
+    </HistoryCtx.Provider>
   );
 }
 
@@ -536,7 +567,7 @@ function EntryRow({
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" sx={{ gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
             <Typography sx={{ fontWeight: 600, fontSize: 14.5 }}>{e.summary}</Typography>
-            {e.revertsId && <Chip size="small" icon={<UndoRoundedIcon />} label={`Undoes #${e.revertsId}`} color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5 }} />}
+            <LinkChips entry={e} />
             {latest && !expanded && <Typography variant="caption" sx={{ color: "text.secondary" }}>latest</Typography>}
           </Stack>
           <Typography variant="body2" sx={{ color: "text.secondary", fontSize: 13, mt: 0.15 }}>
@@ -547,6 +578,7 @@ function EntryRow({
             {timeOf(e.at)}
             {e.changes.length > 0 && ` · ${e.changes.length} field${e.changes.length === 1 ? "" : "s"}`}
           </Typography>
+          <ReasonLine reason={e.reason} />
           {!expanded && e.changes.length > 0 && (
             <Typography variant="caption" noWrap component="div" sx={{ color: "text.secondary", mt: 0.25 }}>
               {e.changes.slice(0, 3).map((c) => fieldLabel(c.field)).join(", ")}
@@ -562,7 +594,7 @@ function EntryRow({
       <Collapse in={expanded} unmountOnExit>
         <Stack sx={{ gap: 0.75, px: { xs: 1.5, lg: 2 }, pb: 1.75, pl: { xs: 3.25, lg: 4 } }}>
           {e.changes.map((c) => (
-            <ChangeLine key={c.field} change={c} action={e.action} refs={refs} onRevert={e.linkState ? undefined : () => onRevert(e, [c.field])} />
+            <ChangeLine key={c.field} auditId={e.id} change={c} action={e.action} refs={refs} onRevert={e.rowUndo ? undefined : () => onRevert(e, [c.field])} />
           ))}
           <EntryFooter entry={e} current={current} onRevert={onRevert} />
         </Stack>
@@ -580,16 +612,26 @@ function EntryFooter({ entry: e, current, onRevert }: { entry: AuditEntry; curre
       </Stack>
     );
   }
-  if (e.linkState) {
-    return e.linkState === "current" ? (
+  if (e.rowUndo) {
+    return e.rowUndo.state === "current" ? (
       <Box sx={{ mt: 0.5 }}>
-        <Button size="small" variant="outlined" color="warning" startIcon={<UndoRoundedIcon />} onClick={() => onRevert(e, [])}>
+        <Button
+          size="small"
+          variant="outlined"
+          color="warning"
+          startIcon={e.rowUndo.kind === "restore_record" ? <RestoreRoundedIcon /> : <UndoRoundedIcon />}
+          onClick={() => onRevert(e, [])}
+        >
           {revertVerb(e)}
         </Button>
       </Box>
     ) : (
       <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.5 }}>
-        {e.linkState === "reverted" ? "Already undone." : "Changed again since — undo the later change instead."}
+        {e.rowUndo.state === "reverted"
+          ? e.action === "delete" && e.rowUndo.kind === "restore_record"
+            ? "Already restored."
+            : "Already undone."
+          : "Changed again since. Undo the later change instead."}
       </Typography>
     );
   }
@@ -615,13 +657,17 @@ function ChangeLine({
   refs,
   onRevert,
   dense,
+  auditId,
 }: {
   change: AuditChange;
   action: AuditEntry["action"];
   refs: Refs;
   onRevert?: () => void;
   dense?: boolean;
+  /** The entry this line belongs to — enables its version history. */
+  auditId?: number;
 }) {
+  const openHistory = useContext(HistoryCtx);
   const from = formatValue(c.field, c.from, refs);
   const to = formatValue(c.field, c.to, refs);
   return (
@@ -679,6 +725,11 @@ function ChangeLine({
         </Button>
       )}
       {c.state === "reverted" && <Chip size="small" label="Reverted" variant="outlined" color="warning" sx={{ height: 22, fontSize: 10.5 }} />}
+      {auditId !== undefined && action !== "delete" && c.state !== "locked" && (
+        <IconButton size="small" aria-label={`Version history of ${fieldLabel(c.field)}`} onClick={() => openHistory(auditId, c.field)} sx={{ color: "text.secondary" }}>
+          <HistoryRoundedIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      )}
       {c.state === "locked" && action === "update" && (
         <Box title={c.note ?? undefined} sx={{ display: "grid", color: "text.disabled", pr: 0.5 }}>
           <LockOutlinedIcon sx={{ fontSize: 16 }} />
@@ -937,11 +988,12 @@ function SessionChild({ entry: e, refs, onRevert }: { entry: AuditEntry; refs: R
           {e.changes.length > 0 && (
             <Stack sx={{ gap: 0.5, mt: 0.75 }}>
               {e.changes.map((c) => (
-                <ChangeLine key={c.field} dense change={c} action={e.action} refs={refs} onRevert={e.linkState ? undefined : () => onRevert(e, [c.field])} />
+                <ChangeLine key={c.field} dense auditId={e.id} change={c} action={e.action} refs={refs} onRevert={e.rowUndo ? undefined : () => onRevert(e, [c.field])} />
               ))}
             </Stack>
           )}
-          {(e.linkState === "current" || e.lockedReason) && (
+          <ReasonLine reason={e.reason} />
+          {(e.rowUndo?.state === "current" || e.lockedReason) && (
             <EntryFooter entry={e} current={e.changes.filter((c) => c.state === "current")} onRevert={onRevert} />
           )}
         </Box>
@@ -950,59 +1002,287 @@ function SessionChild({ entry: e, refs, onRevert }: { entry: AuditEntry; refs: R
   );
 }
 
-// ------------------------------------------------------------ revert
+// ------------------------------------------------------- revert and restore
 
-function RevertDialog({ entry: e, fields, refs, onClose, onDone }: Confirm & { refs: Refs; onClose: () => void; onDone: () => void }) {
+/** "Undoes #412" / "Restores #398" — the link an undo keeps to what it undid. */
+function LinkChips({ entry: e }: { entry: AuditEntry }) {
+  return (
+    <>
+      {e.revertsId && (
+        <Chip size="small" icon={<UndoRoundedIcon />} label={`Undoes #${e.revertsId}`} color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5 }} />
+      )}
+      {e.restoresId && (
+        <Chip size="small" icon={<RestoreRoundedIcon />} label={`Restores #${e.restoresId}`} color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5 }} />
+      )}
+    </>
+  );
+}
+
+function ReasonLine({ reason }: { reason: string | null }) {
+  if (!reason) return null;
+  return (
+    <Typography variant="caption" component="div" sx={{ color: "warning.main", mt: 0.35, fontStyle: "italic", overflowWrap: "anywhere" }}>
+      Reason: “{reason}”
+    </Typography>
+  );
+}
+
+const ACTION_TITLE: Record<ActionSpec["kind"], string> = {
+  revert: "Revert Change",
+  restore_value: "Restore Version",
+  restore_record: "Restore Record",
+};
+
+/**
+ * Every revert and restore goes through here: the server performs it in a
+ * transaction it then throws away and shows exactly what it would write, or
+ * why it can't. Nothing happens until a reason is written and confirmed, and
+ * the reason is kept on every entry the change produces.
+ */
+function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confirm & { refs: Refs; onClose: () => void; onDone: () => void }) {
   const fetcher = useFetcher();
   const { toast } = useApp();
+  const [spec, setSpec] = useState<ActionSpec>(initial);
+  const [preview, setPreview] = useState<{ spec: ActionSpec; data: Preview } | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const lines = e.changes.filter((c) => fields.includes(c.field));
-  const link = e.linkState !== null;
-  const who = e.actor?.name ?? "someone outside the app";
+
+  useEffect(() => {
+    let live = true;
+    fetcher<Preview>("/audit/actions/preview", { method: "POST", json: spec }).then(
+      (data) => live && setPreview({ spec, data }),
+      (err: unknown) => live && setFailed(err instanceof ApiError ? err.message : "Couldn't prepare this.")
+    );
+    return () => {
+      live = false;
+    };
+  }, [fetcher, spec]);
+
+  const p = preview && preview.spec === spec ? preview.data : null;
+  const blocked = Boolean(p && p.blockers.length);
+  const who = e?.actor?.name ?? null;
+  const verb = spec.kind === "revert" && e ? revertVerb(e) : spec.kind === "revert" ? "Revert" : "Restore";
 
   return (
     <MDialog
-      title="Revert Change"
-      heading={link ? `${revertVerb(e)}?` : `Put back ${lines.length === 1 ? fieldLabel(lines[0].field).toLowerCase() : `${lines.length} values`}?`}
-      subtitle={`This undoes ${who}'s change from ${dt2s(e.at)} as a new change signed by you. Their entry stays in the log.`}
+      title={ACTION_TITLE[spec.kind]}
+      heading={!p ? "Checking…" : blocked ? "Not possible as it stands" : `${p.summary}?`}
+      subtitle={
+        e
+          ? `Undoes ${who ? `${who}'s` : "a"} change from ${dt2s(e.at)} as a new change signed by you. Their entry stays in the log.`
+          : "Brings back the version you picked as a new change signed by you. Nothing in the log is changed or removed."
+      }
       onClose={onClose}
-      maxWidth="xs"
     >
-      <Stack sx={{ gap: 0.75 }}>
-        {link ? (
-          <Typography sx={{ textAlign: "center", fontWeight: 500 }}>
-            {e.summary} · {e.location.label}
+      {failed && <Alert severity="error">{failed}</Alert>}
+      {!p && !failed && <Skeleton variant="rounded" height={120} sx={{ borderRadius: "14px" }} />}
+
+      {p && blocked && (
+        <Alert severity="error" sx={{ mb: 2 }} data-testid="action-blockers">
+          <Typography sx={{ fontWeight: 600, fontSize: 14, mb: 0.5 }}>Why</Typography>
+          {p.blockers.map((b) => (
+            <Typography key={b} variant="body2" sx={{ mt: 0.5 }}>
+              {b}
+            </Typography>
+          ))}
+        </Alert>
+      )}
+
+      {p && !blocked && (
+        <>
+          <Typography variant="overline" sx={{ color: "text.secondary", display: "block", mb: 1 }}>
+            What will be written
           </Typography>
-        ) : (
-          lines.map((c) => (
-            <ChangeLine key={c.field} change={{ ...c, from: c.to, to: c.from, state: "current", note: null }} action="update" refs={refs} />
-          ))
-        )}
-      </Stack>
-      {!canRevert(e) && <Alert severity="info" sx={{ mt: 2 }}>Nothing here can still be reverted.</Alert>}
+          <Stack sx={{ gap: 1.25 }} data-testid="action-effects">
+            {p.effects.map((x, i) => (
+              <Box key={i}>
+                <Typography sx={{ fontWeight: 600, fontSize: 14 }}>
+                  {x.summary}
+                  <Box component="span" sx={{ color: "text.secondary", fontWeight: 400 }}>
+                    {" "}
+                    · {x.location}
+                  </Box>
+                </Typography>
+                <Stack sx={{ gap: 0.5, mt: 0.75 }}>
+                  {x.changes.map((c) => (
+                    <ChangeLine key={c.field} dense change={{ ...c, state: "current", note: null }} action={x.action} refs={refs} />
+                  ))}
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        </>
+      )}
+
+      {spec.kind === "restore_record" && (
+        <FormControlLabel
+          sx={{ mt: 1.5 }}
+          control={<Checkbox checked={spec.withRelated !== false} onChange={(ev) => setSpec({ ...spec, withRelated: ev.target.checked })} />}
+          label={<Typography variant="body2">Also restore what was deleted along with it</Typography>}
+        />
+      )}
+
+      {p && p.warnings.length > 0 && (
+        <Alert severity="info" icon={<InfoOutlinedIcon />} sx={{ mt: 2 }}>
+          {p.warnings.map((w) => (
+            <Typography key={w} variant="body2" sx={{ "& + &": { mt: 0.5 } }}>
+              {w}
+            </Typography>
+          ))}
+        </Alert>
+      )}
+
+      {p && !blocked && (
+        <Field
+          label="Reason"
+          required
+          icon={<EditNoteRoundedIcon />}
+          multiline
+          minRows={2}
+          sx={{ mt: 2.5 }}
+          placeholder="e.g. Panel count was entered for the wrong house."
+          value={reason}
+          onChange={(ev) => setReason(ev.target.value)}
+          helperText={`Kept with this change in the audit log. At least ${MIN_REASON} characters.`}
+          slotProps={{ htmlInput: { maxLength: 500, "data-testid": "action-reason" } }}
+        />
+      )}
+
       <Stack sx={{ gap: 1, mt: 3 }}>
+        {!blocked && (
+          <Button
+            size="large"
+            variant="contained"
+            disabled={busy || !p || !reasonOk(reason)}
+            onClick={async () => {
+              if (!p) return;
+              setBusy(true);
+              try {
+                const res = await fetcher<{ message: string }>("/audit/actions/apply", {
+                  method: "POST",
+                  json: { ...spec, reason, expect: p.expect },
+                });
+                toast(res.message);
+                onDone();
+              } catch (err) {
+                toast(err instanceof ApiError ? err.message : "Couldn't complete this.", "bad");
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? "Working…" : verb}
+          </Button>
+        )}
+        <Button size="large" onClick={onClose}>
+          {blocked ? "Close" : "Cancel"}
+        </Button>
+      </Stack>
+    </MDialog>
+  );
+}
+
+/**
+ * One field's version history, like a document's: every value it has had,
+ * who set it and when, the one it holds now marked. Pick an earlier one to
+ * restore just that field — nothing else on the record moves.
+ */
+function HistoryDialog({
+  auditId,
+  field,
+  version,
+  onClose,
+  onRestore,
+}: {
+  auditId: number;
+  field: string;
+  version: number;
+  onClose: () => void;
+  onRestore: (spec: ActionSpec) => void;
+}) {
+  const { data: h, error } = useApi<FieldHistory>(`/audit/${auditId}/history?field=${encodeURIComponent(field)}&v=${version}`);
+  const [picked, setPicked] = useState<number | null>(null);
+  const list = useMemo(() => (h ? versionList(h) : []), [h]);
+  const chosen = list.find((v) => v.id === picked && v.restorable);
+
+  return (
+    <MDialog title="Version History" heading={fieldLabel(field)} subtitle={h ? h.location : undefined} onClose={onClose}>
+      {error && <Alert severity="error">{error.message}</Alert>}
+      {!h && !error && <Skeleton variant="rounded" height={200} sx={{ borderRadius: "14px" }} />}
+      {h?.lockedReason && (
+        <Alert severity="info" icon={<LockOutlinedIcon />} sx={{ mb: 2 }}>
+          {h.lockedReason}
+        </Alert>
+      )}
+      {h && !h.exists && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          This record was deleted. Restore the record itself first; then its values can be restored.
+        </Alert>
+      )}
+
+      <Stack sx={{ gap: 0.5 }} role="listbox" aria-label="Versions" data-testid="history-versions">
+        {list.map((v) => {
+          const on = picked === v.id;
+          return (
+            <ButtonBase
+              key={v.id}
+              role="option"
+              aria-selected={on}
+              disabled={!v.restorable}
+              onClick={() => setPicked(on ? null : v.id)}
+              sx={(t) => ({
+                display: "block",
+                textAlign: "left",
+                fontFamily: "inherit",
+                width: "100%",
+                p: 1.5,
+                borderRadius: "14px",
+                border: 1,
+                borderColor: on ? "primary.main" : v.current ? "divider" : "transparent",
+                bgcolor: on ? alpha(t.palette.primary.main, 0.08) : v.current ? "background.paper" : "transparent",
+                opacity: v.restorable || v.current ? 1 : 0.6,
+                "&:hover": v.restorable ? { bgcolor: alpha(t.palette.text.primary, 0.04) } : {},
+              })}
+            >
+              <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{dt2s(v.at)}</Typography>
+              {v.current && (
+                <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                  Current version
+                </Typography>
+              )}
+              <Typography sx={{ fontSize: 14, mt: 0.25, overflowWrap: "anywhere", color: v.deleted ? "error.main" : "text.primary" }}>
+                {v.deleted ? "Record deleted" : formatValue(field, v.value, h?.refs)}
+              </Typography>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mt: 0.5, flexWrap: "wrap" }}>
+                <Box sx={(t) => ({ width: 8, height: 8, borderRadius: "50%", bgcolor: tone(v.actor.role)(t) })} />
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  {v.actor.name}
+                </Typography>
+                {v.revertsId && <Chip size="small" label={`Undoes #${v.revertsId}`} variant="outlined" color="warning" sx={{ height: 18, fontSize: 10 }} />}
+                {v.restoresId && <Chip size="small" label={`Restores #${v.restoresId}`} variant="outlined" color="warning" sx={{ height: 18, fontSize: 10 }} />}
+              </Stack>
+              <ReasonLine reason={v.reason} />
+            </ButtonBase>
+          );
+        })}
+      </Stack>
+
+      {h && !h.lockedReason && h.exists && (
         <Button
+          fullWidth
           size="large"
           variant="contained"
-          disabled={busy || !canRevert(e)}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              const res = await fetcher<{ message: string }>(`/audit/${e.id}/revert`, { method: "POST", json: { fields } });
-              toast(res.message);
-              onDone();
-            } catch (err) {
-              toast(err instanceof ApiError ? err.message : "Couldn't revert.", "bad");
-              setBusy(false);
-            }
-          }}
+          startIcon={<RestoreRoundedIcon />}
+          disabled={!chosen}
+          sx={{ mt: 3 }}
+          onClick={() => chosen && onRestore({ kind: "restore_value", auditId: chosen.id, field })}
         >
-          {busy ? "Reverting…" : link ? revertVerb(e) : "Revert"}
+          {chosen ? `Restore “${formatValue(field, chosen.value, h.refs)}”` : "Pick a version to restore"}
         </Button>
-        <Button size="large" onClick={onClose}>
-          Cancel
-        </Button>
-      </Stack>
+      )}
+      <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>
+        Restoring changes only this field. You&apos;ll see exactly what happens, and give a reason, before anything is saved.
+      </Typography>
     </MDialog>
   );
 }

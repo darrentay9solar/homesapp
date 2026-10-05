@@ -46,8 +46,8 @@ async function readAsActor(client: unknown, uid: number | null): Promise<number>
 }
 
 async function main() {
-  const owner = neon(envValue("MIGRATION_DATABASE_URL"));
-  const app = neon(envValue("DATABASE_URL"));
+  const owner = neon(envValue("TEST_MIGRATION_DATABASE_URL"));
+  const app = neon(envValue("TEST_DATABASE_URL"));
 
   // Two people, identical except for their type.
   const stamp = Date.now();

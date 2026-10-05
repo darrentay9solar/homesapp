@@ -30,6 +30,23 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "api"))
 from _lib import auth
 from _lib.db import _from_env_file
 
+# Tests run on the Neon "test" branch, never on dev (where people click
+# around and read the audit log) and never on production. The API under test
+# reads DATABASE_URL, so it is pointed at the test branch before anything
+# connects.
+TEST_APP_URL = os.environ.get("TEST_DATABASE_URL") or _from_env_file("TEST_DATABASE_URL")
+TEST_OWNER_URL = os.environ.get("TEST_MIGRATION_DATABASE_URL") or _from_env_file("TEST_MIGRATION_DATABASE_URL")
+if not TEST_APP_URL or not TEST_OWNER_URL:
+    raise RuntimeError(
+        "TEST_DATABASE_URL and TEST_MIGRATION_DATABASE_URL must be set (the Neon 'test' branch). "
+        "Tests refuse to run on dev or production."
+    )
+_prod = _from_env_file("PROD_MIGRATION_DATABASE_URL")
+_host = psycopg.conninfo.conninfo_to_dict
+if _prod and _host(_prod)["host"] == _host(TEST_OWNER_URL)["host"]:
+    raise RuntimeError("TEST_MIGRATION_DATABASE_URL points at production. Refusing.")
+os.environ["DATABASE_URL"] = TEST_APP_URL
+
 PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC_KEY = PRIVATE_KEY.public_key()
 
@@ -52,8 +69,7 @@ def _fake_clerk_keys(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def owner_conn() -> psycopg.Connection:
-    url = os.environ.get("MIGRATION_DATABASE_URL") or _from_env_file("MIGRATION_DATABASE_URL")
-    return psycopg.connect(url, row_factory=dict_row, autocommit=True)
+    return psycopg.connect(TEST_OWNER_URL, row_factory=dict_row, autocommit=True)
 
 
 class Fixtures:

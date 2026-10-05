@@ -24,11 +24,52 @@ export type AuditEntry = {
   location: AuditLocation;
   changes: AuditChange[];
   revertsId: number | null;
+  /** This entry brought back the state an earlier entry left (a value, or a deleted record). */
+  restoresId: number | null;
+  /** Why a revert or restore was made. Always present on those; never on ordinary edits. */
+  reason: string | null;
+  operationId: string | null;
   revertedBy: number[];
   lockedReason: string | null;
-  /** Membership/assignment rows: whether removing or restoring the link is still possible. */
-  linkState: "current" | "reverted" | "superseded" | null;
+  /** Undoing the whole row: removing an added link, putting one back, or restoring a deleted record. */
+  rowUndo: { verb: string; kind: ActionKind; state: "current" | "reverted" | "superseded" } | null;
 };
+
+export type ActionKind = "revert" | "restore_value" | "restore_record";
+/** What a revert or restore acts on. */
+export type ActionSpec = { kind: ActionKind; auditId: number; fields?: string[]; field?: string; withRelated?: boolean };
+export type Effect = {
+  table: string;
+  action: AuditEntry["action"];
+  summary: string;
+  location: string;
+  changes: Array<{ field: string; from: unknown; to: unknown }>;
+};
+/** The dry run: exactly what would be written, what stops it, and what to know. */
+export type Preview = { summary: string; blockers: string[]; warnings: string[]; effects: Effect[]; expect: number };
+
+export type Version = {
+  id: number;
+  at: string;
+  actor: { uid: number | null; name: string; role: Role | null };
+  deleted: boolean;
+  value: unknown;
+  reason: string | null;
+  revertsId: number | null;
+  restoresId: number | null;
+};
+export type FieldHistory = {
+  field: string;
+  table: string;
+  location: string;
+  exists: boolean;
+  current: unknown;
+  lockedReason: string | null;
+  versions: Version[];
+  refs: Refs;
+};
+
+export const MIN_REASON = 10;
 
 export type Refs = { users: Record<string, string>; groups: Record<string, string>; retailers: Record<string, string> };
 export type AuditLog = { entries: AuditEntry[]; nextBefore: number | null; counts: Record<Page, number>; refs: Refs };
@@ -328,12 +369,30 @@ export function matchesEntry(e: AuditEntry, query: string, refs?: Refs): boolean
 
 /** Whether anything in this entry can still be put back. */
 export function canRevert(e: AuditEntry): boolean {
-  if (e.linkState) return e.linkState === "current";
+  if (e.rowUndo) return e.rowUndo.state === "current";
   return e.changes.some((c) => c.state === "current");
 }
 
-/** What the revert button does, in words. */
+/** What the undo button does, in words. */
 export function revertVerb(e: AuditEntry): string {
-  if (e.linkState) return e.action === "insert" ? "Remove again" : "Put back";
-  return "Revert";
+  return e.rowUndo?.verb ?? "Revert";
+}
+
+/** A reason good enough to keep with the change. */
+export function reasonOk(reason: string): boolean {
+  return reason.trim().length >= MIN_REASON;
+}
+
+/**
+ * The versions of a field, newest first, with the one it holds now marked.
+ * Deletions stay in the list so the history reads truthfully, but can't be
+ * restored as a value.
+ */
+export function versionList(h: FieldHistory): Array<Version & { current: boolean; restorable: boolean }> {
+  let currentMarked = false;
+  return h.versions.map((v) => {
+    const isCurrent = !currentMarked && h.exists && !v.deleted && JSON.stringify(v.value) === JSON.stringify(h.current);
+    if (isCurrent) currentMarked = true;
+    return { ...v, current: isCurrent, restorable: !v.deleted && !isCurrent && h.exists && !h.lockedReason };
+  });
 }

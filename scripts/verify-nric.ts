@@ -29,7 +29,7 @@ const cases: Array<{ value: string | null; label: string; shouldPass: boolean }>
 ];
 
 async function main() {
-  const sql = neon(envValue("MIGRATION_DATABASE_URL"));
+  const sql = neon(envValue("TEST_MIGRATION_DATABASE_URL"));
   console.log("\nNRIC storage constraint\n" + "=".repeat(54));
 
   let failures = 0;

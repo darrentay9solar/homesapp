@@ -29,7 +29,7 @@ function metresNorth(lat: number, metres: number): number {
 }
 
 async function main() {
-  const sql = neon(envValue("MIGRATION_DATABASE_URL"));
+  const sql = neon(envValue("TEST_MIGRATION_DATABASE_URL"));
   const stamp = Date.now();
 
   // ---- geocode a real address through OneMap ---------------------------

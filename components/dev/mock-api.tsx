@@ -103,15 +103,22 @@ function ae(
       note: note ?? (locked ? extra.lockedReason : null),
     })),
     revertsId: null,
+    restoresId: null,
+    reason: null,
+    operationId: null,
     revertedBy: [],
     lockedReason: null,
-    linkState: null,
+    rowUndo: null,
     ...extra,
   };
 }
 
 const AUDIT_ENTRIES = [
-  ae(432, 25, WEI, "update", "projects", "projects", "Updated project details", JALAN, [["panel_quantity_actual", 20, 18]], { revertsId: 412 }),
+  ae(432, 25, WEI, "update", "projects", "projects", "Updated project details", JALAN, [["panel_quantity_actual", 20, 18]], {
+    revertsId: 412,
+    reason: "Site survey confirmed 18 panels; 20 was the quote for the neighbour.",
+    operationId: "7c1d",
+  }),
   ae(431, 40, PRIYA, "update", "projects", "projects", "Updated project details", JALAN, [
     ["sp_application_status", 3, 1],
     ["sp_submission_date", null, "2026-10-05"],
@@ -127,7 +134,7 @@ const AUDIT_ENTRIES = [
   ae(428, 360, WEI, "insert", "contractor_group_members", "groups", "Added Ravi Kumar", { key: "group:1", kind: "group", id: 1, label: "Apex Solar Contractors" }, [
     ["user_id", null, 4],
     ["added_by", null, 1],
-  ], { linkState: "current" }),
+  ], { rowUndo: { verb: "Remove again", kind: "revert", state: "current" } }),
   ae(427, 362, WEI, "update", "account_requests", "people", "Approved access request", { key: "request:12", kind: "request", id: 12, label: "Access request · Kelvin Lim" }, [
     ["status", "pending", "approved"],
     ["granted_uid", null, 4],
@@ -145,11 +152,14 @@ const AUDIT_ENTRIES = [
     ["category", null, "sp_forms"],
     ["size_bytes", null, 845000],
   ], { lockedReason: "Something created can't be un-created from here." }),
-  ae(409, 2900, CHARLOTTE, "update", "projects", "milestones", "Updated milestone 2", BEDOK, [
+  ae(409, 2900, CHARLOTTE, "update", "projects", "projects", "Updated project details", BEDOK, [
     ["installation_end_date", "2026-10-10", "2026-10-17", "superseded", "Changed again by Priya Nair since"],
   ]),
-  ae(408, 2880, PRIYA, "update", "projects", "milestones", "Updated milestone 2", BEDOK, [["installation_end_date", "2026-10-17", "2026-10-20"]]),
+  ae(408, 2880, PRIYA, "update", "projects", "projects", "Updated project details", BEDOK, [["installation_end_date", "2026-10-17", "2026-10-20"]]),
   ae(407, 4400, CHARLOTTE, "update", "users", "people", "Updated account", { key: "person:8", kind: "person", id: 8, label: "Marcus Teo" }, [["active", true, false]]),
+  ae(405, 4300, CHARLOTTE, "delete", "contractor_groups", "groups", "Deleted group", { key: "group:2", kind: "group", id: 2, label: "Kim Seng M&E Services" }, [
+    ["name", "Kim Seng M&E Services", null],
+  ], { rowUndo: { verb: "Restore", kind: "restore_record", state: "current" } }),
   ae(406, 5900, null, "insert", "contractor_groups", "groups", "Created group", { key: "group:3", kind: "group", id: 3, label: "Northline Roofing" }, [
     ["name", null, "Northline Roofing"],
   ], { lockedReason: "To undo a new group, delete it in People → Groups." }),
@@ -197,8 +207,70 @@ function auditPeople() {
   }));
 }
 
-function answer(method: string, path: string, search: URLSearchParams = new URLSearchParams()): unknown {
+function auditPreview(body: { kind: string; auditId: number; fields?: string[]; field?: string; withRelated?: boolean }) {
+  const e = AUDIT_ENTRIES.find((x) => x.id === body.auditId);
+  const warn = "Emails, WhatsApps and alerts already sent about the original change stay sent.";
+  if (!e) return { summary: "Revert", blockers: ["No such audit entry."], warnings: [], effects: [], expect: 0 };
+  if (e.location === BEDOK)
+    return {
+      summary: "Revert 1 field",
+      blockers: [
+        "Installation end is part of Milestone 1, which was completed with its current value. Rewinding it on its own would leave a completed milestone with different data and the project's status unchanged. Reopen Milestone 1 on the project first — that is logged as its own change.",
+      ],
+      warnings: [warn],
+      effects: [],
+      expect: 433,
+    };
+  if (body.kind === "restore_record")
+    return {
+      summary: body.withRelated === false ? "Restore 1 record" : "Restore 2 records",
+      blockers: [],
+      warnings: [warn],
+      effects: [
+        { table: "contractor_groups", action: "insert", summary: "Created group", location: "Kim Seng M&E Services", changes: [{ field: "name", from: null, to: "Kim Seng M&E Services" }] },
+        ...(body.withRelated === false
+          ? []
+          : [{ table: "contractor_group_members", action: "insert", summary: "Added Priya Nair", location: "Kim Seng M&E Services", changes: [{ field: "user_id", from: null, to: 3 }] }]),
+      ],
+      expect: 433,
+    };
+  const changes = (e.changes as Array<{ field: string; from: unknown; to: unknown }>)
+    .filter((c) => (body.kind === "restore_value" ? c.field === body.field : !body.fields?.length || body.fields.includes(c.field)))
+    .map((c) => (body.kind === "restore_value" ? { field: c.field, from: "HW-SUN2000-10KTL-99999", to: c.to } : { field: c.field, from: c.to, to: c.from }));
+  const who = (e.actor as { name?: string } | null)?.name;
+  return {
+    summary: body.kind === "restore_value" ? `Restore ${changes[0]?.field.replace(/_/g, " ")}` : `Revert ${changes.length} field${changes.length === 1 ? "" : "s"}`,
+    blockers: [],
+    warnings: [...(who && who !== "Wei Ming Tan" ? [`${who} will be told their change was undone, with your reason.`] : []), warn],
+    effects: [{ table: e.table, action: "update", summary: e.summary, location: (e.location as { label: string }).label, changes }],
+    expect: 433,
+  };
+}
+
+function auditHistory(id: number, field: string) {
+  const at = (m: number) => iso(m);
+  return {
+    field,
+    table: "projects",
+    location: "Jalan Kayu Residence",
+    exists: true,
+    current: "HW-SUN2000-10KTL-99999",
+    lockedReason: null,
+    versions: [
+      { id: 433, at: at(10), actor: WEI, deleted: false, value: "HW-SUN2000-10KTL-99999", reason: null, revertsId: null, restoresId: null },
+      { id, at: at(1500), actor: PRIYA, deleted: false, value: "HW-SUN2000-10KTL-88231", reason: null, revertsId: null, restoresId: null },
+      { id: 401, at: at(9000), actor: RAVI, deleted: false, value: "HW-SUN2000-8KTL-10422", reason: null, revertsId: null, restoresId: null },
+    ],
+    refs: AUDIT_REFS,
+  };
+}
+
+function answer(method: string, path: string, search: URLSearchParams = new URLSearchParams(), body?: unknown): unknown {
   const key = `${method} ${path}`;
+  if (key === "POST /audit/actions/preview") return auditPreview(body as Parameters<typeof auditPreview>[0]);
+  if (key === "POST /audit/actions/apply") return { message: "Preview only — nothing was saved." };
+  const hist = path.match(/^\/audit\/(\d+)\/history$/);
+  if (method === "GET" && hist) return auditHistory(Number(hist[1]), search.get("field") ?? "");
   if (key === "GET /audit") return auditLog(search);
   if (key === "GET /audit/people") return auditPeople();
   // /dev-preview/onboarding?as=pending shows the waiting screen instead.
@@ -227,7 +299,8 @@ function install() {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     const u = new URL(url, window.location.origin);
     if (!u.pathname.startsWith("/api/py/")) return real(input, init);
-    const body = answer((init?.method ?? "GET").toUpperCase(), u.pathname.slice("/api/py".length), u.searchParams);
+    const sent = typeof init?.body === "string" ? (JSON.parse(init.body) as unknown) : undefined;
+    const body = answer((init?.method ?? "GET").toUpperCase(), u.pathname.slice("/api/py".length), u.searchParams, sent);
     await new Promise((r) => setTimeout(r, 150));
     return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
   };

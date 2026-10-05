@@ -17,6 +17,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
   varchar,
 } from "drizzle-orm/pg-core";
 
@@ -103,6 +104,8 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "account_request",
   "account_approved",
   "account_rejected",
+  // A project manager reverted or restored something you changed.
+  "audit_restore",
 ]);
 
 /**
@@ -512,6 +515,24 @@ export const auditLog = pgTable(
      * history must outlive the project.
      */
     projectId: integer("project_id"),
+
+    /**
+     * Set when this entry brings back an earlier state: a value as some
+     * earlier entry left it, or a record that entry deleted. Points at that
+     * entry. (reverts_audit_id is for undoing one change; this is for
+     * restoring to a point in time.)
+     */
+    restoresAuditId: bigint("restores_audit_id", { mode: "number" }),
+
+    /**
+     * Why a revert or restore was made. Required — the database refuses a
+     * revert or restore without one — and written on every entry the
+     * operation produces.
+     */
+    reason: text("reason"),
+
+    /** Groups every entry one revert or restore wrote, so it reads as one act. */
+    operationId: uuid("operation_id"),
   },
   (table) => [
     // "What happened to this project" — the audit page's main query.
@@ -524,6 +545,8 @@ export const auditLog = pgTable(
     index("audit_log_actor_idx").on(table.actorUid, table.occurredAt.desc()),
     index("audit_log_project_idx").on(table.projectId, table.occurredAt.desc()),
     index("audit_log_reverts_idx").on(table.revertsAuditId),
+    index("audit_log_restores_idx").on(table.restoresAuditId),
+    index("audit_log_operation_idx").on(table.operationId),
   ]
 );
 

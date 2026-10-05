@@ -28,8 +28,8 @@ const record = (name: string, pass: boolean, detail = "") =>
   results.push([name, pass, detail]);
 
 async function main() {
-  const owner = neon(envValue("MIGRATION_DATABASE_URL")!);
-  const app = neon(envValue("DATABASE_URL")!);
+  const owner = neon(envValue("TEST_MIGRATION_DATABASE_URL")!);
+  const app = neon(envValue("TEST_DATABASE_URL")!);
 
   // ---- a change by a known actor is captured and attributed -------------
   const email = `audit-probe-${Date.now()}@example.com`;

@@ -44,8 +44,8 @@ async function asActor(
 
 async function main() {
   const prod = process.argv.includes("--prod");
-  const owner = neon(envValue(prod ? "PROD_MIGRATION_DATABASE_URL" : "MIGRATION_DATABASE_URL"));
-  const app = neon(envValue(prod ? "PROD_DATABASE_URL" : "DATABASE_URL"));
+  const owner = neon(envValue(prod ? "PROD_MIGRATION_DATABASE_URL" : "TEST_MIGRATION_DATABASE_URL"));
+  const app = neon(envValue(prod ? "PROD_DATABASE_URL" : "TEST_DATABASE_URL"));
   const stamp = Date.now();
   const createdUids: number[] = [];
   const createdRequests: number[] = [];

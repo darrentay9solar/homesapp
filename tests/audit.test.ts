@@ -12,8 +12,11 @@ import {
   groupSessions,
   groupTimeline,
   matchesEntry,
+  type FieldHistory,
+  reasonOk,
   type Refs,
   revertVerb,
+  versionList,
 } from "../lib/client/audit";
 
 const refs: Refs = { users: { "3": "Priya Nair" }, groups: { "1": "Apex Solar Contractors" }, retailers: { "2": "Geneco" } };
@@ -30,9 +33,12 @@ function entry(over: Partial<AuditEntry> & { at: string }): AuditEntry {
     location: { key: "project:101", kind: "project", id: 101, label: "Jalan Kayu Residence" },
     changes: [{ field: "panel_quantity_actual", from: 18, to: 20, state: "current", note: null }],
     revertsId: null,
+    restoresId: null,
+    reason: null,
+    operationId: null,
     revertedBy: [],
     lockedReason: null,
-    linkState: null,
+    rowUndo: null,
     ...over,
   };
 }
@@ -178,19 +184,55 @@ describe("search", () => {
   });
 });
 
-describe("revert", () => {
+describe("revert and restore", () => {
   it("is offered while any line is still current", () => {
     assert.ok(canRevert(entry({ at: "2026-10-05T03:00:00Z" })));
     assert.ok(
       !canRevert(entry({ at: "2026-10-05T03:00:00Z", changes: [{ field: "a", from: 1, to: 2, state: "superseded", note: null }] }))
     );
   });
-  it("speaks of links as removing and putting back", () => {
-    const added = entry({ at: "2026-10-05T03:00:00Z", action: "insert", linkState: "current" });
-    const removed = entry({ at: "2026-10-05T03:00:00Z", action: "delete", linkState: "reverted" });
+  it("names row actions the way the server does", () => {
+    const added = entry({ at: "2026-10-05T03:00:00Z", action: "insert", rowUndo: { verb: "Remove again", kind: "revert", state: "current" } });
+    const gone = entry({ at: "2026-10-05T03:00:00Z", action: "delete", rowUndo: { verb: "Restore", kind: "restore_record", state: "reverted" } });
     assert.equal(revertVerb(added), "Remove again");
-    assert.equal(revertVerb(removed), "Put back");
+    assert.equal(revertVerb(gone), "Restore");
+    assert.equal(revertVerb(entry({ at: "2026-10-05T03:00:00Z" })), "Revert");
     assert.ok(canRevert(added));
-    assert.ok(!canRevert(removed));
+    assert.ok(!canRevert(gone));
+  });
+  it("needs a real reason", () => {
+    assert.ok(!reasonOk(""));
+    assert.ok(!reasonOk("   typo    "));
+    assert.ok(reasonOk("Wrong panel count entered"));
+  });
+});
+
+describe("version history", () => {
+  const actor = { uid: 1, name: "Wei Ming Tan", role: "project_manager" as const };
+  const v = (id: number, value: unknown, deleted = false) => ({
+    id, at: `2026-10-0${id}T01:00:00Z`, actor, deleted, value, reason: null, revertsId: null, restoresId: null,
+  }); // prettier-ignore
+  const h = (over: Partial<FieldHistory>): FieldHistory => ({
+    field: "full_name", table: "users", location: "Jasmine Lee", exists: true, current: "C",
+    lockedReason: null, versions: [v(3, "C"), v(2, "B"), v(1, "A")], refs, ...over,
+  }); // prettier-ignore
+
+  it("marks the value it holds now, and offers the others", () => {
+    const list = versionList(h({}));
+    assert.deepEqual(list.map((x) => [x.value, x.current, x.restorable]), [["C", true, false], ["B", false, true], ["A", false, true]]);
+  });
+  it("marks only the newest match when a value repeats", () => {
+    const list = versionList(h({ current: "A", versions: [v(3, "A"), v(2, "B"), v(1, "A")] }));
+    assert.deepEqual(list.map((x) => x.current), [true, false, false]);
+    assert.equal(list[2].restorable, true);
+  });
+  it("offers nothing when the field is locked or the record is gone", () => {
+    assert.ok(versionList(h({ lockedReason: "Set by the system." })).every((x) => !x.restorable));
+    assert.ok(versionList(h({ exists: false })).every((x) => !x.restorable && !x.current));
+  });
+  it("keeps deletions in the history without offering them", () => {
+    const list = versionList(h({ versions: [v(3, "C"), v(2, null, true), v(1, "A")] }));
+    assert.equal(list[1].deleted, true);
+    assert.equal(list[1].restorable, false);
   });
 });
