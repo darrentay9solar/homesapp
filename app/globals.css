@@ -2288,17 +2288,41 @@ button.urow:hover {
 }
 
 .auth-side,
-.deskbar {
+.deskbar,
+.mainwaves {
   display: none;
 }
 
 /* Desktop: split screen — brand panel left, form right. */
 @media (min-width: 1024px) {
+  /* Sky on the left, the green panel with the form card on the right. */
   .auth {
     display: grid;
-    grid-template-columns: minmax(480px, 46%) 1fr;
+    grid-template-columns: 1fr minmax(520px, 46%);
     padding: 0;
-    background: var(--surface);
+    background: var(--band);
+  }
+
+  .auth-side {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .auth-main {
+    grid-column: 2;
+    grid-row: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--band);
+  }
+
+  .mainwaves {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
   }
 
   /* The sky is always night-to-dawn, whichever theme the form is in. */
@@ -2340,14 +2364,16 @@ button.urow:hover {
   }
 
   .auth .card-auth {
-    /* Grows with the screen so the form stays in proportion with the
-       brand panel's headline on large monitors. */
-    max-width: clamp(420px, 34vw, 600px);
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
+    /* Grows with the screen so the form stays in proportion on large
+       monitors; a card floating on the green panel. */
+    position: relative;
+    max-width: clamp(440px, 34vw, 600px);
+    padding: clamp(32px, 3vw, 48px);
+    border: 1px solid var(--line-soft);
+    border-radius: 28px;
     overflow: visible;
-    background: transparent;
+    background: var(--surface);
+    box-shadow: 0 40px 90px -40px rgba(0, 0, 0, 0.55);
   }
 
   .auth .band,
@@ -2360,7 +2386,7 @@ button.urow:hover {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: clamp(36px, 4vw, 64px);
+    margin-bottom: clamp(28px, 3vw, 44px);
   }
 
   .deskbar .tiny {

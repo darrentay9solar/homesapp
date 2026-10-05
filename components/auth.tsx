@@ -33,6 +33,12 @@ export function AuthShell({
   return (
     <main className="auth">
       <div className="auth-main">
+      {/* Desktop only: the green brand panel's soft waves behind the form card. */}
+      <svg className="mainwaves" viewBox="0 0 600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <circle cx="560" cy="90" r="210" fill="rgba(255,255,255,.06)" />
+        <path d="M0 640C120 590 220 670 340 630S520 550 600 590V900H0Z" fill="rgba(255,255,255,.07)" />
+        <path d="M0 730C140 690 250 760 380 720S540 670 600 700V900H0Z" fill="rgba(255,255,255,.07)" />
+      </svg>
       <div className="card-auth">
         <div className="deskbar">
           <span className="deskbrand">
@@ -70,7 +76,7 @@ export function AuthShell({
         <div className="content">{children}</div>
       </div>
       </div>
-      {/* Desktop only: the animated sky on the right. */}
+      {/* Desktop only: the animated sky on the left. */}
       <aside className="auth-side" aria-hidden="true">
         <SkyScene />
       </aside>

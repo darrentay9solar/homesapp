@@ -43,11 +43,23 @@ function phaseLabel(hour: number) {
   return "Night";
 }
 
-/** Hours advance slowly through dawn and dusk, quickly through deep night and midday. */
-function speedAt(hour: number) {
+/** Relative pace: a little slower through dawn and dusk, faster through deep night and midday. */
+function paceAt(hour: number) {
   const nearEdge = Math.min(Math.abs(hour - SUNRISE), Math.abs(hour - SUNSET));
-  return nearEdge < 1.5 ? 0.32 : nearEdge < 3 ? 0.8 : 1.9;
+  return nearEdge < 1.5 ? 0.55 : nearEdge < 3 ? 0.9 : 1.5;
 }
+
+/** One full day, sunrise to sunrise, takes this long on screen. */
+const CYCLE_SECONDS = 5;
+
+// Scale the pace so the whole 24 h takes exactly CYCLE_SECONDS: the time
+// spent on a slice of the day is dh / (pace × SCALE), integrated over 24 h.
+const SCALE = (() => {
+  let seconds = 0;
+  const step = 0.01;
+  for (let h = 0; h < 24; h += step) seconds += step / paceAt(h);
+  return seconds / CYCLE_SECONDS;
+})();
 
 // Sky colours: [top, middle, horizon] for night, dawn and day.
 const NIGHT = [
@@ -111,7 +123,7 @@ export function SkyScene() {
     const frame = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
-      if (!reduce) hour = (hour + dt * speedAt(hour) * 0.62) % 24;
+      if (!reduce) hour = (hour + dt * paceAt(hour) * SCALE) % 24;
 
       const e = elevation(hour); // -1..1
       // 0 at night → 1 at full day; dawn glow peaks as the sun nears the horizon.
@@ -142,7 +154,7 @@ export function SkyScene() {
         const cy = horizonY * 0.55;
         const f = Math.max(w, h) * 0.55;
         for (const s of stars) {
-          if (!reduce) s.z -= dt * 0.045;
+          if (!reduce) s.z -= dt * 0.16;
           if (s.z <= 0.02) {
             s.x = (Math.random() - 0.5) * 2;
             s.y = (Math.random() - 0.5) * 2;
@@ -218,7 +230,7 @@ export function SkyScene() {
       ctx.restore();
 
       // the clock follows the sun (updated a few times a second, not every frame)
-      if (now - lastClock > 250) {
+      if (now - lastClock > 60) {
         lastClock = now;
         setClock({ hour, label: phaseLabel(hour) });
       }
