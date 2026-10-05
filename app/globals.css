@@ -2296,114 +2296,41 @@ button.urow:hover {
 @media (min-width: 1024px) {
   .auth {
     display: grid;
-    grid-template-columns: minmax(440px, 44%) 1fr;
+    grid-template-columns: minmax(480px, 46%) 1fr;
     padding: 0;
     background: var(--surface);
   }
 
+  /* The sky is always night-to-dawn, whichever theme the form is in. */
   .auth-side {
     position: sticky;
     top: 0;
     height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
+    display: block;
     overflow: hidden;
-    padding: 44px 56px;
-    background: var(--band);
-    color: #fff;
+    background: #0c0f1e;
   }
 
-  .auth-side .waves {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-  }
-
-  .auth-side > div {
-    position: relative;
-  }
-
-  .side-top {
+  .deskbrand {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
   }
 
-  .side-logo {
-    --brand: #ffffff;
-    width: 56px;
-    height: 56px;
-    display: grid;
-    place-items: center;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.12);
-  }
-
-  .side-top b {
+  .deskbrand b {
     display: block;
-    font-size: 15px;
+    font-size: 13.5px;
     font-weight: 600;
     letter-spacing: 0.22em;
   }
 
-  .side-top small {
+  .deskbrand small {
     display: block;
-    margin-top: 3px;
-    font-size: 9.5px;
+    margin-top: 2px;
+    font-size: 8.5px;
     font-weight: 500;
     letter-spacing: 0.26em;
-    opacity: 0.75;
-  }
-
-  .auth .auth-side .side-mid h2 {
-    margin: 0;
-    font-size: clamp(34px, 3.2vw, 46px);
-    line-height: 1.15;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    color: #fff;
-    text-align: left;
-  }
-
-  .side-mid p {
-    margin: 18px 0 30px;
-    max-width: 38ch;
-    font-size: 15px;
-    line-height: 1.65;
-    color: rgba(255, 255, 255, 0.82);
-  }
-
-  .side-mid ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: grid;
-    gap: 14px;
-  }
-
-  .side-mid li {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 14.5px;
-    font-weight: 500;
-  }
-
-  .side-mid li svg {
-    flex: 0 0 auto;
-    width: 26px;
-    height: 26px;
-    padding: 6px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.16);
-  }
-
-  .side-foot {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--tx-3);
   }
 
   .auth-main {
@@ -2444,6 +2371,7 @@ button.urow:hover {
   }
 
   .deskback {
+    margin-bottom: 22px;
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -2697,4 +2625,71 @@ button.urow:hover {
 
 #clerk-captcha {
   margin-bottom: 14px;
+}
+
+/* ============================== SKY SCENE ============================== */
+
+.sky {
+  position: absolute;
+  inset: 0;
+}
+
+.sky canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sky-clock {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px 10px 14px;
+  border-radius: 999px;
+  background: rgba(10, 12, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+}
+
+.sky-clock b {
+  display: block;
+  font-family: var(--ff-m);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.sky-clock small {
+  display: block;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.sky-copy {
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  bottom: 40px;
+  color: #fff;
+}
+
+.auth .sky-copy h2 {
+  margin: 0;
+  text-align: left;
+  color: #fff;
+  font-size: clamp(30px, 2.6vw, 44px);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.sky-copy p {
+  margin: 12px 0 0;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.65);
 }
