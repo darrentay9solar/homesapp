@@ -2171,7 +2171,9 @@ button.urow:hover {
 .auth .band {
   position: relative;
   flex: 0 0 auto;
-  height: calc(176px + env(safe-area-inset-top));
+  /* Compact: just enough green for the bar and the wave, so the form starts
+     high on a phone instead of below a tall empty band. */
+  height: calc(128px + env(safe-area-inset-top));
   color: var(--band-tx);
 }
 
@@ -2188,7 +2190,7 @@ button.urow:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: calc(22px + env(safe-area-inset-top)) 16px 0;
+  padding: calc(12px + env(safe-area-inset-top)) 12px 0;
 }
 
 .auth .band .topbar h1 {
@@ -2228,7 +2230,7 @@ button.urow:hover {
 
 .auth .content {
   flex: 1;
-  padding: 4px 28px calc(32px + env(safe-area-inset-bottom));
+  padding: 0 24px calc(28px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
 }
@@ -2236,7 +2238,7 @@ button.urow:hover {
 .auth .mark {
   display: flex;
   justify-content: center;
-  margin: -6px 0 10px;
+  margin: -18px 0 6px;
 }
 
 .auth h2 {
@@ -2253,7 +2255,7 @@ button.urow:hover {
   font-size: 13px;
   color: var(--tx-3);
   line-height: 1.6;
-  margin: 6px auto 24px;
+  margin: 6px auto 20px;
   max-width: 34ch;
 }
 
@@ -2287,8 +2289,11 @@ button.urow:hover {
   justify-content: center;
 }
 
+/* Desktop-only pieces. Phones and tablets use the back arrow in the green
+   header instead of the separate Back button. */
 .auth-side,
 .deskbar,
+.deskback,
 .mainwaves {
   display: none;
 }
