@@ -2412,7 +2412,9 @@ button.urow:hover {
   }
 
   .auth .card-auth {
-    max-width: 420px;
+    /* Grows with the screen so the form stays in proportion with the
+       brand panel's headline on large monitors. */
+    max-width: clamp(420px, 34vw, 600px);
     border: 0;
     border-radius: 0;
     box-shadow: none;
@@ -2430,7 +2432,7 @@ button.urow:hover {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 44px;
+    margin-bottom: clamp(36px, 4vw, 64px);
   }
 
   .deskbar .tiny {
@@ -2464,7 +2466,8 @@ button.urow:hover {
 
   .auth h2 {
     text-align: left;
-    font-size: 30px;
+    font-size: clamp(32px, 2.9vw, 50px);
+    line-height: 1.15;
     font-weight: 600;
     letter-spacing: -0.02em;
     color: var(--tx);
@@ -2473,14 +2476,40 @@ button.urow:hover {
   .auth .subtitle {
     text-align: left;
     max-width: none;
-    margin: 8px 0 34px;
-    font-size: 14.5px;
+    margin: 12px 0 clamp(32px, 3vw, 48px);
+    font-size: clamp(14.5px, 1.05vw, 17px);
+  }
+
+  .auth .af {
+    height: clamp(54px, 4vw, 64px);
+    margin-bottom: 22px;
+    padding: 0 18px;
+    border-radius: 12px;
+  }
+
+  .auth .af input {
+    font-size: clamp(15px, 1.05vw, 17px);
+  }
+
+  .auth .af > label {
+    font-size: 12.5px;
+    top: -10px;
+  }
+
+  .auth .af > svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .auth .textlink,
+  .auth .rules {
+    font-size: 13.5px !important;
   }
 
   .auth .alt {
     text-align: left;
-    font-size: 13.5px;
-    margin-top: 22px;
+    font-size: clamp(13.5px, 0.95vw, 15.5px);
+    margin-top: 26px;
   }
 
   .auth .otp {
@@ -2499,8 +2528,9 @@ button.urow:hover {
   }
 
   .auth .btn {
-    height: 52px;
-    font-size: 15px;
+    height: clamp(54px, 4vw, 62px);
+    font-size: clamp(15px, 1.05vw, 17px);
+    border-radius: 12px;
   }
 }
 
