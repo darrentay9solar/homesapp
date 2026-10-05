@@ -49,7 +49,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip } from "@/components/m";
-import { Page } from "@/components/shell";
+import { PAGE_COLUMN, PAGE_GUTTER, Page } from "@/components/shell";
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
@@ -288,14 +288,14 @@ function TopBar({ title, onAdd, search, tabs }: { title: string; onAdd: () => vo
       sx={{
         background: HERO_BG,
         color: "#fff",
-        px: { xs: 2, sm: 3, lg: 4 },
+        px: PAGE_GUTTER,
         pt: { xs: "calc(10px + env(safe-area-inset-top))", lg: 3 },
         // Room for the wave, which is drawn over the bottom of the header.
         pb: { xs: "40px", lg: "52px" },
         position: "relative",
       }}
     >
-      <Box sx={{ maxWidth: 1240 }}>
+      <Box sx={PAGE_COLUMN}>
         <Stack direction="row" sx={{ alignItems: "center", gap: 1, minHeight: 44 }}>
           <Typography component="h1" sx={{ flex: 1, fontWeight: 600, fontSize: { xs: 20, lg: 24 } }}>
             {title}

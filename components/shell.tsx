@@ -218,7 +218,8 @@ export function Header({
         pt: "env(safe-area-inset-top)",
       }}
     >
-      <Toolbar sx={{ gap: 1, minHeight: { xs: 64, lg: 76 }, px: { xs: 2, lg: 4 } }}>
+      <Toolbar disableGutters sx={{ minHeight: { xs: 64, lg: 76 }, px: PAGE_GUTTER }}>
+        <Box sx={{ ...PAGE_COLUMN, display: "flex", alignItems: "center", gap: 1 }}>
         {back && (
           <IconButton edge="start" aria-label="Back" onClick={() => (back === true ? router.back() : router.push(back))}>
             <ArrowBackRoundedIcon />
@@ -242,24 +243,38 @@ export function Header({
             </Badge>
           </IconButton>
         )}
+        </Box>
       </Toolbar>
     </AppBar>
   );
 }
 
 /** Page body: comfortable padding, clear of the bottom navigation on phones. */
+/**
+ * The centred content column. Grows with the screen (so a wide monitor isn't
+ * half empty) but stops at a readable width, and stays centred in the space
+ * beside the navigation drawer. Headers that span the full width use the same
+ * column (PAGE_COLUMN) so their contents line up with the cards below.
+ */
+export const PAGE_COLUMN = {
+  width: "100%",
+  maxWidth: { xs: "100%", lg: 1160, xl: 1400 },
+  mx: "auto",
+} as const;
+
+export const PAGE_GUTTER = { xs: 2, sm: 3, lg: 5 } as const;
+
 export function Page({ children, narrow }: { children: ReactNode; narrow?: boolean }) {
   return (
     <Box
       sx={{
-        px: { xs: 2, sm: 3, lg: 4 },
+        px: PAGE_GUTTER,
         pt: 1,
         pb: { xs: "calc(96px + env(safe-area-inset-bottom))", lg: 6 },
         width: "100%",
-        maxWidth: narrow ? 760 : 1240,
       }}
     >
-      {children}
+      <Box sx={narrow ? { width: "100%", maxWidth: 760, mx: "auto" } : PAGE_COLUMN}>{children}</Box>
     </Box>
   );
 }
