@@ -175,8 +175,7 @@ export default function PeoplePage() {
         tabs={<SegTabs value={role} onChange={setRole} options={TABS.map(([v, l]) => ({ value: v, label: l, count: count(v) }))} />}
       />
 
-      {/* The light panel that slides over the green. */}
-      <Box sx={{ mt: "-18px", position: "relative", borderRadius: "22px 22px 0 0", bgcolor: "background.default", flex: 1 }}>
+      <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>
@@ -291,7 +290,9 @@ function TopBar({ title, onAdd, search, tabs }: { title: string; onAdd: () => vo
         color: "#fff",
         px: { xs: 2, sm: 3, lg: 4 },
         pt: { xs: "calc(10px + env(safe-area-inset-top))", lg: 3 },
-        pb: "30px",
+        // Room for the wave, which is drawn over the bottom of the header.
+        pb: { xs: "40px", lg: "52px" },
+        position: "relative",
       }}
     >
       <Box sx={{ maxWidth: 1240 }}>
@@ -319,6 +320,17 @@ function TopBar({ title, onAdd, search, tabs }: { title: string; onAdd: () => vo
         </Stack>
         <Box sx={{ mt: 1 }}>{search}</Box>
         {tabs}
+      </Box>
+      {/* The wavy bottom edge from the account screens: lower on the left,
+          rising to the right. The page colour fills in below the curve. */}
+      <Box
+        component="svg"
+        viewBox="0 0 440 40"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+        sx={{ position: "absolute", left: 0, right: 0, bottom: -1, width: "100%", height: { xs: 30, lg: 42 }, display: "block" }}
+      >
+        <path d="M0 40V30C76 27 150 16 240 18C320 20 384 22 440 0V40Z" fill="var(--mui-palette-background-default)" />
       </Box>
     </Box>
   );
