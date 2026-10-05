@@ -7,11 +7,13 @@ it is obvious afterwards which messages never went out. See docs/whatsapp.md.
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
@@ -130,6 +132,53 @@ def send_whatsapp(to: str | None, template: str, params: list[str]) -> SendResul
     return SendResult("sent", provider_id=((body.get("messages") or [{}])[0]).get("id"))
 
 
+# -------------------------------------------------------------------- sms
+
+
+def send_sms(to: str | None, text: str) -> SendResult:
+    """SMS through Twilio, used only when WhatsApp could not deliver.
+
+    SMS_FROM is either a Twilio Messaging Service SID (MG...) or a sender
+    name. In Singapore a sender name must be registered with SGNIC's SMS
+    Sender ID Registry first, or carriers label it "Likely-SCAM" / block it.
+    """
+    sid, token, sender = env("TWILIO_ACCOUNT_SID"), env("TWILIO_AUTH_TOKEN"), env("SMS_FROM")
+    if not sid or not token or not sender:
+        return SendResult("skipped", "SMS not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / SMS_FROM)")
+    if not to:
+        return SendResult("skipped", "no usable mobile number on file")
+    form = {"To": f"+{to}", "Body": text}
+    form["MessagingServiceSid" if sender.startswith("MG") else "From"] = sender
+    auth = base64.b64encode(f"{sid}:{token}".encode()).decode()
+    req = urllib.request.Request(
+        f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json",
+        method="POST",
+        data=urllib.parse.urlencode(form).encode(),
+        headers={"Authorization": f"Basic {auth}", "Content-Type": "application/x-www-form-urlencoded"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            body = json.loads(res.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        try:
+            err = json.loads(exc.read() or b"{}")
+        except ValueError:
+            err = {}
+        return SendResult("failed", f"Twilio {exc.code} ({err.get('code')}): {err.get('message', 'error')}")
+    except OSError as exc:
+        return SendResult("failed", f"Twilio unreachable: {exc}")
+    return SendResult("sent", provider_id=body.get("sid"))
+
+
+def send_mobile(raw_number: str | None, template: str, params: list[str], sms_text: str) -> dict[str, SendResult]:
+    """WhatsApp first; SMS only if WhatsApp didn't go out. Never both."""
+    to = to_whatsapp_number(raw_number)
+    results = {"whatsapp": send_whatsapp(to, template, params)}
+    if results["whatsapp"].status != "sent":
+        results["sms"] = send_sms(to, sms_text)
+    return results
+
+
 # ------------------------------------------------------------- recording
 
 
@@ -141,7 +190,7 @@ def notify(
     *,
     project_id: int | None = None,
     email: tuple[str, str, str, str] | None = None,  # (to, subject, html, text)
-    whatsapp: tuple[str | None, str, list[str]] | None = None,  # (to, template, params)
+    mobile: tuple[str | None, str, list[str], str] | None = None,  # (number, template, params, sms text)
 ) -> dict[str, SendResult]:
     """Records an in-app notification, sends on each channel given, records each outcome.
 
@@ -163,8 +212,8 @@ def notify(
     results: dict[str, SendResult] = {}
     if email:
         results["email"] = send_email(*email)
-    if whatsapp:
-        results["whatsapp"] = send_whatsapp(*whatsapp)
+    if mobile:
+        results.update(send_mobile(*mobile))
     if results:
         with transaction(None) as cur:
             for channel, r in results.items():
@@ -178,7 +227,8 @@ def notify(
 
 
 def describe(results: dict[str, SendResult]) -> str:
-    parts = [r.describe("Email" if ch == "email" else "WhatsApp") for ch, r in results.items()]
+    label = {"email": "Email", "whatsapp": "WhatsApp", "sms": "SMS"}
+    parts = [r.describe(label[ch]) for ch, r in results.items()]
     return " · ".join(parts)
 
 
@@ -232,6 +282,7 @@ def msg_account_created(name: str, role: str, url: str) -> dict[str, Any]:
     return {
         "email": (f"{BRAND}: your GetHomeApps account ({role})", h, t),
         "whatsapp": ("account_created", [name, role, url]),
+        "sms": f"{BRAND}: Hi {name}, your GetHomeApps account ({role}) is ready. Set it up: {url}",
         "title": "Welcome to GetHomeApps",
         "body": f"Your account was created as {role}.",
     }
@@ -259,6 +310,7 @@ def msg_account_approved(name: str, role: str, url: str) -> dict[str, Any]:
     return {
         "email": (f"{BRAND}: account approved", h, t),
         "whatsapp": ("account_approved", [name, role, url]),
+        "sms": f"{BRAND}: Hi {name}, your GetHomeApps account is approved. You're set up as {role}. {url}",
         "title": "Account approved",
         "body": f"You're set up as {role}.",
     }
@@ -274,4 +326,10 @@ def msg_account_rejected(name: str, note: str | None) -> dict[str, Any]:
             f"If you think this is a mistake, please contact your {BRAND} project manager.",
         ],
     )
-    return {"email": (f"{BRAND}: account request", h, t), "whatsapp": ("account_rejected", [name])}
+    return {
+        "email": (f"{BRAND}: account request", h, t),
+        "whatsapp": ("account_rejected", [name]),
+        "sms": f"{BRAND}: Hi {name}, your GetHomeApps account request wasn't approved."
+        + (f" Note: {note}" if note else "")
+        + " Please contact your project manager.",
+    }

@@ -34,12 +34,14 @@
   color-scheme: dark;
   --r: 14px;
   --r-s: 10px;
-  --ff: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter",
-    "Helvetica Neue", Arial, sans-serif;
-  --ff-d: "Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", -apple-system,
-    "Helvetica Neue", Arial, sans-serif;
+  --ff: var(--font-poppins), "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --ff-d: var(--font-poppins), "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
   --ff-m: "Cascadia Mono", ui-monospace, "SF Mono", "Consolas", "Roboto Mono", monospace;
   --nav-h: 64px;
+  /* Header band on the account screens. Deeper than --brand in Black so
+     white text on it stays readable. */
+  --band: #0e7f53;
+  --band-tx: #ffffff;
 }
 
 :root[data-theme="light"] {
@@ -69,6 +71,8 @@
   --info: #2a6fbf;
   --glow: none;
   --shadow: 0 24px 60px -32px rgba(10, 25, 18, 0.34);
+  --band: #0a9a63;
+  --band-tx: #ffffff;
   color-scheme: light;
 }
 
@@ -2124,4 +2128,318 @@ button.urow:hover {
     gap: 28px;
     align-items: start;
   }
+}
+
+/* ============================ ACCOUNT SCREENS ============================
+   Sign in, sign up, verification, forgot password. From the approved
+   template: wavy colour header with back + title, centred heading, outlined
+   fields with the label on the border, one solid button. Full screen on
+   phones; a centred card on larger screens. */
+
+.auth {
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  background: var(--surface);
+}
+
+.auth .card-auth {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+@media (min-width: 560px) {
+  .auth {
+    align-items: center;
+    padding: 32px 16px;
+    background: radial-gradient(120% 70% at 50% 0%, var(--grid), transparent 62%), var(--ink);
+  }
+
+  .auth .card-auth {
+    max-width: 440px;
+    min-height: 0;
+    border-radius: 26px;
+    overflow: hidden;
+    border: 1px solid var(--line-soft);
+    box-shadow: var(--shadow);
+  }
+}
+
+.auth .band {
+  position: relative;
+  flex: 0 0 auto;
+  height: calc(176px + env(safe-area-inset-top));
+  color: var(--band-tx);
+}
+
+.auth .band svg.wave {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.auth .band .topbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(22px + env(safe-area-inset-top)) 16px 0;
+}
+
+.auth .band .topbar h1 {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.auth .band .navbtn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--band-tx);
+  flex: 0 0 auto;
+}
+
+.auth .band .navbtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.auth .band .icobtn {
+  width: 40px;
+  height: 40px;
+  color: var(--band-tx);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.auth .band .icobtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--band-tx);
+}
+
+.auth .content {
+  flex: 1;
+  padding: 4px 28px calc(32px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+}
+
+.auth .mark {
+  display: flex;
+  justify-content: center;
+  margin: -6px 0 10px;
+}
+
+.auth h2 {
+  margin: 0;
+  text-align: center;
+  color: var(--brand-hi);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.auth .subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--tx-3);
+  line-height: 1.6;
+  margin: 6px auto 24px;
+  max-width: 34ch;
+}
+
+.auth .subtitle b {
+  color: var(--tx);
+  font-weight: 500;
+}
+
+.auth .btn {
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.auth .alt {
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--tx-3);
+  margin-top: 16px;
+}
+
+.auth .alt a,
+.auth .alt button,
+.auth .textlink {
+  color: var(--brand-hi);
+  font-weight: 600;
+}
+
+/* Outlined field with the label sitting on the border. */
+.af {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 14px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.af:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+
+.af.bad {
+  border-color: var(--bad);
+}
+
+.af > label {
+  position: absolute;
+  top: -9px;
+  left: 11px;
+  padding: 0 5px;
+  background: var(--surface);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--brand-hi);
+  line-height: 16px;
+}
+
+.af > svg {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  color: var(--tx-3);
+}
+
+.af input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  color: var(--tx);
+}
+
+.af input::placeholder {
+  color: var(--tx-3);
+}
+
+.af .eye {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--tx-3);
+  border-radius: 8px;
+}
+
+.af .cc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  padding-right: 10px;
+  border-right: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.af .cc select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.fielderr {
+  margin: -12px 2px 14px;
+  font-size: 11.5px;
+  color: var(--bad-tx);
+}
+
+.rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: -8px 2px 18px;
+  font-size: 11.5px;
+  color: var(--tx-3);
+}
+
+.rules .ok {
+  color: var(--brand-hi);
+}
+
+/* Six code boxes. */
+.otp {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.otp input {
+  width: 46px;
+  height: 54px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--card-2);
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--tx);
+  outline: none;
+  caret-color: var(--brand);
+}
+
+.otp input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 16%, transparent);
+}
+
+@media (max-width: 360px) {
+  .otp {
+    gap: 5px;
+  }
+
+  .otp input {
+    width: 40px;
+    height: 50px;
+  }
+}
+
+.badge {
+  width: 76px;
+  height: 76px;
+  margin: 10px auto 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--brand-hi);
+  background: color-mix(in srgb, var(--brand) 14%, transparent);
+}
+
+#clerk-captcha:empty {
+  display: none;
+}
+
+#clerk-captcha {
+  margin-bottom: 14px;
 }

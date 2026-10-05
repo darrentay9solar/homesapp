@@ -10,6 +10,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 const isPublic = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/forgot-password",
   // The health checks must stay reachable: an uptime monitor cannot sign in,
   // and they deliberately expose no project data.
   "/api/health",

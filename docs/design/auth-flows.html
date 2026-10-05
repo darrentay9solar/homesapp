@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GetHomeApps — Account flows (design preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Template: wavy colour header, centred heading, outlined fields with
+   floating labels, one solid button. Colours: 9 Solar Home green on the
+   app's Black / Light themes. Font: Poppins. */
+:root, :root[data-theme="light"]{
+  --page:#DCE8E1; --phone:#FFFFFF; --band:#0A9A63; --band-tx:#FFFFFF;
+  --head:#07734A; --tx:#0A0F0C; --tx-2:#6F7873; --line:#DDE3DF; --chip:#EEF3F0;
+  --brand:#0A9A63; --on-brand:#FFFFFF; --bad:#CE2E33; --warn:#9A6A12; --shadow:0 30px 60px -30px rgba(10,40,25,.35);
+}
+:root[data-theme="dark"]{
+  --page:#000000; --phone:#08090A; --band:#0E7F53; --band-tx:#FFFFFF;
+  --head:#3DDC97; --tx:#F4F6F5; --tx-2:#8B938F; --line:rgba(255,255,255,.12); --chip:#141617;
+  --brand:#16C47F; --on-brand:#00140C; --bad:#F0736F; --warn:#E0A23A; --shadow:0 30px 70px -30px rgba(0,0,0,1);
+}
+*{box-sizing:border-box}
+html{background:var(--page);min-height:100%}
+body{margin:0;background:var(--page);color:var(--tx);font-family:Poppins,system-ui,sans-serif;transition:background .25s}
+header.top{max-width:1320px;margin:0 auto;padding:28px 20px 6px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between}
+header.top h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.01em}
+header.top p{margin:4px 0 0;font-size:12.5px;color:var(--tx-2);max-width:62ch}
+.toggle{display:flex;background:var(--phone);border:1px solid var(--line);border-radius:999px;padding:3px}
+.toggle button{border:0;background:none;font:inherit;font-size:12px;font-weight:500;color:var(--tx-2);padding:7px 14px;border-radius:999px;cursor:pointer}
+.toggle button.on{background:var(--brand);color:var(--on-brand)}
+section.flow{max-width:1320px;margin:0 auto;padding:18px 20px 8px}
+section.flow h2{font-size:15px;font-weight:600;margin:0 0 2px}
+section.flow > p{font-size:12px;color:var(--tx-2);margin:0 0 14px;max-width:80ch}
+.row{display:flex;gap:26px;overflow-x:auto;padding:6px 4px 26px;scroll-snap-type:x mandatory}
+.shot{flex:0 0 auto;scroll-snap-align:start}
+.cap{font-size:11px;color:var(--tx-2);margin:10px 4px 0;max-width:270px;line-height:1.5}
+.cap b{color:var(--tx);font-weight:600}
+
+/* ---------- phone ---------- */
+.phone{width:270px;height:560px;border-radius:22px;background:var(--phone);box-shadow:var(--shadow);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.band{position:relative;height:150px;flex:0 0 auto;color:var(--band-tx)}
+.band svg.wave{position:absolute;inset:0;width:100%;height:100%;display:block}
+.status{position:relative;display:flex;justify-content:space-between;padding:10px 16px 0;font-size:9px;font-weight:500}
+.status i{display:inline-flex;gap:3px;align-items:center;font-style:normal}
+.status i span{display:inline-block;background:currentColor;border-radius:1px}
+.bar{position:relative;display:flex;align-items:center;gap:10px;padding:18px 16px 0}
+.bar .back{width:20px;height:20px;display:grid;place-items:center}
+.bar h3{margin:0;font-size:13.5px;font-weight:600;letter-spacing:.01em;flex:1;text-align:center;margin-right:20px}
+.body{flex:1;padding:6px 24px 20px;display:flex;flex-direction:column;overflow:hidden}
+.body h4{margin:0;text-align:center;color:var(--head);font-size:14px;font-weight:600}
+.sub{text-align:center;font-size:9.5px;color:var(--tx-2);line-height:1.6;margin:5px 4px 16px}
+.fld{position:relative;border:1px solid var(--line);border-radius:7px;height:38px;display:flex;align-items:center;gap:8px;padding:0 10px;margin-bottom:12px;font-size:10.5px}
+.fld.on{border-color:var(--brand)}
+.fld label{position:absolute;top:-7px;left:9px;background:var(--phone);padding:0 4px;font-size:8px;color:var(--brand);font-weight:500}
+.fld svg{flex:0 0 auto;color:var(--tx-2)}
+.fld .v{color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fld .ph{color:var(--tx-2)}
+.fld .cc{border-right:1px solid var(--line);padding-right:8px;font-weight:500;display:flex;gap:4px;align-items:center;color:var(--tx)}
+.btn{display:flex;align-items:center;justify-content:center;height:36px;border-radius:7px;background:var(--brand);color:var(--on-brand);font-weight:600;font-size:12px;border:0;width:100%;font-family:inherit}
+.btn.ghost{background:transparent;color:var(--tx);border:1px solid var(--line);margin-top:8px}
+.btn.bad{background:transparent;color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 45%,transparent);margin-top:8px}
+.link{color:var(--brand);font-weight:500}
+.small{font-size:8.5px;color:var(--tx-2);text-align:center;margin-top:10px}
+.otp{display:flex;justify-content:center;gap:6px;margin:4px 0 6px}
+.otp span{width:28px;height:32px;border-radius:5px;background:var(--chip);display:grid;place-items:center;font-size:13px;font-weight:500}
+.otp span.cur{outline:1.5px solid var(--brand)}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.role{border:1px solid var(--line);border-radius:7px;padding:8px;font-size:9.5px;font-weight:600}
+.role small{display:block;font-weight:400;color:var(--tx-2);font-size:7.5px;margin-top:2px;line-height:1.4}
+.role.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand) inset;color:var(--brand)}
+.badge{width:62px;height:62px;border-radius:50%;margin:10px auto 14px;display:grid;place-items:center;background:color-mix(in srgb,var(--brand) 14%,transparent);color:var(--brand)}
+.steps{margin:4px 2px 14px;display:grid;gap:10px}
+.step{display:flex;gap:9px;font-size:9.5px;align-items:flex-start}
+.step b{width:16px;height:16px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:8px;flex:0 0 auto;color:var(--tx-2)}
+.step.done b{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.step.now b{border-color:var(--warn);color:var(--warn)}
+.step small{display:block;color:var(--tx-2);font-size:8px}
+.card{border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:8px}
+.who{display:flex;gap:9px;align-items:center}
+.ava{width:30px;height:30px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font-size:9.5px;font-weight:600;color:var(--tx-2);flex:0 0 auto}
+.ava.big{width:46px;height:46px;font-size:13px;background:var(--brand);color:var(--on-brand)}
+.who .n{font-size:10.5px;font-weight:600}
+.who .e{font-size:8px;color:var(--tx-2)}
+.pill{display:inline-block;font-size:7.5px;font-weight:600;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--warn)}
+.pill.ok{color:var(--brand)}
+.mini{display:flex;gap:6px;margin-top:8px}
+.mini .btn{height:26px;font-size:9.5px;margin:0}
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:9px;padding:6px 0;border-bottom:1px solid var(--line)}
+.kv span{color:var(--tx-2)} .kv b{font-weight:500;text-align:right}
+.ta{border:1px solid var(--brand);border-radius:7px;height:62px;padding:9px 10px;font-size:9.5px;color:var(--tx);position:relative;margin-bottom:12px}
+.ta label{position:absolute;top:-7px;left:9px;background:var(--phone);padding:0 4px;font-size:8px;color:var(--brand)}
+.mail{border:1px solid var(--line);border-radius:9px;overflow:hidden;font-size:8.5px}
+.mail .mh{background:var(--chip);padding:7px 9px;color:var(--tx-2)}
+.mail .mb{padding:9px;line-height:1.55}
+.mail .cta{display:inline-block;margin-top:6px;background:var(--brand);color:var(--on-brand);padding:5px 9px;border-radius:5px;font-weight:600}
+.notes{max-width:1320px;margin:0 auto;padding:4px 20px 40px;font-size:12px;color:var(--tx-2)}
+.notes ul{margin:6px 0 0;padding-left:18px;line-height:1.7}
+.notes b{color:var(--tx)}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Account flows — design preview</h1>
+    <p>Template layout and Poppins type, in 9 Solar Home green. Nothing here is live yet — this is for sign-off before building. Scroll each row sideways on a phone.</p>
+  </div>
+  <div class="toggle" role="radiogroup" aria-label="Theme">
+    <button data-t="light" class="on">Light</button><button data-t="dark">Black</button>
+  </div>
+</header>
+
+<!-- ======================= FLOW A: ACCOUNT CREATION ======================= -->
+<section class="flow">
+  <h2>A · Creating an account (self sign-up)</h2>
+  <p>Someone signs up on their own. People invited by a project manager use the same first two screens, then go straight into the app with the role the PM gave them — they never see A3 or A4.</p>
+  <div class="row" id="flowA"></div>
+</section>
+
+<!-- ======================= FLOW B: FORGOT PASSWORD ======================= -->
+<section class="flow">
+  <h2>B · Forgot password</h2>
+  <p>From the sign-in screen. Codes are 6 digits (that is what our sign-in provider, Clerk, sends) and expire after 10 minutes.</p>
+  <div class="row" id="flowB"></div>
+</section>
+
+<!-- ======================= FLOW C: REQUEST APPROVAL ======================= -->
+<section class="flow">
+  <h2>C · Approving a request (project manager)</h2>
+  <p>The PM gets an email + in-app alert, reviews the request, grants a role (they can change what was asked for) or declines with a note. The applicant then gets an email and a WhatsApp message.</p>
+  <div class="row" id="flowC"></div>
+</section>
+
+<div class="notes">
+  <b>Things to confirm</b>
+  <ul>
+    <li><b>Poppins everywhere?</b> These screens use it. I suggest switching the whole app to Poppins so sign-in and the app feel like one product.</li>
+    <li><b>Header colour in Black mode</b> is a deeper green (#0E7F53) so white text stays readable; Light mode uses the app's #0A9A63.</li>
+    <li><b>Mobile is asked at sign-up</b> (with the country picker) because approvals and updates go out by WhatsApp.</li>
+  </ul>
+</div>
+
+<script>
+/* ------------------------------ building blocks ------------------------------ */
+const ic = {
+  back:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 19l-7-7 7-7"/></svg>',
+  mail:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6 8.5 7 8.5-7"/></svg>',
+  lock:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>',
+  user:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg>',
+  phone:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18h2"/></svg>',
+  pin:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>',
+  eye:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  tick:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>',
+  clock:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.4l3.4 2"/></svg>',
+  logo:'<svg width="40" height="40" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"><path d="M18 52 60 18l42 34"/><circle cx="60" cy="66" r="21"/><path d="M63 55l-9 13h7l-3 10 9-13h-7z" fill="currentColor" stroke="none"/><g stroke-width="4"><path d="M60 33v9M60 90v9M27 66h9M84 66h9M37 43l6 6M77 83l6 6M83 43l-6 6M43 83l-6 6"/></g></svg>'
+};
+const status = '<div class="status"><span>9:41</span><i><span style="width:2px;height:4px"></span><span style="width:2px;height:6px"></span><span style="width:2px;height:8px"></span>&nbsp;<span style="width:13px;height:6px;border-radius:2px"></span></i></div>';
+// Wavy band: left edge lower, right edge higher — as in the template.
+const wave = '<svg class="wave" viewBox="0 0 270 150" preserveAspectRatio="none"><path d="M0 0H270V82C232 112 196 100 150 104C96 109 46 118 0 146Z" fill="var(--band)"/></svg>';
+const phone = (title, body, {back=true}={}) => `<div class="phone"><div class="band">${wave}${status}
+  <div class="bar">${back?`<span class="back">${ic.back}</span>`:'<span class="back"></span>'}<h3>${title}</h3></div></div>
+  <div class="body">${body}</div></div>`;
+const fld = (label, value, icon, {on=false, ph=false, pre=''}={}) => `<div class="fld ${on?'on':''}"><label>${label}</label>${pre}${icon?ic[icon]:''}<span class="${ph?'ph':'v'}">${value}</span></div>`;
+const shot = (html, cap) => `<div class="shot">${html}<div class="cap">${cap}</div></div>`;
+
+/* ---------------------------------- A ---------------------------------- */
+document.getElementById('flowA').innerHTML = [
+  shot(phone('Create Account', `
+    <div style="text-align:center;color:var(--brand);margin:0 0 6px">${ic.logo}</div>
+    <h4>Create your login</h4>
+    <div class="sub">Invited by 9 Solar Home? Use the email the invitation was sent to.</div>
+    ${fld('Full name','Aisha Rahman','user')}
+    ${fld('Email','aisha.rahman@gmail.com','mail')}
+    ${fld('Mobile','9123 4567','',{pre:'<span class="cc">SG +65 ▾</span>'})}
+    ${fld('Password','••••••••••','lock',{on:true})}
+    <button class="btn">Create Account</button>
+    <div class="small">Already have an account? <span class="link">Sign in</span></div>`,{back:false}),
+    '<b>A1 · Create account.</b> Name, email, mobile (country picker, Singapore default) and password.'),
+  shot(phone('Email Verification', `
+    <div style="height:18px"></div>
+    <h4>Get your code</h4>
+    <div class="sub">Enter the 6-digit code we sent to<br><b style="color:var(--tx)">aisha.rahman@gmail.com</b></div>
+    <div class="otp"><span>5</span><span>4</span><span>8</span><span>6</span><span class="cur"></span><span></span></div>
+    <div class="small" style="margin:6px 0 16px">Didn't receive it? <span class="link">Resend</span> in 0:42</div>
+    <button class="btn">Verify and Proceed</button>`),
+    '<b>A2 · Verify email.</b> Proves they own the address — needed before an invitation can be matched to them.'),
+  shot(phone('Request Access', `
+    <h4>Who are you?</h4>
+    <div class="sub">A 9 Solar Home project manager approves every account.</div>
+    <div class="roles">
+      <div class="role on">Homeowner<small>My own installation</small></div>
+      <div class="role">Contractor Admin<small>My company's projects</small></div>
+      <div class="role">EPC Team<small>Site visits & check-in</small></div>
+      <div class="role">Project Manager<small>9 Solar Home staff</small></div>
+    </div>
+    ${fld('Postal code','569933','pin')}
+    ${fld('NRIC last 4 (optional)','567D','')}
+    <button class="btn">Request Access</button>
+    <div class="small">We never ask for your full NRIC.</div>`),
+    '<b>A3 · Choose a role.</b> Postal code fills in the address via OneMap. NRIC box appears for homeowners only.'),
+  shot(phone('Request Sent', `
+    <div class="badge">${ic.clock}</div>
+    <h4>Waiting for approval</h4>
+    <div class="sub">We'll email and WhatsApp you as soon as a project manager decides.</div>
+    <div class="steps">
+      <div class="step done"><b>✓</b><div>Request sent<small>5 Oct 2026, 11:20</small></div></div>
+      <div class="step now"><b>2</b><div>Project manager review<small>Usually within one working day</small></div></div>
+      <div class="step"><b>3</b><div>Access granted<small>Your projects appear automatically</small></div></div>
+    </div>
+    <button class="btn ghost" style="margin-top:auto">Check again</button>`,{back:false}),
+    '<b>A4 · Waiting.</b> Nothing in the app is visible until approved.')
+].join('');
+
+/* ---------------------------------- B ---------------------------------- */
+document.getElementById('flowB').innerHTML = [
+  shot(phone('Sign In', `
+    <div style="text-align:center;color:var(--brand);margin:0 0 6px">${ic.logo}</div>
+    <h4>Welcome back</h4>
+    <div class="sub">Rooftop solar, tracked to the day.</div>
+    ${fld('Email','wm.tan@9solarhome.sg','mail')}
+    ${fld('Password','••••••••••','lock',{on:true})}
+    <div class="small" style="text-align:right;margin:-4px 0 12px"><span class="link">Forgot password?</span></div>
+    <button class="btn">Sign In</button>
+    <div class="small">New here? <span class="link">Create an account</span></div>`,{back:false}),
+    '<b>B0 · Sign in.</b> Same template, with the logo. “Forgot password?” starts this flow.'),
+  shot(phone('Forgot Password', `
+    <div style="height:18px"></div>
+    <h4>Your email address</h4>
+    <div class="sub">Enter the email address associated with your account.</div>
+    ${fld('Email','wm.tan@9solarhome.sg','mail',{on:true})}
+    <button class="btn">Send Code</button>`),
+    '<b>B1 · Ask for a code.</b> If no account uses that email we say the same thing — so the form can’t be used to discover who has an account.'),
+  shot(phone('Email Verification', `
+    <div style="height:18px"></div>
+    <h4>Get your code</h4>
+    <div class="sub">Please enter the 6-digit code sent to your email address.</div>
+    <div class="otp"><span>2</span><span>9</span><span>0</span><span>4</span><span>1</span><span class="cur">7</span></div>
+    <div class="small" style="margin:6px 0 16px">If you don't receive the code, <span class="link">Resend</span></div>
+    <button class="btn">Verify and Proceed</button>`),
+    '<b>B2 · Enter the code.</b> Six boxes; pasting a code fills them all.'),
+  shot(phone('Reset Password', `
+    <div style="height:18px"></div>
+    <h4>Enter new password</h4>
+    <div class="sub">Your new password must be different from previously used passwords.</div>
+    ${fld('Password','••••••••••••',"lock",{on:true})}
+    ${fld('Confirm password','••••••••••••',"lock")}
+    <div class="small" style="text-align:left;margin:-4px 0 12px;color:var(--brand)">✓ 8+ characters &nbsp; ✓ Passwords match</div>
+    <button class="btn">Continue</button>`),
+    '<b>B3 · New password.</b> Checked live; Continue stays disabled until both rules pass.'),
+  shot(phone('All Set', `
+    <div class="badge" style="margin-top:22px">${ic.tick}</div>
+    <h4>Password updated</h4>
+    <div class="sub">You're signed in. Other devices using the old password have been signed out.</div>
+    <button class="btn" style="margin-top:8px">Continue to GetHomeApps</button>`,{back:false}),
+    '<b>B4 · Done.</b> Goes straight into the app.')
+].join('');
+
+/* ---------------------------------- C ---------------------------------- */
+document.getElementById('flowC').innerHTML = [
+  shot(phone('Requests', `
+    <h4 style="margin-bottom:12px">2 waiting for approval</h4>
+    <div class="card"><div class="who"><span class="ava">AR</span><div style="flex:1;min-width:0"><div class="n">Aisha Rahman</div><div class="e">Homeowner · 2 h ago</div></div><span class="pill">New</span></div>
+      <div class="mini"><button class="btn">Review</button></div></div>
+    <div class="card"><div class="who"><span class="ava">KL</span><div style="flex:1;min-width:0"><div class="n">Kelvin Lim</div><div class="e">EPC Team · “Apex Solar” · 1 d ago</div></div><span class="pill">New</span></div>
+      <div class="mini"><button class="btn">Review</button></div></div>
+    <div class="small" style="margin-top:auto">Also shown at the top of People, and in Alerts.</div>`),
+    '<b>C1 · Waiting list.</b> The PM also gets an email: “New account request from Aisha Rahman”.'),
+  shot(phone('Review Request', `
+    <div class="who" style="justify-content:center;flex-direction:column;text-align:center;margin-bottom:8px"><span class="ava big">AR</span>
+      <div><div class="n" style="font-size:12px">Aisha Rahman</div><div class="e">Asked for <b style="color:var(--tx)">Homeowner</b></div></div></div>
+    <div class="kv"><span>Email</span><b>aisha.rahman@gmail.com ✓</b></div>
+    <div class="kv"><span>Mobile</span><b>+65 9123 4567</b></div>
+    <div class="kv"><span>Address</span><b>53 Ang Mo Kio Ave 3, 569933</b></div>
+    <div class="kv" style="border:0;margin-bottom:10px"><span>Note</span><b>“Referred by K. Chandra”</b></div>
+    ${fld('Grant role','Homeowner ▾','',{on:true})}
+    <button class="btn">Approve</button>
+    <button class="btn bad">Decline</button>`),
+    '<b>C2 · Review.</b> The PM can grant a different role than was asked for. ✓ = email verified.'),
+  shot(phone('Decline Request', `
+    <div style="height:10px"></div>
+    <h4>Decline Aisha's request?</h4>
+    <div class="sub">She'll be told by email and WhatsApp. She can send a new request later.</div>
+    <div class="ta"><label>Reason (sent to her)</label>We couldn't find a project at this address yet — please call us on 6123 4567.</div>
+    <button class="btn" style="background:var(--bad);color:#fff">Decline Request</button>
+    <button class="btn ghost">Cancel</button>`),
+    '<b>C3 · Decline.</b> Optional reason, included in the message. Every decision is in the audit log.'),
+  shot(phone('Approved', `
+    <div class="badge" style="margin-top:4px">${ic.tick}</div>
+    <h4>Aisha is approved</h4>
+    <div class="sub">Homeowner · added to the audit log</div>
+    <div class="mail"><div class="mh">Email to aisha.rahman@gmail.com</div>
+      <div class="mb"><b>Your account has been approved</b><br>Hi Aisha, you're set up as Homeowner.<br><span class="cta">Open GetHomeApps</span></div></div>
+    <div class="small">+ WhatsApp: “Hi Aisha, your GetHomeApps account request has been approved…”</div>
+    <button class="btn" style="margin-top:auto">Back to requests</button>`,{back:false}),
+    '<b>C4 · Done.</b> Next time Aisha opens the app she lands on her project.')
+].join('');
+
+/* theme toggle */
+document.querySelectorAll('.toggle button').forEach(b=>b.onclick=()=>{
+  document.documentElement.dataset.theme=b.dataset.t;
+  document.querySelectorAll('.toggle button').forEach(x=>x.classList.toggle('on',x===b));
+});
+</script>
+</body>
+</html>

@@ -137,6 +137,41 @@ To message anyone (not just 5 test numbers) from 9 Solar Home's own number:
 New numbers start at 250 business-initiated messages per 24 hours and rise
 automatically with good quality ratings — ample for account notices.
 
+---
+
+## SMS fallback: Twilio
+
+Every mobile message tries **WhatsApp first**. Only if WhatsApp doesn't go
+out (not configured yet, the person isn't on WhatsApp, Meta refused it) is
+the same message sent **by SMS** instead. Never both, so nothing is paid for
+twice. Each attempt is recorded in `notification_deliveries`.
+
+Cost: about **US$0.06 per SMS** to a Singapore number with a registered
+sender name (US$0.04 from a plain number). 160 characters per segment; the
+account messages fit in one or two.
+
+**Singapore rule — register the sender name first.** Since 2023, SMS that
+show a name ("9SolarHome") instead of a number must use a name registered
+with SGNIC's **SMS Sender ID Registry (SSIR)**, by UEN, sent through a
+participating provider (Twilio is one). Unregistered names are labelled
+"Likely-SCAM" and IMDA is moving to block them outright. Registration has a
+one-off and an annual fee per name — check sgnic.sg for current amounts.
+
+Setup:
+
+1. Sign up at <https://www.twilio.com>, upgrade from trial (trial accounts
+   can only text verified numbers).
+2. Register the sender name in SSIR (<https://www.sgnic.sg>), then follow
+   Twilio's Singapore sender ID process to attach it to your account.
+3. Messaging → Services → **Create Messaging Service**, add the sender.
+4. Set in `.env.local` and Vercel, then redeploy:
+
+   ```
+   TWILIO_ACCOUNT_SID=AC...
+   TWILIO_AUTH_TOKEN=...
+   SMS_FROM=MG...           # the Messaging Service SID
+   ```
+
 ### Phone numbers
 
 The app converts what people type into WhatsApp's format: `+65 9123 4567`,

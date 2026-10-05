@@ -99,6 +99,13 @@
       "when": 1790956154527,
       "tag": "0013_geofence_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791172026953,
+      "tag": "0014_sms_channel",
+      "breakpoints": true
     }
   ]
 }

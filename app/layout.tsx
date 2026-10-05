@@ -1,10 +1,20 @@
 import type { Metadata, Viewport } from "next";
 
 import { ClerkProvider } from "@clerk/nextjs";
+import { Poppins } from "next/font/google";
 
 import { THEME_BOOT_SCRIPT } from "@/lib/client/theme";
 
 import "./globals.css";
+
+// Poppins everywhere — self-hosted by Next.js at build time, so no request
+// to Google from the visitor's browser and no layout shift while it loads.
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-poppins",
+});
 
 export const metadata: Metadata = {
   title: "GetHomeApps — 9 Solar Home",
@@ -66,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       {/* suppressHydrationWarning: data-theme is set by the boot script
           before React hydrates, so it legitimately differs from the server. */}
-      <html lang="en-SG" suppressHydrationWarning>
+      <html lang="en-SG" className={poppins.variable} suppressHydrationWarning>
         <head>
           <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         </head>

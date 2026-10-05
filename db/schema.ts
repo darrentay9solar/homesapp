@@ -120,6 +120,9 @@ export const notificationChannelEnum = pgEnum("notification_channel", [
   "in_app",
   "email",
   "whatsapp",
+  // Fallback when WhatsApp can't deliver (not configured, or the person
+  // isn't on WhatsApp). Never sent as well as WhatsApp, only instead of it.
+  "sms",
 ]);
 
 export const deliveryStatusEnum = pgEnum("delivery_status", [

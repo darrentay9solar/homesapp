@@ -76,6 +76,11 @@ def get_user(clerk_user_id: str) -> ClerkUser:
         (p["phone_number"] for p in phones if p.get("id") == data.get("primary_phone_number_id")),
         None,
     )
+    # The custom sign-up form keeps the mobile in unsafe_metadata (Clerk's own
+    # phone field is off). Used only to pre-fill forms, never trusted for access.
+    if not phone:
+        meta_mobile = (data.get("unsafe_metadata") or {}).get("mobile")
+        phone = meta_mobile if isinstance(meta_mobile, str) and meta_mobile.strip() else None
     name = " ".join(x for x in (data.get("first_name"), data.get("last_name")) if x) or None
     return ClerkUser(data["id"], verified, primary, name, phone)
 
