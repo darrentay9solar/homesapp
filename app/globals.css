@@ -94,7 +94,7 @@ body {
   background: var(--surface);
   color: var(--tx);
   -webkit-font-smoothing: antialiased;
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   overflow-x: hidden;
   /* Stops the whole page rubber-banding once installed to a home screen. */
   overscroll-behavior-y: contain;
@@ -180,7 +180,7 @@ canvas {
   margin: 0;
   font-family: var(--ff-d);
   font-size: 20px;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.02em;
   font-weight: 600;
   line-height: 1.12;
   white-space: nowrap;
@@ -280,7 +280,7 @@ canvas {
   font-size: 9.5px;
   letter-spacing: 0.02em;
   color: var(--tx-3);
-  font-weight: 550;
+  font-weight: 500;
   transition: color 0.18s;
 }
 
@@ -354,7 +354,7 @@ canvas {
     padding: 0 12px;
     border-radius: 10px;
     font-size: 13.5px;
-    font-weight: 550;
+    font-weight: 500;
     color: var(--tx-2);
     transition: background 0.18s, color 0.18s;
   }
@@ -450,7 +450,7 @@ canvas {
 .link {
   font-size: 11.5px;
   color: var(--brand-hi);
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .pill {
@@ -505,7 +505,7 @@ canvas {
   border-radius: 12px;
   font-weight: 600;
   font-size: 14.5px;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   transition: transform 0.14s, background 0.18s, border-color 0.18s, opacity 0.18s;
 }
 
@@ -566,7 +566,7 @@ canvas {
 .mono {
   font-family: var(--ff-m);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .row {
@@ -626,7 +626,7 @@ canvas {
   font-family: var(--ff-d);
   font-size: 26px;
   font-weight: 600;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.025em;
   line-height: 1;
 }
 
@@ -717,7 +717,7 @@ canvas {
 
 .chk .t {
   font-size: 13.5px;
-  font-weight: 450;
+  font-weight: 400;
   line-height: 1.4;
   color: var(--tx-2);
 }
@@ -786,7 +786,7 @@ canvas {
   font-family: var(--ff-d);
   font-size: 15.5px;
   font-weight: 600;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.015em;
   line-height: 1.2;
 }
 
@@ -862,7 +862,7 @@ canvas {
   display: grid;
   place-items: center;
   font-size: 8.5px;
-  font-weight: 650;
+  font-weight: 600;
   border: 1px solid var(--card);
   margin-left: -8px;
   background: var(--card-2);
@@ -1111,8 +1111,8 @@ select.inp {
 
 .acc > .hdr .ttl {
   font-size: 13.5px;
-  font-weight: 550;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 .acc > .hdr .cnt {
@@ -1217,7 +1217,7 @@ select.inp {
   font-family: var(--ff-d);
   font-size: 18px;
   font-weight: 600;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.02em;
 }
 
 .sheet .sb {
@@ -1280,7 +1280,7 @@ select.inp {
 .nt .tt {
   display: block;
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
   line-height: 1.4;
   color: var(--tx-2);
 }
@@ -1466,8 +1466,8 @@ button.urow:hover {
 .urow .un {
   display: block;
   font-size: 13.5px;
-  font-weight: 550;
-  letter-spacing: -0.015em;
+  font-weight: 500;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1556,7 +1556,7 @@ button.urow:hover {
 .gcard .gn {
   font-size: 13.5px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .gcard .gs {
@@ -1592,7 +1592,7 @@ button.urow:hover {
   justify-content: center;
   gap: 7px;
   font-size: 12.5px;
-  font-weight: 550;
+  font-weight: 500;
   color: var(--tx-3);
   transition: all 0.2s;
 }
@@ -1658,7 +1658,7 @@ button.urow:hover {
   font-family: var(--ff-d);
   font-size: 27px;
   margin: 0;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.025em;
   font-weight: 600;
   text-wrap: balance;
   text-align: center;
@@ -1876,7 +1876,7 @@ button.urow:hover {
   border: 1px solid var(--line);
   color: var(--tx-3);
   font-size: 10.5px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .steps .s.done .b {
@@ -1892,7 +1892,7 @@ button.urow:hover {
 
 .steps .t {
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
   margin-top: 2px;
 }
 
@@ -2102,7 +2102,7 @@ button.urow:hover {
   font-size: 14.5px;
   font-family: var(--ff-d);
   font-weight: 600;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.012em;
 }
 
 .banner p {
@@ -2244,7 +2244,7 @@ button.urow:hover {
   color: var(--brand-hi);
   font-size: 19px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
 }
 
 .auth .subtitle {
@@ -2278,6 +2278,230 @@ button.urow:hover {
 .auth .textlink {
   color: var(--brand-hi);
   font-weight: 600;
+}
+
+.auth-main {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.auth-side,
+.deskbar {
+  display: none;
+}
+
+/* Desktop: split screen — brand panel left, form right. */
+@media (min-width: 1024px) {
+  .auth {
+    display: grid;
+    grid-template-columns: minmax(440px, 44%) 1fr;
+    padding: 0;
+    background: var(--surface);
+  }
+
+  .auth-side {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+    padding: 44px 56px;
+    background: var(--band);
+    color: #fff;
+  }
+
+  .auth-side .waves {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .auth-side > div {
+    position: relative;
+  }
+
+  .side-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .side-logo {
+    --brand: #ffffff;
+    width: 56px;
+    height: 56px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .side-top b {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.22em;
+  }
+
+  .side-top small {
+    display: block;
+    margin-top: 3px;
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.26em;
+    opacity: 0.75;
+  }
+
+  .auth .auth-side .side-mid h2 {
+    margin: 0;
+    font-size: clamp(34px, 3.2vw, 46px);
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-align: left;
+  }
+
+  .side-mid p {
+    margin: 18px 0 30px;
+    max-width: 38ch;
+    font-size: 15px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.82);
+  }
+
+  .side-mid ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 14px;
+  }
+
+  .side-mid li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14.5px;
+    font-weight: 500;
+  }
+
+  .side-mid li svg {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    padding: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .side-foot {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .auth-main {
+    min-height: 100dvh;
+    align-items: center;
+    padding: 40px 56px;
+  }
+
+  .auth .card-auth {
+    max-width: 420px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+    background: transparent;
+  }
+
+  .auth .band,
+  .auth .mark {
+    display: none;
+  }
+
+  .deskbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 44px;
+  }
+
+  .deskbar .tiny {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .deskback {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 12px 0 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--tx-2);
+  }
+
+  .deskback:hover {
+    color: var(--tx);
+    border-color: var(--hair-hi);
+  }
+
+  .auth .content {
+    padding: 0;
+  }
+
+  .auth h2 {
+    text-align: left;
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--tx);
+  }
+
+  .auth .subtitle {
+    text-align: left;
+    max-width: none;
+    margin: 8px 0 34px;
+    font-size: 14.5px;
+  }
+
+  .auth .alt {
+    text-align: left;
+    font-size: 13.5px;
+    margin-top: 22px;
+  }
+
+  .auth .otp {
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .auth .otp input {
+    width: 56px;
+    height: 62px;
+    font-size: 24px;
+  }
+
+  .auth .badge {
+    margin: 0 0 22px;
+  }
+
+  .auth .btn {
+    height: 52px;
+    font-size: 15px;
+  }
 }
 
 /* Outlined field with the label sitting on the border. */

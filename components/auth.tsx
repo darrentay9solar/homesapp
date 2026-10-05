@@ -8,9 +8,15 @@ import { COUNTRIES, joinPhone, splitPhone } from "./phone-input";
 import { ThemeButton } from "./theme-button";
 
 /**
- * The account screens' frame, from the approved template: a wavy header in
- * the brand green with back and title, then a centred column. Full screen on
- * phones, a centred card on wider screens.
+ * The account screens' frame.
+ *
+ *  - Phones: the approved template — wavy green header with back and title,
+ *    then a centred column, full screen.
+ *  - Tablets: the same, as a centred card.
+ *  - Desktop: a split screen. The green panel moves to the left as the
+ *    brand side (logo, tagline, what the app does); the form sits on the
+ *    right with its own back link and heading, left-aligned like a
+ *    standard desktop sign-in page.
  */
 export function AuthShell({
   title,
@@ -22,21 +28,32 @@ export function AuthShell({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const goBack = back ? () => (typeof back === "string" ? router.push(back) : back()) : null;
   return (
     <main className="auth">
+      <BrandPanel />
+      <div className="auth-main">
       <div className="card-auth">
+        <div className="deskbar">
+          {goBack ? (
+            <button className="deskback" onClick={goBack}>
+              <I.back size={16} />
+              Back
+            </button>
+          ) : (
+            <span />
+          )}
+          <span className="tiny">{title}</span>
+          <ThemeButton />
+        </div>
         <div className="band">
           {/* Left edge lower, right edge higher — as in the template. */}
           <svg className="wave" viewBox="0 0 440 176" preserveAspectRatio="none" aria-hidden="true">
             <path d="M0 0H440V96C380 132 320 118 244 122C156 127 76 140 0 172Z" fill="var(--band)" />
           </svg>
           <div className="topbar">
-            {back ? (
-              <button
-                className="navbtn"
-                aria-label="Back"
-                onClick={() => (typeof back === "string" ? router.push(back) : back())}
-              >
+            {goBack ? (
+              <button className="navbtn" aria-label="Back" onClick={goBack}>
                 <I.back size={20} />
               </button>
             ) : (
@@ -48,7 +65,53 @@ export function AuthShell({
         </div>
         <div className="content">{children}</div>
       </div>
+      </div>
     </main>
+  );
+}
+
+/** Desktop only: the left half — who we are and what the app does. */
+function BrandPanel() {
+  return (
+    <aside className="auth-side" aria-hidden="true">
+      <svg className="waves" viewBox="0 0 600 900" preserveAspectRatio="xMidYMid slice">
+        <path d="M0 610C120 560 220 640 340 600S520 520 600 560V900H0Z" fill="rgba(255,255,255,.07)" />
+        <path d="M0 700C140 660 250 730 380 690S540 640 600 670V900H0Z" fill="rgba(255,255,255,.07)" />
+        <circle cx="520" cy="120" r="190" fill="rgba(255,255,255,.05)" />
+      </svg>
+      <div className="side-top">
+        <span className="side-logo">
+          <Logo size={40} />
+        </span>
+        <span>
+          <b>GETHOMEAPPS</b>
+          <small>9 SOLAR HOME · 九太阳家</small>
+        </span>
+      </div>
+      <div className="side-mid">
+        <h2>
+          Rooftop solar,
+          <br />
+          tracked to the day.
+        </h2>
+        <p>One place for homeowners, project managers, contractors and EPC crews to follow every installation.</p>
+        <ul>
+          <li>
+            <I.tick size={15} />
+            Three milestones, from panels to SP turn-on
+          </li>
+          <li>
+            <I.tick size={15} />
+            Site visits with GPS check-in and crew counts
+          </li>
+          <li>
+            <I.tick size={15} />
+            Handover certificate signed on any device
+          </li>
+        </ul>
+      </div>
+      <div className="side-foot">Free installation · Excess power exported to SP Group</div>
+    </aside>
   );
 }
 
