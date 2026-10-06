@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { type ClipboardEvent, type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
+import { DESIGN } from "@/lib/client/design";
+
 import { I, Logo } from "./icons";
 import { SkyScene } from "./sky-scene";
 import { COUNTRIES, joinPhone, splitPhone } from "./phone-input";
@@ -64,7 +66,13 @@ export function AuthShell({
         <div className="band">
           {/* Left edge lower, right edge higher — as in the template. */}
           <svg className="wave" viewBox="0 0 440 176" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M0 0H440V96C380 132 320 118 244 122C156 127 76 140 0 172Z" fill="var(--band)" />
+            <defs>
+              <linearGradient id="authBandFill" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor={DESIGN.green.header} />
+                <stop offset="1" stopColor={DESIGN.green.mid} />
+              </linearGradient>
+            </defs>
+            <path d="M0 0H440V96C380 132 320 118 244 122C156 127 76 140 0 172Z" fill="url(#authBandFill)" />
           </svg>
           <div className="topbar">
             {goBack ? (

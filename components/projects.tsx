@@ -344,7 +344,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
             size="small"
             value={ctr}
             onChange={(_, v: Contractor | null) => v && setCtr(v)}
-            sx={{ mb: 1.75, "& .MuiToggleButton-root": { textTransform: "none", fontWeight: 600, borderRadius: "10px" } }}
+            sx={{ mb: 1.75 }}
           >
             <ToggleButton value="group">Group</ToggleButton>
             <ToggleButton value="users">Individuals</ToggleButton>

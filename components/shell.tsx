@@ -23,6 +23,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
+import { DESIGN } from "@/lib/client/design";
 
 import { Logo } from "./icons";
 import { RoleAvatar } from "./m";
@@ -56,7 +57,7 @@ const TABS: Record<Role, Tab[]> = {
   ],
 };
 
-const DRAWER = 268;
+const DRAWER = DESIGN.layout.drawer;
 
 function activeHref(path: string, tabs: Tab[]): string {
   const pathname = path.replace(/^\/dev-preview(?=\/|$)/, "") || "/";
@@ -139,7 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           direction="row"
           component={Link}
           href="/account"
-          sx={{ alignItems: "center", gap: 1.5, p: 1.5, borderRadius: "14px", border: 1, borderColor: "divider" }}
+          sx={{ alignItems: "center", gap: 1.5, p: 1.5, borderRadius: `${DESIGN.radius.listItem}px`, border: 1, borderColor: "divider" }}
         >
           <RoleAvatar name={me.fullName ?? me.email} role={me.role} size={38} />
           <Box sx={{ minWidth: 0 }}>
@@ -194,11 +195,12 @@ export function AppShell({ children }: { children: ReactNode }) {
  */
 export const PAGE_COLUMN = {
   width: "100%",
-  maxWidth: { xs: "100%", lg: 1160, xl: 1400 },
+  maxWidth: { xs: "100%", lg: DESIGN.layout.column.desktop, xl: DESIGN.layout.column.wide },
   mx: "auto",
 } as const;
 
-export const PAGE_GUTTER = { xs: 2, sm: 3, lg: 5 } as const;
+const G = DESIGN.layout.gutter;
+export const PAGE_GUTTER = { xs: `${G.phone}px`, sm: `${G.tablet}px`, lg: `${G.desktop}px` } as const;
 
 export function Page({ children, narrow }: { children: ReactNode; narrow?: boolean }) {
   return (
@@ -210,7 +212,9 @@ export function Page({ children, narrow }: { children: ReactNode; narrow?: boole
         width: "100%",
       }}
     >
-      <Box sx={narrow ? { width: "100%", maxWidth: 760, mx: "auto" } : PAGE_COLUMN}>{children}</Box>
+      <Box data-layout="column" sx={narrow ? { width: "100%", maxWidth: 760, mx: "auto" } : PAGE_COLUMN}>
+        {children}
+      </Box>
     </Box>
   );
 }

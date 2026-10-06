@@ -76,6 +76,7 @@ import {
   timeOf,
 } from "@/lib/client/audit";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
+import { DESIGN } from "@/lib/client/design";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
@@ -214,7 +215,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
     ["people", "By person", <GroupsRoundedIcon key="p" sx={{ fontSize: 18 }} />],
   ];
   return (
-    <Stack direction="row" role="tablist" aria-label="View" sx={{ p: "3px", gap: "3px", borderRadius: "11px", bgcolor: "rgba(0,0,0,0.2)" }}>
+    <Stack direction="row" role="tablist" aria-label="View" sx={{ p: "3px", gap: "3px", borderRadius: `${DESIGN.radius.control}px`, bgcolor: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.14)" }}>
       {opts.map(([v, label, icon]) => {
         const on = v === value;
         return (
@@ -228,7 +229,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
               height: 30,
               px: { xs: 1, sm: 1.25 },
               gap: 0.75,
-              borderRadius: "8px",
+              borderRadius: `${DESIGN.radius.controlInner}px`,
               fontFamily: "inherit",
               fontSize: 13,
               fontWeight: 600,
@@ -411,7 +412,7 @@ function TimelineSkeleton() {
   return (
     <Stack sx={{ gap: 2, mt: 3, pl: { xs: `${RAIL.xs + DOTCOL.xs}px`, lg: `${RAIL.lg + DOTCOL.lg}px` } }}>
       {Array.from({ length: 3 }, (_, i) => (
-        <Skeleton key={i} variant="rounded" height={190} sx={{ borderRadius: "20px" }} />
+        <Skeleton key={i} variant="rounded" height={190} />
       ))}
     </Stack>
   );
@@ -443,7 +444,7 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
       data-testid="audit-card"
       data-shared={shared || undefined}
       sx={(t) => ({
-        borderRadius: "20px",
+        borderRadius: `${DESIGN.radius.dialog}px`,
         p: { xs: 0.75, lg: 1 },
         bgcolor: alpha(t.palette.text.primary, 0.045),
         border: 1,
@@ -456,7 +457,7 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
             width: 38,
             height: 38,
             flex: "0 0 auto",
-            borderRadius: "11px",
+            borderRadius: `${DESIGN.radius.iconTile}px`,
             display: "grid",
             placeItems: "center",
             bgcolor: alpha(t.palette.primary.main, 0.12),
@@ -508,7 +509,7 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
         </Stack>
       )}
 
-      <Card sx={{ borderRadius: "16px", border: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
+      <Card sx={{ border: 0, boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
         {rows.map((e, i) => (
           <Box key={e.id}>
             {i > 0 && <Divider />}
@@ -768,7 +769,7 @@ function PeopleView({
     return (
       <Box sx={{ ...GRID, mt: 3 }}>
         {Array.from({ length: 4 }, (_, i) => (
-          <Skeleton key={i} variant="rounded" height={128} sx={{ borderRadius: "18px" }} />
+          <Skeleton key={i} variant="rounded" height={128} />
         ))}
       </Box>
     );
@@ -889,7 +890,7 @@ function PersonDialog({
 
       <Box sx={{ px: { xs: 2, sm: 4 }, pt: 3, pb: { xs: "calc(32px + env(safe-area-inset-bottom))", sm: 4 } }}>
         {error && <Alert severity="error">{error.message}</Alert>}
-        {!data && !error && <Skeleton variant="rounded" height={260} sx={{ borderRadius: "18px" }} />}
+        {!data && !error && <Skeleton variant="rounded" height={260} />}
         {data && sessions.length === 0 && <Typography sx={{ color: "text.secondary", textAlign: "center", py: 4 }}>No changes.</Typography>}
         {sessions.map((s, i) => (
           <SessionBlock key={`${s.location.key}-${s.end}`} session={s} last={i === sessions.length - 1} refs={refs} onRevert={onRevert} />
@@ -1076,7 +1077,7 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
       onClose={onClose}
     >
       {failed && <Alert severity="error">{failed}</Alert>}
-      {!p && !failed && <Skeleton variant="rounded" height={120} sx={{ borderRadius: "14px" }} />}
+      {!p && !failed && <Skeleton variant="rounded" height={120} />}
 
       {p && blocked && (
         <Alert severity="error" sx={{ mb: 2 }} data-testid="action-blockers">
@@ -1208,7 +1209,7 @@ function HistoryDialog({
   return (
     <MDialog title="Version History" heading={fieldLabel(field)} subtitle={h ? h.location : undefined} onClose={onClose}>
       {error && <Alert severity="error">{error.message}</Alert>}
-      {!h && !error && <Skeleton variant="rounded" height={200} sx={{ borderRadius: "14px" }} />}
+      {!h && !error && <Skeleton variant="rounded" height={200} />}
       {h?.lockedReason && (
         <Alert severity="info" icon={<LockOutlinedIcon />} sx={{ mb: 2 }}>
           {h.lockedReason}
@@ -1236,7 +1237,7 @@ function HistoryDialog({
                 fontFamily: "inherit",
                 width: "100%",
                 p: 1.5,
-                borderRadius: "14px",
+                borderRadius: `${DESIGN.radius.listItem}px`,
                 border: 1,
                 borderColor: on ? "primary.main" : v.current ? "divider" : "transparent",
                 bgcolor: on ? alpha(t.palette.primary.main, 0.08) : v.current ? "background.paper" : "transparent",

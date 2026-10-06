@@ -67,7 +67,7 @@ export default function AccountPage() {
               value={theme}
               onChange={(_, v) => v && setTheme(v)}
               aria-label="Appearance"
-              sx={{ "& .MuiToggleButton-root": { gap: 1, py: 1, textTransform: "none", fontWeight: 600, borderRadius: "10px" } }}
+              sx={{ "& .MuiToggleButton-root": { gap: 1, py: 1 } }}
             >
               <ToggleButton value="dark">
                 <DarkModeRoundedIcon fontSize="small" /> Black

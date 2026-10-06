@@ -21,6 +21,7 @@ import Typography from "@mui/material/Typography";
 import { forwardRef, type ReactElement, type ReactNode, type Ref, useState } from "react";
 
 import type { Role } from "@/lib/client/app-state";
+import { DESIGN } from "@/lib/client/design";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
 import { COUNTRIES, joinPhone, splitPhone } from "./phone-input";
@@ -74,7 +75,7 @@ export function SettingRow({
   return (
     <Card sx={{ px: 2, py: 1.5 }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1.75 }}>
-        <Box sx={{ width: 38, height: 38, borderRadius: "11px", display: "grid", placeItems: "center", flex: "0 0 auto", color: tint, bgcolor: alpha(tint, 0.14) }}>
+        <Box sx={{ width: 38, height: 38, borderRadius: `${DESIGN.radius.iconTile}px`, display: "grid", placeItems: "center", flex: "0 0 auto", color: tint, bgcolor: alpha(tint, 0.14) }}>
           {icon}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -170,8 +171,8 @@ export function WaveHeader({ title, onBack, height = 112 }: { title: string; onB
       <Box component="svg" viewBox="0 0 440 112" preserveAspectRatio="none" aria-hidden="true" sx={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
         <defs>
           <linearGradient id="waveHeaderFill" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor="#0E7F53" />
-            <stop offset="1" stopColor="#0A5C3E" />
+            <stop offset="0" stopColor={DESIGN.green.header} />
+            <stop offset="1" stopColor={DESIGN.green.mid} />
           </linearGradient>
         </defs>
         <path d="M0 0H440V62C380 88 320 78 244 80C156 83 76 92 0 110Z" fill="url(#waveHeaderFill)" />

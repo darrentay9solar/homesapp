@@ -18,6 +18,7 @@ import Link from "next/link";
 import { type ReactNode, useEffect, useRef } from "react";
 
 import { type Role, useApp } from "@/lib/client/app-state";
+import { DESIGN } from "@/lib/client/design";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
 import { PAGE_COLUMN, PAGE_GUTTER } from "./shell";
@@ -28,7 +29,7 @@ import { PAGE_COLUMN, PAGE_GUTTER } from "./shell";
  * headings, and cards with a coloured left edge.
  */
 
-export const HERO_BG = "linear-gradient(145deg, #0E7F53 0%, #0A5C3E 55%, #073f2b 100%)";
+export const HERO_BG = DESIGN.headerGradient;
 
 /** One card per row on phones and tablets; two per row on desktop. */
 export const GRID = {
@@ -74,7 +75,7 @@ export function TopBar({
         position: "relative",
       }}
     >
-      <Box sx={PAGE_COLUMN}>
+      <Box data-layout="header-column" sx={PAGE_COLUMN}>
         <Stack direction="row" sx={{ alignItems: "center", gap: 1, minHeight: 44 }}>
           {onBack && (
             <IconButton onClick={onBack} aria-label="Back" sx={{ color: "#fff", ml: -1 }}>
@@ -82,7 +83,7 @@ export function TopBar({
             </IconButton>
           )}
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography component="h1" noWrap sx={{ fontWeight: 600, fontSize: { xs: 20, lg: 24 } }}>
+            <Typography component="h1" noWrap sx={{ fontWeight: 600, fontSize: { xs: DESIGN.type.pageTitle.phone, lg: DESIGN.type.pageTitle.desktop } }}>
               {title}
             </Typography>
             {sub && (
@@ -119,7 +120,9 @@ export function TopBar({
 export function Heading({ title, count, action }: { title: string; count?: number; action?: ReactNode }) {
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 2.5, mb: 1.25 }}>
-      <Typography sx={{ fontWeight: 600, fontSize: { xs: 17, lg: 19 } }}>{title}</Typography>
+      <Typography component="h2" sx={{ fontWeight: 600, fontSize: { xs: DESIGN.type.sectionTitle.phone, lg: DESIGN.type.sectionTitle.desktop } }}>
+        {title}
+      </Typography>
       {count !== undefined && <Chip size="small" label={count} sx={{ height: 20, fontSize: 11 }} />}
       <Box sx={{ flex: 1 }} />
       {action}
@@ -148,7 +151,7 @@ export function SearchBox({
         gap: 0.75,
         px: 1.25,
         height: 40,
-        borderRadius: "12px",
+        borderRadius: `${DESIGN.radius.control}px`,
         bgcolor: "rgba(255,255,255,0.12)",
         border: "1px solid rgba(255,255,255,0.2)",
         "&:focus-within": { bgcolor: "rgba(255,255,255,0.18)", borderColor: "rgba(255,255,255,0.55)" },
@@ -200,7 +203,7 @@ export function SegTabs<T extends string>({
         display: "flex",
         gap: 0.25,
         p: "3px",
-        borderRadius: "12px",
+        borderRadius: `${DESIGN.radius.control}px`,
         bgcolor: "rgba(0,0,0,0.2)",
         border: "1px solid rgba(255,255,255,0.14)",
         overflowX: "auto",
@@ -221,7 +224,7 @@ export function SegTabs<T extends string>({
               gap: 0.5,
               px: 1.25,
               height: 32,
-              borderRadius: "9px",
+              borderRadius: `${DESIGN.radius.controlInner}px`,
               fontFamily: "inherit",
               fontSize: 13,
               fontWeight: on ? 600 : 500,

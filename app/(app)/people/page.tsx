@@ -53,6 +53,7 @@ import { EdgeCard, GRID, HERO_BG, Heading, SearchBox, SegTabs, TopBar, roleColor
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
+import { DESIGN } from "@/lib/client/design";
 import { type Status, filterPeople, statusOf } from "@/lib/client/people-search";
 
 type Person = {
@@ -328,7 +329,7 @@ function Loading() {
     <>
       <Box sx={{ ...GRID, mt: 3 }}>
         {Array.from({ length: 6 }, (_, i) => (
-          <Skeleton key={i} variant="rounded" height={128} sx={{ borderRadius: "18px" }} />
+          <Skeleton key={i} variant="rounded" height={128} />
         ))}
       </Box>
     </>
@@ -428,7 +429,7 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
   return (
     <EdgeCard color={(t) => t.palette.primary.main}>
       <Stack direction="row" sx={{ gap: 1.5, alignItems: "center", p: 1.5, pl: 2.25 }}>
-        <Box sx={{ width: 42, height: 42, flex: "0 0 auto", borderRadius: "12px", display: "grid", placeItems: "center", fontWeight: 700, color: "#fff", background: HERO_BG }}>
+        <Box sx={{ width: 42, height: 42, flex: "0 0 auto", borderRadius: `${DESIGN.radius.iconTile}px`, display: "grid", placeItems: "center", fontWeight: 700, color: "#fff", background: HERO_BG }}>
           {initials(group.name)}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>

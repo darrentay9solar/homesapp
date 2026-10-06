@@ -71,7 +71,8 @@
   --info: #2a6fbf;
   --glow: none;
   --shadow: 0 24px 60px -32px rgba(10, 25, 18, 0.34);
-  --band: #0a9a63;
+  /* Header green, the same in both themes (lib/client/design.ts). */
+  --band: #0e7f53;
   --band-tx: #ffffff;
   color-scheme: light;
 }
@@ -2115,20 +2116,6 @@ button.urow:hover {
 
 .banner p:last-child {
   margin-bottom: 0;
-}
-
-/* Two-column layout for wide screens (project detail, people). */
-.cols {
-  display: block;
-}
-
-@media (min-width: 1200px) {
-  .cols {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    gap: 28px;
-    align-items: start;
-  }
 }
 
 /* ============================ ACCOUNT SCREENS ============================

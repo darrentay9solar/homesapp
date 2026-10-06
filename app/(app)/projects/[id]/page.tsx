@@ -54,7 +54,7 @@ export default function ProjectPage() {
               {error.message}
             </Alert>
           )}
-          {!p && !error && <Skeleton variant="rounded" height={260} sx={{ borderRadius: "18px", mt: 2 }} />}
+          {!p && !error && <Skeleton variant="rounded" height={260} sx={{ mt: 2 }} />}
           {p && <Body p={p} />}
         </Page>
       </Box>

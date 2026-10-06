@@ -3,6 +3,7 @@
 import { createTheme } from "@mui/material/styles";
 
 import type { Role } from "./app-state";
+import { DESIGN } from "./design";
 
 /**
  * The Material UI theme: 9 Solar Home green, Poppins, Black and Light.
@@ -11,22 +12,25 @@ import type { Role } from "./app-state";
  * (localStorage "gha-theme") as the boot script in app/layout.tsx, so the
  * page paints in the right theme before React loads and the prototype's
  * hand-written CSS (sign-in screens) switches in step with MUI components.
+ *
+ * Sizes, rounding and colours come from the design template (design.ts).
  */
 
 /** A colour per role, so lists of people read at a glance instead of in one tone. */
-export const ROLE_COLOR: Record<Role, { light: string; dark: string }> = {
-  homeowner: { light: "#2563EB", dark: "#60A5FA" },
-  contractor: { light: "#B45309", dark: "#FBBF24" },
-  epc_team: { light: "#7C3AED", dark: "#A78BFA" },
-  project_manager: { light: "#0A9A63", dark: "#3DDC97" },
-};
+export const ROLE_COLOR: Record<Role, { light: string; dark: string }> = DESIGN.role;
+
+const R = DESIGN.radius;
+const H = DESIGN.height;
 
 export const theme = createTheme({
   cssVariables: { colorSchemeSelector: "data-theme" },
+  // "Desktop" starts where the account screens split in two, so the whole
+  // app changes layout at one width.
+  breakpoints: { values: { xs: 0, sm: 600, md: 900, lg: DESIGN.layout.desktopFrom, xl: 1536 } },
   colorSchemes: {
     light: {
       palette: {
-        primary: { main: "#0A9A63", dark: "#07734A", light: "#3DBA8A", contrastText: "#FFFFFF" },
+        primary: { main: DESIGN.green.light, dark: "#07734A", light: "#3DBA8A", contrastText: "#FFFFFF" },
         secondary: { main: "#2563EB" },
         success: { main: "#0A9A63" },
         warning: { main: "#B7791F" },
@@ -39,7 +43,7 @@ export const theme = createTheme({
     },
     dark: {
       palette: {
-        primary: { main: "#16C47F", dark: "#0E7F53", light: "#3DDC97", contrastText: "#00140C" },
+        primary: { main: DESIGN.green.dark, dark: DESIGN.green.header, light: "#3DDC97", contrastText: "#00140C" },
         secondary: { main: "#60A5FA" },
         success: { main: "#16C47F" },
         warning: { main: "#E0A23A" },
@@ -67,7 +71,7 @@ export const theme = createTheme({
       defaultProps: { disableElevation: true },
       styleOverrides: {
         root: ({ theme: t }) => ({
-          borderRadius: 12,
+          borderRadius: R.button,
           // Disabled stays recognisably green (dimmed), as on the sign-up screens.
           "&.MuiButton-contained.MuiButton-colorPrimary.Mui-disabled": {
             backgroundColor: (t.vars ?? t).palette.primary.main,
@@ -75,28 +79,28 @@ export const theme = createTheme({
             opacity: 0.38,
           },
         }),
-        sizeLarge: { minHeight: 50, borderRadius: 10, fontSize: "0.95rem" },
+        sizeLarge: { minHeight: H.buttonLarge, borderRadius: R.buttonLarge, fontSize: "0.95rem" },
       },
     },
     MuiCard: {
       defaultProps: { elevation: 0 },
       styleOverrides: {
         root: ({ theme: t }) => ({
-          borderRadius: 18,
+          borderRadius: R.card,
           border: `1px solid ${t.vars?.palette.divider ?? t.palette.divider}`,
           backgroundImage: "none",
         }),
       },
     },
     MuiCardActionArea: {
-      styleOverrides: { root: { borderRadius: 18 } },
+      styleOverrides: { root: { borderRadius: R.card } },
     },
     MuiPaper: {
       styleOverrides: { root: { backgroundImage: "none" } },
     },
     MuiChip: {
       styleOverrides: {
-        root: { fontWeight: 600, borderRadius: 8 },
+        root: { fontWeight: 600, borderRadius: R.chip },
         sizeSmall: { height: 24, fontSize: "0.72rem" },
       },
     },
@@ -108,7 +112,7 @@ export const theme = createTheme({
     },
     MuiOutlinedInput: {
       styleOverrides: {
-        root: { borderRadius: 10 },
+        root: { borderRadius: R.field },
         // 16px on phones: anything smaller makes iOS Safari zoom on focus.
         // 52px tall, the same as the account screens' fields.
         input: ({ ownerState }) => {
@@ -123,7 +127,7 @@ export const theme = createTheme({
       },
     },
     MuiDialog: {
-      styleOverrides: { paper: { borderRadius: 22 }, paperFullScreen: { borderRadius: 0 } },
+      styleOverrides: { paper: { borderRadius: R.dialog }, paperFullScreen: { borderRadius: 0 } },
     },
     MuiInputLabel: {
       // Labels sitting on the border are green, as on the sign-up screens.
@@ -138,7 +142,18 @@ export const theme = createTheme({
       },
     },
     MuiListItemButton: {
-      styleOverrides: { root: { borderRadius: 12 } },
+      styleOverrides: { root: { borderRadius: R.listItem } },
+    },
+    // Loading placeholders take the shape of the card they stand in for.
+    MuiSkeleton: {
+      styleOverrides: { rounded: { borderRadius: R.card } },
+    },
+    // Segmented choices (Black/Light, Group/Individuals/Free text).
+    MuiToggleButton: {
+      styleOverrides: { root: { textTransform: "none", fontWeight: 600 } },
+    },
+    MuiToggleButtonGroup: {
+      styleOverrides: { root: { borderRadius: R.field } },
     },
     MuiTooltip: {
       defaultProps: { arrow: true },

@@ -83,7 +83,7 @@ export default function ProjectsPage() {
           {!data && !error && (
             <Box sx={{ ...GRID, mt: 3 }}>
               {Array.from({ length: 4 }, (_, i) => (
-                <Skeleton key={i} variant="rounded" height={230} sx={{ borderRadius: "18px" }} />
+                <Skeleton key={i} variant="rounded" height={230} />
               ))}
             </Box>
           )}
