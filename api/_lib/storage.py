@@ -89,16 +89,31 @@ def _q(s: str) -> str:
     return urllib.parse.quote(s, safe="-_.~")
 
 
-def _sign(cfg: R2, method: str, key: str, seconds: int, headers: dict[str, str], query: dict[str, str]) -> str:
-    now = datetime.now(UTC)
+def presign(
+    *,
+    method: str,
+    host: str,
+    path: str,
+    region: str,
+    key_id: str,
+    secret: str,
+    seconds: int,
+    headers: dict[str, str],
+    query: dict[str, str],
+    now: datetime,
+) -> str:
+    """An AWS Signature V4 query-string presigned URL (S3 and R2 alike).
+
+    Kept free of R2 specifics so it can be checked against Amazon's own
+    published example (tests_py/test_upload_cases.py).
+    """
     amz_date, day = now.strftime("%Y%m%dT%H%M%SZ"), now.strftime("%Y%m%d")
-    scope = f"{day}/auto/s3/aws4_request"
-    path = f"/{cfg.bucket}/" + urllib.parse.quote(key, safe="/-_.~")
-    hdrs = {"host": cfg.host, **{k.lower(): v for k, v in headers.items()}}
+    scope = f"{day}/{region}/s3/aws4_request"
+    hdrs = {"host": host, **{k.lower(): v for k, v in headers.items()}}
     signed = ";".join(sorted(hdrs))
     params = {
         "X-Amz-Algorithm": "AWS4-HMAC-SHA256",
-        "X-Amz-Credential": f"{cfg.key_id}/{scope}",
+        "X-Amz-Credential": f"{key_id}/{scope}",
         "X-Amz-Date": amz_date,
         "X-Amz-Expires": str(seconds),
         "X-Amz-SignedHeaders": signed,
@@ -116,11 +131,26 @@ def _sign(cfg: R2, method: str, key: str, seconds: int, headers: dict[str, str],
         ]
     )
     to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope, hashlib.sha256(canonical.encode()).hexdigest()])
-    k = hmac.new(f"AWS4{cfg.secret}".encode(), day.encode(), hashlib.sha256).digest()
-    for part in ("auto", "s3", "aws4_request"):
+    k = hmac.new(f"AWS4{secret}".encode(), day.encode(), hashlib.sha256).digest()
+    for part in (region, "s3", "aws4_request"):
         k = hmac.new(k, part.encode(), hashlib.sha256).digest()
     sig = hmac.new(k, to_sign.encode(), hashlib.sha256).hexdigest()
-    return f"https://{cfg.host}{path}?{canonical_query}&X-Amz-Signature={sig}"
+    return f"https://{host}{path}?{canonical_query}&X-Amz-Signature={sig}"
+
+
+def _sign(cfg: R2, method: str, key: str, seconds: int, headers: dict[str, str], query: dict[str, str]) -> str:
+    return presign(
+        method=method,
+        host=cfg.host,
+        path=f"/{cfg.bucket}/" + urllib.parse.quote(key, safe="/-_.~"),
+        region="auto",
+        key_id=cfg.key_id,
+        secret=cfg.secret,
+        seconds=seconds,
+        headers=headers,
+        query=query,
+        now=datetime.now(UTC),
+    )
 
 
 # --------------------------------------------------------- local (laptop only)

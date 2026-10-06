@@ -16,7 +16,7 @@ remaining steps are marked *(next build steps)*.
 | **Contractor Admin** and **EPC Team** (the "crew") | Projects their contractor group is on, or that name them | Fill in every milestone field and upload its files, once the project is approved and that milestone is open. EPC also does GPS check-in *(next build step)*. |
 | **Homeowner** | Their own project | Approve or decline it. See its progress and a checklist of what's done. E-sign the handover certificate *(next build step)*. |
 
-The database enforces the same rules (migrations 0018 and 0019), so nobody can get around them by calling the API directly.
+The database enforces the same rules (migrations 0018, 0019 and 0020), so nobody can get around them by calling the API directly. For GPS check-in, only the project's EPC crew can check in, as themselves, while the project is approved or in progress. Their phone's fix must be accurate to 50 m and within the site's radius (100 m unless set otherwise).
 
 ---
 
@@ -214,7 +214,7 @@ Every create, edit, approval, upload, removal and reopen is recorded: who, when,
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 95 tests. `tests_py/test_project_work.py` walks this flow end to end:
+- **Python:** `npm run test:py`, 1,176 tests. That includes 1,081 cases for uploads and GPS location, listed in [TEST_CASES.md](TEST_CASES.md). `tests_py/test_project_work.py` walks this flow end to end:
   - create, approve, Milestone 1 and reopening
   - conditional fields, decline and ask again
   - uploads (and refused uploads)
