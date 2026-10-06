@@ -3,7 +3,7 @@
 How a solar installation moves through GetHomeApps, from Create Project to
 handover: who does each step, what they see, who is told, and what the app
 won't let happen. Each step ends with the test cases that check it using the
-sample data. Built so far: everything up to **Ready for handover**. The
+sample data. Built so far: everything up to **Ready for handover**, including site visits and GPS check-in. The
 remaining steps are marked *(next build steps)*.
 
 ---
@@ -13,7 +13,7 @@ remaining steps are marked *(next build steps)*.
 | Role | Sees | Can do |
 |---|---|---|
 | **Project Manager (PM)** | Every project | Create projects and edit their details and dates. Approve projects (after the homeowner). Fill in or correct any milestone field. Reopen a completed milestone. Manage people. Read and restore the audit log. |
-| **Contractor Admin** and **EPC Team** (the "crew") | Projects their contractor group is on, or that name them | Fill in every milestone field and upload its files, once the project is approved and that milestone is open. EPC also does GPS check-in *(next build step)*. |
+| **Contractor Admin** and **EPC Team** (the "crew") | Projects their contractor group is on, or that name them | Fill in every milestone field and upload its files, once the project is approved and that milestone is open. Schedule site visits. EPC also checks in and out with GPS (Sites). |
 | **Homeowner** | Their own project | Approve or decline it. See its progress and a checklist of what's done. E-sign the handover certificate *(next build step)*. |
 
 The database enforces the same rules (migrations 0018, 0019 and 0020), so nobody can get around them by calling the API directly. For GPS check-in, only the project's EPC crew can check in, as themselves, while the project is approved or in progress. Their phone's fix must be accurate to 50 m and within the site's radius (100 m unless set otherwise).
@@ -169,7 +169,52 @@ Otherwise it never turns red.
 - **TC-14:** Seletar Hills Home is red with two reasons: "Target end date passed 9 days ago", and "No check-in for the EPC visit on … (Inverter commissioning)".
 - **TC-15:** As a PM, edit Seletar's end date to a future date. The "late" reason goes; the no-show stays until a check-in exists.
 
-### Step 7. Handover *(next build steps)*
+### Step 7. Site visits and GPS check-in
+
+Once a project is approved, a **PM or the crew** schedules the days the EPC team must be on site. On the project page, under **Site schedule → Schedule visit**, they pick:
+- **a date** (today or later)
+- **a start time** (optional)
+- **the works** for that day (optional)
+
+**Who is told, and when:**
+- **When it's scheduled:** the crew, "Site visit assigned".
+- **An hour before a timed visit:** the EPC crew, "Site visit in 1 hour".
+- **An hour after the start, with no check-in:** the EPC crew and the PM, "EPC team did not check in". An untimed visit counts as missed the next morning.
+
+Each reminder is sent once. Reminders run every 15 minutes (`.github/workflows/visit-reminders.yml`), once `CRON_SECRET` is set.
+
+**The EPC team** opens **Sites**, which shows:
+- **On site now:** with a Check Out button.
+- **Due today:** today's visits.
+- **Every other site:** they can check in on any day, not only scheduled ones.
+
+**Check In** asks for the crew count, then takes the phone's GPS. It succeeds only if:
+- the fix is accurate to **50 m or better**
+- the phone is within the site's radius (**100 m** unless set otherwise)
+- it's an EPC crew member on the project, checking in as themselves, while the project is approved or in progress
+
+The time comes from the server. **Check Out** works the same way, with the number of crew still on site. Every refusal reads the same to the crew: *"You're currently not receiving GPS signal, please move to a spot where you can."* The real reason is kept for the PM.
+
+On the project page, each visit shows **Upcoming**, **Today**, **Attended** (who checked in and out, when, with how many, and how far from the site) or **No check-in**. A check-in on a day with no visit appears under "Check-ins on other days". A visit can be cancelled until someone checks in for it. After that, it's a record.
+
+**Can't happen:**
+- A contractor admin, PM or homeowner checking in.
+- Checking in for someone else.
+- Checking in before approval or after handover.
+- Two open check-ins for one person on one site.
+- Editing where or when someone arrived or left.
+- Deleting a check-in.
+- Cancelling a visit someone checked in for.
+
+**Tests:**
+- **TC-17:** As yourself, open Jalan Kayu → Schedule visit for tomorrow 09:00, "Inverter commissioning". It appears as Upcoming, and Priya and Ravi each get "Site visit assigned".
+- **TC-18:** *Act as* Ravi (EPC) → Sites. Jalan Kayu shows under Due today. Check In with 4 crew using **Use the site's location (development only)**. It moves to On site now: "Checked in 09:41 with 4 crew".
+- **TC-19:** As Ravi, Check In on a phone outdoors at a place that isn't the site. You get the GPS message, and nothing is recorded.
+- **TC-20:** As Ravi, Check Out with 3 crew. On the project page the visit shows Attended: "Ravi Kumar in 09:41 (4 crew, 0 m) · out 16:30 (3 still on site)".
+- **TC-21:** *Act as* Priya (Contractor Admin). Sites isn't in her menu, and on the project page she can schedule but has no Check In button.
+- **TC-22:** Try to cancel the visit Ravi checked in for. It's refused: "The crew has checked in for this visit, so it stays as a record."
+
+### Step 8. Handover *(next build steps)*
 
 1. The PM sends the handover certificate for e-signature (status Awaiting E-Sign).
 2. The homeowner signs on any device (status Signed).
@@ -214,7 +259,7 @@ Every create, edit, approval, upload, removal and reopen is recorded: who, when,
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 1,176 tests. That includes 1,081 cases for uploads and GPS location, listed in [TEST_CASES.md](TEST_CASES.md). `tests_py/test_project_work.py` walks this flow end to end:
+- **Python:** `npm run test:py`, 1,216 tests. That includes 1,081 cases for uploads and GPS location, listed in [TEST_CASES.md](TEST_CASES.md). `tests_py/test_project_work.py` walks this flow end to end:
   - create, approve, Milestone 1 and reopening
   - conditional fields, decline and ask again
   - uploads (and refused uploads)

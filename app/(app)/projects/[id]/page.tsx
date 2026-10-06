@@ -25,6 +25,7 @@ import { type ReactNode, useCallback, useState } from "react";
 
 import { Field, MDialog, RoleChip } from "@/components/m";
 import { SectionPanel } from "@/components/project-fields";
+import { SiteSchedule } from "@/components/site-visits";
 import { DetailRow, NewProjectDialog, ProgressRing, StatusChip, TimingChip } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { Heading, TopBar } from "@/components/topbar";
@@ -32,6 +33,7 @@ import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp, useMe } from "@/lib/client/app-state";
 import { firstOpenSection, type ProjectFields, type ProjectRow, SECTIONS } from "@/lib/client/projects";
+import type { ProjectVisits } from "@/lib/client/sites";
 
 /**
  * One project. The automated header from the brief (progress, on track, days
@@ -44,9 +46,10 @@ export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const { data: p, error, reload } = useApi<ProjectRow>(me ? `/projects/${id}` : null);
   const { data: fields, reload: reloadFields } = useApi<ProjectFields>(me ? `/projects/${id}/fields` : null);
+  const { data: visits, reload: reloadVisits } = useApi<ProjectVisits>(me ? `/projects/${id}/visits` : null);
   const reloadAll = useCallback(async () => {
-    await Promise.all([reload(), reloadFields()]);
-  }, [reload, reloadFields]);
+    await Promise.all([reload(), reloadFields(), reloadVisits()]);
+  }, [reload, reloadFields, reloadVisits]);
 
   if (!me) return null;
   const back = () => (me.role === "homeowner" ? router.push("/") : router.back());
@@ -62,14 +65,14 @@ export default function ProjectPage() {
             </Alert>
           )}
           {!p && !error && <Skeleton variant="rounded" height={260} sx={{ mt: 2 }} />}
-          {p && <Body p={p} fields={fields} reload={reloadAll} />}
+          {p && <Body p={p} fields={fields} visits={visits} reload={reloadAll} />}
         </Page>
       </Box>
     </>
   );
 }
 
-function Body({ p, fields, reload }: { p: ProjectRow; fields: ProjectFields | null; reload: () => Promise<void> }) {
+function Body({ p, fields, visits, reload }: { p: ProjectRow; fields: ProjectFields | null; visits: ProjectVisits | null; reload: () => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const first = fields ? firstOpenSection(fields.sections) : null;
@@ -103,6 +106,7 @@ function Body({ p, fields, reload }: { p: ProjectRow; fields: ProjectFields | nu
           />
           <Details p={p} />
         </Box>
+        {visits && <SiteSchedule pid={p.id} name={p.name} address={p.address} data={visits} reload={reload} />}
       </Stack>
       <Box sx={{ minWidth: 0, mt: { lg: -2.5 } }}>
         <Heading title={fields?.relation === "homeowner" ? "Your installation" : "Milestones"} />

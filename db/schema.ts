@@ -646,6 +646,26 @@ export const siteVisits = pgTable(
 );
 
 /**
+ * Which reminders a visit has had: "before" (an hour before it starts) and
+ * "missed" (an hour after, with no check-in). One row per kind, so the
+ * reminder job can run as often as it likes without anyone hearing twice.
+ */
+export const visitReminders = pgTable(
+  "visit_reminders",
+  {
+    visitId: integer("visit_id")
+      .notNull()
+      .references(() => siteVisits.visitId, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 12 }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.visitId, table.kind] }),
+    check("visit_reminders_kind", sql`${table.kind} in ('before', 'missed')`),
+  ]
+);
+
+/**
  * A crew arriving on site, and later leaving.
  *
  * There is deliberately no "late" or "missed" column. That is derived — a

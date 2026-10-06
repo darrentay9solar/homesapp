@@ -1,0 +1,33 @@
+name: Visit reminders
+
+# Every 15 minutes, asks the live app to send any site-visit reminder that's
+# due: an hour before a visit, and an hour after one with no check-in.
+# Vercel's free plan only runs scheduled jobs once a day, which is too rarely
+# for "an hour before", so GitHub's scheduler calls the endpoint instead. The
+# endpoint records each reminder, so calling it often never sends one twice.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions):
+#   APP_URL      https://homesapp-alpha.vercel.app
+#   CRON_SECRET  the same value as CRON_SECRET in Vercel's environment variables
+# Until both are set, this skips quietly.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Send due reminders
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL or CRON_SECRET isn't set; skipping."
+            exit 0
+          fi
+          curl -fsS -X POST "$APP_URL/api/py/cron/visit-reminders" -H "Authorization: Bearer $CRON_SECRET"

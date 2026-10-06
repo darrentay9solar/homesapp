@@ -255,6 +255,40 @@ function projectFields(pid: number) {
   };
 }
 
+
+// ------------------------------------------------------------ sites
+
+const CHECKED_IN = { id: 501, visitId: 61, by: { uid: 4, name: "Ravi Kumar" }, inAt: iso(95), crewIn: 4, distance: 38.4, outAt: null, crewOut: null, outDistance: null };
+const SITES = {
+  canCheckIn: true,
+  sites: [
+    { id: 101, name: "Jalan Kayu Residence", address: "14 Jalan Kayu, Singapore 799463", postalCode: "799463", located: true, radius: 100,
+      site: { lat: 1.3966, lng: 103.873 }, today: [{ id: 61, time: "09:00", note: "Panel mounting" }], next: null, open: CHECKED_IN, canCheckIn: true },
+    { id: 102, name: "Sunbird Circle", address: "8 Sunbird Circle, Singapore 488106", postalCode: "488106", located: true, radius: 100,
+      site: { lat: 1.3521, lng: 103.8198 }, today: [{ id: 62, time: "14:00", note: "Pre-inspection rectification" }], next: null, open: null, canCheckIn: true },
+    { id: 104, name: "Bedok Ria Terrace", address: "3 Bedok Ria, Singapore 469000", postalCode: "469000", located: false, radius: 100,
+      site: null, today: [], next: { date: day(3), time: "09:00", note: "Scaffolding" }, open: null, canCheckIn: false },
+  ],
+};
+
+function projectVisits(pid: number) {
+  const missed = pid === 102;
+  return {
+    visits: [
+      { id: 60, date: day(-6), time: "09:00", note: "Scaffolding erected", by: "Wei Ming Tan", state: missed ? "missed" : "attended",
+        checkIns: missed ? [] : [{ ...CHECKED_IN, id: 499, inAt: iso(8640 + 60), outAt: iso(8640 - 420), crewOut: 0, outDistance: 22.1 }] },
+      { id: 61, date: day(0), time: "09:00", note: "Panel mounting", by: "Priya Nair", state: "attended", checkIns: [CHECKED_IN] },
+      { id: 63, date: day(4), time: "10:00", note: "Inverter commissioning", by: "Wei Ming Tan", state: "upcoming", checkIns: [] },
+    ],
+    unscheduled: [],
+    canSchedule: true,
+    canCheckIn: true,
+    myOpenCheckIn: null,
+    site: { located: true, radius: 100, lat: 1.3966, lng: 103.873 },
+    status: "in_progress",
+  };
+}
+
 // ------------------------------------------------------------ audit
 
 type Line = [field: string, from: unknown, to: unknown, state?: string, note?: string];
@@ -468,6 +502,10 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
       : { address: `${postal === "569933" ? "53 ANG MO KIO AVENUE 3 AMK HUB" : "1 SAMPLE ROAD"} SINGAPORE ${postal}`, postalCode: postal, lat: 1.37, lng: 103.85 };
   }
   if (key === "POST /projects") return { id: 101, message: "Preview only — nothing was saved." };
+  if (key === "GET /sites") return SITES;
+  const visitsFor = path.match(/^\/projects\/(\d+)\/visits$/);
+  if (method === "GET" && visitsFor) return projectVisits(Number(visitsFor[1]));
+  if (method !== "GET" && path.startsWith("/check-ins/")) return { message: "Preview only — nothing was saved." };
   const fieldsFor = path.match(/^\/projects\/(\d+)\/fields$/);
   if (method === "GET" && fieldsFor) return projectFields(Number(fieldsFor[1]));
   if (method !== "GET" && path.startsWith("/projects/")) return { message: "Preview only — nothing was saved." };

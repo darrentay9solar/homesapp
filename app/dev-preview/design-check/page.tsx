@@ -37,6 +37,8 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string }>
   { name: "Account", path: "/dev-preview/account", kind: "app" },
   { name: "Alerts", path: "/dev-preview/alerts", kind: "app" },
   { name: "Sites", path: "/dev-preview/sites", kind: "app" },
+  { name: "Check Out dialog", path: "/dev-preview/sites", kind: "app", click: "Check Out" },
+  { name: "Schedule Visit dialog", path: "/dev-preview/projects/101", kind: "app", click: "Schedule visit" },
   { name: "Template", path: "/dev-preview/template", kind: "app" },
   // Dialogs only exist once opened: these press the button first.
   { name: "Create Project dialog", path: "/dev-preview/projects", kind: "app", click: "Create project" },
