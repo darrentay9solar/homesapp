@@ -1,17 +1,18 @@
 "use client";
 
-import Card from "@mui/material/Card";
+import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 
-import { Header, Page } from "@/components/shell";
+import { ComingSoon } from "@/components/coming-soon";
 
-/** Placeholder until this function is built. */
-export default function Placeholder() {
+/** Placeholder until the Alerts function is built. */
+export default function AlertsPage() {
   return (
-    <>
-      <Header title="Alerts" sub="Push notifications" />
-      <Page>
-        <Card sx={{ p: 5, mt: 2, textAlign: "center", color: "text.secondary" }}>Coming in a later build step.</Card>
-      </Page>
-    </>
+    <ComingSoon
+      title="Alerts"
+      sub="Approvals, site visits and handover"
+      icon={<NotificationsRoundedIcon />}
+      heading="Your alerts will appear here"
+      text="Approval requests, site visit reminders, missed check-ins and handover notices. This screen is built in a later step."
+    />
   );
 }

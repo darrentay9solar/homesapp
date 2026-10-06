@@ -3,6 +3,7 @@
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
@@ -54,16 +55,40 @@ export function RoleChip({ role, label }: { role: Role; label?: string }) {
   return <Chip size="small" label={label ?? ROLE_NAME[role]} sx={roleTone(role)} />;
 }
 
-export function SectionTitle({ title, count, action }: { title: string; count?: number; action?: ReactNode }) {
+/** A settings-style row with a tinted icon tile, as on the reference's Profile screen. */
+export function SettingRow({
+  icon,
+  tint,
+  label,
+  sub,
+  right,
+  children,
+}: {
+  icon: ReactNode;
+  tint: string;
+  label: string;
+  sub?: ReactNode;
+  right?: ReactNode;
+  children?: ReactNode;
+}) {
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 4, mb: 1.5 }}>
-      <Typography variant="overline" sx={{ color: "text.secondary", lineHeight: 1 }}>
-        {title}
-      </Typography>
-      {count !== undefined && <Chip size="small" label={count} sx={{ height: 20, fontSize: "0.68rem" }} />}
-      <Box sx={{ flex: 1 }} />
-      {action}
-    </Stack>
+    <Card sx={{ px: 2, py: 1.5 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1.75 }}>
+        <Box sx={{ width: 38, height: 38, borderRadius: "11px", display: "grid", placeItems: "center", flex: "0 0 auto", color: tint, bgcolor: alpha(tint, 0.14) }}>
+          {icon}
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 500 }}>{label}</Typography>
+          {sub && (
+            <Typography variant="caption" component="div" sx={{ color: "text.secondary" }}>
+              {sub}
+            </Typography>
+          )}
+        </Box>
+        {right}
+      </Stack>
+      {children && <Box sx={{ mt: 1.5 }}>{children}</Box>}
+    </Card>
   );
 }
 

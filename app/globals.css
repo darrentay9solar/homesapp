@@ -2265,6 +2265,7 @@ button.urow:hover {
 }
 
 .auth .btn {
+  height: 50px;
   border-radius: 10px;
   font-weight: 600;
 }
@@ -2925,14 +2926,11 @@ button.urow:hover {
     margin: -6px 0 22px;
   }
 
+  /* Same shape as every other account screen's button, a little shorter
+     so the longer form still fits a laptop screen. */
   .auth.compact .btn.p {
-    display: flex;
-    width: 62%;
-    height: 50px;
-    margin: 0 auto;
-    border-radius: 999px;
+    height: 52px;
     font-size: 15px;
-    letter-spacing: 0.04em;
   }
 
   .auth.compact .alt,

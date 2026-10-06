@@ -37,7 +37,7 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
-import { alpha, type Theme } from "@mui/material/styles";
+import type { Theme } from "@mui/material/styles";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
@@ -46,7 +46,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
-import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, WaveHeader } from "@/components/m";
+import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, SettingRow, WaveHeader } from "@/components/m";
 import { splitPhone } from "@/components/phone-input";
 import { Page } from "@/components/shell";
 import { EdgeCard, GRID, HERO_BG, Heading, SearchBox, SegTabs, TopBar, roleColor } from "@/components/topbar";
@@ -734,27 +734,6 @@ function AddMemberDialog({ group, users, groupById, reload, onClose }: { group: 
         </Card>
       )}
     </MDialog>
-  );
-}
-
-/** A settings-style row with a tinted icon tile, as on the reference's Profile screen. */
-function SettingRow({ icon, tint, label, sub, right, children }: { icon: ReactNode; tint: string; label: string; sub?: string; right?: ReactNode; children?: ReactNode }) {
-  return (
-    <Card sx={{ px: 2, py: 1.5 }}>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 1.75 }}>
-        <Box sx={{ width: 38, height: 38, borderRadius: "11px", display: "grid", placeItems: "center", flex: "0 0 auto", color: tint, bgcolor: alpha(tint, 0.14) }}>{icon}</Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 500 }}>{label}</Typography>
-          {sub && (
-            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-              {sub}
-            </Typography>
-          )}
-        </Box>
-        {right}
-      </Stack>
-      {children && <Box sx={{ mt: 1.5 }}>{children}</Box>}
-    </Card>
   );
 }
 

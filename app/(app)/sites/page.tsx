@@ -1,17 +1,18 @@
 "use client";
 
-import Card from "@mui/material/Card";
+import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
 
-import { Header, Page } from "@/components/shell";
+import { ComingSoon } from "@/components/coming-soon";
 
-/** Placeholder until this function is built. */
-export default function Placeholder() {
+/** Placeholder until GPS check-in is built. */
+export default function SitesPage() {
   return (
-    <>
-      <Header title="My Sites" sub="GPS check-in" />
-      <Page>
-        <Card sx={{ p: 5, mt: 2, textAlign: "center", color: "text.secondary" }}>Coming in a later build step.</Card>
-      </Page>
-    </>
+    <ComingSoon
+      title="Sites"
+      sub="GPS check-in and check-out"
+      icon={<PlaceRoundedIcon />}
+      heading="Today's site visits will appear here"
+      text="Check in on arrival with your crew count, and check out when you leave. Your phone's GPS confirms you're at the site. This screen is built in a later step."
+    />
   );
 }

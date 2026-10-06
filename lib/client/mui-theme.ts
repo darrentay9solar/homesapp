@@ -69,7 +69,7 @@ export const theme = createTheme({
         root: ({ theme: t }) => ({
           borderRadius: 12,
           // Disabled stays recognisably green (dimmed), as on the sign-up screens.
-          "&.MuiButton-containedPrimary.Mui-disabled": {
+          "&.MuiButton-contained.MuiButton-colorPrimary.Mui-disabled": {
             backgroundColor: (t.vars ?? t).palette.primary.main,
             color: (t.vars ?? t).palette.primary.contrastText,
             opacity: 0.38,
@@ -110,7 +110,16 @@ export const theme = createTheme({
       styleOverrides: {
         root: { borderRadius: 10 },
         // 16px on phones: anything smaller makes iOS Safari zoom on focus.
-        input: { fontSize: 16, "@media (min-width: 768px)": { fontSize: 15 } },
+        // 52px tall, the same as the account screens' fields.
+        input: ({ ownerState }) => {
+          const fixed = ownerState.size !== "small" && !ownerState.multiline;
+          return {
+            fontSize: 16,
+            ...(fixed ? { paddingTop: 14.5, paddingBottom: 14.5 } : {}),
+            // 15px text on larger screens; a little more padding keeps 52px.
+            "@media (min-width: 768px)": { fontSize: 15, ...(fixed ? { paddingTop: 15.2, paddingBottom: 15.2 } : {}) },
+          };
+        },
       },
     },
     MuiDialog: {

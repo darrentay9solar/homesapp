@@ -78,9 +78,12 @@ function Body({ p }: { p: ProjectRow }) {
         )}
         <StatusBanner p={p} />
         <Summary p={p} />
-        <Details p={p} />
+        <Box>
+          <Heading title="Project details" />
+          <Details p={p} />
+        </Box>
       </Stack>
-      <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ minWidth: 0, mt: { lg: -2.5 } }}>
         <Heading title="Milestones" />
         <MilestoneTrack p={p} />
         <Stack sx={{ gap: 1.25, mt: 2 }}>
@@ -152,9 +155,6 @@ function Details({ p }: { p: ProjectRow }) {
   const overdue = p.flags.some((f) => f.kind === "overdue");
   return (
     <Card sx={{ px: 2, py: 0.5 }} data-testid="project-details">
-      <Typography variant="overline" sx={{ color: "text.secondary", display: "block", pt: 1.25 }}>
-        Project details
-      </Typography>
       <DetailRow icon={<PersonOutlineRoundedIcon />} k="Homeowner">
         {p.homeowner.name}{" "}
         {p.homeowner.linked ? (

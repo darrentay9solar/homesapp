@@ -1,26 +1,22 @@
 "use client";
 
 import AccountCircleRoundedIcon from "@mui/icons-material/AccountCircleRounded";
-import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
 import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
-import AppBar from "@mui/material/AppBar";
 import Badge from "@mui/material/Badge";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -62,7 +58,8 @@ const TABS: Record<Role, Tab[]> = {
 
 const DRAWER = 268;
 
-function activeHref(pathname: string, tabs: Tab[]): string {
+function activeHref(path: string, tabs: Tab[]): string {
+  const pathname = path.replace(/^\/dev-preview(?=\/|$)/, "") || "/";
   const hit = tabs.find((t) => t.href !== "/" && (pathname === t.href || pathname.startsWith(`${t.href}/`)));
   return hit?.href ?? "/";
 }
@@ -185,67 +182,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </BottomNavigation>
       </Paper>
     </Box>
-  );
-}
-
-/** The top app bar for each screen: optional back, title and subtitle, actions, alerts. */
-export function Header({
-  title,
-  sub,
-  back,
-  right,
-  bell = true,
-}: {
-  title: string;
-  sub?: string | null;
-  back?: string | true;
-  right?: ReactNode;
-  bell?: boolean;
-}) {
-  const router = useRouter();
-  const { me } = useApp();
-  const unread = me?.unread ?? 0;
-  return (
-    <AppBar
-      position="sticky"
-      color="inherit"
-      elevation={0}
-      sx={{
-        top: 0,
-        bgcolor: "background.default",
-        borderBottom: 1,
-        borderColor: "divider",
-        pt: "env(safe-area-inset-top)",
-      }}
-    >
-      <Toolbar disableGutters sx={{ minHeight: { xs: 64, lg: 76 }, px: PAGE_GUTTER }}>
-        <Box sx={{ ...PAGE_COLUMN, display: "flex", alignItems: "center", gap: 1 }}>
-        {back && (
-          <IconButton edge="start" aria-label="Back" onClick={() => (back === true ? router.back() : router.push(back))}>
-            <ArrowBackRoundedIcon />
-          </IconButton>
-        )}
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ fontWeight: 600, fontSize: { xs: 19, lg: 23 }, lineHeight: 1.25 }}>
-            {title}
-          </Typography>
-          {sub && (
-            <Typography noWrap variant="body2" sx={{ color: "text.secondary" }}>
-              {sub}
-            </Typography>
-          )}
-        </Box>
-        {right}
-        {bell && (
-          <IconButton component={Link} href="/alerts" aria-label={unread ? `${unread} unread alerts` : "Alerts"}>
-            <Badge color="primary" variant="dot" invisible={!unread}>
-              <NotificationsRoundedIcon />
-            </Badge>
-          </IconButton>
-        )}
-        </Box>
-      </Toolbar>
-    </AppBar>
   );
 }
 
