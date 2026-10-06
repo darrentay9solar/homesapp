@@ -24,6 +24,19 @@ export class ApiError extends Error {
 
 export type Fetcher = <T = unknown>(path: string, init?: RequestInit & { json?: unknown }) => Promise<T>;
 
+/**
+ * Development only: the account a project manager is testing as ("act as").
+ * Kept for this browser tab; the API ignores it anywhere but a laptop.
+ */
+export const ACT_AS_KEY = "gha-act-as";
+export function actingAs(): string | null {
+  try {
+    return sessionStorage.getItem(ACT_AS_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function useFetcher(): Fetcher {
   const { getToken } = useAuth();
   return useCallback(
@@ -31,6 +44,8 @@ export function useFetcher(): Fetcher {
       const token = await getToken();
       const headers = new Headers(init.headers);
       if (token) headers.set("Authorization", `Bearer ${token}`);
+      const as = actingAs();
+      if (as) headers.set("X-Act-As", as);
       let body = init.body;
       if (init.json !== undefined) {
         headers.set("Content-Type", "application/json");

@@ -23,6 +23,8 @@ export type Me = {
     postalCode: string | null;
   };
   unread?: number;
+  /** Development only: a project manager testing as this account. */
+  actingAs?: { byName: string | null; byUid: number };
 };
 
 type Ctx = {

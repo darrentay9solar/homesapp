@@ -26,3 +26,6 @@ __pycache__/
 
 # Local Claude Code launch config
 .claude/
+
+# Files uploaded on a laptop without Cloudflare R2 (api/_lib/storage.py).
+/.uploads/

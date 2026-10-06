@@ -22,6 +22,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { ACT_AS_KEY } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 
@@ -154,7 +155,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Stack>
       </Box>
 
-      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>{children}</Box>
+      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        {state?.actingAs && <ActingBanner name={me.fullName ?? me.email} role={me.roleLabel} by={state.actingAs.byName} />}
+        {children}
+      </Box>
 
       <Paper
         elevation={0}
@@ -182,6 +186,39 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </BottomNavigation>
       </Paper>
+    </Box>
+  );
+}
+
+/**
+ * Development only: shown while a project manager is testing as someone else,
+ * so it's never unclear whose screens these are.
+ */
+function ActingBanner({ name, role, by }: { name: string; role: string; by: string | null }) {
+  return (
+    <Box
+      role="status"
+      sx={{ position: "sticky", top: 0, zIndex: (t) => t.zIndex.appBar + 1, px: 2, py: 0.75, display: "flex", alignItems: "center", gap: 1.5, bgcolor: "warning.main", color: "#1a1204" }}
+    >
+      <Typography sx={{ flex: 1, fontSize: 13, fontWeight: 600 }} noWrap>
+        Acting as {name} ({role}) · development only{by ? ` · you are ${by}` : ""}
+      </Typography>
+      <Box
+        component="button"
+        onClick={() => {
+          try {
+            sessionStorage.removeItem(ACT_AS_KEY);
+          } catch {
+            /* storage blocked */
+          }
+          // A full reload on purpose: every screen must start again as yourself.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+          window.location.href = "/account";
+        }}
+        sx={{ border: 0, borderRadius: `${DESIGN.radius.chip}px`, px: 1.25, py: 0.5, fontFamily: "inherit", fontWeight: 700, fontSize: 12.5, cursor: "pointer", bgcolor: "rgba(0,0,0,0.18)", color: "inherit" }}
+      >
+        Stop
+      </Box>
     </Box>
   );
 }

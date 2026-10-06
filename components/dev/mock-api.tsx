@@ -182,6 +182,79 @@ const PROJECT_OPTIONS = {
   ],
 };
 
+
+// ------------------------------------------------------ project fields
+// Generated from api/_lib/project_fields.py, so the preview shows the real list.
+
+const FIELD_DEFS: Array<[string, string, string, string, boolean, string | null]> = [["utility_bill", "Utility Bill", "pre1", "file", true, null], ["electricity_retailer_id", "Current Electricity Retailer", "pre1", "retailer", true, null], ["retailer_contract_end_date", "Retailer Contract End Date", "pre1", "date", true, "Required because the retailer is not SP."], ["moc_change", "MOC Change (if applicable)", "pre1", "file", false, null], ["gst_proof", "GST Proof", "pre1", "file", true, null], ["homeowner.ic_last4", "Homeowner's IC — Last 4", "pre1", "homeowner", true, null], ["homeowner.email", "Homeowner's Email Address", "pre1", "homeowner", true, null], ["sp_forms_signed", "SP Forms Signed by Homeowner", "pre1", "file", true, null], ["sp_application_status", "SP Application Status", "pre1", "select", true, null], ["sales", "Sales", "pre1b", "text", true, null], ["waterproofing", "Roof Assessment — Waterproofing Required?", "pre1b", "yesno", true, null], ["create_group_chat", "Create Group Chat", "pre1b", "yesno", true, null], ["panel_quantity_estimate", "Panel Quantity (Est.)", "pre1b", "number", true, null], ["panel_capacity", "Panel Capacity (W)", "pre1b", "number", true, null], ["inverter_to_order", "Inverter to be Ordered", "pre1b", "text", true, null], ["inverter_collected", "Inverter Collection Status", "pre1b", "yesno", true, null], ["inverter_date", "Expected Collection Date", "pre1b", "date", true, "Required because the inverter has not been collected."], ["inverter_serial_number", "Inverter Serial Number", "pre1b", "text", true, null], ["panel_pictures", "Installed Panel Pictures", "pre1b", "photos", true, null], ["inverter_pictures", "Installed Inverter Pictures", "pre1b", "photos", true, null], ["current_stage", "Current Stage", "pre1b", "number", true, null], ["installation_end_date", "Panel Installation Completion Date", "m1", "date", true, null], ["scaffolding_removal", "Scaffolding Removal", "m1", "yesno", true, null], ["scaffolding_removal_date", "Removal of Scaffolding Date", "m1", "date", true, null], ["sp_submission_date", "SP Submission Date", "m1", "date", true, null], ["sp_submission_screenshot", "Screenshot of SP Submission", "m1", "photos", true, null], ["panel_quantity_actual", "Panel Quantity (Actual)", "m1", "number", false, null], ["sp_pending_days", "SP Application Pending", "m1", "auto", true, null], ["inverter_commission_grid_connection", "Inverter Commission & Grid Connection", "m2", "yesno", true, null], ["commission_date", "Scheduled Grid Connection Date", "m2", "date", true, "Required because grid connection is not yet done."], ["rcb_breaker_replacement", "RCB Breaker Replacement Required", "m2", "yesno", true, null], ["rcb_breaker_replacement_date", "RCB Replacement Date", "m2", "date", true, "Required because a replacement is needed."], ["pvl_letter", "PVL Letter", "m2", "file", true, null], ["pvl_received_date", "PVL Received Date", "m2", "date", true, null], ["pre_inspection_date", "Pre-Inspection Date", "m3", "date", true, null], ["sp_appointment_letter", "SP Appointment Letter", "m3", "file", true, null], ["sp_appointment_letter_received_date", "Appointment Letter Received", "m3", "date", true, null], ["meter_replacement_date", "Meter Replacement Date", "m3", "date", false, null], ["sp_turn_on_inspection_date", "SP Turn-On Inspection Date", "m3", "date", true, null], ["as_built_pv_layout", "As-Built PV Layout", "post", "file", true, null], ["final_submission_documents", "Final Submission Documents", "post", "file", true, null], ["handover_docs", "Handover Docs to Homeowner", "post", "file", true, null], ["fusion_solar_app_access", "FusionSolar App Access", "post", "yesno", true, null], ["fusion_solar_access", "FusionSolar Access Document", "post", "file", true, null], ["completion_form_signed", "Completion Form Signed", "post", "file", true, null]];
+const FIELD_GROUPS: Array<[string, string, string]> = [["pre1", "Before Milestone 1", "Admin / EPC · utilities & SP application"], ["pre1b", "Pre-end of Milestone 1", "Admin · survey, panels & inverter"], ["m1", "Milestone 1", "Installation & scaffolding removal"], ["m2", "Milestone 2", "Inverter commissioning & grid"], ["m3", "Milestone 3", "Inspection & appointment letter"], ["post", "Post Milestone 3", "Closing documents & handover"]];
+const SECTION_MS: Record<string, number> = { pre1: 1, pre1b: 1, m1: 1, m2: 2, m3: 3, post: 3 };
+
+/** Sample values: Milestone 1 complete, Milestone 2 under way. */
+const SAMPLE_VALUES: Record<string, unknown> = {
+  electricity_retailer_id: { id: 1, name: "SP Group" },
+  "homeowner.ic_last4": "Recorded",
+  "homeowner.email": "jasmine@example.com",
+  sp_application_status: 2,
+  sales: "K. Chandra · Q2-2026-118",
+  waterproofing: true,
+  create_group_chat: true,
+  panel_quantity_estimate: 20,
+  panel_capacity: 610,
+  inverter_to_order: "Huawei SUN2000-10KTL-M1",
+  inverter_collected: true,
+  inverter_serial_number: "HW2K-10KTL-8843921",
+  current_stage: 2,
+  installation_end_date: day(-6),
+  scaffolding_removal: true,
+  scaffolding_removal_date: day(-5),
+  sp_submission_date: day(-4),
+  sp_pending_days: "4 days",
+  inverter_commission_grid_connection: false,
+  commission_date: day(5),
+};
+const SAMPLE_FILES = ["utility_bill", "gst_proof", "sp_forms_signed", "panel_pictures", "inverter_pictures", "sp_submission_screenshot"];
+
+function projectFields(pid: number) {
+  const p = PROJECTS.find((x) => x.id === pid) ?? PROJECTS[0];
+  const approved = !["draft", "awaiting_homeowner", "homeowner_declined", "homeowner_approved"].includes(p.status as string);
+  const reached = p.milestone as number;
+  const sections = FIELD_GROUPS.map(([key, name, sub]) => {
+    const n = SECTION_MS[key];
+    const lockedReason = !approved
+      ? "Opens once the homeowner and a project manager have approved the project."
+      : n === 2 && reached < 1
+        ? "Opens once Milestone 1 is complete."
+        : n === 3 && reached < 2
+          ? "Opens once Milestone 2 is complete."
+          : null;
+    const fields = FIELD_DEFS.filter((f) => f[2] === key).map(([k, label, , kind, required, note]) => {
+      const sample = approved && pid === 101;
+      const value = sample ? (SAMPLE_VALUES[k] ?? null) : null;
+      const files = kind === "file" || kind === "photos" ? (sample && SAMPLE_FILES.includes(k) ? [{ id: 900 + k.length, name: `${k}.pdf`, type: "application/pdf", size: 120000, at: iso(3000), by: "Priya Nair" }] : []) : null;
+      const shown = k === "inverter_date" ? value !== null : k === "commission_date" ? sample : k === "rcb_breaker_replacement_date" || k === "fusion_solar_access" || k === "retailer_contract_end_date" ? false : true;
+      const filled = Boolean((files && files.length) || (value !== null && kind !== "auto"));
+      const recorded = sample && n === 1;
+      return {
+        key: k, label, kind, required: required && kind !== "auto", note, shown, filled, value, files,
+        lockedReason: lockedReason ?? (kind === "auto" ? "Calculated by the system." : k === "homeowner.email" ? "From the homeowner's account." : recorded ? null : null),
+      };
+    });
+    const need = fields.filter((f) => f.required && f.shown);
+    const done = need.filter((f) => f.filled).length;
+    return { key, name, sub, milestone: n, lockedReason, done, total: need.length, complete: done === need.length, fields };
+  });
+  return {
+    relation: "pm",
+    sections,
+    milestoneReached: reached,
+    recordedMilestones: reached >= 1 ? Array.from({ length: reached }, (_, i) => i + 1) : [],
+    retailers: [{ id: 1, name: "SP Group" }, { id: 2, name: "Geneco" }, { id: 3, name: "Keppel Electric" }, { id: 4, name: "Senoko Energy" }],
+    storage: "local",
+    actions: { approve: p.status === "homeowner_approved", decline: false, remind: ["awaiting_homeowner", "homeowner_declined"].includes(p.status as string), editDetails: true, reopen: reached >= 1 ? [1] : [] },
+  };
+}
+
 // ------------------------------------------------------------ audit
 
 type Line = [field: string, from: unknown, to: unknown, state?: string, note?: string];
@@ -395,6 +468,9 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
       : { address: `${postal === "569933" ? "53 ANG MO KIO AVENUE 3 AMK HUB" : "1 SAMPLE ROAD"} SINGAPORE ${postal}`, postalCode: postal, lat: 1.37, lng: 103.85 };
   }
   if (key === "POST /projects") return { id: 101, message: "Preview only — nothing was saved." };
+  const fieldsFor = path.match(/^\/projects\/(\d+)\/fields$/);
+  if (method === "GET" && fieldsFor) return projectFields(Number(fieldsFor[1]));
+  if (method !== "GET" && path.startsWith("/projects/")) return { message: "Preview only — nothing was saved." };
   const pid = path.match(/^\/projects\/(\d+)$/);
   if (method === "GET" && pid) return PROJECTS.find((x) => x.id === Number(pid[1])) ?? {};
   if (key === "POST /audit/actions/preview") return auditPreview(body as Parameters<typeof auditPreview>[0]);

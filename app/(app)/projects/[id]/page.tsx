@@ -3,16 +3,17 @@
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import EngineeringRoundedIcon from "@mui/icons-material/EngineeringRounded";
-import FlagRoundedIcon from "@mui/icons-material/FlagRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
+import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
 import Skeleton from "@mui/material/Skeleton";
@@ -20,15 +21,17 @@ import Stack from "@mui/material/Stack";
 import { alpha } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
 import { useParams, useRouter } from "next/navigation";
+import { type ReactNode, useCallback, useState } from "react";
 
-import { RoleChip } from "@/components/m";
-import { DetailRow, ProgressRing, StatusChip, TimingChip } from "@/components/projects";
+import { Field, MDialog, RoleChip } from "@/components/m";
+import { SectionPanel } from "@/components/project-fields";
+import { DetailRow, NewProjectDialog, ProgressRing, StatusChip, TimingChip } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { Heading, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
-import { useApi } from "@/lib/client/api";
-import { useMe } from "@/lib/client/app-state";
-import { lockReason, type ProjectRow, SECTIONS } from "@/lib/client/projects";
+import { ApiError, useApi, useFetcher } from "@/lib/client/api";
+import { useApp, useMe } from "@/lib/client/app-state";
+import { firstOpenSection, type ProjectFields, type ProjectRow, SECTIONS } from "@/lib/client/projects";
 
 /**
  * One project. The automated header from the brief (progress, on track, days
@@ -39,7 +42,11 @@ export default function ProjectPage() {
   const me = useMe();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const { data: p, error } = useApi<ProjectRow>(me ? `/projects/${id}` : null);
+  const { data: p, error, reload } = useApi<ProjectRow>(me ? `/projects/${id}` : null);
+  const { data: fields, reload: reloadFields } = useApi<ProjectFields>(me ? `/projects/${id}/fields` : null);
+  const reloadAll = useCallback(async () => {
+    await Promise.all([reload(), reloadFields()]);
+  }, [reload, reloadFields]);
 
   if (!me) return null;
   const back = () => (me.role === "homeowner" ? router.push("/") : router.back());
@@ -55,14 +62,19 @@ export default function ProjectPage() {
             </Alert>
           )}
           {!p && !error && <Skeleton variant="rounded" height={260} sx={{ mt: 2 }} />}
-          {p && <Body p={p} />}
+          {p && <Body p={p} fields={fields} reload={reloadAll} />}
         </Page>
       </Box>
     </>
   );
 }
 
-function Body({ p }: { p: ProjectRow }) {
+function Body({ p, fields, reload }: { p: ProjectRow; fields: ProjectFields | null; reload: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const first = fields ? firstOpenSection(fields.sections) : null;
+  const isOpen = (key: string) => open[key] ?? key === first;
+  const ctx = fields && { pid: p.id, data: fields, reload };
   return (
     <Box sx={{ display: "grid", gap: { xs: 2, lg: 3 }, gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) minmax(0, 1.15fr)" }, alignItems: "start", mt: 1 }}>
       <Stack sx={{ gap: 2, minWidth: 0 }}>
@@ -76,49 +88,167 @@ function Body({ p }: { p: ProjectRow }) {
             ))}
           </Alert>
         )}
-        <StatusBanner p={p} />
+        <ActionBanner p={p} fields={fields} reload={reload} />
         <Summary p={p} />
         <Box>
-          <Heading title="Project details" />
+          <Heading
+            title="Project details"
+            action={
+              fields?.actions.editDetails && (
+                <Button size="small" startIcon={<EditRoundedIcon />} onClick={() => setEditing(true)}>
+                  Edit
+                </Button>
+              )
+            }
+          />
           <Details p={p} />
         </Box>
       </Stack>
       <Box sx={{ minWidth: 0, mt: { lg: -2.5 } }}>
-        <Heading title="Milestones" />
+        <Heading title={fields?.relation === "homeowner" ? "Your installation" : "Milestones"} />
         <MilestoneTrack p={p} />
         <Stack sx={{ gap: 1.25, mt: 2 }}>
-          {SECTIONS.map((s, i) => (
-            <SectionCard key={s.key} p={p} index={i} section={s} />
-          ))}
+          {!ctx && SECTIONS.map((x) => <Skeleton key={x.key} variant="rounded" height={68} />)}
+          {ctx &&
+            ctx.data.sections.map((s, i) => (
+              <SectionPanel key={s.key} ctx={ctx} section={s} index={i} open={isOpen(s.key)} onToggle={() => setOpen((o) => ({ ...o, [s.key]: !isOpen(s.key) }))} />
+            ))}
         </Stack>
       </Box>
+      {editing && <NewProjectDialog project={p} onClose={() => setEditing(false)} onSaved={reload} />}
     </Box>
   );
 }
 
-function StatusBanner({ p }: { p: ProjectRow }) {
-  if (p.status === "draft")
-    return (
-      <Alert severity="info">
+/**
+ * Where the project stands in its approvals, with the next step as a button
+ * for whoever takes it. The brief: the homeowner's approval is on the project
+ * page itself, obvious, with Approve and Decline.
+ */
+function ActionBanner({ p, fields, reload }: { p: ProjectRow; fields: ProjectFields | null; reload: () => Promise<void> }) {
+  const fetcher = useFetcher();
+  const { toast } = useApp();
+  const [busy, setBusy] = useState(false);
+  const [declining, setDeclining] = useState(false);
+  const a = fields?.actions;
+  const homeowner = fields?.relation === "homeowner";
+
+  async function act(path: string, json?: unknown) {
+    setBusy(true);
+    try {
+      const res = await fetcher<{ message: string }>(`/projects/${p.id}/${path}`, { method: "POST", json });
+      toast(res.message);
+      await reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Something went wrong.", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  let banner: ReactNode = null;
+  if (homeowner && a?.approve) {
+    banner = (
+      <Alert severity="warning" icon={false} data-testid="approval-banner" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
+        <AlertTitle sx={{ fontWeight: 600, fontSize: 16 }}>Please approve your solar installation</AlertTitle>
+        9 Solar Home has set up {p.name} at {p.address}. Check the details below, then approve so the installation can be scheduled.
+        <Stack direction="row" sx={{ gap: 1, mt: 1.5 }}>
+          <Button size="large" variant="contained" disabled={busy} onClick={() => void act("approve")} sx={{ flex: 1 }}>
+            Approve
+          </Button>
+          {a.decline && (
+            <Button size="large" variant="outlined" color="error" disabled={busy} onClick={() => setDeclining(true)} sx={{ flex: 1 }}>
+              Decline
+            </Button>
+          )}
+        </Stack>
+      </Alert>
+    );
+  } else if (p.status === "homeowner_approved") {
+    banner = (
+      <Alert severity="success" data-testid="approval-banner" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
+        <AlertTitle sx={{ fontWeight: 600 }}>Homeowner approved</AlertTitle>
+        {a?.approve ? "Approve to open Milestone 1 and let the crew start." : "Waiting for a project manager to approve and open Milestone 1."}
+        {a?.approve && (
+          <Button size="large" variant="contained" fullWidth disabled={busy} onClick={() => void act("approve")} sx={{ mt: 1.5 }}>
+            Approve &amp; Start Project
+          </Button>
+        )}
+      </Alert>
+    );
+  } else if (p.status === "draft") {
+    banner = (
+      <Alert severity="info" data-testid="approval-banner">
         <AlertTitle sx={{ fontWeight: 600 }}>No homeowner account linked</AlertTitle>
-        The homeowner is recorded as a name only. Link their account so they can approve the project and e-sign at handover.
+        The homeowner is recorded as a name only.{" "}
+        {a?.editDetails ? "Edit the project details to link their account, so they can approve it." : "A project manager needs to link their account."}
       </Alert>
     );
-  if (p.status === "awaiting_homeowner")
-    return (
-      <Alert severity="warning">
-        <AlertTitle sx={{ fontWeight: 600 }}>Waiting on the homeowner</AlertTitle>
-        {p.homeowner.name} has been asked to approve. Milestone fields open once they and a project manager have approved.
+  } else if (p.status === "awaiting_homeowner" || p.status === "homeowner_declined") {
+    const declined = p.status === "homeowner_declined";
+    banner = (
+      <Alert severity={declined ? "error" : "warning"} data-testid="approval-banner">
+        <AlertTitle sx={{ fontWeight: 600 }}>{declined ? "Declined by the homeowner" : "Waiting on the homeowner"}</AlertTitle>
+        {declined
+          ? `Talk to ${p.homeowner.name} before asking again.`
+          : `${p.homeowner.name} has been asked to approve. Milestone fields open once they and a project manager have approved.`}
+        {a?.remind && (
+          <Button variant="outlined" color="inherit" disabled={busy} onClick={() => void act("remind")} sx={{ mt: 1.5, display: "flex" }}>
+            {declined ? "Ask again" : "Send a reminder"}
+          </Button>
+        )}
       </Alert>
     );
-  if (p.status === "homeowner_declined")
-    return (
-      <Alert severity="error">
-        <AlertTitle sx={{ fontWeight: 600 }}>Declined by the homeowner</AlertTitle>
-        Talk to {p.homeowner.name} before asking again.
+  } else if (p.milestone === 3 && !homeowner) {
+    banner = (
+      <Alert severity="success" data-testid="approval-banner">
+        <AlertTitle sx={{ fontWeight: 600 }}>Ready for handover</AlertTitle>
+        Every milestone is complete. Next comes the handover certificate for the homeowner to e-sign (the next build step).
       </Alert>
     );
-  return null;
+  }
+
+  return (
+    <>
+      {banner}
+      {declining && (
+        <DeclineDialog
+          name={p.name}
+          busy={busy}
+          onClose={() => setDeclining(false)}
+          onDecline={async (reason) => {
+            setDeclining(false);
+            await act("decline", { reason });
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function DeclineDialog({ name, busy, onClose, onDecline }: { name: string; busy: boolean; onClose: () => void; onDecline: (reason: string) => Promise<void> }) {
+  const [reason, setReason] = useState("");
+  return (
+    <MDialog title="Decline Project" heading={`Decline ${name}?`} subtitle="9 Solar Home will be told and will contact you. You can still approve later." onClose={onClose} maxWidth="xs">
+      <Field
+        label="Reason (optional)"
+        icon={<ChatBubbleOutlineRoundedIcon />}
+        multiline
+        minRows={3}
+        placeholder="e.g. I would like to change the installation date"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+      />
+      <Stack sx={{ gap: 1, mt: 3 }}>
+        <Button size="large" variant="contained" color="error" disabled={busy} onClick={() => void onDecline(reason)}>
+          Decline Project
+        </Button>
+        <Button size="large" onClick={onClose}>
+          Cancel
+        </Button>
+      </Stack>
+    </MDialog>
+  );
 }
 
 function Summary({ p }: { p: ProjectRow }) {
@@ -217,43 +347,5 @@ function MilestoneTrack({ p }: { p: ProjectRow }) {
         </Box>
       ))}
     </Box>
-  );
-}
-
-function SectionCard({ p, index, section: s }: { p: ProjectRow; index: number; section: (typeof SECTIONS)[number] }) {
-  const g = p.groups[s.key] ?? { done: 0, total: 0, complete: false };
-  const lock = lockReason(p, s.key);
-  return (
-    <Card sx={{ p: 1.75, opacity: lock ? 0.72 : 1 }} data-testid="project-section" data-locked={Boolean(lock) || undefined}>
-      <Stack direction="row" sx={{ gap: 1.5, alignItems: "center" }}>
-        <Box
-          sx={(t) => ({
-            width: 32,
-            height: 32,
-            flex: "0 0 auto",
-            borderRadius: "50%",
-            display: "grid",
-            placeItems: "center",
-            fontWeight: 700,
-            fontSize: 13,
-            color: g.complete ? "#fff" : lock ? "text.disabled" : "primary.main",
-            bgcolor: g.complete ? "primary.main" : lock ? alpha(t.palette.text.primary, 0.06) : alpha(t.palette.primary.main, 0.12),
-          })}
-        >
-          {g.complete ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : lock ? <LockOutlinedIcon sx={{ fontSize: 16 }} /> : index + 1}
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 600, fontSize: 15 }}>{s.name}</Typography>
-          <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-            {lock ?? `${g.done} of ${g.total} fields · ${s.sub}`}
-          </Typography>
-        </Box>
-        {g.complete ? (
-          <Chip size="small" color="success" label="Done" />
-        ) : (
-          !lock && <Chip size="small" variant="outlined" icon={<FlagRoundedIcon />} label={`${g.total - g.done} to go`} />
-        )}
-      </Stack>
-    </Card>
   );
 }

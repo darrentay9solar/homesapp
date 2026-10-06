@@ -31,6 +31,8 @@ class Account:
     user: dict[str, Any] | None = None
     request: dict[str, Any] | None = None
     clerk_user: clerk.ClerkUser | None = field(default=None, repr=False)
+    # Development only: the project manager who is acting as this account.
+    acting_pm: dict[str, Any] | None = None
 
     @property
     def uid(self) -> int:

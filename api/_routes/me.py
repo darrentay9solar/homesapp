@@ -7,7 +7,8 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from _lib.account import ROLE_LABEL, Account
-from _lib.web import account
+from _lib.db import fetch_all
+from _lib.web import account, act_as_allowed, role
 
 router = APIRouter()
 
@@ -40,6 +41,8 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             "decisionNote": r["decision_note"],
             "createdAt": r["created_at"].isoformat(),
         }
+    if acct.acting_pm:
+        out["actingAs"] = {"byName": acct.acting_pm["full_name"], "byUid": acct.acting_pm["uid"]}
     if acct.clerk_user:
         out["clerk"] = {
             "fullName": acct.clerk_user.full_name,
@@ -47,3 +50,12 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             "phone": acct.clerk_user.phone,
         }
     return out
+
+
+@router.get("/dev/act-as")
+def act_as_options(_acct: Account = Depends(role("project_manager"))) -> dict[str, Any]:
+    """Development only: the accounts a PM can act as to test other roles."""
+    if not act_as_allowed():
+        return {"allowed": False, "people": []}
+    rows = fetch_all("select * from users where active order by user_type, full_name nulls last, email")
+    return {"allowed": True, "people": [public_user(u) for u in rows]}

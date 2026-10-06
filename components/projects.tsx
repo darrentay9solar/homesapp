@@ -178,17 +178,35 @@ type Homeowner = { uid: number; name: string; email: string; contactNo: string |
  * homeowner (an account, or a typed name), their contact number, the
  * contractor (a group, named people, or a typed name) and a start or end date.
  */
-export function NewProjectDialog({ onClose }: { onClose: () => void }) {
+export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: () => void; project?: ProjectRow; onSaved?: () => Promise<void> }) {
   const fetcher = useFetcher();
   const router = useRouter();
   const href = useProjectHref();
   const { toast } = useApp();
   const { data: opts } = useApi<Options>("/projects/options");
-  const [f, setF] = useState({ name: "", postal: "", address: "", contact: "", start: "", end: "", ctrText: "", groupId: "" });
-  const [homeowner, setHomeowner] = useState<Homeowner | string | null>(null);
-  const [ctr, setCtr] = useState<Contractor>("group");
-  const [crew, setCrew] = useState<Options["crew"]>([]);
-  const [geo, setGeo] = useState<{ postal: string; ok: boolean; text: string } | null>(null);
+  // Editing starts from the project as it is; creating starts empty.
+  const [f, setF] = useState(() => ({
+    name: p?.name ?? "",
+    postal: p?.postalCode ?? "",
+    address: p?.address ?? "",
+    contact: p?.contactNo ?? "",
+    start: p?.startDate ?? "",
+    end: p?.endDate ?? "",
+    ctrText: p?.contractor.type === "text" ? p.contractor.label : "",
+    groupId: p?.contractor.groupId ? String(p.contractor.groupId) : "",
+  }));
+  const [homeowner, setHomeowner] = useState<Homeowner | string | null>(() =>
+    !p ? null : p.homeowner.linked ? { uid: p.homeowner.uid!, name: p.homeowner.name ?? "", email: "", contactNo: p.contactNo } : (p.homeowner.name ?? "")
+  );
+  const [ctr, setCtr] = useState<Contractor>(p?.contractor.type ?? "group");
+  const [crew, setCrew] = useState<Options["crew"]>(() =>
+    p?.contractor.type === "users"
+      ? p.team.filter((t) => t.role === "contractor" || t.role === "epc_team").map((t) => ({ uid: t.uid, name: t.name ?? "", role: t.role, roleLabel: ROLE_NAME[t.role] }))
+      : []
+  );
+  const [geo, setGeo] = useState<{ postal: string; ok: boolean; text: string } | null>(() =>
+    p?.postalCode ? { postal: p.postalCode, ok: true, text: p.address } : null
+  );
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
@@ -229,8 +247,8 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   async function submit() {
     setBusy(true);
     try {
-      const res = await fetcher<{ id: number; message: string }>("/projects", {
-        method: "POST",
+      const res = await fetcher<{ id?: number; message: string }>(p ? `/projects/${p.id}` : "/projects", {
+        method: p ? "PATCH" : "POST",
         json: {
           name: f.name,
           postalCode: f.postal,
@@ -245,7 +263,8 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
       });
       toast(res.message);
       onClose();
-      router.push(href(res.id));
+      if (p) await onSaved?.();
+      else if (res.id) router.push(href(res.id));
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "Couldn't create the project.", "bad");
       setBusy(false);
@@ -253,7 +272,12 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <MDialog title="Create Project" heading="A new installation" subtitle="Every field is required." onClose={onClose}>
+    <MDialog
+      title={p ? "Edit Project" : "Create Project"}
+      heading={p ? "Project details" : "A new installation"}
+      subtitle={p ? "Every field is required. Each change is recorded in the audit log." : "Every field is required."}
+      onClose={onClose}
+    >
       <Stack sx={{ gap: 2.5 }}>
         <Field label="Project name" required icon={<SolarPowerRoundedIcon />} placeholder="e.g. Hillcrest Villa" value={f.name} onChange={set("name")} />
 
@@ -408,10 +432,10 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
       </Stack>
 
       <Button fullWidth size="large" variant="contained" disabled={!ok || busy} sx={{ mt: 3 }} onClick={() => void submit()}>
-        {busy ? "Creating…" : "Next — Create Project"}
+        {busy ? (p ? "Saving…" : "Creating…") : p ? "Save Changes" : "Next — Create Project"}
       </Button>
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        {ok ? "The homeowner, contractor admins and EPC crew will be notified." : "Complete every field to continue."}
+        {!ok ? "Complete every field to continue." : p ? "Anyone newly added to the project will be notified." : "The homeowner, contractor admins and EPC crew will be notified."}
       </Typography>
     </MDialog>
   );

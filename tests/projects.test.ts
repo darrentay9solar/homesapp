@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { filterProjects, inTab, lockReason, matchesProject, planDates, type ProjectRow, sortProjects } from "../lib/client/projects";
+import { filterProjects, firstOpenSection, inTab, lockReason, matchesProject, planDates, type ProjectRow, showValue, sortProjects } from "../lib/client/projects";
 
 let next = 1;
 function project(over: Partial<ProjectRow> = {}): ProjectRow {
@@ -118,5 +118,23 @@ describe("section locks", () => {
     assert.match(lockReason({ ...p, milestone: 1 }, "post") ?? "", /Milestone 2/);
     assert.equal(lockReason({ ...p, milestone: 1 }, "m2"), null);
     assert.equal(lockReason({ ...p, milestone: 2 }, "post"), null);
+  });
+});
+
+describe("field values", () => {
+  it("reads values the way the brief writes them", () => {
+    assert.equal(showValue({ kind: "yesno", value: true, key: "waterproofing" }), "Yes");
+    assert.equal(showValue({ kind: "yesno", value: false, key: "waterproofing" }), "No");
+    assert.equal(showValue({ kind: "select", value: 2, key: "sp_application_status" }), "LEW submitted to SP");
+    assert.equal(showValue({ kind: "retailer", value: { id: 1, name: "Geneco" }, key: "electricity_retailer_id" }), "Geneco");
+    assert.equal(showValue({ kind: "date", value: "2026-10-16", key: "installation_end_date" }), "16 Oct 2026");
+    assert.equal(showValue({ kind: "number", value: 610, key: "panel_capacity" }), "610 W");
+    assert.equal(showValue({ kind: "text", value: null, key: "sales" }), "");
+  });
+  it("opens the earliest section that still needs work", () => {
+    const s = (key: string, lockedReason: string | null, complete: boolean) =>
+      ({ key, lockedReason, complete }) as unknown as Parameters<typeof firstOpenSection>[0][number];
+    assert.equal(firstOpenSection([s("pre1", null, true), s("pre1b", null, false), s("m2", "x", false)]), "pre1b");
+    assert.equal(firstOpenSection([s("pre1", "locked", false)]), null);
   });
 });

@@ -9,17 +9,22 @@ import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
+import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
+import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
+import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
+import { useState } from "react";
 
-import { RoleAvatar, RoleChip, SettingRow } from "@/components/m";
+import { Field, ROLE_NAME, RoleAvatar, RoleChip, SettingRow } from "@/components/m";
 import { Page } from "@/components/shell";
 import { Heading, TopBar } from "@/components/topbar";
+import { ACT_AS_KEY, useApi } from "@/lib/client/api";
 import { type Role, useMe } from "@/lib/client/app-state";
 import { useTheme } from "@/lib/client/theme";
 
@@ -87,6 +92,8 @@ export default function AccountPage() {
             <SettingRow icon={<SolarPowerRoundedIcon />} tint="#2A6FBF" label="Export credit" right={<Typography sx={{ fontWeight: 600 }}>SP Group · monthly</Typography>} />
           </Stack>
 
+          {me.role === "project_manager" && <ActAs />}
+
           <SignOutButton redirectUrl="/sign-in">
             <Button fullWidth size="large" variant="outlined" color="inherit" startIcon={<LogoutRoundedIcon />} sx={{ mt: 3 }}>
               Sign out
@@ -97,6 +104,59 @@ export default function AccountPage() {
           </Typography>
         </Page>
       </Box>
+    </>
+  );
+}
+
+type Person = { uid: number; fullName: string | null; email: string; role: Role };
+
+/**
+ * Development only: test the homeowner's and the crew's side of a project
+ * with your own login. The API allows it only on a laptop, against a
+ * database that isn't production; everywhere else this section is absent.
+ */
+function ActAs() {
+  const me = useMe();
+  const { data } = useApi<{ allowed: boolean; people: Person[] }>("/dev/act-as");
+  const [pick, setPick] = useState("");
+  if (!data?.allowed) return null;
+  const others = data.people.filter((p) => p.uid !== me?.uid);
+  return (
+    <>
+      <Heading title="Test as another account" />
+      <SettingRow
+        icon={<ScienceOutlinedIcon />}
+        tint="#B7791F"
+        label="Development only"
+        sub="See and do what a homeowner, contractor admin or EPC crew member would, without their login. A banner shows while it's on; changes are recorded as theirs."
+      >
+        <Stack direction="row" sx={{ gap: 1 }}>
+          <Field select label="Act as" value={pick} onChange={(e) => setPick(e.target.value)} icon={<PersonOutlineRoundedIcon />}>
+            {others.map((p) => (
+              <MenuItem key={p.uid} value={String(p.uid)}>
+                {p.fullName ?? p.email} · {ROLE_NAME[p.role]}
+              </MenuItem>
+            ))}
+          </Field>
+          <Button
+            variant="contained"
+            disabled={!pick}
+            sx={{ flex: "0 0 auto", minWidth: 96 }}
+            onClick={() => {
+              try {
+                sessionStorage.setItem(ACT_AS_KEY, pick);
+              } catch {
+                /* storage blocked */
+              }
+              // A full reload on purpose: every screen must start again as them.
+              // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+              window.location.href = "/";
+            }}
+          >
+            Start
+          </Button>
+        </Stack>
+      </SettingRow>
     </>
   );
 }

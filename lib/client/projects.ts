@@ -186,3 +186,67 @@ export function lockReason(p: Pick<ProjectRow, "status" | "milestone">, section:
   if (s.milestone === 3 && p.milestone < 2) return "Opens once Milestone 2 is complete.";
   return null;
 }
+
+// ---------------------------------------------------------- milestone fields
+
+export type FieldKind = "text" | "number" | "date" | "yesno" | "select" | "file" | "photos" | "retailer" | "homeowner" | "auto";
+export type StoredFile = { id: number; name: string; type: string | null; size: number | null; at: string; by: string | null };
+
+export type FieldDef = {
+  key: string;
+  label: string;
+  kind: FieldKind;
+  required: boolean;
+  note: string | null;
+  /** False while its condition doesn't hold ("if No, specify the date"). */
+  shown: boolean;
+  filled: boolean;
+  value: unknown;
+  files: StoredFile[] | null;
+  /** Why it can't be changed by you right now, or null if it can. */
+  lockedReason: string | null;
+};
+
+export type Section = {
+  key: string;
+  name: string;
+  sub: string;
+  milestone: 1 | 2 | 3;
+  lockedReason: string | null;
+  done: number;
+  total: number;
+  complete: boolean;
+  fields: FieldDef[];
+};
+
+export type ProjectFields = {
+  relation: "pm" | "crew" | "homeowner";
+  sections: Section[];
+  milestoneReached: number;
+  recordedMilestones: number[];
+  retailers: Array<{ id: number; name: string }>;
+  storage: "r2" | "local" | null;
+  actions: { approve: boolean; decline: boolean; remind: boolean; editDetails: boolean; reopen: number[] };
+};
+
+export const SP_STATUS: Record<number, string> = { 1: "Submitted to LEW", 2: "LEW submitted to SP", 3: "Not yet" };
+
+/** A field's value as a sentence fragment, for read-only display. */
+export function showValue(f: Pick<FieldDef, "kind" | "value" | "key">): string {
+  const v = f.value;
+  if (v === null || v === undefined || v === "") return "";
+  if (f.kind === "yesno") return v ? "Yes" : "No";
+  if (f.kind === "select") return SP_STATUS[Number(v)] ?? String(v);
+  if (f.kind === "retailer") return (v as { name: string }).name;
+  if (f.kind === "date" && typeof v === "string") {
+    return new Date(`${v}T00:00:00+08:00`).toLocaleDateString("en-SG", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Singapore" });
+  }
+  if (f.kind === "number" && f.key === "panel_capacity") return `${Number(v).toLocaleString("en-SG")} W`;
+  if (f.kind === "number") return Number(v).toLocaleString("en-SG");
+  return String(v);
+}
+
+/** The section to open first: the earliest one that's open and not yet complete. */
+export function firstOpenSection(sections: Section[]): string | null {
+  return sections.find((s) => !s.lockedReason && !s.complete)?.key ?? null;
+}

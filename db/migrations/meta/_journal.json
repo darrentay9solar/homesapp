@@ -134,6 +134,13 @@
       "when": 1791275015933,
       "tag": "0018_project_creation",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791280447682,
+      "tag": "0019_project_workflow",
+      "breakpoints": true
     }
   ]
 }

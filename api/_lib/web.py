@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 
 import psycopg
@@ -10,7 +11,8 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from _lib.account import Account, resolve
-from _lib.auth import AuthError, ClerkIdentity, verify_token
+from _lib.auth import AuthError, ClerkIdentity, env, verify_token
+from _lib.db import fetch_one
 
 
 def identity(request: Request) -> ClerkIdentity:
@@ -23,8 +25,30 @@ def identity(request: Request) -> ClerkIdentity:
         raise HTTPException(401, str(exc)) from exc
 
 
-def account(ident: ClerkIdentity = Depends(identity)) -> Account:
-    return resolve(ident)
+def act_as_allowed() -> bool:
+    """ "Act as" exists only on a laptop, against a database that isn't production.
+
+    It lets a project manager test the homeowner's and the crew's side of a
+    project with one login. Never on Vercel; never when DATABASE_URL points
+    at the production endpoint (or production isn't known to compare with).
+    """
+    if os.environ.get("VERCEL"):
+        return False
+    db, prod = env("DATABASE_URL"), env("PROD_DATABASE_URL") or env("PROD_MIGRATION_DATABASE_URL")
+    if not db or not prod:
+        return False
+    host = lambda u: psycopg.conninfo.conninfo_to_dict(u).get("host")  # noqa: E731
+    return host(db) != host(prod)
+
+
+def account(request: Request, ident: ClerkIdentity = Depends(identity)) -> Account:
+    acct = resolve(ident)
+    target = request.headers.get("x-act-as", "").strip()
+    if target.isdigit() and acct.state == "active" and acct.role == "project_manager" and act_as_allowed():
+        user = fetch_one("select * from users where uid = %s and active", (int(target),))
+        if user and user["uid"] != acct.uid:
+            return Account("active", ident, user=user, acting_pm=acct.user)
+    return acct
 
 
 def active(acct: Account = Depends(account)) -> Account:
