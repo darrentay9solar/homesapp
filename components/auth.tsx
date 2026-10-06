@@ -44,6 +44,12 @@ export function AuthShell({
       </svg>
       <div className="card-auth">
         <div className="deskbar">
+          {/* Desktop has no green header, so its back arrow sits here, beside the logo. */}
+          {goBack && (
+            <button className="icobtn deskback" aria-label="Back" onClick={goBack}>
+              <I.back size={20} />
+            </button>
+          )}
           <span className="deskbrand">
             <span className="deskmark">
               <Logo size={36} />

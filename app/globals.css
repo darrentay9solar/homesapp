@@ -2752,6 +2752,16 @@ button.urow:hover {
     border-color: rgba(255, 255, 255, 0.7);
   }
 
+  /* Back arrow first, then the brand; the theme button stays on the right. */
+  .card-auth .deskbar .deskback {
+    flex: 0 0 auto;
+    margin-right: -4px;
+  }
+
+  .card-auth .deskbar .deskbrand {
+    margin-right: auto;
+  }
+
   .card-auth h2 {
     color: #fff !important;
   }
