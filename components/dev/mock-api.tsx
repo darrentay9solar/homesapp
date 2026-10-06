@@ -63,6 +63,125 @@ const FIXTURES: Record<string, unknown> = {
   },
 };
 
+// ------------------------------------------------------------ projects
+
+const day = (offset: number) => new Date(now + offset * 86_400_000).toISOString().slice(0, 10);
+const G = (done: number, total: number) => ({ done, total, complete: done === total });
+const TEAM_APEX = [
+  { uid: 1, name: "Wei Ming Tan", role: "project_manager" },
+  { uid: 3, name: "Priya Nair", role: "contractor" },
+  { uid: 4, name: "Ravi Kumar", role: "epc_team" },
+];
+
+function proj(id: number, over: Record<string, unknown>) {
+  return {
+    id,
+    name: "Project",
+    address: "Singapore",
+    postalCode: "569933",
+    siteLocated: true,
+    status: "in_progress",
+    statusLabel: "In Progress",
+    homeowner: { uid: 5, name: "Jasmine Lee", linked: true },
+    contactNo: "+65 9123 4477",
+    contractor: { type: "group", label: "Apex Solar Contractors", groupId: 1 },
+    team: [...TEAM_APEX, { uid: 5, name: "Jasmine Lee", role: "homeowner" }],
+    pm: { uid: 1, name: "Wei Ming Tan" },
+    startDate: day(-10),
+    endDate: day(11),
+    daysElapsed: 10,
+    progress: 0,
+    milestone: 0,
+    currentMilestone: 1,
+    groups: { pre1: G(0, 8), pre1b: G(0, 11), m1: G(0, 5), m2: G(0, 4), m3: G(0, 4), post: G(0, 5) },
+    flags: [],
+    attention: false,
+    createdAt: iso(14_400),
+    ...over,
+  };
+}
+
+const PROJECTS = [
+  proj(101, {
+    name: "Jalan Kayu Residence",
+    address: "14 Jalan Kayu, Singapore 799463",
+    postalCode: "799463",
+    progress: 62,
+    milestone: 1,
+    currentMilestone: 2,
+    groups: { pre1: G(8, 8), pre1b: G(11, 11), m1: G(5, 5), m2: G(2, 4), m3: G(0, 4), post: G(0, 5) },
+  }),
+  proj(102, {
+    name: "Sunbird Circle",
+    address: "8 Sunbird Circle, Singapore 488106",
+    postalCode: "488106",
+    homeowner: { uid: 6, name: "Daniel Ong", linked: true },
+    contactNo: "+65 8877 2210",
+    team: [...TEAM_APEX, { uid: 6, name: "Daniel Ong", role: "homeowner" }],
+    startDate: day(-40),
+    endDate: day(-19),
+    daysElapsed: 40,
+    progress: 81,
+    milestone: 2,
+    currentMilestone: 3,
+    groups: { pre1: G(8, 8), pre1b: G(11, 11), m1: G(5, 5), m2: G(4, 4), m3: G(2, 4), post: G(1, 5) },
+    attention: true,
+    flags: [
+      { kind: "overdue", text: "Target end date passed 19 days ago" },
+      { kind: "no_show", text: `No check-in for the EPC visit on ${day(-2)}, 09:00 (Pre-inspection rectification)` },
+    ],
+  }),
+  proj(103, {
+    name: "Hillcrest Villa",
+    address: "27 Hillcrest Road, Singapore 289000",
+    postalCode: "289000",
+    status: "awaiting_homeowner",
+    statusLabel: "Awaiting Homeowner",
+    homeowner: { uid: 7, name: "Farah Ismail", linked: true },
+    contactNo: "+65 9004 1188",
+    contractor: { type: "group", label: "Kim Seng M&E Services", groupId: 2 },
+    team: [
+      { uid: 1, name: "Wei Ming Tan", role: "project_manager" },
+      { uid: 7, name: "Farah Ismail", role: "homeowner" },
+      { uid: 3, name: "Priya Nair", role: "contractor" },
+    ],
+    startDate: day(5),
+    endDate: day(26),
+    daysElapsed: 0,
+  }),
+  proj(104, {
+    name: "Bedok Ria Terrace",
+    address: "3 Bedok Ria, Singapore 469000",
+    postalCode: "469000",
+    status: "draft",
+    statusLabel: "Draft",
+    homeowner: { uid: null, name: "Marcus Teo", linked: false },
+    contactNo: "+65 9330 5521",
+    contractor: { type: "text", label: "Northline Roofing Pte Ltd" },
+    team: [{ uid: 1, name: "Wei Ming Tan", role: "project_manager" }],
+    siteLocated: false,
+    startDate: day(12),
+    endDate: day(33),
+    daysElapsed: 0,
+  }),
+];
+
+const PROJECT_OPTIONS = {
+  homeowners: [
+    { uid: 5, name: "Jasmine Lee", email: "jasmine@example.com", contactNo: "+65 9123 4477" },
+    { uid: 6, name: "Daniel Ong", email: "daniel@example.com", contactNo: "+65 8877 2210" },
+    { uid: 7, name: "Farah Ismail", email: "farah@example.com", contactNo: null },
+  ],
+  crew: [
+    { uid: 3, name: "Priya Nair", role: "contractor", roleLabel: "Contractor Admin" },
+    { uid: 4, name: "Ravi Kumar", role: "epc_team", roleLabel: "EPC Team" },
+  ],
+  groups: [
+    { id: 1, name: "Apex Solar Contractors", members: [3, 4] },
+    { id: 2, name: "Kim Seng M&E Services", members: [3] },
+  ],
+};
+
 // ------------------------------------------------------------ audit
 
 type Line = [field: string, from: unknown, to: unknown, state?: string, note?: string];
@@ -267,6 +386,17 @@ function auditHistory(id: number, field: string) {
 
 function answer(method: string, path: string, search: URLSearchParams = new URLSearchParams(), body?: unknown): unknown {
   const key = `${method} ${path}`;
+  if (key === "GET /projects") return { projects: PROJECTS, canCreate: true, today: day(0) };
+  if (key === "GET /projects/options") return PROJECT_OPTIONS;
+  if (key === "GET /projects/geocode") {
+    const postal = search.get("postal") ?? "";
+    return postal === "000000"
+      ? { error: "OneMap found nothing." }
+      : { address: `${postal === "569933" ? "53 ANG MO KIO AVENUE 3 AMK HUB" : "1 SAMPLE ROAD"} SINGAPORE ${postal}`, postalCode: postal, lat: 1.37, lng: 103.85 };
+  }
+  if (key === "POST /projects") return { id: 101, message: "Preview only — nothing was saved." };
+  const pid = path.match(/^\/projects\/(\d+)$/);
+  if (method === "GET" && pid) return PROJECTS.find((x) => x.id === Number(pid[1])) ?? {};
   if (key === "POST /audit/actions/preview") return auditPreview(body as Parameters<typeof auditPreview>[0]);
   if (key === "POST /audit/actions/apply") return { message: "Preview only — nothing was saved." };
   const hist = path.match(/^\/audit\/(\d+)\/history$/);

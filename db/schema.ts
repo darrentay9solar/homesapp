@@ -58,6 +58,8 @@ export const fileCategoryEnum = pgEnum("file_category", [
   "handover_docs",
   "completion_form_signed",
   "as_built_pv_layout",
+  // "FusionSolar App Access — Yes/No and Document Upload" in the brief.
+  "fusion_solar_access",
 ]);
 
 /**
@@ -306,9 +308,30 @@ export const projects = pgTable("projects", {
     onDelete: "restrict",
   }),
 
+  /**
+   * The homeowner's name when they have no account yet (the brief: "If the
+   * account is not yet created, it can be input in as a text"). Such a project
+   * stays a draft — a name can't approve or e-sign — until an account is linked.
+   */
+  homeownerName: text("homeowner_name"),
+
+  /** Homeowner Contact No. from Create Project — required, account or not. */
+  homeownerContactNo: varchar("homeowner_contact_no", { length: 32 }),
+
+  /** The PM who created it. project_manager_id is who owns it now. */
+  createdBy: integer("created_by").references(() => users.uid, { onDelete: "set null" }),
+
   // ---- installation -----------------------------------------------------
+  /** The project's start date, set at creation; only a PM may change it. */
   installationStartDate: date("installation_start_date"),
+  /** Panel Installation Completion Date — a Milestone 1 field, not the target. */
   installationEndDate: date("installation_end_date"),
+  /**
+   * When the project should be finished. Set at creation (three weeks after
+   * the start if not given); past it and unfinished, the project is late.
+   * Only a PM may change it.
+   */
+  targetEndDate: date("target_end_date"),
 
   /** Homeowner approval gate from the original brief. */
   confirmedByHomeowner: boolean("confirmed_by_homeowner"),

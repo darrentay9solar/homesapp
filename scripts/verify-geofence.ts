@@ -52,10 +52,12 @@ async function main() {
   `) as Array<{ uid: number }>;
 
   const [p] = (await sql`
-    insert into projects (address, postal_code, site_lat, site_lng,
-                          geocoded_address, geocode_source, geocoded_at)
-    values (${geo.address}, ${geo.postalCode}, ${geo.lat}, ${geo.lng},
-            ${geo.address}, 'onemap', now())
+    insert into projects (name, address, postal_code, site_lat, site_lng,
+                          geocoded_address, geocode_source, geocoded_at,
+                          homeowner_name, homeowner_contact_no, installation_start_date, target_end_date)
+    values (${"Geofence check"}, ${geo.address}, ${geo.postalCode}, ${geo.lat}, ${geo.lng},
+            ${geo.address}, 'onemap', now(),
+            ${"Test Homeowner"}, ${"+65 9000 0000"}, current_date, current_date + 21)
     returning project_id, check_in_radius_m
   `) as Array<{ project_id: number; check_in_radius_m: number }>;
   rec("radius defaults to 100 m", p.check_in_radius_m === 100, `${p.check_in_radius_m} m`);
@@ -122,7 +124,9 @@ async function main() {
 
   // ---- a site with no verified location --------------------------------
   const [bare] = (await sql`
-    insert into projects (address) values (${"Unknown site"}) returning project_id
+    insert into projects (name, address, homeowner_name, homeowner_contact_no, installation_start_date, target_end_date)
+    values (${"Unknown site"}, ${"Unknown site"}, ${"Test Homeowner"}, ${"+65 9000 0000"}, current_date, current_date + 21)
+    returning project_id
   `) as Array<{ project_id: number }>;
   let bareBlocked = false;
   let bareMsg = "";

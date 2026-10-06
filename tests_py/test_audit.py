@@ -32,7 +32,9 @@ def group(fx):
 @pytest.fixture
 def project(fx):
     p = fx.conn.execute(
-        "insert into projects (name, address) values (%s, '1 Test Road') returning project_id",
+        "insert into projects (name, address, homeowner_name, homeowner_contact_no, installation_start_date, "
+        "target_end_date) values (%s, '1 Test Road', 'Test Homeowner', '+65 9000 0000', current_date, "
+        "current_date + 21) returning project_id",
         (f"pytest project {uuid.uuid4().hex[:6]}",),
     ).fetchone()["project_id"]
     yield p

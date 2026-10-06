@@ -1,5 +1,6 @@
 "use client";
 
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
@@ -42,7 +43,22 @@ export const roleColor = (role: Role) => (t: Theme) => (t.palette.mode === "dark
  * The compact green header: title with an action and alerts, then search,
  * then the pill tabs. Scrolls away with the page so it never takes over a phone.
  */
-export function TopBar({ title, action, search, tabs }: { title: string; action?: ReactNode; search?: ReactNode; tabs?: ReactNode }) {
+export function TopBar({
+  title,
+  sub,
+  onBack,
+  action,
+  search,
+  tabs,
+}: {
+  title: string;
+  /** A second line under the title, e.g. a project's address. */
+  sub?: ReactNode;
+  onBack?: () => void;
+  action?: ReactNode;
+  search?: ReactNode;
+  tabs?: ReactNode;
+}) {
   const { me } = useApp();
   const unread = me?.unread ?? 0;
   return (
@@ -60,9 +76,21 @@ export function TopBar({ title, action, search, tabs }: { title: string; action?
     >
       <Box sx={PAGE_COLUMN}>
         <Stack direction="row" sx={{ alignItems: "center", gap: 1, minHeight: 44 }}>
-          <Typography component="h1" sx={{ flex: 1, fontWeight: 600, fontSize: { xs: 20, lg: 24 } }}>
-            {title}
-          </Typography>
+          {onBack && (
+            <IconButton onClick={onBack} aria-label="Back" sx={{ color: "#fff", ml: -1 }}>
+              <ArrowBackRoundedIcon />
+            </IconButton>
+          )}
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography component="h1" noWrap sx={{ fontWeight: 600, fontSize: { xs: 20, lg: 24 } }}>
+              {title}
+            </Typography>
+            {sub && (
+              <Typography noWrap sx={{ fontSize: { xs: 12.5, lg: 14 }, color: "rgba(255,255,255,0.78)" }}>
+                {sub}
+              </Typography>
+            )}
+          </Box>
           {action}
           <IconButton component={Link} href="/alerts" aria-label={unread ? `${unread} unread alerts` : "Alerts"} sx={{ color: "#fff" }}>
             <Badge color="warning" variant="dot" invisible={!unread}>
