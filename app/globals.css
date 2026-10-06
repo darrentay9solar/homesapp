@@ -2891,22 +2891,10 @@ button.urow:hover {
    A narrow column centred in the panel, centred heading, compact fields and a
    centred pill button — rather than fields stretched across the whole half. */
 @media (min-width: 1024px) {
+  /* The logo bar sits just above the form, as on Sign In and Forgot
+     Password, so every account screen starts at the same height. */
   .auth.compact .card-auth {
-    position: static; /* so the logo bar pins to the panel corners */
     max-width: 420px;
-  }
-
-  .auth.compact .deskbar {
-    position: absolute;
-    top: 28px;
-    left: 36px;
-    right: 36px;
-    margin: 0;
-  }
-
-  .auth.compact .auth-main {
-    padding-top: 112px;
-    padding-bottom: 56px;
   }
 
 
