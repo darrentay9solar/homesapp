@@ -259,7 +259,7 @@ Every create, edit, approval, upload, removal and reopen is recorded: who, when,
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 1,216 tests. That includes 1,081 cases for uploads and GPS location, listed in [TEST_CASES.md](TEST_CASES.md). `tests_py/test_project_work.py` walks this flow end to end:
+- **Python:** `npm run test:py`, 2,686 tests. That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md). `tests_py/test_project_work.py` walks this flow end to end:
   - create, approve, Milestone 1 and reopening
   - conditional fields, decline and ask again
   - uploads (and refused uploads)

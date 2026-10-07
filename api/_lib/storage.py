@@ -26,7 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -59,8 +59,8 @@ class StorageNotConfiguredError(RuntimeError):
 @dataclass(frozen=True)
 class R2:
     account: str
-    key_id: str
-    secret: str
+    key_id: str = field(repr=False)
+    secret: str = field(repr=False)
     bucket: str
 
     @property
@@ -233,6 +233,52 @@ def head(key: str) -> tuple[int, str | None] | None:
         if exc.code == 404:
             return None
         raise
+
+
+def check() -> dict[str, object]:
+    """Is storage usable here, and is it the right bucket for this environment?
+
+    One read of a key that never exists: R2 answers "no such key" only if the
+    access key is accepted and the bucket is there. Nothing is written.
+    """
+    environment = os.environ.get("VERCEL_ENV") or ("vercel" if os.environ.get("VERCEL") else "laptop")
+    m = mode()
+    out: dict[str, object] = {"mode": m, "environment": environment, "bucket": None, "ok": False, "problem": None}
+    if m != "r2":
+        out["ok"] = m == "local"
+        out["problem"] = None if m == "local" else str(StorageNotConfiguredError())
+        return out
+    cfg = _r2()
+    assert cfg
+    out["bucket"] = cfg.bucket
+    is_prod_bucket = cfg.bucket.endswith("-prod")
+    if (environment == "production") != is_prod_bucket:
+        out["problem"] = (
+            f"Production is using the {cfg.bucket} bucket; it should use the -prod one."
+            if environment == "production"
+            else f"This {environment} environment is using the production bucket ({cfg.bucket}); use the -dev one."
+        )
+        return out
+    req = urllib.request.Request(_sign(cfg, "GET", "healthcheck/never-exists", 60, {}, {}), method="GET")
+    try:
+        urllib.request.urlopen(req, timeout=15).close()
+        out["ok"] = True  # unexpected, but the key and bucket clearly work
+    except urllib.error.HTTPError as exc:
+        body = exc.read(2000).decode("utf8", "replace")
+        if exc.code == 404 and "NoSuchKey" in body:
+            out["ok"] = True
+        elif "NoSuchBucket" in body:
+            out["problem"] = f"There's no bucket called {cfg.bucket} in this Cloudflare account."
+        elif exc.code in (401, 403):
+            out["problem"] = (
+                "R2 refused the access key: check R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY "
+                "and that the token covers this bucket."
+            )
+        else:
+            out["problem"] = f"R2 answered {exc.code}."
+    except (urllib.error.URLError, TimeoutError) as exc:
+        out["problem"] = f"Couldn't reach R2 ({exc}). Check R2_ACCOUNT_ID."
+    return out
 
 
 def delete(key: str) -> None:

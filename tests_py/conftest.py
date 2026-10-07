@@ -68,6 +68,17 @@ def _fake_clerk_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(auth, "_jwks_client", lambda: _FakeJwks())
 
 
+@pytest.fixture(autouse=True)
+def _laptop_storage(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Uploads go to web/.uploads/ in tests, even when .env.local has R2 settings,
+    so the suite never spends R2 requests. Tests marked real_r2 or r2_live opt out."""
+    if request.node.get_closest_marker("real_r2") or request.node.get_closest_marker("r2_live"):
+        return
+    from _lib import storage
+
+    monkeypatch.setattr(storage, "_r2", lambda: None)
+
+
 def owner_conn() -> psycopg.Connection:
     return psycopg.connect(TEST_OWNER_URL, row_factory=dict_row, autocommit=True)
 

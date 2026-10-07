@@ -29,3 +29,6 @@ __pycache__/
 
 # Files uploaded on a laptop without Cloudflare R2 (api/_lib/storage.py).
 /.uploads/
+
+.vercel
+.env*

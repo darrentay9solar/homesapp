@@ -16,6 +16,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI
 
+from _lib import storage
 from _lib.web import install_error_handlers
 from _routes import audit, me, onboarding, people, project_work, projects, sites
 
@@ -41,4 +42,4 @@ app.include_router(sites.router, prefix=PREFIX)
 @app.get(f"{PREFIX}/ping")
 def ping() -> dict[str, object]:
     """Unauthenticated liveness check for the rewrite itself."""
-    return {"ok": True, "region": os.environ.get("VERCEL_REGION")}
+    return {"ok": True, "region": os.environ.get("VERCEL_REGION"), "storage": storage.mode()}

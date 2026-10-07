@@ -480,6 +480,12 @@ def remove_file(pid: int, file_id: int, acct: Account = Depends(active)) -> dict
     return {"message": f"{row['file_name']} removed. It can be restored from the audit log."}
 
 
+@router.get("/storage/check")
+def storage_check(acct: Account = Depends(role("project_manager"))) -> dict[str, Any]:
+    """For a PM after setting up R2: does this deployment reach the right bucket with a working key?"""
+    return storage.check()
+
+
 @router.put("/dev-storage/{token}")
 async def dev_put(token: str, request: Request) -> dict[str, Any]:
     """Laptop storage only: receives one upload, if the link is genuine, unexpired and the file matches it."""

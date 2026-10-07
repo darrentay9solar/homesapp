@@ -275,6 +275,7 @@ def test_upload_link_signs_type_and_size() -> None:
     assert "X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost" in url
 
 
+@pytest.mark.real_r2
 def test_r2_links_use_the_bucket_path_and_expire_in_five_minutes(monkeypatch) -> None:
     for k, v in {
         "R2_ACCOUNT_ID": "acct",

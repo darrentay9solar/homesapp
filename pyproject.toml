@@ -57,3 +57,7 @@ known-first-party = ["_lib", "_routes", "index", "conftest"]
 [tool.pytest.ini_options]
 testpaths = ["tests_py"]
 pythonpath = ["api"]
+markers = [
+    "real_r2: uses the real R2 settings from the environment instead of laptop storage",
+    "r2_live: sends requests to the real Cloudflare R2 buckets (kept to a few dozen)",
+]

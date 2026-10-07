@@ -1,4 +1,4 @@
-# Upload and GPS test cases
+# Upload, R2 storage and GPS test cases
 
 1,081 automated cases: 450 for uploading pictures and documents, and 631 for
 GPS location. Each case is one pytest test, run against the real API and the
@@ -48,6 +48,41 @@ The rules: a phone fix accurate to **50 m or better**, within the project's radi
 
 ---
 
+## Cloudflare R2 setup: `tests_py/test_r2_setup.py` (1,470)
+
+Checks R2 is set up properly for development and production. Only the
+**Live** group contacts Cloudflare: about 30 requests with tiny files, all
+deleted afterwards. That's nothing against the free 1 million writes and
+10 million reads a month. Every other case checks the links the app signs
+with an independent signature check, the same way R2 checks them, without
+sending anything. The rest of the suite never touches R2: in tests, uploads
+go to `web/.uploads/`.
+
+```bash
+.venv/Scripts/python.exe -m pytest -q tests_py/test_r2_setup.py              # all 1,470
+.venv/Scripts/python.exe -m pytest -q tests_py/test_r2_setup.py -m "not r2_live"  # without contacting R2
+```
+
+**Last run: 1,470 passed.**
+
+| Group | Cases | What's checked |
+|---|---|---|
+| Settings | 15 | The four R2 settings are in `.env.local`, with no stray quotes or spaces. The Account ID and Access Key ID are 32 characters and the secret is 64. The laptop uses `gethomeapps-dev`. The keys never appear when the settings are printed. |
+| Where uploads go | 80 | Every combination of the four settings (16) on a laptop and on Vercel Production, Preview and Development: R2 only with all four; the laptop folder on a laptop otherwise; uploads off on Vercel otherwise. |
+| Storage check | 39 | The PM's `/api/py/storage/check` explains every answer R2 can give (key accepted, no such bucket, key refused, bad signature, R2 error, rate limit, unreachable, timeout) on a laptop and on production, and never shows a key. It flags the dev bucket on production and the prod bucket anywhere else, without contacting R2. Only a signed-in PM can run it. `/ping` says where uploads go. |
+| Upload links (app) | 896 | 14 file slots × 3 project stages × 6 types: R2 never changes who may upload what, or when, compared with laptop storage. 7 slots × 6 types × 14 sizes (1 B to 100 MB, 0, −1): links only for 1 B to 25 MB. 8 disallowed types get no link. Every link goes to the right account and bucket, uses a server-chosen key in the right project and slot, lasts 5 minutes, and has a signature that verifies for exactly that type and size. |
+| Upload links (storage) | 252 | Every file slot (14) × type (6) × 3 sizes, signed straight from storage, verified the same way. |
+| Viewing files | 120 | 60 file names come back exactly in the download, both straight from storage and through the app's `/files/<id>`. They include Chinese, Tamil, Japanese, Korean, emoji, flags, quotes, semicolons, `%`, `+`, `#`, newlines, NUL, `../`, Windows paths, `<script>`, right-to-left and zero-width characters. Only safe characters reach the header. Someone outside the project gets no link. |
+| Link binding | 39 | A link is refused for anything it wasn't signed for: another method, type, size, key, slot, project, extension, bucket (prod), or account; a longer expiry; another signing time or key ID; a dropped signed header; a flipped signature; an extra parameter; or another secret. It works for 5 minutes, then expires. |
+| Docs | 8 | The CORS policy in `docs/r2.md` allows exactly the live site and the laptop, PUT/GET/HEAD and only the `content-type` header, which is the only header the app's upload sends. |
+| **Live** | 21 | **Dev bucket:** the PM storage check passes. Upload, size and type as stored, a byte-identical download that keeps a Chinese and emoji file name, and deletion. Refused: no link, a bigger file, another type, a tampered link, another key, an expired link, and the dev key on the prod bucket. A full upload through the app is opened by the homeowner, and a file that never arrived is refused. **CORS on both buckets:** the dev bucket allows the laptop and the live site; the prod bucket allows only the live site. Lookalike sites are refused. |
+
+Production's own key can't be tested from the laptop, because it lives only in
+Vercel. Once it's there, `/api/py/storage/check` on the live site confirms it
+with one request (see [r2.md](r2.md)).
+
+---
+
 ## What the testing found
 
 1. **Fixed: anyone could record a GPS check-in for anyone.** The location rules were enforced, but nothing checked *who* checked in: any signed-in account could record one for any person on any project, at any stage. The check-in screen doesn't exist yet, so this couldn't have been misused. It's now a database rule (migration 0020):
@@ -57,8 +92,13 @@ The rules: a phone fix accurate to **50 m or better**, within the project's radi
    - only the person who checked in can check out
    - a PM can correct crew counts
 2. **Two of my own cases were wrong, not the app.** They tried to "change" a recorded distance to the value it already had. Corrected, they pass.
+3. **R2: nothing wrong in R2 or the app.** Three of my own R2 cases were wrong, and corrected they pass:
+   - one expected "not allowed" where the app deliberately answers "not found", so outsiders aren't told a file exists
+   - one built a malformed timestamp
+   - one read the error from the wrong field
+4. **Fixed: with R2 set up on the laptop, the existing upload tests would have broken.** They expected the local storage. Tests now use the local storage unless they're marked as R2 tests, so the suite never spends R2 requests.
 
 ## What these don't cover yet
 
-- **Real Cloudflare R2.** The signing is proven against Amazon's own example, but R2 isn't set up yet, so actual uploads were tested against the local storage on your computer. They use the same flow and checks; only where the bytes land differs. Once R2 is configured, one real upload confirms the connection.
-- **A phone's GPS in the browser.** The check-in screen is the next build step. These cases test the rules it will rely on, which is where the real enforcement is.
+- **Production's R2 key.** It lives only in Vercel, so it can't be tested from the laptop. The prod bucket and its CORS are checked without it. Once the key is in Vercel, `/api/py/storage/check` on the live site confirms it with one request.
+- **A phone's GPS in the browser.** The check-in screen exists now, but a laptop's location is too imprecise to pass. Test it on a phone at the site, or use the development-only "Use the site's location".
