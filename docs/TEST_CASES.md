@@ -100,5 +100,5 @@ with one request (see [r2.md](r2.md)).
 
 ## What these don't cover yet
 
-- **Production's R2 key.** It lives only in Vercel, so it can't be tested from the laptop. The prod bucket and its CORS are checked without it. Once the key is in Vercel, `/api/py/storage/check` on the live site confirms it with one request.
+- **Production's R2 key.** It lives only in Vercel, so it can't be tested from the laptop. The prod bucket and its CORS are checked without it. Once the key is in Vercel, **Account → File storage → Check file storage** on the live site confirms it with one request.
 - **A phone's GPS in the browser.** The check-in screen exists now, but a laptop's location is too imprecise to pass. Test it on a phone at the site, or use the development-only "Use the site's location".

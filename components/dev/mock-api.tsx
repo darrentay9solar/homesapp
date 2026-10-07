@@ -502,6 +502,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
       : { address: `${postal === "569933" ? "53 ANG MO KIO AVENUE 3 AMK HUB" : "1 SAMPLE ROAD"} SINGAPORE ${postal}`, postalCode: postal, lat: 1.37, lng: 103.85 };
   }
   if (key === "POST /projects") return { id: 101, message: "Preview only — nothing was saved." };
+  if (key === "GET /storage/check") return { mode: "r2", environment: "production", bucket: "gethomeapps-prod", ok: true, problem: null };
   if (key === "GET /sites") return SITES;
   const visitsFor = path.match(/^\/projects\/(\d+)\/visits$/);
   if (method === "GET" && visitsFor) return projectVisits(Number(visitsFor[1]));

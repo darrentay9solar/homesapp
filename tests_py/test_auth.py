@@ -19,8 +19,15 @@ def test_valid_token_identifies_the_user() -> None:
 
 
 def test_expired_token_is_refused() -> None:
-    with pytest.raises(AuthError):
+    with pytest.raises(AuthError, match="sign-in has expired. Go back to the app"):
         verify_token(make_token("user_abc", exp_in=-60))
+
+
+def test_expired_session_cookie_gets_a_plain_message(client) -> None:
+    # What happens when an API address is opened in its own tab with a stale cookie.
+    client.cookies.set("__session", make_token("user_abc", exp_in=-60))
+    r = client.get("/api/py/storage/check")
+    assert r.status_code == 401 and r.json()["error"].startswith("Your sign-in has expired")
 
 
 def test_token_for_another_site_is_refused() -> None:

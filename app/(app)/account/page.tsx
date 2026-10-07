@@ -1,6 +1,7 @@
 "use client";
 
 import { SignOutButton } from "@clerk/nextjs";
+import CloudOutlinedIcon from "@mui/icons-material/CloudOutlined";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
@@ -11,6 +12,7 @@ import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -24,7 +26,7 @@ import { useState } from "react";
 import { Field, ROLE_NAME, RoleAvatar, RoleChip, SettingRow } from "@/components/m";
 import { Page } from "@/components/shell";
 import { Heading, TopBar } from "@/components/topbar";
-import { ACT_AS_KEY, useApi } from "@/lib/client/api";
+import { ACT_AS_KEY, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useMe } from "@/lib/client/app-state";
 import { useTheme } from "@/lib/client/theme";
 
@@ -92,6 +94,7 @@ export default function AccountPage() {
             <SettingRow icon={<SolarPowerRoundedIcon />} tint="#2A6FBF" label="Export credit" right={<Typography sx={{ fontWeight: 600 }}>SP Group · monthly</Typography>} />
           </Stack>
 
+          {me.role === "project_manager" && <StorageCheck />}
           {me.role === "project_manager" && <ActAs />}
 
           <SignOutButton redirectUrl="/sign-in">
@@ -104,6 +107,63 @@ export default function AccountPage() {
           </Typography>
         </Page>
       </Box>
+    </>
+  );
+}
+
+type Storage = { mode: "r2" | "local" | null; environment: string; bucket: string | null; ok: boolean; problem: string | null };
+
+/**
+ * For a PM after setting up Cloudflare R2: one read request confirms this
+ * deployment reaches the right bucket with a working key. Run from here, not
+ * by opening the API address, so it carries a fresh sign-in.
+ */
+function StorageCheck() {
+  const fetcher = useFetcher();
+  const [busy, setBusy] = useState(false);
+  const [got, setGot] = useState<Storage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      setGot(await fetcher<Storage>("/storage/check"));
+    } catch (e) {
+      setGot(null);
+      setError(e instanceof Error ? e.message : "The check couldn't run.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const env = got?.environment ?? "";
+  const where = env === "laptop" ? "This laptop" : env.charAt(0).toUpperCase() + env.slice(1);
+  return (
+    <>
+      <Heading title="File storage" />
+      <SettingRow
+        icon={<CloudOutlinedIcon />}
+        tint="#F38020"
+        label="Cloudflare R2"
+        sub="Where photos and documents are kept. The check reads from the bucket once; nothing is uploaded."
+      >
+        <Button fullWidth variant="outlined" disabled={busy} onClick={() => void run()} data-testid="storage-check">
+          {busy ? "Checking…" : got || error ? "Check again" : "Check file storage"}
+        </Button>
+        {got && (
+          <Alert severity={got.ok ? "success" : "error"} sx={{ mt: 1.5 }} data-testid="storage-result">
+            {got.ok
+              ? got.mode === "r2"
+                ? `Working. ${where} uses the ${got.bucket} bucket.`
+                : "Not using R2: files are saved on this laptop. Add the R2 settings to .env.local to use the dev bucket."
+              : got.problem}
+          </Alert>
+        )}
+        {error && (
+          <Alert severity="error" sx={{ mt: 1.5 }}>
+            {error}
+          </Alert>
+        )}
+      </SettingRow>
     </>
   );
 }

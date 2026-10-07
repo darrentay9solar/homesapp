@@ -97,6 +97,10 @@ def verify_token(token: str, *, key: object | None = None) -> ClerkIdentity:
             options={"require": ["exp", "iat", "sub"], "verify_aud": False},
             leeway=5,
         )
+    except jwt.ExpiredSignatureError as exc:
+        # Sign-ins last about a minute and the app renews them while it's open;
+        # an API address opened in its own tab sends a stale one.
+        raise AuthError("Your sign-in has expired. Go back to the app and try again from there.") from exc
     except jwt.PyJWTError as exc:
         raise AuthError(f"Invalid session: {exc}") from exc
 
