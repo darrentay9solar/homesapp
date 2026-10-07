@@ -21,7 +21,6 @@ Who may do what (the database enforces the same — migration 0019):
 from __future__ import annotations
 
 import re
-import uuid
 from datetime import date
 from typing import Any, Literal
 
@@ -407,7 +406,7 @@ def upload_link(pid: int, body: LinkIn, acct: Account = Depends(active)) -> dict
     if not 0 < body.size <= storage.MAX_BYTES:
         raise HTTPException(400, f"Files must be under {storage.MAX_BYTES // 1024 // 1024} MB.")
     # The key is chosen here, never by the browser, so an upload can only ever land in its own slot.
-    key = f"projects/{pid}/{body.category}/{uuid.uuid4()}.{ext}"
+    key = storage.project_key(pid, body.category, body.contentType)
     try:
         url = storage.upload_link(key, body.contentType, body.size)
     except storage.StorageNotConfiguredError as exc:
@@ -426,21 +425,21 @@ def file_done(pid: int, body: FileIn, acct: Account = Depends(active)) -> dict[s
     if why:
         raise HTTPException(403, why)
     exts = "|".join(storage.ALLOWED_TYPES.values())
-    if not re.fullmatch(rf"projects/{pid}/{body.category}/[0-9a-f-]{{36}}\.({exts})", body.key):
+    if not re.fullmatch(rf"projects/{pid}/(images|documents)/{body.category}/[0-9a-f-]{{36}}\.({exts})", body.key):
         raise HTTPException(400, "That upload doesn't belong to this project.")
     got = storage.head(body.key)
     if not got:
         raise HTTPException(400, "The file never arrived. Please upload it again.")
     size, ctype = got
-    if size > storage.MAX_BYTES or ctype not in storage.ALLOWED_TYPES:
+    if size > storage.MAX_BYTES or ctype not in storage.ALLOWED_TYPES or f"/{storage.folder(ctype)}/" not in body.key:
         storage.delete(body.key)
         raise HTTPException(400, "That file is too large or not an allowed type.")
     name = (body.fileName or "file").strip()[:200]
     with transaction(acct.uid) as cur:
         cur.execute(
-            "insert into project_files (project_id, category, url, file_name, content_type, size_bytes, uploaded_by) "
-            "values (%s, %s, %s, %s, %s, %s, %s) returning file_id",
-            (pid, body.category, body.key, name, ctype, size, acct.uid),
+            "insert into project_files (project_id, category, url, file_name, content_type, size_bytes, "
+            "uploaded_by, kind) values (%s, %s, %s, %s, %s, %s, %s, %s) returning file_id",
+            (pid, body.category, body.key, name, ctype, size, acct.uid, storage.kind_of(ctype)),
         )
         fid = cur.fetchone()["file_id"]
         _start(cur, p)

@@ -31,6 +31,7 @@ import { useApp } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { type CheckIn, describeCheckIn, describeFix, type Fix, getFix, type ProjectVisits, STATE_LABEL, visitDay } from "@/lib/client/sites";
 
+import { locale, T, TR } from "@/lib/client/i18n";
 const DEV = process.env.NODE_ENV === "development";
 
 // ------------------------------------------------------------ check in / out
@@ -82,10 +83,10 @@ export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarge
   const busy = phase !== "idle";
   const quality = fix ? describeFix(fix) : null;
   return (
-    <MDialog title={leaving ? "Check Out" : "Check In"} heading={t.name} subtitle={t.address} onClose={onClose} maxWidth="xs">
-      <Typography sx={{ fontWeight: 600, fontSize: 14, mb: 1 }}>{leaving ? "How many crew are still on site?" : "How many crew are on site?"}</Typography>
+    <MDialog title={leaving ? T("Check Out") : T("Check In")} heading={t.name} subtitle={t.address} onClose={onClose} maxWidth="xs">
+      <Typography sx={{ fontWeight: 600, fontSize: 14, mb: 1 }}>{leaving ? T("How many crew are still on site?") : T("How many crew are on site?")}</Typography>
       <Stack direction="row" sx={{ gap: 1, alignItems: "center" }}>
-        <IconButton aria-label="One fewer" disabled={busy || n <= (leaving ? 0 : 1)} onClick={() => setCrew(String(Math.max(leaving ? 0 : 1, (n || 0) - 1)))} sx={{ border: 1, borderColor: "divider", width: DESIGN.height.field, height: DESIGN.height.field, borderRadius: `${DESIGN.radius.field}px` }}>
+        <IconButton aria-label={T("One fewer")} disabled={busy || n <= (leaving ? 0 : 1)} onClick={() => setCrew(String(Math.max(leaving ? 0 : 1, (n || 0) - 1)))} sx={{ border: 1, borderColor: "divider", width: DESIGN.height.field, height: DESIGN.height.field, borderRadius: `${DESIGN.radius.field}px` }}>
           <RemoveRoundedIcon />
         </IconButton>
         <Field
@@ -96,7 +97,7 @@ export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarge
           placeholder={leaving ? "0" : "e.g. 4"}
           slotProps={{ htmlInput: { inputMode: "numeric", min: leaving ? 0 : 1, max: 200, "aria-label": "Crew count", style: { textAlign: "center", fontWeight: 700 } } }}
         />
-        <IconButton aria-label="One more" disabled={busy || n >= 200} onClick={() => setCrew(String((n || 0) + 1))} sx={{ border: 1, borderColor: "divider", width: DESIGN.height.field, height: DESIGN.height.field, borderRadius: `${DESIGN.radius.field}px` }}>
+        <IconButton aria-label={T("One more")} disabled={busy || n >= 200} onClick={() => setCrew(String((n || 0) + 1))} sx={{ border: 1, borderColor: "divider", width: DESIGN.height.field, height: DESIGN.height.field, borderRadius: `${DESIGN.radius.field}px` }}>
           <AddRoundedIcon />
         </IconButton>
       </Stack>
@@ -115,26 +116,26 @@ export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarge
       >
         {phase === "locating" ? <CircularProgress size={20} /> : <GpsFixedRoundedIcon color={quality && !quality.good ? "warning" : "primary"} />}
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          {phase === "locating" ? "Getting your location…" : phase === "sending" ? "Checking you're at the site…" : quality ? quality.text : "Your location is taken when you press the button, using your phone's GPS."}
+          {phase === "locating" ? T("Getting your location…") : phase === "sending" ? T("Checking you're at the site…") : quality ? quality.text : T("Your location is taken when you press the button, using your phone's GPS.")}
         </Typography>
       </Box>
 
       {problem && (
         <Alert severity="error" sx={{ mt: 2 }} data-testid="gps-problem">
-          {problem}
+          {TR(problem)}
         </Alert>
       )}
 
       <Button fullWidth size="large" variant="contained" disabled={!crewOk || busy} sx={{ mt: 3 }} startIcon={leaving ? <LogoutRoundedIcon /> : <LoginRoundedIcon />} onClick={() => void go()}>
-        {busy ? "Working…" : problem ? "Try Again" : leaving ? "Check Out" : "Check In"}
+        {busy ? T("Working…") : problem ? T("Try Again") : leaving ? T("Check Out") : T("Check In")}
       </Button>
       {simulated && (
         <Button fullWidth size="small" color="warning" disabled={!crewOk || busy} sx={{ mt: 1 }} onClick={() => void go(true)}>
-          Use the site&apos;s location (development only)
+          {T("Use the site's location (development only)")}
         </Button>
       )}
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        {crewOk ? "You need to be at the house, with a good GPS signal." : leaving ? "Enter how many crew are still on site (0 if everyone's left)." : "Enter how many crew are on site."}
+        {crewOk ? T("You need to be at the house, with a good GPS signal.") : leaving ? T("Enter how many crew are still on site (0 if everyone's left).") : T("Enter how many crew are on site.")}
       </Typography>
     </MDialog>
   );
@@ -150,13 +151,13 @@ function ScheduleDialog({ pid, onClose, onDone }: { pid: number; onClose: () => 
   const [busy, setBusy] = useState(false);
   const ok = Boolean(f.date) && f.date >= todayIso;
   return (
-    <MDialog title="Schedule Visit" heading="When must the EPC team be on site?" subtitle="The crew is told now, reminded an hour before, and you're alerted if nobody checks in." onClose={onClose} maxWidth="xs">
+    <MDialog title={T("Schedule Visit")} heading={T("When must the EPC team be on site?")} subtitle={T("The crew is told now, reminded an hour before, and you're alerted if nobody checks in.")} onClose={onClose} maxWidth="xs">
       <Stack sx={{ gap: 2.5 }}>
         <Stack direction="row" sx={{ gap: 1.5 }}>
-          <Field label="Date" required type="date" icon={<CalendarMonthRoundedIcon />} value={f.date} onChange={(e) => setF((x) => ({ ...x, date: e.target.value }))} slotProps={{ htmlInput: { min: todayIso } }} />
-          <Field label="Start time" type="time" icon={<ScheduleRoundedIcon />} value={f.time} onChange={(e) => setF((x) => ({ ...x, time: e.target.value }))} helperText="Optional" />
+          <Field label={T("Date")} required type="date" icon={<CalendarMonthRoundedIcon />} value={f.date} onChange={(e) => setF((x) => ({ ...x, date: e.target.value }))} slotProps={{ htmlInput: { min: todayIso } }} />
+          <Field label={T("Start time")} type="time" icon={<ScheduleRoundedIcon />} value={f.time} onChange={(e) => setF((x) => ({ ...x, time: e.target.value }))} helperText={T("Optional")} />
         </Stack>
-        <Field label="Works" icon={<ConstructionRoundedIcon />} placeholder="e.g. Scaffolding and panel mounting" value={f.note} onChange={(e) => setF((x) => ({ ...x, note: e.target.value }))} slotProps={{ htmlInput: { maxLength: 200 } }} />
+        <Field label={T("Works")} icon={<ConstructionRoundedIcon />} placeholder={T("e.g. Scaffolding and panel mounting")} value={f.note} onChange={(e) => setF((x) => ({ ...x, note: e.target.value }))} slotProps={{ htmlInput: { maxLength: 200 } }} />
       </Stack>
       <Button
         fullWidth
@@ -177,10 +178,10 @@ function ScheduleDialog({ pid, onClose, onDone }: { pid: number; onClose: () => 
           }
         }}
       >
-        {busy ? "Scheduling…" : "Schedule Visit"}
+        {busy ? T("Scheduling…") : T("Schedule Visit")}
       </Button>
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        The EPC team can still check in on other days too.
+        {T("The EPC team can still check in on other days too.")}
       </Typography>
     </MDialog>
   );
@@ -199,7 +200,7 @@ export function SiteSchedule({ pid, name, address, data, reload }: { pid: number
   const site = { lat: data.site.lat, lng: data.site.lng };
 
   async function cancel(id: number, label: string) {
-    if (!confirm(`Cancel the visit on ${label}? The crew will be told.`)) return;
+    if (!confirm(T("Cancel the visit on {date}? The crew will be told.", { date: label }))) return;
     try {
       const res = await fetcher<{ message: string }>(`/projects/${pid}/visits/${id}`, { method: "DELETE" });
       toast(res.message);
@@ -212,30 +213,30 @@ export function SiteSchedule({ pid, name, address, data, reload }: { pid: number
   return (
     <Box data-testid="site-schedule" id="site-visits" sx={{ scrollMarginTop: 16 }}>
       <Heading
-        title="Site schedule"
+        title={T("Site schedule")}
         count={data.visits.length}
         action={
           data.canSchedule && (
             <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setScheduling(true)}>
-              Schedule visit
+              {T("Schedule visit")}
             </Button>
           )
         }
       />
       {data.canCheckIn && (
         <Button fullWidth size="large" variant="contained" color={data.myOpenCheckIn ? "warning" : "primary"} startIcon={data.myOpenCheckIn ? <LogoutRoundedIcon /> : <LoginRoundedIcon />} onClick={() => setChecking(true)} sx={{ mb: 1.5 }}>
-          {data.myOpenCheckIn ? "Check Out" : "Check In"}
+          {data.myOpenCheckIn ? T("Check Out") : T("Check In")}
         </Button>
       )}
       {!data.site.located && (
         <Alert severity="warning" sx={{ mb: 1.5 }}>
-          This site has no GPS location yet, so nobody can check in. A project manager can fix it by saving the project&apos;s postal code again.
+          {T("This site has no GPS location yet, so nobody can check in. A project manager can fix it by saving the project's postal code again.")}
         </Alert>
       )}
       <Card>
         {data.visits.length === 0 && data.unscheduled.length === 0 && (
           <Typography variant="body2" sx={{ color: "text.secondary", p: 2.5, textAlign: "center" }}>
-            {data.canSchedule ? "No visits scheduled yet. Schedule the dates the EPC team must be on site." : "No site visits scheduled yet."}
+            {data.canSchedule ? T("No visits scheduled yet. Schedule the dates the EPC team must be on site.") : T("No site visits scheduled yet.")}
           </Typography>
         )}
         {data.visits.map((v, i) => {
@@ -247,7 +248,7 @@ export function SiteSchedule({ pid, name, address, data, reload }: { pid: number
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Stack direction="row" sx={{ gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                     <Typography sx={{ fontWeight: 600, fontSize: 14.5 }}>{label}</Typography>
-                    <Chip size="small" color={STATE_COLOR[v.state]} variant={v.state === "upcoming" ? "outlined" : "filled"} label={STATE_LABEL[v.state]} />
+                    <Chip size="small" color={STATE_COLOR[v.state]} variant={v.state === "upcoming" ? "outlined" : "filled"} label={TR(STATE_LABEL[v.state])} />
                   </Stack>
                   {v.note && (
                     <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -256,18 +257,18 @@ export function SiteSchedule({ pid, name, address, data, reload }: { pid: number
                   )}
                   {v.checkIns.map((c) => (
                     <Typography key={c.id} variant="caption" component="div" sx={{ color: "primary.main", mt: 0.25 }}>
-                      {describeCheckIn(c)}
+                      {TR(describeCheckIn(c))}
                     </Typography>
                   ))}
                   {v.state === "missed" && (
                     <Typography variant="caption" component="div" sx={{ color: "error.main", mt: 0.25 }}>
-                      Nobody checked in. The project shows as needing attention.
+                      {T("Nobody checked in. The project shows as needing attention.")}
                     </Typography>
                   )}
                 </Box>
                 {data.canSchedule && v.checkIns.length === 0 && v.state !== "missed" && (
-                  <Tooltip title="Cancel this visit">
-                    <IconButton size="small" aria-label={`Cancel the visit on ${label}`} onClick={() => void cancel(v.id, label)}>
+                  <Tooltip title={T("Cancel this visit")}>
+                    <IconButton size="small" aria-label={T("Cancel the visit on {date}", { date: label })} onClick={() => void cancel(v.id, label)}>
                       <CloseRoundedIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
@@ -278,10 +279,10 @@ export function SiteSchedule({ pid, name, address, data, reload }: { pid: number
         })}
         {data.unscheduled.length > 0 && (
           <Box sx={{ p: 1.75, borderTop: data.visits.length ? 1 : 0, borderColor: "divider" }}>
-            <Typography sx={{ fontWeight: 600, fontSize: 14 }}>Check-ins on other days</Typography>
+            <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{T("Check-ins on other days")}</Typography>
             {data.unscheduled.map((c) => (
               <Typography key={c.id} variant="caption" component="div" sx={{ color: "text.secondary", mt: 0.25 }}>
-                {new Date(c.inAt).toLocaleDateString("en-SG", { day: "2-digit", month: "short", timeZone: "Asia/Singapore" })} · {describeCheckIn(c)}
+                {new Date(c.inAt).toLocaleDateString(locale(), { day: "2-digit", month: "short", timeZone: "Asia/Singapore" })} · {TR(describeCheckIn(c))}
               </Typography>
             ))}
           </Box>

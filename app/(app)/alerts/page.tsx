@@ -21,6 +21,7 @@ import { useApi, useFetcher } from "@/lib/client/api";
 import { useApp, useMe } from "@/lib/client/app-state";
 import { setBadge } from "@/lib/client/push";
 
+import { T, TR } from "@/lib/client/i18n";
 type Data = { alerts: AlertRow[]; more: boolean; unread: number };
 
 function AlertCard({ a, onOpen }: { a: AlertRow; onOpen: () => void }) {
@@ -33,17 +34,17 @@ function AlertCard({ a, onOpen }: { a: AlertRow; onOpen: () => void }) {
         sx={{ all: "unset", cursor: "pointer", display: "block", flex: 1, minWidth: 0, p: 1.5, pl: 2.25, "&:focus-visible": { outline: 2, outlineColor: "primary.main" } }}
       >
         <Stack direction="row" sx={{ gap: 1, alignItems: "center" }}>
-          {!a.read && <Box aria-label="Unread" sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: a.urgent ? "error.main" : "primary.main", flex: "0 0 auto" }} />}
-          <Chip size="small" label={a.kindLabel} color={a.urgent ? "error" : "default"} variant={a.urgent ? "filled" : "outlined"} />
+          {!a.read && <Box aria-label={T("Unread")} sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: a.urgent ? "error.main" : "primary.main", flex: "0 0 auto" }} />}
+          <Chip size="small" label={TR(a.kindLabel)} color={a.urgent ? "error" : "default"} variant={a.urgent ? "filled" : "outlined"} />
           <Box sx={{ flex: 1 }} />
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             {timeOf(a.createdAt)}
           </Typography>
         </Stack>
-        <Typography sx={{ fontWeight: a.read ? 500 : 700, fontSize: 15.5, mt: 0.75, overflowWrap: "anywhere" }}>{a.title}</Typography>
+        <Typography sx={{ fontWeight: a.read ? 500 : 700, fontSize: 15.5, mt: 0.75, overflowWrap: "anywhere" }}>{TR(a.title)}</Typography>
         {a.body && (
           <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25, overflowWrap: "anywhere" }}>
-            {a.body}
+            {TR(a.body)}
           </Typography>
         )}
         {a.projectName && (
@@ -131,21 +132,21 @@ function AlertsScreen() {
   return (
     <>
       <TopBar
-        title="Alerts"
-        sub={unread ? `${unread} unread` : "All caught up"}
+        title={T("Alerts")}
+        sub={unread ? T("{n} unread", { n: unread }) : "All caught up"}
         action={
           unread > 0 ? (
             <Button onClick={() => void markRead({ all: true })} startIcon={<DoneAllRoundedIcon />} sx={{ color: "#073f2b", bgcolor: "#fff", height: 36, "&:hover": { bgcolor: "#eafff4" } }} data-testid="mark-all-read">
               <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-                Mark all read
+                {T("Mark all read")}
               </Box>
               <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
-                Read all
+                {T("Read all")}
               </Box>
             </Button>
           ) : undefined
         }
-        tabs={<SegTabs label="Filter alerts" value={tab} onChange={setTab} options={TABS.map(([v, l]) => ({ value: v, label: l, count: filterAlerts(all, v).length }))} />}
+        tabs={<SegTabs label={T("Filter alerts")} value={tab} onChange={setTab} options={TABS.map(([v, l]) => ({ value: v, label: l, count: filterAlerts(all, v).length }))} />}
       />
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
@@ -165,15 +166,15 @@ function AlertsScreen() {
           {data && shown.length === 0 && (
             <Card sx={{ p: 4, mt: 2, textAlign: "center" }} data-testid="alerts-empty">
               <NotificationsNoneRoundedIcon sx={{ fontSize: 42, color: "primary.main" }} />
-              <Typography sx={{ fontWeight: 600, mt: 1 }}>{tab === "all" ? "No alerts yet" : tab === "unread" ? "You're all caught up" : "No crews running late"}</Typography>
+              <Typography sx={{ fontWeight: 600, mt: 1 }}>{tab === "all" ? T("No alerts yet") : tab === "unread" ? T("You're all caught up") : T("No crews running late")}</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-                Approvals, site visits, milestones and crews running late appear here, and on your phone if you turn notifications on.
+                {T("Approvals, site visits, milestones and crews running late appear here, and on your phone if you turn notifications on.")}
               </Typography>
             </Card>
           )}
           {groups.map((g) => (
-            <Box key={g.label}>
-              <Heading title={g.label} count={g.alerts.length} />
+            <Box key={TR(g.label)}>
+              <Heading title={TR(g.label)} count={g.alerts.length} />
               <Box sx={GRID}>
                 {g.alerts.map((a) => (
                   <AlertCard key={a.id} a={a} onOpen={() => void open(a)} />
@@ -183,7 +184,7 @@ function AlertsScreen() {
           ))}
           {hasMore && tab === "all" && (
             <Stack sx={{ alignItems: "center", mt: 2.5 }}>
-              <Button onClick={() => void loadOlder()}>Show older alerts</Button>
+              <Button onClick={() => void loadOlder()}>{T("Show older alerts")}</Button>
             </Stack>
           )}
         </Page>

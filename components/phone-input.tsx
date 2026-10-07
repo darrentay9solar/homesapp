@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+
 
 /**
  * A mobile number with its country code, stored as one string:
@@ -45,59 +45,4 @@ export function splitPhone(value: string | null | undefined): { dial: string; lo
 export function joinPhone(dial: string, local: string): string {
   const l = local.trim();
   return l ? `+${dial} ${l}` : "";
-}
-
-export function PhoneInput({
-  id,
-  value,
-  onChange,
-  disabled,
-}: {
-  id?: string;
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-}) {
-  // The dial code is kept locally too, so choosing a country before typing
-  // the number isn't lost while the number is still empty.
-  const [dial, setDial] = useState(() => splitPhone(value).dial);
-  const { local } = splitPhone(value);
-
-  return (
-    <div className="phone">
-      {/* A native select (best picker on phones) laid invisibly over a
-          compact "SG +65" label, so the closed state stays narrow. */}
-      <span className="cc">
-        <span className="mono">
-          {COUNTRIES.find((c) => c.dial === dial)?.code ?? ""} +{dial}
-        </span>
-        <select
-        aria-label="Country code"
-        value={dial}
-        disabled={disabled}
-        onChange={(e) => {
-          setDial(e.target.value);
-          onChange(joinPhone(e.target.value, local));
-        }}
-      >
-        {COUNTRIES.map((c) => (
-          <option key={c.code} value={c.dial}>
-            {c.name} (+{c.dial})
-          </option>
-        ))}
-        </select>
-      </span>
-      <input
-        id={id}
-        className="inp mono"
-        type="tel"
-        inputMode="tel"
-        autoComplete="tel-national"
-        placeholder={dial === "65" ? "9123 4567" : "Mobile number"}
-        value={local}
-        disabled={disabled}
-        onChange={(e) => onChange(joinPhone(dial, e.target.value.replace(/^\+/, "")))}
-      />
-    </div>
-  );
 }

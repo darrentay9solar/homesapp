@@ -249,7 +249,7 @@ def test_upload_view_and_remove_a_file(client, fx, team) -> None:
     assert client.delete(f"/api/py/projects/{pid}/files/{fid}", headers=h(team["ho"])).status_code == 403
     assert client.delete(f"/api/py/projects/{pid}/files/{fid}", headers=h(team["epc"])).status_code == 200
     # The stored copy stays, so the removal can be restored from the audit log.
-    assert any((storage.LOCAL_DIR / "projects" / str(pid) / "panel_pictures").glob("*.png"))
+    assert any((storage.LOCAL_DIR / "projects" / str(pid) / "images" / "panel_pictures").glob("*.png"))
 
 
 def test_uploads_are_checked_three_ways(client, fx, team) -> None:

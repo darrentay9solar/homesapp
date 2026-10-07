@@ -26,20 +26,30 @@ export type SearchablePerson = {
   invitedAt: string | null;
   /** Names of the contractor groups they belong to. */
   groupNames: string[];
+  /** The account's expiry date, and why it's disabled, if it is. */
+  disableOn?: string | null;
+  disabledReason?: string | null;
 };
 
 export const ROLE_WORDS: Record<Role, string[]> = {
-  homeowner: ["homeowner", "home owner", "owner", "resident", "customer", "client"],
-  contractor: ["contractor admin", "contractor", "admin", "subcontractor"],
-  epc_team: ["epc team", "epc", "crew", "installer", "technician", "site team"],
-  project_manager: ["project manager", "pm", "manager", "staff"],
+  homeowner: ["homeowner", "home owner", "owner", "resident", "customer", "client", "业主", "屋主", "客户"],
+  contractor: ["contractor admin", "contractor", "admin", "subcontractor", "承包商", "管理员"],
+  epc_team: ["epc team", "epc", "crew", "installer", "technician", "site team", "epc团队", "安装团队", "施工队"],
+  project_manager: ["project manager", "pm", "manager", "staff", "项目经理", "经理"],
 };
 
 export const STATUS_WORDS: Record<Status, string[]> = {
-  active: ["active", "enabled", "signed in"],
-  invited: ["invited", "invite", "pending", "not signed in"],
-  disabled: ["disabled", "deactivated", "inactive", "blocked"],
+  active: ["active", "enabled", "signed in", "活跃", "已启用", "启用"],
+  invited: ["invited", "invite", "pending", "not signed in", "已邀请", "邀请"],
+  disabled: ["disabled", "deactivated", "inactive", "blocked", "已停用", "停用"],
 };
+
+/** Extra words for an account with an expiry date, or one that expired. */
+function scheduleWords(p: SearchablePerson): string[] {
+  if (!p.active && p.disabledReason === "scheduled") return ["expired", "expiry", "已到期", "已过期", "过期", "到期"];
+  if (p.disableOn) return ["expires", "expiring", "expiry", "到期"];
+  return [];
+}
 
 export function statusOf(p: Pick<SearchablePerson, "active" | "linked" | "invitedAt">): Status {
   if (!p.active) return "disabled";
@@ -87,6 +97,7 @@ function haystackFor(p: SearchablePerson): string {
       ...ROLE_WORDS[p.role],
       ...p.groupNames,
       ...STATUS_WORDS[status],
+      ...scheduleWords(p),
     ].join(" | ")
   );
 }

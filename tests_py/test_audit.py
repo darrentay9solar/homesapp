@@ -343,6 +343,7 @@ def test_what_can_never_be_reverted(client, pm, fx) -> None:
             "email": f"pytest-a-{uuid.uuid4().hex[:6]}@example.com",
             "role": "homeowner",
             "contactNo": "+65 9123 4567",
+            "noExpiry": True,
         },  # fmt: skip
     )
     fx.uids.append(created.json()["uid"])

@@ -22,6 +22,7 @@ import { forwardRef, type MouseEvent, type ReactElement, type ReactNode, type Re
 
 import type { Role } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
+import { useLang } from "@/lib/client/i18n";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
 import { COUNTRIES, joinPhone, splitPhone } from "./phone-input";
@@ -44,16 +45,18 @@ export function roleTone(role: Role): SxProps<Theme> {
   });
 }
 
-export function RoleAvatar({ name, role, size = 40 }: { name: string | null; role: Role; size?: number }) {
+/** A person's picture, or their initials in their role's colour while there's none (or it can't load). */
+export function RoleAvatar({ name, role, size = 40, src }: { name: string | null; role: Role; size?: number; src?: string | null }) {
   return (
-    <Avatar sx={[{ width: size, height: size, fontSize: size * 0.36 }, roleTone(role)] as SxProps<Theme>}>
+    <Avatar src={src ?? undefined} alt={name ?? undefined} sx={[{ width: size, height: size, fontSize: size * 0.36 }, roleTone(role)] as SxProps<Theme>}>
       {initials(name)}
     </Avatar>
   );
 }
 
 export function RoleChip({ role, label }: { role: Role; label?: string }) {
-  return <Chip size="small" label={label ?? ROLE_NAME[role]} sx={roleTone(role)} />;
+  const { tr } = useLang();
+  return <Chip size="small" label={tr(label ?? ROLE_NAME[role])} sx={roleTone(role)} />;
 }
 
 /** A settings-style row with a tinted icon tile, as on the reference's Profile screen. */
@@ -72,6 +75,7 @@ export function SettingRow({
   right?: ReactNode;
   children?: ReactNode;
 }) {
+  const { tr } = useLang();
   return (
     <Card sx={{ px: 2, py: 1.5 }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1.75 }}>
@@ -79,10 +83,10 @@ export function SettingRow({
           {icon}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 500 }}>{label}</Typography>
+          <Typography sx={{ fontWeight: 500 }}>{tr(label)}</Typography>
           {sub && (
             <Typography variant="caption" component="div" sx={{ color: "text.secondary" }}>
-              {sub}
+              {typeof sub === "string" ? tr(sub) : sub}
             </Typography>
           )}
         </Box>
@@ -124,6 +128,7 @@ export function MDialog({
   maxWidth?: "xs" | "sm" | "md";
 }) {
   const phone = useMediaQuery((t: Theme) => t.breakpoints.down("sm"));
+  const { tr } = useLang();
   return (
     <Dialog
       open={open}
@@ -138,7 +143,7 @@ export function MDialog({
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, pt: 0.5, pb: { xs: "calc(28px + env(safe-area-inset-bottom))", sm: 4 } }}>
         {heading && (
           <Typography sx={{ textAlign: "center", color: "primary.main", fontWeight: 600, fontSize: { xs: 19, sm: 21 } }}>
-            {heading}
+            {tr(heading)}
           </Typography>
         )}
         {subtitle && (
@@ -146,7 +151,7 @@ export function MDialog({
             variant="body2"
             sx={{ textAlign: "center", color: "text.secondary", mt: heading ? 0.75 : 0, mb: 3, mx: "auto", maxWidth: "40ch" }}
           >
-            {subtitle}
+            {tr(subtitle)}
           </Typography>
         )}
         {!subtitle && heading && <Box sx={{ mb: 3 }} />}
@@ -158,6 +163,7 @@ export function MDialog({
 
 /** The green band with a wavy bottom edge (lower left, rising right) from the account screens. */
 export function WaveHeader({ title, onBack, height = 112 }: { title: string; onBack: () => void; height?: number }) {
+  const { t, tr } = useLang();
   return (
     <Box
       sx={{
@@ -178,11 +184,11 @@ export function WaveHeader({ title, onBack, height = 112 }: { title: string; onB
         <path d="M0 0H440V62C380 88 320 78 244 80C156 83 76 92 0 110Z" fill="url(#waveHeaderFill)" />
       </Box>
       <Stack direction="row" sx={{ position: "relative", alignItems: "center", px: 1, pt: { xs: "calc(8px + env(safe-area-inset-top))", sm: 1 } }}>
-        <IconButton onClick={onBack} aria-label="Back" sx={{ color: "#fff" }}>
+        <IconButton onClick={onBack} aria-label={t("Back")} sx={{ color: "#fff" }}>
           <ArrowBackRoundedIcon />
         </IconButton>
         <Typography noWrap sx={{ flex: 1, textAlign: "center", fontWeight: 600, fontSize: 17, mr: 5 }}>
-          {title}
+          {tr(title)}
         </Typography>
       </Stack>
     </Box>
@@ -214,6 +220,11 @@ export function openPicker(root: Element | null) {
 }
 
 export function Field({ icon, ...props }: TextFieldProps & { icon?: ReactNode }) {
+  // Labels, placeholders and help text are translated here, so every form follows the language setting.
+  const { tr } = useLang();
+  if (typeof props.label === "string") props = { ...props, label: tr(props.label) };
+  if (typeof props.placeholder === "string") props = { ...props, placeholder: tr(props.placeholder) };
+  if (typeof props.helperText === "string") props = { ...props, helperText: tr(props.helperText) };
   const picker = typeof props.type === "string" && PICKERS.has(props.type);
   const input = props.slotProps?.input as { onClick?: (e: MouseEvent<HTMLDivElement>) => void; sx?: object } | undefined;
   return (
@@ -266,14 +277,15 @@ export function PhoneField({
 }) {
   const [dial, setDial] = useState(() => splitPhone(value).dial);
   const { local } = splitPhone(value);
+  const { t, tr } = useLang();
   return (
     <TextField
-      label={label}
+      label={tr(label)}
       required={required}
       type="tel"
       value={local}
-      placeholder={dial === "65" ? "9123 4567" : "Mobile number"}
-      helperText={helperText}
+      placeholder={dial === "65" ? "9123 4567" : t("Mobile number")}
+      helperText={helperText ? tr(helperText) : undefined}
       onChange={(e) => onChange(joinPhone(dial, e.target.value.replace(/^\+/, "")))}
       slotProps={{
         inputLabel: { shrink: true },
@@ -290,7 +302,7 @@ export function PhoneField({
                   onChange(joinPhone(e.target.value, local));
                 }}
                 renderValue={(v) => `${COUNTRIES.find((c) => c.dial === v)?.code ?? ""} +${v}`}
-                inputProps={{ "aria-label": "Country code" }}
+                inputProps={{ "aria-label": t("Country code") }}
                 sx={{ fontWeight: 500, fontSize: 15, "& .MuiSelect-select": { py: 0, pr: "22px !important" } }}
               >
                 {COUNTRIES.map((c) => (

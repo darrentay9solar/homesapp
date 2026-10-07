@@ -26,6 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -43,6 +44,32 @@ ALLOWED_TYPES = {
 }
 # 25 MB: a phone photo is 2-8 MB; a scanned multi-page PDF fits too.
 MAX_BYTES = 25 * 1024 * 1024
+# Profile pictures are resized in the browser before upload; 5 MB is generous.
+AVATAR_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+AVATAR_MAX_BYTES = 5 * 1024 * 1024
+
+
+def kind_of(content_type: str | None) -> str:
+    """'image' or 'document': the folder a file is stored in."""
+    return "image" if (content_type or "").startswith("image/") else "document"
+
+
+def folder(content_type: str | None) -> str:
+    return "images" if kind_of(content_type) == "image" else "documents"
+
+
+def project_key(pid: int, category: str, content_type: str) -> str:
+    """Where a project file is stored: by project, then type, then slot.
+
+    projects/12/images/panel_pictures/<uuid>.jpg, projects/12/documents/utility_bill/<uuid>.pdf
+    """
+    return f"projects/{pid}/{folder(content_type)}/{category}/{uuid.uuid4()}.{ALLOWED_TYPES[content_type]}"
+
+
+def avatar_key(uid: int, content_type: str) -> str:
+    return f"profiles/{uid}/images/{uuid.uuid4()}.{AVATAR_TYPES[content_type]}"
+
+
 LINK_SECONDS = 300
 
 LOCAL_DIR = Path(__file__).resolve().parents[2] / ".uploads"

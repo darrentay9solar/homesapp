@@ -31,7 +31,6 @@ import os
 import re
 import struct
 import sys
-import uuid
 import zlib
 from datetime import date, datetime, timedelta, timezone
 
@@ -223,6 +222,7 @@ def wipe(c: psycopg.Connection, target: str) -> list[dict]:
     ).fetchall()
     if target == "test":
         keep = []
+
     def empty_audit_log() -> None:
         # The audit log refuses TRUNCATE by design (migration 0017); switched off for this one statement.
         c.execute("alter table audit_log disable trigger audit_log_no_truncate")
@@ -309,7 +309,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             for n in range(2 if extra_photo and cat == "panel_pictures" else 1):
                 photo = cat in PHOTO
                 ext, ctype = ("png", "image/png") if photo else ("pdf", "application/pdf")
-                key = f"projects/{pid}/{cat}/{uuid.uuid4()}.{ext}"
+                key = storage.project_key(pid, cat, ctype)
                 label = cat.replace("_", " ").capitalize()
                 data = png(next(colour)) if photo else pdf(label)
                 if bucket:
@@ -322,9 +322,9 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
                 name = f"{label}{f' {n + 1}' if n else ''}.{ext}"
                 made.append(
                     c.execute(
-                        "insert into project_files (project_id, category, url, file_name, content_type, size_bytes, uploaded_by) "
-                        "values (%s, %s, %s, %s, %s, %s, %s) returning file_id",
-                        (pid, cat, key, name, ctype, len(data), who),
+                        "insert into project_files (project_id, category, url, file_name, content_type, size_bytes, uploaded_by, kind) "
+                        "values (%s, %s, %s, %s, %s, %s, %s, %s) returning file_id",
+                        (pid, cat, key, name, ctype, len(data), who, storage.kind_of(ctype)),
                     ).fetchone()["file_id"]
                 )
         return made

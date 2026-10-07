@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
 from _lib import notify
-from _lib.account import Account
+from _lib.account import Account, apply_schedule
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.web import act_as_allowed, active
@@ -429,4 +429,5 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
         raise HTTPException(503, "CRON_SECRET isn't set, so reminders can't run.")
     if not hmac.compare_digest(authorization, f"Bearer {secret}"):
         raise HTTPException(401, "Not allowed.")
-    return {"sent": run_reminders(datetime.now(SG))}
+    # The same job applies account expiry and enable dates (migration 0025).
+    return {"sent": run_reminders(datetime.now(SG)), "accounts": apply_schedule()}

@@ -5,8 +5,10 @@
  */
 
 import type { Role } from "./app-state";
+import { translate } from "./i18n";
 import { normalise, tokens } from "./people-search";
 
+import { locale } from "./i18n";
 export type ProjectStatus =
   | "draft"
   | "awaiting_homeowner"
@@ -120,9 +122,11 @@ export function matchesProject(p: ProjectRow, query: string): boolean {
       p.contractor.label,
       ...p.team.map((t) => t.name ?? ""),
       p.statusLabel,
-      `milestone ${p.currentMilestone}`,
-      ...(p.attention ? ["attention", "red", "issue"] : ["on time", "on track"]),
-      ...p.flags.map((f) => (f.kind === "overdue" ? "late overdue" : "no-show no show missed")),
+      translate(p.statusLabel, "zh"),
+      `milestone ${p.currentMilestone} 里程碑 ${p.currentMilestone} 里程碑${p.currentMilestone}`,
+      // Chinese words too, so a search works in either language.
+      ...(p.attention ? ["attention", "red", "issue", "需要注意 问题"] : ["on time", "on track", "准时 正常"]),
+      ...p.flags.map((f) => (f.kind === "overdue" ? "late overdue 迟到 逾期 超期" : "no-show no show missed 未签到 缺席")),
     ].join(" | ")
   );
   return words.every((w) => hay.includes(w));
@@ -239,10 +243,10 @@ export function showValue(f: Pick<FieldDef, "kind" | "value" | "key">): string {
   if (f.kind === "select") return SP_STATUS[Number(v)] ?? String(v);
   if (f.kind === "retailer") return (v as { name: string }).name;
   if (f.kind === "date" && typeof v === "string") {
-    return new Date(`${v}T00:00:00+08:00`).toLocaleDateString("en-SG", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Singapore" });
+    return new Date(`${v}T00:00:00+08:00`).toLocaleDateString(locale(), { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Singapore" });
   }
-  if (f.kind === "number" && f.key === "panel_capacity") return `${Number(v).toLocaleString("en-SG")} W`;
-  if (f.kind === "number") return Number(v).toLocaleString("en-SG");
+  if (f.kind === "number" && f.key === "panel_capacity") return `${Number(v).toLocaleString(locale())} W`;
+  if (f.kind === "number") return Number(v).toLocaleString(locale());
   return String(v);
 }
 

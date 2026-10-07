@@ -224,6 +224,34 @@ export const users = pgTable(
     mobileVerifiedAt: timestamp("mobile_verified_at", { withTimezone: true }),
     passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
 
+    /**
+     * Profile picture: the R2 key (profiles/<uid>/images/<uuid>.jpg). The
+     * person sets their own; a project manager can replace or remove anyone's.
+     */
+    avatarKey: text("avatar_key"),
+    avatarUpdatedAt: timestamp("avatar_updated_at", { withTimezone: true }),
+    avatarUpdatedBy: integer("avatar_updated_by").references((): AnyPgColumn => users.uid, { onDelete: "set null" }),
+
+    /** Screens, alerts, phone notifications and emails in English or Simplified Chinese. */
+    language: varchar("language", { length: 5 }).notNull().default("en"),
+
+    /**
+     * When and what to be told about (migration 0025):
+     * { pausedUntil, quiet: { on, from, to, urgent }, mute: [category...], channels: { push, email, mobile } }.
+     * Alerts are always kept on the Alerts screen; these only silence the phone, email and WhatsApp/SMS.
+     */
+    notificationPrefs: jsonb("notification_prefs").notNull().default({}),
+
+    /**
+     * Set only by a project manager. On disableOn the account disables itself
+     * (an expiry); on enableOn a disabled account enables itself. disabledReason
+     * says which: "manual" (a PM) or "scheduled" (the expiry date), so moving
+     * the expiry later re-enables an expired account but not one a PM disabled.
+     */
+    disableOn: date("disable_on"),
+    enableOn: date("enable_on"),
+    disabledReason: varchar("disabled_reason", { length: 12 }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -538,6 +566,8 @@ export const projectFiles = pgTable("project_files", {
   fileName: text("file_name").notNull(),
   contentType: varchar("content_type", { length: 120 }),
   sizeBytes: integer("size_bytes"),
+  /** "image" or "document": which folder of the project it's stored in (projects/<id>/images|documents/...). */
+  kind: varchar("kind", { length: 10 }).notNull().default("document"),
 
   uploadedBy: integer("uploaded_by").references(() => users.uid, {
     onDelete: "set null",

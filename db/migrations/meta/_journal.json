@@ -176,6 +176,13 @@
       "when": 1791349528374,
       "tag": "0024_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791353920774,
+      "tag": "0025_settings_photos_schedule",
+      "breakpoints": true
     }
   ]
 }

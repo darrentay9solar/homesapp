@@ -35,6 +35,7 @@ import { useApp, useMe } from "@/lib/client/app-state";
 import { firstOpenSection, type ProjectFields, type ProjectRow, SECTIONS } from "@/lib/client/projects";
 import type { ProjectVisits } from "@/lib/client/sites";
 
+import { T, TR } from "@/lib/client/i18n";
 /**
  * One project. The automated header from the brief (progress, on track, days
  * running), what needs attention, the project's details, and its milestone
@@ -56,7 +57,7 @@ export default function ProjectPage() {
 
   return (
     <>
-      <TopBar title={p?.name ?? "Project"} sub={p?.address} onBack={me.role === "homeowner" ? undefined : back} />
+      <TopBar title={p?.name ?? T("Project")} sub={p?.address} onBack={me.role === "homeowner" ? undefined : back} />
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
           {error && (
@@ -83,10 +84,10 @@ function Body({ p, fields, visits, reload }: { p: ProjectRow; fields: ProjectFie
       <Stack sx={{ gap: 2, minWidth: 0 }}>
         {p.attention && (
           <Alert severity="error" icon={<WarningAmberRoundedIcon />} data-testid="project-flags">
-            <AlertTitle sx={{ fontWeight: 600 }}>Needs attention</AlertTitle>
+            <AlertTitle sx={{ fontWeight: 600 }}>{T("Needs attention")}</AlertTitle>
             {p.flags.map((f) => (
               <Typography key={f.text} variant="body2">
-                {f.text}
+                {TR(f.text)}
               </Typography>
             ))}
           </Alert>
@@ -95,11 +96,11 @@ function Body({ p, fields, visits, reload }: { p: ProjectRow; fields: ProjectFie
         <Summary p={p} />
         <Box>
           <Heading
-            title="Project details"
+            title={T("Project details")}
             action={
               fields?.actions.editDetails && (
                 <Button size="small" startIcon={<EditRoundedIcon />} onClick={() => setEditing(true)}>
-                  Edit
+                  {T("Edit")}
                 </Button>
               )
             }
@@ -110,7 +111,7 @@ function Body({ p, fields, visits, reload }: { p: ProjectRow; fields: ProjectFie
         {visits && <ScrollToHash />}
       </Stack>
       <Box sx={{ minWidth: 0, mt: { lg: -2.5 } }}>
-        <Heading title={fields?.relation === "homeowner" ? "Your installation" : "Milestones"} />
+        <Heading title={fields?.relation === "homeowner" ? T("Your installation") : T("Milestones")} />
         <MilestoneTrack p={p} />
         <Stack sx={{ gap: 1.25, mt: 2 }}>
           {!ctx && SECTIONS.map((x) => <Skeleton key={x.key} variant="rounded" height={68} />)}
@@ -155,15 +156,15 @@ function ActionBanner({ p, fields, reload }: { p: ProjectRow; fields: ProjectFie
   if (homeowner && a?.approve) {
     banner = (
       <Alert severity="warning" icon={false} data-testid="approval-banner" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
-        <AlertTitle sx={{ fontWeight: 600, fontSize: 16 }}>Please approve your solar installation</AlertTitle>
+        <AlertTitle sx={{ fontWeight: 600, fontSize: 16 }}>{T("Please approve your solar installation")}</AlertTitle>
         9 Solar Home has set up {p.name} at {p.address}. Check the details below, then approve so the installation can be scheduled.
         <Stack direction="row" sx={{ gap: 1, mt: 1.5 }}>
           <Button size="large" variant="contained" disabled={busy} onClick={() => void act("approve")} sx={{ flex: 1 }}>
-            Approve
+            {T("Approve")}
           </Button>
           {a.decline && (
             <Button size="large" variant="outlined" color="error" disabled={busy} onClick={() => setDeclining(true)} sx={{ flex: 1 }}>
-              Decline
+              {T("Decline")}
             </Button>
           )}
         </Stack>
@@ -172,11 +173,11 @@ function ActionBanner({ p, fields, reload }: { p: ProjectRow; fields: ProjectFie
   } else if (p.status === "homeowner_approved") {
     banner = (
       <Alert severity="success" data-testid="approval-banner" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
-        <AlertTitle sx={{ fontWeight: 600 }}>Homeowner approved</AlertTitle>
-        {a?.approve ? "Approve to open Milestone 1 and let the crew start." : "Waiting for a project manager to approve and open Milestone 1."}
+        <AlertTitle sx={{ fontWeight: 600 }}>{T("Homeowner approved")}</AlertTitle>
+        {a?.approve ? T("Approve to open Milestone 1 and let the crew start.") : T("Waiting for a project manager to approve and open Milestone 1.")}
         {a?.approve && (
           <Button size="large" variant="contained" fullWidth disabled={busy} onClick={() => void act("approve")} sx={{ mt: 1.5 }}>
-            Approve &amp; Start Project
+            {T("Approve & Start Project")}
           </Button>
         )}
       </Alert>
@@ -184,22 +185,22 @@ function ActionBanner({ p, fields, reload }: { p: ProjectRow; fields: ProjectFie
   } else if (p.status === "draft") {
     banner = (
       <Alert severity="info" data-testid="approval-banner">
-        <AlertTitle sx={{ fontWeight: 600 }}>No homeowner account linked</AlertTitle>
-        The homeowner is recorded as a name only.{" "}
-        {a?.editDetails ? "Edit the project details to link their account, so they can approve it." : "A project manager needs to link their account."}
+        <AlertTitle sx={{ fontWeight: 600 }}>{T("No homeowner account linked")}</AlertTitle>
+        {T("The homeowner is recorded as a name only.")}{" "}
+        {a?.editDetails ? T("Edit the project details to link their account, so they can approve it.") : T("A project manager needs to link their account.")}
       </Alert>
     );
   } else if (p.status === "awaiting_homeowner" || p.status === "homeowner_declined") {
     const declined = p.status === "homeowner_declined";
     banner = (
       <Alert severity={declined ? "error" : "warning"} data-testid="approval-banner">
-        <AlertTitle sx={{ fontWeight: 600 }}>{declined ? "Declined by the homeowner" : "Waiting on the homeowner"}</AlertTitle>
+        <AlertTitle sx={{ fontWeight: 600 }}>{declined ? T("Declined by the homeowner") : T("Waiting on the homeowner")}</AlertTitle>
         {declined
-          ? `Talk to ${p.homeowner.name} before asking again.`
-          : `${p.homeowner.name} has been asked to approve. Milestone fields open once they and a project manager have approved.`}
+          ? T("Talk to {name} before asking again.", { name: p.homeowner.name })
+          : T("{name} has been asked to approve. Milestone fields open once they and a project manager have approved.", { name: p.homeowner.name })}
         {a?.remind && (
           <Button variant="outlined" color="inherit" disabled={busy} onClick={() => void act("remind")} sx={{ mt: 1.5, display: "flex" }}>
-            {declined ? "Ask again" : "Send a reminder"}
+            {declined ? T("Ask again") : T("Send a reminder")}
           </Button>
         )}
       </Alert>
@@ -207,8 +208,8 @@ function ActionBanner({ p, fields, reload }: { p: ProjectRow; fields: ProjectFie
   } else if (p.milestone === 3 && !homeowner) {
     banner = (
       <Alert severity="success" data-testid="approval-banner">
-        <AlertTitle sx={{ fontWeight: 600 }}>Ready for handover</AlertTitle>
-        Every milestone is complete. Next comes the handover certificate for the homeowner to e-sign (the next build step).
+        <AlertTitle sx={{ fontWeight: 600 }}>{T("Ready for handover")}</AlertTitle>
+        {T("Every milestone is complete. Next comes the handover certificate for the homeowner to e-sign (the next build step).")}
       </Alert>
     );
   }
@@ -234,22 +235,22 @@ function ActionBanner({ p, fields, reload }: { p: ProjectRow; fields: ProjectFie
 function DeclineDialog({ name, busy, onClose, onDecline }: { name: string; busy: boolean; onClose: () => void; onDecline: (reason: string) => Promise<void> }) {
   const [reason, setReason] = useState("");
   return (
-    <MDialog title="Decline Project" heading={`Decline ${name}?`} subtitle="9 Solar Home will be told and will contact you. You can still approve later." onClose={onClose} maxWidth="xs">
+    <MDialog title={T("Decline Project")} heading={`Decline ${name}?`} subtitle={T("9 Solar Home will be told and will contact you. You can still approve later.")} onClose={onClose} maxWidth="xs">
       <Field
-        label="Reason (optional)"
+        label={T("Reason (optional)")}
         icon={<ChatBubbleOutlineRoundedIcon />}
         multiline
         minRows={3}
-        placeholder="e.g. I would like to change the installation date"
+        placeholder={T("e.g. I would like to change the installation date")}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
       />
       <Stack sx={{ gap: 1, mt: 3 }}>
         <Button size="large" variant="contained" color="error" disabled={busy} onClick={() => void onDecline(reason)}>
-          Decline Project
+          {T("Decline Project")}
         </Button>
         <Button size="large" onClick={onClose}>
-          Cancel
+          {T("Cancel")}
         </Button>
       </Stack>
     </MDialog>
@@ -264,7 +265,7 @@ function Summary({ p }: { p: ProjectRow }) {
         <Stack sx={{ gap: 1.25, minWidth: 0, flex: 1 }}>
           <Box>
             <Typography variant="overline" sx={{ color: "text.secondary", lineHeight: 1.6 }}>
-              Status
+              {T("Status")}
             </Typography>
             <Stack direction="row" sx={{ gap: 0.75, flexWrap: "wrap" }}>
               <StatusChip p={p} />
@@ -273,14 +274,14 @@ function Summary({ p }: { p: ProjectRow }) {
           </Box>
           <Box>
             <Typography variant="overline" sx={{ color: "text.secondary", lineHeight: 1.6 }}>
-              Days running
+              {T("Days running")}
             </Typography>
             <Typography sx={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>{p.daysElapsed}</Typography>
           </Box>
         </Stack>
       </Stack>
       <Typography variant="caption" component="p" sx={{ color: "text.secondary", mt: 1.5 }}>
-        Progress, status and days running are calculated by the system and can&apos;t be edited.
+        {T("Progress, status and days running are calculated by the system and can't be edited.")}
       </Typography>
     </Card>
   );
@@ -293,9 +294,9 @@ function Details({ p }: { p: ProjectRow }) {
       <DetailRow icon={<PersonOutlineRoundedIcon />} k="Homeowner">
         {p.homeowner.name}{" "}
         {p.homeowner.linked ? (
-          <Chip size="small" color="success" variant="outlined" label="Account" sx={{ ml: 0.5, height: 20 }} />
+          <Chip size="small" color="success" variant="outlined" label={T("Account")} sx={{ ml: 0.5, height: 20 }} />
         ) : (
-          <Chip size="small" variant="outlined" label="Name only" sx={{ ml: 0.5, height: 20 }} />
+          <Chip size="small" variant="outlined" label={T("Name only")} sx={{ ml: 0.5, height: 20 }} />
         )}
       </DetailRow>
       <DetailRow icon={<PhoneRoundedIcon />} k="Homeowner contact no.">
@@ -304,9 +305,9 @@ function Details({ p }: { p: ProjectRow }) {
       <DetailRow icon={<PlaceOutlinedIcon />} k="Site">
         {p.postalCode ? `Singapore ${p.postalCode}` : "—"}{" "}
         {p.siteLocated ? (
-          <Chip size="small" color="success" variant="outlined" label="GPS set" sx={{ ml: 0.5, height: 20 }} />
+          <Chip size="small" color="success" variant="outlined" label={T("GPS set")} sx={{ ml: 0.5, height: 20 }} />
         ) : (
-          <Chip size="small" color="warning" variant="outlined" label="No GPS yet" sx={{ ml: 0.5, height: 20 }} />
+          <Chip size="small" color="warning" variant="outlined" label={T("No GPS yet")} sx={{ ml: 0.5, height: 20 }} />
         )}
       </DetailRow>
       <DetailRow icon={p.contractor.type === "group" ? <GroupsRoundedIcon /> : <EngineeringRoundedIcon />} k="Contractor">
@@ -337,7 +338,7 @@ function MilestoneTrack({ p }: { p: ProjectRow }) {
     const total = s.reduce((a, g) => a + g.total, 0);
     return total ? Math.round((done / total) * 100) : 0;
   });
-  const labels = ["M1 · Install", "M2 · Grid", "M3 · Handover"];
+  const labels = [T("M1 · Install"), T("M2 · Grid"), T("M3 · Handover")];
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
       {parts.map((pc, i) => (

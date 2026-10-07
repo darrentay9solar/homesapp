@@ -56,7 +56,13 @@ def test_create_user_invites_and_records(client, pm, fx) -> None:
     r = client.post(
         "/api/py/people",
         headers=bearer(pm["clerk_user_id"]),
-        json={"fullName": "Priya Nair", "email": email, "role": "contractor", "contactNo": "+65 9123 4567"},
+        json={
+            "fullName": "Priya Nair",
+            "email": email,
+            "role": "contractor",
+            "contactNo": "+65 9123 4567",
+            "noExpiry": True,
+        },
     )
     assert r.status_code == 200, r.text
     uid = r.json()["uid"]
@@ -79,7 +85,7 @@ def test_create_user_invites_and_records(client, pm, fx) -> None:
     dup = client.post(
         "/api/py/people",
         headers=bearer(pm["clerk_user_id"]),
-        json={"fullName": "X Y", "email": email, "role": "homeowner", "contactNo": "+65 9123 4567"},
+        json={"fullName": "X Y", "email": email, "role": "homeowner", "contactNo": "+65 9123 4567", "noExpiry": True},
     )
     assert dup.status_code == 409
 
@@ -87,7 +93,10 @@ def test_create_user_invites_and_records(client, pm, fx) -> None:
 def test_change_role_and_disable(client, pm, fx) -> None:
     u = fx.user("contractor")
     h = bearer(pm["clerk_user_id"])
-    assert client.patch(f"/api/py/people/{u['uid']}", headers=h, json={"role": "epc_team"}).status_code == 200
+    assert (
+        client.patch(f"/api/py/people/{u['uid']}", headers=h, json={"role": "epc_team", "noExpiry": True}).status_code
+        == 200
+    )
     assert client.patch(f"/api/py/people/{u['uid']}", headers=h, json={"active": False}).status_code == 200
     row = fx.conn.execute("select user_type, active from users where uid=%s", (u["uid"],)).fetchone()
     assert row == {"user_type": "epc_team", "active": False}
@@ -114,7 +123,9 @@ def test_approve_and_reject_requests(client, pm, fx, cleanup) -> None:
     requests.extend(rows)
     h = bearer(pm["clerk_user_id"])
 
-    ok = client.post(f"/api/py/account-requests/{rows[0]}/approve", headers=h, json={"role": "epc_team"})
+    ok = client.post(
+        f"/api/py/account-requests/{rows[0]}/approve", headers=h, json={"role": "epc_team", "noExpiry": True}
+    )
     assert ok.status_code == 200, ok.text
     fx.uids.append(ok.json()["uid"])
     granted = fx.conn.execute("select user_type from users where uid=%s", (ok.json()["uid"],)).fetchone()
@@ -127,7 +138,9 @@ def test_approve_and_reject_requests(client, pm, fx, cleanup) -> None:
     ).fetchone()
     assert st == {"status": "rejected", "decided_by": pm["uid"], "decision_note": "Not a customer yet"}
 
-    again = client.post(f"/api/py/account-requests/{rows[1]}/approve", headers=h, json={"role": "homeowner"})
+    again = client.post(
+        f"/api/py/account-requests/{rows[1]}/approve", headers=h, json={"role": "homeowner", "noExpiry": True}
+    )
     assert again.status_code == 409
 
 
@@ -152,7 +165,7 @@ def test_groups_and_membership(client, pm, fx, cleanup) -> None:
     assert group["members"] == [crew["uid"]]
 
     # Changing the crew member to homeowner takes them out of the group.
-    client.patch(f"/api/py/people/{crew['uid']}", headers=h, json={"role": "homeowner"})
+    client.patch(f"/api/py/people/{crew['uid']}", headers=h, json={"role": "homeowner", "noExpiry": True})
     left = fx.conn.execute("select count(*) as n from contractor_group_members where group_id=%s", (gid,)).fetchone()
     assert left["n"] == 0
 
@@ -182,6 +195,7 @@ def test_create_user_requires_a_mobile(client, pm) -> None:
             "fullName": "No Phone",
             "email": f"pytest-nophone-{uuid.uuid4().hex[:8]}@example.com",
             "role": "homeowner",
+            "noExpiry": True,
         },
     )
     assert r.status_code == 400
@@ -200,7 +214,11 @@ def test_approve_can_place_crew_in_a_group(client, pm, fx, cleanup) -> None:
     ).fetchone()["request_id"]
     requests.append(rid)
 
-    r = client.post(f"/api/py/account-requests/{rid}/approve", headers=h, json={"role": "epc_team", "groupId": gid})
+    r = client.post(
+        f"/api/py/account-requests/{rid}/approve",
+        headers=h,
+        json={"role": "epc_team", "groupId": gid, "noExpiry": True},
+    )
     assert r.status_code == 200, r.text
     uid = r.json()["uid"]
     fx.uids.append(uid)

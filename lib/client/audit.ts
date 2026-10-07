@@ -5,6 +5,7 @@
  */
 
 import type { Role } from "./app-state";
+import { locale, translate } from "./i18n";
 import { matchesAll } from "./search";
 
 export type Page = "projects" | "milestones" | "files" | "sites" | "signatures" | "people" | "groups";
@@ -198,7 +199,7 @@ const USER_REFS = new Set([
 
 const sgDate = (d: Date, withTime: boolean) =>
   d
-    .toLocaleString("en-SG", {
+    .toLocaleString(locale(), {
       day: "2-digit",
       month: "short",
       year: "numeric",
@@ -219,7 +220,7 @@ export function formatValue(field: string, v: unknown, refs?: Refs): string {
     if (field === "sp_application_status") return SP_STATUS[v] ?? String(v);
     if (field === "milestone_no") return `Milestone ${v}`;
     if (field === "size_bytes") return v >= 1048576 ? `${(v / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(v / 1024))} KB`;
-    return v.toLocaleString("en-SG");
+    return v.toLocaleString(locale());
   }
   if (typeof v === "string") {
     if (field === "user_type" || field === "requested_type") return ROLE_WORD[v] ?? v;
@@ -245,19 +246,19 @@ export function dayName(key: string, now: Date = new Date()): string {
   const yesterday = new Date(now.getTime() - 86_400_000).toLocaleDateString("en-CA", { timeZone: SG });
   if (key === today) return "Today";
   if (key === yesterday) return "Yesterday";
-  return new Date(`${key}T12:00:00+08:00`).toLocaleDateString("en-SG", { weekday: "short", timeZone: SG });
+  return new Date(`${key}T12:00:00+08:00`).toLocaleDateString(locale(), { weekday: "short", timeZone: SG });
 }
 
 export function dayMonth(key: string): { day: string; month: string } {
   const d = new Date(`${key}T12:00:00+08:00`);
   return {
-    day: d.toLocaleDateString("en-SG", { day: "numeric", timeZone: SG }),
-    month: d.toLocaleDateString("en-SG", { month: "short", timeZone: SG }),
+    day: d.toLocaleDateString(locale(), { day: "numeric", timeZone: SG }),
+    month: d.toLocaleDateString(locale(), { month: "short", timeZone: SG }),
   };
 }
 
 export function timeOf(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: SG }).toUpperCase();
+  return new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: SG }).toUpperCase();
 }
 
 export type Contributor = { key: string; uid: number | null; name: string; role: Role | null; count: number };
@@ -363,6 +364,8 @@ export function matchesEntry(e: AuditEntry, query: string, refs?: Refs): boolean
       e.page, // "sites" finds Site visits, matching the app's Sites tab
       ...e.changes.flatMap((c) => [fieldLabel(c.field), formatValue(c.field, c.from, refs), formatValue(c.field, c.to, refs)]),
     ]
+      // The same words in Chinese, so a search works in either language.
+      .flatMap((x) => (x ? [x, translate(x, "zh")] : []))
       .filter(Boolean)
       .join(" \u0001 ")
   );
@@ -401,5 +404,5 @@ export function versionList(h: FieldHistory): Array<Version & { current: boolean
 
 /** The audit log's "By person" search: name, email or role. */
 export function matchesAuditPerson(p: { name: string; email?: string | null; roleLabel?: string | null }, query: string): boolean {
-  return matchesAll([p.name, p.email, p.roleLabel], query);
+  return matchesAll([p.name, p.email, p.roleLabel, translate(p.roleLabel, "zh")], query);
 }

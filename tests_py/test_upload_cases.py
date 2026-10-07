@@ -389,7 +389,10 @@ def test_every_allowed_type_is_accepted_in_every_open_slot(api, world, ctype, sl
     r = link(api, world, "epc", world.p["work"], slot, ctype, 1000)
     assert r.status_code == 200, r.text
     key = r.json()["key"]
-    assert key.startswith(f"projects/{world.p['work']}/{slot}/") and key.endswith("." + storage.ALLOWED_TYPES[ctype])
+    folder = "images" if ctype.startswith("image/") else "documents"
+    assert key.startswith(f"projects/{world.p['work']}/{folder}/{slot}/") and key.endswith(
+        "." + storage.ALLOWED_TYPES[ctype]
+    )
     assert r.json()["headers"] == {"Content-Type": ctype}
 
 

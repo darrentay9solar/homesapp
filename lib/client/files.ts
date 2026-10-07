@@ -1,5 +1,6 @@
 /** My Files: what the signed-in person uploaded, and how the screen searches it. */
 
+import { translate } from "./i18n";
 import { matchesAll } from "./search";
 
 export type MyFile = {
@@ -30,7 +31,16 @@ export function filterFiles(files: MyFile[], query: string, tab: FileTab): MyFil
     if (tab === "document" && f.kind !== "document") return false;
     const ext = f.name.includes(".") ? (f.name.split(".").pop() ?? "") : "";
     return matchesAll(
-      [f.name, f.projectName, f.categoryLabel, f.kind === "photo" ? "photo picture image" : "document", ext, f.contentType, f.removed ? "removed" : null],
+      [
+        f.name,
+        f.projectName,
+        f.categoryLabel,
+        translate(f.categoryLabel, "zh"), // so Chinese words find it too
+        f.kind === "photo" ? "photo picture image 照片 图片" : "document 文件 文档",
+        ext,
+        f.contentType,
+        f.removed ? "removed 已移除" : null,
+      ],
       query
     );
   });

@@ -1,34 +1,46 @@
 "use client";
 
 import { SignOutButton } from "@clerk/nextjs";
+import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
+import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
+import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import HourglassTopRoundedIcon from "@mui/icons-material/HourglassTopRounded";
+import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
+import ReportGmailerrorredRoundedIcon from "@mui/icons-material/ReportGmailerrorredRounded";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+import SolarPowerOutlinedIcon from "@mui/icons-material/SolarPowerOutlined";
+import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
+import Skeleton from "@mui/material/Skeleton";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { AuthField, AuthPhoneField, AuthShell, Mark } from "@/components/auth";
-import { I } from "@/components/icons";
+import { AuthAlt, AuthBadge, AuthButton, AuthChoices, AuthError, AuthField, AuthHeading, AuthPhoneField, AuthRules, AuthShell, AuthSteps, AuthSubtitle, Mark, PersonIcon } from "@/components/auth";
 import { splitPhone } from "@/components/phone-input";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import type { Role } from "@/lib/client/app-state";
+import { T, TR } from "@/lib/client/i18n";
 
 type MeState = {
   state: "active" | "deactivated" | "pending" | "rejected" | "no_account";
   request?: { requestedRole: Role; requestedRoleLabel: string; decisionNote: string | null; createdAt: string };
   clerk?: { fullName: string | null; email: string | null; phone: string | null };
   user?: { email: string };
+  disabled?: { reason: "manual" | "scheduled"; expiredOn: string | null; enableOn: string | null };
 };
 
-const ROLES: Array<{ id: Role; label: string; desc: string; icon: (p: { size?: number }) => ReactNode }> = [
-  { id: "homeowner", label: "Homeowner", desc: "My own installation", icon: I.home },
-  { id: "contractor", label: "Contractor Admin", desc: "My company's projects", icon: I.doc },
-  { id: "epc_team", label: "EPC Team", desc: "Site visits & check-in", icon: I.pin },
-  { id: "project_manager", label: "Project Manager", desc: "9 Solar Home staff", icon: I.shield },
+const ROLES: Array<{ value: Role; label: string; desc: string; icon: React.ReactNode }> = [
+  { value: "homeowner", label: "Homeowner", desc: "My own installation", icon: <HomeOutlinedIcon /> },
+  { value: "contractor", label: "Contractor Admin", desc: "My company's projects", icon: <WorkOutlineRoundedIcon /> },
+  { value: "epc_team", label: "EPC Team", desc: "Site visits & check-in", icon: <SolarPowerOutlinedIcon /> },
+  { value: "project_manager", label: "Project Manager", desc: "9 Solar Home staff", icon: <ShieldOutlinedIcon /> },
 ];
 
 /**
  * Step 3 of self sign-up, in the same template as Create Account: ask for
- * a role, then wait for a project manager. Also where a declined or
- * deactivated person lands.
+ * a role, then wait for a project manager. Also where a declined, disabled
+ * or expired person lands.
  */
 export default function OnboardingPage() {
   const router = useRouter();
@@ -38,23 +50,22 @@ export default function OnboardingPage() {
     if (me?.state === "active") router.replace("/");
   }, [me, router]);
 
-  const title =
-    me?.state === "pending" ? "Request Sent" : me?.state === "deactivated" ? "Account" : "Request Access";
+  const title = me?.state === "pending" ? "Request Sent" : me?.state === "deactivated" ? "Account" : "Request Access";
 
   return (
     <AuthShell title={title} compact>
-      {error && <div className="err">{error.message}</div>}
-      {!me && !error && <div className="skeleton" style={{ height: 380, marginTop: 8 }} />}
+      <AuthError>{error?.message}</AuthError>
+      {!me && !error && <Skeleton variant="rounded" height={380} sx={{ mt: 1 }} />}
       {me?.state === "pending" && me.request && <Pending request={me.request} onRefresh={reload} />}
-      {me?.state === "deactivated" && <Deactivated />}
+      {me?.state === "deactivated" && <Deactivated disabled={me.disabled} />}
       {(me?.state === "no_account" || me?.state === "rejected") && <RequestForm me={me} onDone={reload} />}
       {me && (
-        <div className="alt">
-          Signed in as {me.clerk?.email ?? me.user?.email} ·{" "}
+        <AuthAlt>
+          {T("Signed in as {email}", { email: me.clerk?.email ?? me.user?.email ?? "" })} ·{" "}
           <SignOutButton redirectUrl="/sign-in">
-            <button type="button">Sign out</button>
+            <button type="button">{T("Sign out")}</button>
           </SignOutButton>
-        </div>
+        </AuthAlt>
       )}
     </AuthShell>
   );
@@ -63,14 +74,7 @@ export default function OnboardingPage() {
 function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> }) {
   const fetcher = useFetcher();
   const [role, setRole] = useState<Role | null>(null);
-  const [form, setForm] = useState({
-    fullName: me.clerk?.fullName ?? "",
-    contactNo: me.clerk?.phone ?? "",
-    postalCode: "",
-    address: "",
-    icLast4: "",
-    note: "",
-  });
+  const [form, setForm] = useState({ fullName: me.clerk?.fullName ?? "", contactNo: me.clerk?.phone ?? "", postalCode: "", address: "", icLast4: "", note: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -87,76 +91,54 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
       await fetcher("/account-requests", { method: "POST", json: { ...form, role } });
       await onDone();
     } catch (x) {
-      setErr(x instanceof ApiError ? x.message : "Something went wrong. Please try again.");
+      setErr(x instanceof ApiError ? x.message : T("Something went wrong. Please try again."));
     } finally {
       setBusy(false);
     }
   }
 
+  const note = me.request?.decisionNote;
   return (
     <>
       <Mark />
-      <h2>Who are you?</h2>
-      <p className="subtitle">
+      <AuthHeading>{T("Who are you?")}</AuthHeading>
+      <AuthSubtitle>
         {me.state === "rejected"
-          ? `Your last request wasn't approved${me.request?.decisionNote ? ` — “${me.request.decisionNote}”` : ""}. You can send a new one.`
-          : "A 9 Solar Home project manager approves every account."}
-      </p>
+          ? note
+            ? T("Your last request wasn't approved — “{note}”. You can send a new one.", { note })
+            : T("Your last request wasn't approved. You can send a new one.")
+          : T("A 9 Solar Home project manager approves every account.")}
+      </AuthSubtitle>
 
       <form onSubmit={submit} noValidate>
-        <div className="roles" role="radiogroup" aria-label="Role" style={{ marginBottom: 22 }}>
-          {ROLES.map((r) => (
-            <button
-              type="button"
-              key={r.id}
-              role="radio"
-              aria-checked={role === r.id}
-              className={`rl ${role === r.id ? "on" : ""}`}
-              onClick={() => setRole(r.id)}
-            >
-              <div className="r">
-                <r.icon />
-                {r.label}
-              </div>
-              <div className="e">{r.desc}</div>
-            </button>
-          ))}
-        </div>
-
-        <AuthField id="ob-name" label="Full name" icon={I.user} autoComplete="name" placeholder="e.g. Aisha Rahman" value={form.fullName} onChange={set("fullName")} />
+        <AuthChoices label="Role" value={role} onChange={setRole} options={ROLES} />
+        <AuthField id="ob-name" label="Full name" icon={<PersonIcon />} placeholder="e.g. Aisha Rahman" value={form.fullName} onChange={set("fullName")} slotProps={{ htmlInput: { autoComplete: "name" } }} />
         <AuthPhoneField id="ob-phone" value={form.contactNo} onChange={(v) => setForm((f) => ({ ...f, contactNo: v }))} />
         <AuthField
           id="ob-postal"
           label="Postal code (optional)"
-          icon={I.pin}
-          inputMode="numeric"
-          maxLength={6}
+          icon={<PlaceOutlinedIcon />}
           placeholder="6 digits — fills in your address"
-          autoComplete="postal-code"
           value={form.postalCode}
           onChange={set("postalCode")}
+          slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6, autoComplete: "postal-code" } }}
         />
-        <AuthField id="ob-addr" label="Address (optional)" icon={I.home} autoComplete="street-address" placeholder="Filled in from your postal code" value={form.address} onChange={set("address")} />
+        <AuthField id="ob-addr" label="Address (optional)" icon={<HomeOutlinedIcon />} placeholder="Filled in from your postal code" value={form.address} onChange={set("address")} slotProps={{ htmlInput: { autoComplete: "street-address" } }} />
         {role === "homeowner" && (
-          <AuthField id="ob-ic" label="NRIC last 4 (optional)" icon={I.shield} maxLength={4} placeholder="e.g. 567D" autoComplete="off" value={form.icLast4} onChange={set("icLast4")} />
+          <AuthField id="ob-ic" label="NRIC last 4 (optional)" icon={<BadgeOutlinedIcon />} placeholder="e.g. 567D" value={form.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4, autoComplete: "off" } }} />
         )}
         <AuthField
           id="ob-note"
           label="Note for the project manager (optional)"
-          icon={I.pen}
-          maxLength={500}
+          icon={<EditNoteRoundedIcon />}
           placeholder={role === "contractor" || role === "epc_team" ? "e.g. I'm with Apex Solar Contractors" : "Anything we should know"}
           value={form.note}
           onChange={set("note")}
+          slotProps={{ htmlInput: { maxLength: 500 } }}
         />
-
-        {err && <div className="err">{err}</div>}
-        <button className="btn p full" disabled={!ready || busy}>
-          {busy ? "Sending…" : "Request Access"}
-        </button>
-        <div className="rules" style={{ justifyContent: "center", marginTop: 12 }}>
-          {ready ? "We never ask for your full NRIC." : "Choose a role and enter your name and mobile."}
-        </div>
+        <AuthError>{err}</AuthError>
+        <AuthButton disabled={!ready || busy}>{busy ? T("Sending…") : T("Request Access")}</AuthButton>
+        <AuthRules center rules={[{ text: ready ? T("We never ask for your full NRIC.") : T("Choose a role and enter your name and mobile.") }]} />
       </form>
     </>
   );
@@ -166,40 +148,19 @@ function Pending({ request, onRefresh }: { request: NonNullable<MeState["request
   const [checking, setChecking] = useState(false);
   return (
     <>
-      <div className="badge">
-        <I.clock size={32} />
-      </div>
-      <h2>Waiting for approval</h2>
-      <p className="subtitle">
-        You asked to join as <b>{request.requestedRoleLabel}</b>. We&apos;ll email and WhatsApp you as soon as a project manager decides.
-      </p>
-      <div className="steps" style={{ margin: "0 auto 24px", maxWidth: 320, width: "100%" }}>
-        <div className="s done">
-          <span className="b">
-            <I.tick size={11} />
-          </span>
-          <div>
-            <div className="t">Request sent</div>
-            <div className="d">{d2s(request.createdAt)}</div>
-          </div>
-        </div>
-        <div className="s now">
-          <span className="b">2</span>
-          <div>
-            <div className="t">Project manager review</div>
-            <div className="d">Usually within one working day</div>
-          </div>
-        </div>
-        <div className="s">
-          <span className="b">3</span>
-          <div>
-            <div className="t">Access granted</div>
-            <div className="d">Your projects appear automatically</div>
-          </div>
-        </div>
-      </div>
-      <button
-        className="btn p full"
+      <AuthBadge>
+        <HourglassTopRoundedIcon />
+      </AuthBadge>
+      <AuthHeading>{T("Waiting for approval")}</AuthHeading>
+      <AuthSubtitle>{T("You asked to join as {role}. We'll email and WhatsApp you as soon as a project manager decides.", { role: TR(request.requestedRoleLabel) })}</AuthSubtitle>
+      <AuthSteps
+        steps={[
+          { state: "done", label: "Request sent", detail: d2s(request.createdAt) },
+          { state: "now", label: "Project manager review", detail: "Usually within one working day" },
+          { state: "next", label: "Access granted", detail: "Your projects appear automatically" },
+        ]}
+      />
+      <AuthButton
         disabled={checking}
         onClick={async () => {
           setChecking(true);
@@ -207,20 +168,25 @@ function Pending({ request, onRefresh }: { request: NonNullable<MeState["request
           setChecking(false);
         }}
       >
-        {checking ? "Checking…" : "Check Again"}
-      </button>
+        {checking ? T("Checking…") : T("Check Again")}
+      </AuthButton>
     </>
   );
 }
 
-function Deactivated() {
+function Deactivated({ disabled }: { disabled: MeState["disabled"] }) {
+  const expired = disabled?.reason === "scheduled";
   return (
     <>
-      <div className="badge">
-        <I.alert size={30} />
-      </div>
-      <h2>Account switched off</h2>
-      <p className="subtitle">Your account has been deactivated. Contact your 9 Solar Home project manager if you think this is a mistake.</p>
+      <AuthBadge>{expired ? <EventBusyRoundedIcon /> : <ReportGmailerrorredRoundedIcon />}</AuthBadge>
+      <AuthHeading>{expired ? T("Your account has expired") : T("Account switched off")}</AuthHeading>
+      <AuthSubtitle>
+        {expired && disabled?.expiredOn
+          ? T("It reached its expiry date on {date}. Ask your 9 Solar Home project manager to extend it.", { date: d2s(disabled.expiredOn) })
+          : disabled?.enableOn
+            ? T("Your account is switched off until {date}, when it turns on again by itself.", { date: d2s(disabled.enableOn) })
+            : T("Your account has been deactivated. Contact your 9 Solar Home project manager if you think this is a mistake.")}
+      </AuthSubtitle>
     </>
   );
 }

@@ -25,6 +25,7 @@ import { Field, MDialog, PhoneField, ROLE_NAME } from "@/components/m";
 import { ApiError, useFetcher } from "@/lib/client/api";
 import { type Role, useApp } from "@/lib/client/app-state";
 
+import { T, TR } from "@/lib/client/i18n";
 /** Runs one step: shows the server's message, or keeps the error on screen. */
 function useStep() {
   const [busy, setBusy] = useState(false);
@@ -70,8 +71,8 @@ export function NameDialog({ current, onClose }: { current: string; onClose: () 
   const [name, setName] = useState(current);
   const ok = name.trim().length >= 2 && name.trim() !== current;
   return (
-    <MDialog title="Your Name" heading="Change your name" subtitle="This is how you appear to everyone on your projects." onClose={onClose} maxWidth="xs">
-      <Field label="Full name" icon={<PersonOutlineRoundedIcon />} value={name} autoFocus onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 80 } }} />
+    <MDialog title={T("Your Name")} heading={T("Change your name")} subtitle={T("This is how you appear to everyone on your projects.")} onClose={onClose} maxWidth="xs">
+      <Field label={T("Full name")} icon={<PersonOutlineRoundedIcon />} value={name} autoFocus onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 80 } }} />
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       <Actions>
         <Button
@@ -87,10 +88,10 @@ export function NameDialog({ current, onClose }: { current: string; onClose: () 
             }
           }}
         >
-          {busy ? "Saving…" : "Save"}
+          {busy ? T("Saving…") : T("Save")}
         </Button>
         <Button size="large" onClick={onClose}>
-          Cancel
+          {T("Cancel")}
         </Button>
       </Actions>
     </MDialog>
@@ -149,14 +150,14 @@ export function EmailDialog({ current, onClose }: { current: string; onClose: ()
 
   return (
     <MDialog
-      title="Your Email"
-      heading={pendingId ? "Check your inbox" : "Change your email"}
-      subtitle={pendingId ? `We sent a 6-digit code to ${email.trim()}. It's valid for 10 minutes.` : `You sign in with ${current}. We'll email a code to the new address to confirm it's yours.`}
+      title={T("Your Email")}
+      heading={pendingId ? T("Check your inbox") : T("Change your email")}
+      subtitle={pendingId ? T("We sent a 6-digit code to {email}. It's valid for 10 minutes.", { email: email.trim() }) : T("You sign in with {email}. We'll email a code to the new address to confirm it's yours.", { email: current })}
       onClose={onClose}
       maxWidth="xs"
     >
       {!pendingId ? (
-        <Field label="New email" type="email" icon={<MailOutlineRoundedIcon />} value={email} autoFocus onChange={(e) => setEmail(e.target.value)} slotProps={{ htmlInput: { autoComplete: "email" } }} />
+        <Field label={T("New email")} type="email" icon={<MailOutlineRoundedIcon />} value={email} autoFocus onChange={(e) => setEmail(e.target.value)} slotProps={{ htmlInput: { autoComplete: "email" } }} />
       ) : (
         <CodeField value={code} onChange={setCode} />
       )}
@@ -164,20 +165,20 @@ export function EmailDialog({ current, onClose }: { current: string; onClose: ()
       <Actions>
         {!pendingId ? (
           <Button size="large" variant="contained" disabled={!ok || busy} onClick={() => void send()}>
-            {busy ? "Sending…" : "Send code"}
+            {busy ? T("Sending…") : T("Send code")}
           </Button>
         ) : (
           <>
             <Button size="large" variant="contained" disabled={code.length !== 6 || busy} onClick={() => void confirm()}>
-              {busy ? "Confirming…" : "Confirm new email"}
+              {busy ? T("Confirming…") : T("Confirm new email")}
             </Button>
             <Button size="large" disabled={busy} onClick={() => void send()}>
-              Send the code again
+              {T("Send the code again")}
             </Button>
           </>
         )}
         <Button size="large" onClick={onClose}>
-          Cancel
+          {T("Cancel")}
         </Button>
       </Actions>
     </MDialog>
@@ -225,16 +226,15 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
     }
   }
 
-  const via = sent?.sentBy === "whatsapp" ? "on WhatsApp" : sent?.sentBy === "sms" ? "by SMS" : "";
   return (
     <MDialog
-      title="Your Mobile"
-      heading={sent ? "Enter the code" : "Change your mobile"}
-      subtitle={sent ? `We sent a 6-digit code to ${sent.to} ${via}. It's valid for 10 minutes.`.replace("  ", " ") : "We'll send a code to the new number by WhatsApp (or SMS) to confirm it's yours."}
+      title={T("Your Mobile")}
+      heading={sent ? T("Enter the code") : T("Change your mobile")}
+      subtitle={sent ? (sent.sentBy === "whatsapp" ? T("We sent a 6-digit code to {to} on WhatsApp. It's valid for 10 minutes.", { to: sent.to }) : sent.sentBy === "sms" ? T("We sent a 6-digit code to {to} by SMS. It's valid for 10 minutes.", { to: sent.to }) : T("Here's the code for {to}. It's valid for 10 minutes.", { to: sent.to })) : T("We'll send a code to the new number by WhatsApp (or SMS) to confirm it's yours.")}
       onClose={onClose}
       maxWidth="xs"
     >
-      {!sent ? <PhoneField label="New mobile" value={number} onChange={setNumber} /> : <CodeField value={code} onChange={setCode} />}
+      {!sent ? <PhoneField label={T("New mobile")} value={number} onChange={setNumber} /> : <CodeField value={code} onChange={setCode} />}
       {sent?.devCode && (
         <Alert severity="info" sx={{ mt: 2 }} data-testid="dev-code">
           Development only: WhatsApp and SMS aren&apos;t set up, so here&apos;s the code: <b>{sent.devCode}</b>
@@ -244,25 +244,25 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
       <Actions>
         {!sent ? (
           <Button size="large" variant="contained" disabled={!ok || busy} onClick={() => void send("auto")}>
-            {busy ? "Sending…" : "Send code"}
+            {busy ? T("Sending…") : T("Send code")}
           </Button>
         ) : (
           <>
             <Button size="large" variant="contained" disabled={code.length !== 6 || busy} onClick={() => void verify()}>
-              {busy ? "Checking…" : "Confirm new number"}
+              {busy ? T("Checking…") : T("Confirm new number")}
             </Button>
             <Stack direction="row" sx={{ gap: 1 }}>
               <Button fullWidth disabled={busy || wait > 0} onClick={() => void send("auto")}>
-                {wait > 0 ? `Resend in ${wait}s` : "Resend code"}
+                {wait > 0 ? T("Resend in {n}s", { n: wait }) : T("Resend code")}
               </Button>
               <Button fullWidth disabled={busy || wait > 0} onClick={() => void send("sms")}>
-                Send by SMS instead
+                {T("Send by SMS instead")}
               </Button>
             </Stack>
           </>
         )}
         <Button size="large" onClick={onClose}>
-          Cancel
+          {T("Cancel")}
         </Button>
       </Actions>
     </MDialog>
@@ -285,7 +285,7 @@ function PasswordInput({ label, value, onChange, autoComplete }: { label: string
         input: {
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow((s) => !s)} edge="end">
+              <IconButton aria-label={show ? T("Hide password") : T("Show password")} onClick={() => setShow((s) => !s)} edge="end">
                 {show ? <VisibilityOffRoundedIcon /> : <VisibilityRoundedIcon />}
               </IconButton>
             </InputAdornment>
@@ -314,15 +314,15 @@ export function PasswordDialog({ onClose }: { onClose: () => void }) {
   const ok = f.current.length > 0 && long && same && f.next !== f.current;
 
   return (
-    <MDialog title="Your Password" heading="Change your password" subtitle="Enter your current password, then the new one twice. You'll stay signed in here; other devices are signed out." onClose={onClose} maxWidth="xs">
+    <MDialog title={T("Your Password")} heading={T("Change your password")} subtitle={T("Enter your current password, then the new one twice. You'll stay signed in here; other devices are signed out.")} onClose={onClose} maxWidth="xs">
       <Stack sx={{ gap: 2.5 }}>
-        <PasswordInput label="Current password" value={f.current} onChange={(v) => setF((x) => ({ ...x, current: v }))} autoComplete="current-password" />
-        <PasswordInput label="New password" value={f.next} onChange={(v) => setF((x) => ({ ...x, next: v }))} autoComplete="new-password" />
-        <PasswordInput label="New password again" value={f.again} onChange={(v) => setF((x) => ({ ...x, again: v }))} autoComplete="new-password" />
+        <PasswordInput label={T("Current password")} value={f.current} onChange={(v) => setF((x) => ({ ...x, current: v }))} autoComplete="current-password" />
+        <PasswordInput label={T("New password")} value={f.next} onChange={(v) => setF((x) => ({ ...x, next: v }))} autoComplete="new-password" />
+        <PasswordInput label={T("New password again")} value={f.again} onChange={(v) => setF((x) => ({ ...x, again: v }))} autoComplete="new-password" />
       </Stack>
       <Typography variant="caption" component="div" sx={{ mt: 1.5, color: f.next && !long ? "error.main" : "text.secondary" }}>
-        At least {PASSWORD_MIN} characters. A short sentence is easiest to remember.
-        {f.again && !same ? " The two new passwords don't match." : ""}
+        {T("At least {n} characters. A short sentence is easiest to remember.", { n: PASSWORD_MIN })}
+        {f.again && !same ? ` ${T("The two new passwords don't match.")}` : ""}
       </Typography>
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       <Actions>
@@ -343,13 +343,13 @@ export function PasswordDialog({ onClose }: { onClose: () => void }) {
             }
           }}
         >
-          {busy ? "Changing…" : "Change password"}
+          {busy ? T("Changing…") : T("Change password")}
         </Button>
         <Button size="large" disabled={busy} onClick={() => void signOut({ redirectUrl: "/forgot-password" })}>
-          Forgot it? Reset by email
+          {T("Forgot it? Reset by email")}
         </Button>
         <Button size="large" onClick={onClose}>
-          Cancel
+          {T("Cancel")}
         </Button>
       </Actions>
     </MDialog>
@@ -366,16 +366,16 @@ export function RoleDialog({ current, onClose }: { current: Role; onClose: () =>
   const [role, setRole] = useState<Role>(options[0]);
   const [reason, setReason] = useState("");
   return (
-    <MDialog title="Your Role" heading="Ask for a different role" subtitle="A project manager reviews it, the same way new accounts are approved. You keep your current role until then." onClose={onClose} maxWidth="xs">
+    <MDialog title={T("Your Role")} heading={T("Ask for a different role")} subtitle={T("A project manager reviews it, the same way new accounts are approved. You keep your current role until then.")} onClose={onClose} maxWidth="xs">
       <Stack sx={{ gap: 2.5 }}>
-        <Field select label="Role you need" icon={<BadgeRoundedIcon />} value={role} onChange={(e) => setRole(e.target.value as Role)}>
+        <Field select label={T("Role you need")} icon={<BadgeRoundedIcon />} value={role} onChange={(e) => setRole(e.target.value as Role)}>
           {options.map((r) => (
             <MenuItem key={r} value={r}>
-              {ROLE_NAME[r]}
+              {TR(ROLE_NAME[r])}
             </MenuItem>
           ))}
         </Field>
-        <Field label="Why you need it" icon={<ChatBubbleOutlineRoundedIcon />} multiline minRows={3} placeholder="e.g. I've moved from the office to the EPC crew at Apex." value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 500 } }} />
+        <Field label={T("Why you need it")} icon={<ChatBubbleOutlineRoundedIcon />} multiline minRows={3} placeholder={T("e.g. I've moved from the office to the EPC crew at Apex.")} value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 500 } }} />
       </Stack>
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       <Actions>
@@ -392,10 +392,10 @@ export function RoleDialog({ current, onClose }: { current: Role; onClose: () =>
             }
           }}
         >
-          {busy ? "Sending…" : "Send request"}
+          {busy ? T("Sending…") : T("Send request")}
         </Button>
         <Button size="large" onClick={onClose}>
-          Cancel
+          {T("Cancel")}
         </Button>
       </Actions>
     </MDialog>
@@ -410,7 +410,7 @@ export function VerifiedNote({ at }: { at: string | null | undefined }) {
   return (
     <Box component="span" sx={{ color: "success.main", fontWeight: 600 }}>
       {" "}
-      · Verified
+      · {T("Verified")}
     </Box>
   );
 }

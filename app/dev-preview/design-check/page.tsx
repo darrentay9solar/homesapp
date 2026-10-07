@@ -15,15 +15,22 @@ import { useEffect, useState } from "react";
 
 import { Page } from "@/components/shell";
 import { GRID, Heading, TopBar } from "@/components/topbar";
-import { checkPage, type Finding, type Kind } from "@/lib/client/design-check";
+import { checkPage, checkPickers, type Finding, type Kind } from "@/lib/client/design-check";
+import { type Lang, LANG_COOKIE, translate } from "@/lib/client/i18n";
 
 /**
  * DEVELOPMENT ONLY. Loads every screen in a frame at phone, tablet and
- * desktop width, in Black and in Light, and measures it against the design
- * template. Anything listed is a place a screen doesn't match.
+ * desktop width, in Black and in Light, in English and in Chinese, and
+ * measures it against the design template. Every date and time field on a
+ * screen must also open its picker when tapped anywhere on the field.
+ * Anything listed is a place a screen doesn't match.
+ *
+ * `click` opens something first: "[data-testid=…]" (":last" for the last
+ * match), or a button's English words (matched in the language being checked).
+ * `opens` is false when the click doesn't open a dialog.
  */
 
-const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string }> = [
+const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; opens?: boolean }> = [
   { name: "Sign In", path: "/sign-in", kind: "auth" },
   { name: "Create Account", path: "/sign-up", kind: "auth" },
   { name: "Forgot Password", path: "/forgot-password", kind: "auth" },
@@ -44,6 +51,10 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string }>
   { name: "Change Password dialog", path: "/dev-preview/account", kind: "app", click: "[data-testid=edit-password]" },
   { name: "Change Email dialog", path: "/dev-preview/account", kind: "app", click: "[data-testid=edit-email]" },
   { name: "Role Change review", path: "/dev-preview/people", kind: "app", click: "[data-testid=role-review]" },
+  { name: "Account Request review", path: "/dev-preview/people", kind: "app", click: "[data-testid=request-review]" },
+  { name: "Person dialog · schedule", path: "/dev-preview/people", kind: "app", click: "[data-testid=person-card]:last" },
+  { name: "Notifications dialog", path: "/dev-preview/account", kind: "app", click: "[data-testid=edit-notifications]" },
+  { name: "Everyone's files", path: "/dev-preview/files", kind: "app", click: "[data-testid=files-scope]", opens: false },
   { name: "Template", path: "/dev-preview/template", kind: "app" },
   // Dialogs only exist once opened: these press the button first.
   { name: "Create Project dialog", path: "/dev-preview/projects", kind: "app", click: "Create project" },
@@ -56,8 +67,13 @@ const SIZES: Array<[string, number, number]> = [
   ["Desktop", 1440, 900],
 ];
 const THEMES = ["dark", "light"] as const;
+const LANGS: Lang[] = ["en", "zh"];
 
-type Result = { screen: string; size: string; theme: string; findings: Finding[] };
+type Result = { screen: string; size: string; theme: string; lang: Lang; findings: Finding[] };
+
+function setLangCookie(l: Lang) {
+  document.cookie = `${LANG_COOKIE}=${l}; path=/; max-age=${60 * 60 * 24 * 400}; samesite=lax`;
+}
 
 async function until(test: () => boolean, ms: number): Promise<boolean> {
   const end = Date.now() + ms;
@@ -68,7 +84,7 @@ async function until(test: () => boolean, ms: number): Promise<boolean> {
   return test();
 }
 
-async function measure(path: string, kind: Kind, w: number, h: number, click?: string): Promise<Finding[]> {
+async function measure(path: string, kind: Kind, w: number, h: number, lang: Lang, click?: string, opens = true): Promise<Finding[]> {
   const f = document.createElement("iframe");
   f.style.cssText = `position:fixed;left:-${w + 50}px;top:0;width:${w}px;height:${h}px;border:0;pointer-events:none`;
   f.src = path;
@@ -78,25 +94,40 @@ async function measure(path: string, kind: Kind, w: number, h: number, click?: s
     const doc = f.contentDocument!;
     // Wait until the screen has really drawn: its frame is there and nothing
     // is still a loading placeholder. A busy dev server can take a while.
+    // Only what's showing counts: Next keeps a hidden copy of a nearby page drawn.
+    const seen = (sel: string) => [...doc.querySelectorAll(sel)].some((e) => e.getClientRects().length > 0);
     const ready = () =>
-      kind === "auth"
-        ? Boolean(doc.querySelector(".auth .content > *"))
-        : Boolean(doc.querySelector("header h1") && doc.querySelector("nav[aria-label=Main], .MuiBottomNavigation-root") && !doc.querySelector(".MuiSkeleton-root"));
+      kind === "auth" ? seen("[data-auth=content] > *") : seen("header h1") && seen("nav, .MuiBottomNavigation-root") && !seen(".MuiSkeleton-root");
     if (!(await until(ready, 20000))) return [{ rule: "Page loads", detail: "didn't finish drawing in 20 seconds" }];
     await new Promise((r) => setTimeout(r, 500)); // fonts and transitions settle
     if (click) {
-      const find = () =>
+      const words = translate(click, lang);
+      const short = translate("New", lang);
+      // Only what's showing: Next keeps a hidden copy of a nearby page drawn.
+      const shown = (sel: string) => [...doc.querySelectorAll<HTMLElement>(sel)].filter((e) => e.getClientRects().length > 0);
+      const find = () => {
         // "[data-testid=…]" picks one button when several say the same thing ("Change").
-        (click.startsWith("[") ? doc.querySelector<HTMLButtonElement>(click) : null) ??
-        [...doc.querySelectorAll<HTMLButtonElement>("button")].find((b) => (b.textContent ?? "").includes(click)) ??
-        // On phones "New account" reads "New".
-        [...doc.querySelectorAll<HTMLButtonElement>("header button")].find((b) => /^\s*New\s*$/.test(b.textContent ?? ""));
+        if (click.startsWith("[")) {
+          const all = shown(click.replace(/:last$/, ""));
+          return click.endsWith(":last") ? all[all.length - 1] : all[0];
+        }
+        return (
+          shown("button").find((b) => (b.textContent ?? "").includes(words)) ??
+          // On phones "New account" reads "New".
+          shown("header button").find((b) => (b.textContent ?? "").trim() === short)
+        );
+      };
       await until(() => Boolean(find()), 8000);
       find()?.click();
-      if (!(await until(() => Boolean(doc.querySelector(".MuiDialog-paper")), 8000))) return [{ rule: "Dialog opens", detail: `couldn't open "${click}"` }];
-      await new Promise((r) => setTimeout(r, 700)); // the slide-in finishes
+      if (opens) {
+        if (!(await until(() => Boolean(doc.querySelector(".MuiDialog-paper")), 8000))) return [{ rule: "Dialog opens", detail: `couldn't open "${click}"` }];
+        await new Promise((r) => setTimeout(r, 700)); // the slide-in finishes
+      } else {
+        await new Promise((r) => setTimeout(r, 1500));
+        await until(() => !seen(".MuiSkeleton-root"), 8000);
+      }
     }
-    return checkPage(f.contentWindow!, kind);
+    return [...checkPage(f.contentWindow!, kind), ...checkPickers(f.contentWindow!)];
   } catch (err) {
     return [{ rule: "Page loads", detail: String(err) }];
   } finally {
@@ -112,7 +143,7 @@ export default function DesignCheckPage() {
   const [results, setResults] = useState<Result[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
-  const total = SCREENS.length * SIZES.length * THEMES.length;
+  const total = SCREENS.length * SIZES.length * THEMES.length * LANGS.length;
 
   async function run() {
     setRunning(true);
@@ -124,25 +155,30 @@ export default function DesignCheckPage() {
     } catch {
       /* storage blocked */
     }
+    const lang0: Lang = /(?:^|;\s*)gha-lang=zh\b/.test(document.cookie) ? "zh" : "en";
     const out: Result[] = [];
-    for (const theme of THEMES) {
-      try {
-        localStorage.setItem("gha-theme", theme);
-        localStorage.setItem("mui-mode", theme);
-      } catch {
-        /* storage blocked */
-      }
-      const jobs = SCREENS.flatMap((s) => SIZES.map(([size, w, h]) => ({ s, size, w, h })));
-      // A few at a time: fast, without starving the page of CPU.
-      for (let i = 0; i < jobs.length; i += 4) {
-        const batch = await Promise.all(
-          jobs.slice(i, i + 4).map(async ({ s, size, w, h }) => ({ screen: s.name, size, theme, findings: await measure(s.path, s.kind, w, h, s.click) }))
-        );
-        out.push(...batch);
-        setResults([...out]);
-        setDone(out.length);
+    for (const lang of LANGS) {
+      setLangCookie(lang);
+      for (const theme of THEMES) {
+        try {
+          localStorage.setItem("gha-theme", theme);
+          localStorage.setItem("mui-mode", theme);
+        } catch {
+          /* storage blocked */
+        }
+        const jobs = SCREENS.flatMap((s) => SIZES.map(([size, w, h]) => ({ s, size, w, h })));
+        // A few at a time: fast, without starving the page of CPU.
+        for (let i = 0; i < jobs.length; i += 4) {
+          const batch = await Promise.all(
+            jobs.slice(i, i + 4).map(async ({ s, size, w, h }) => ({ screen: s.name, size, theme, lang, findings: await measure(s.path, s.kind, w, h, lang, s.click, s.opens) }))
+          );
+          out.push(...batch);
+          setResults([...out]);
+          setDone(out.length);
+        }
       }
     }
+    setLangCookie(lang0);
     try {
       if (saved) {
         localStorage.setItem("gha-theme", saved);
@@ -172,7 +208,7 @@ export default function DesignCheckPage() {
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
           <Typography variant="body2" sx={{ color: "text.secondary", mt: 1 }}>
-            {SCREENS.length} screens × phone, tablet and desktop × Black and Light = {total} checks. Rules come from docs/design/TEMPLATE.md; numbers from lib/client/design.ts.
+            {SCREENS.length} screens × phone, tablet and desktop × Black and Light × English and Chinese = {total} checks. Rules come from docs/design/TEMPLATE.md; numbers from lib/client/design.ts.
           </Typography>
           {running && <LinearProgress variant="determinate" value={(done / total) * 100} sx={{ mt: 2, height: 6, borderRadius: 3 }} />}
           {!running && results.length === total && (
@@ -196,9 +232,9 @@ export default function DesignCheckPage() {
                     {s.path} · {rows.length - bad.length} of {rows.length} match
                   </Typography>
                   {bad.map((r) => (
-                    <Box key={`${r.size}${r.theme}`} sx={{ mt: 1.25 }}>
+                    <Box key={`${r.size}${r.theme}${r.lang}`} sx={{ mt: 1.25 }}>
                       <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                        {r.size} · {r.theme === "dark" ? "Black" : "Light"}
+                        {r.size} · {r.theme === "dark" ? "Black" : "Light"} · {r.lang === "zh" ? "中文" : "English"}
                       </Typography>
                       {r.findings.map((f, i) => (
                         <Typography key={i} variant="body2" sx={{ color: "error.main", fontSize: 13 }}>

@@ -8,28 +8,35 @@ import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { RoleAvatar } from "@/components/m";
 import { useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { EdgeCard, GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
-import { useApi } from "@/lib/client/api";
-import { useMe } from "@/lib/client/app-state";
+import { ApiError, useApi, useFetcher } from "@/lib/client/api";
+import { type Role, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { byProject, type FileTab, fileSize, filterFiles, type MyFile, tabCounts } from "@/lib/client/files";
+import { locale, T, TR } from "@/lib/client/i18n";
+
+type Scope = "mine" | "all";
+type Everyone = MyFile & { uploader: { uid: number; name: string; role: Role; avatar: string | null } | null };
 
 function when(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString("en-SG", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  return iso ? new Date(iso).toLocaleString(locale(), { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Singapore" }) : "";
 }
 
-function FileCard({ f }: { f: MyFile }) {
+function FileCard({ f }: { f: MyFile | Everyone }) {
   const photo = f.kind === "photo";
+  const by = "uploader" in f ? f.uploader : null;
   const body = (
     <Stack direction="row" sx={{ gap: 1.5, alignItems: "center", p: 1.5, pl: 2.25, flex: 1, minWidth: 0 }}>
       <Box
@@ -58,13 +65,25 @@ function FileCard({ f }: { f: MyFile }) {
           {f.name}
         </Typography>
         <Typography variant="body2" noWrap sx={{ color: "text.secondary" }}>
-          {f.categoryLabel}
+          {TR(f.categoryLabel)}
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-          {f.removed ? `Removed ${when(f.removed.at)}${f.removed.by ? ` by ${f.removed.by}` : ""}` : `${when(f.uploadedAt)} · ${fileSize(f.size)}`}
+          {f.removed
+            ? f.removed.by
+              ? T("Removed {date} by {name}", { date: when(f.removed.at), name: f.removed.by })
+              : T("Removed {date}", { date: when(f.removed.at) })
+            : `${when(f.uploadedAt)} · ${fileSize(f.size)}`}
         </Typography>
+        {by && (
+          <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", mt: 0.5 }}>
+            <RoleAvatar name={by.name} role={by.role} size={20} src={by.avatar} />
+            <Typography variant="caption" noWrap sx={{ color: "text.secondary" }}>
+              {by.name}
+            </Typography>
+          </Stack>
+        )}
       </Box>
-      {f.removed ? <Chip size="small" label="Removed" color="warning" variant="outlined" /> : <OpenInNewRoundedIcon sx={{ color: "text.secondary", fontSize: 20 }} />}
+      {f.removed ? <Chip size="small" label={T("Removed")} color="warning" variant="outlined" /> : <OpenInNewRoundedIcon sx={{ color: "text.secondary", fontSize: 20 }} />}
     </Stack>
   );
   return (
@@ -80,63 +99,128 @@ function FileCard({ f }: { f: MyFile }) {
   );
 }
 
-/** Every photo and document you've uploaded, on any project — including ones later removed. */
+/** Everyone's files, for project managers: searched on the server, newest first, 100 at a time. */
+function useEveryone(q: string, tab: FileTab, on: boolean) {
+  const fetcher = useFetcher();
+  const [files, setFiles] = useState<Everyone[] | null>(null);
+  const [more, setMore] = useState(false);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [error, setError] = useState<string | null>(null);
+  const kind = tab === "photo" ? "image" : tab === "document" ? "document" : "all";
+
+  useEffect(() => {
+    if (!on) return;
+    let stale = false;
+    const timer = setTimeout(async () => {
+      try {
+        const r = await fetcher<{ files: Everyone[]; more: boolean; counts: Record<string, number> }>(`/all-files?q=${encodeURIComponent(q)}&kind=${kind}`);
+        if (stale) return;
+        setFiles(r.files);
+        setMore(r.more);
+        setCounts(r.counts);
+        setError(null);
+      } catch (e) {
+        if (!stale) setError(e instanceof ApiError ? e.message : T("Couldn't load the files."));
+      }
+    }, 250);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [on, q, kind, fetcher]);
+
+  async function older() {
+    const last = files?.[files.length - 1];
+    if (!last) return;
+    const r = await fetcher<{ files: Everyone[]; more: boolean }>(`/all-files?q=${encodeURIComponent(q)}&kind=${kind}&before=${last.id}`);
+    setFiles((f) => [...(f ?? []), ...r.files]);
+    setMore(r.more);
+  }
+  return { files, more, counts, error, older };
+}
+
+/**
+ * Files. Everyone sees what they've uploaded, on any project, including ones
+ * later removed. Project managers can switch to everyone's files and search them.
+ */
 export default function FilesPage() {
   const me = useMe();
   const href = useProjectHref();
-  const { data, error } = useApi<{ files: MyFile[] }>(me ? "/my-files" : null);
+  const pm = me?.role === "project_manager";
+  const [scope, setScope] = useState<Scope>("mine");
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<FileTab>("all");
+  const mine = useApi<{ files: MyFile[] }>(me && scope === "mine" ? "/my-files" : null);
+  const all = useEveryone(q, tab, pm && scope === "all");
   if (!me) return null;
 
-  const files = data?.files ?? [];
-  const counts = tabCounts(files);
-  const shown = filterFiles(files, q, tab);
-  const groups = byProject(shown);
+  const everyone = scope === "all";
+  const myFiles = mine.data?.files ?? [];
+  const shown: Array<MyFile | Everyone> = everyone ? (all.files ?? []) : filterFiles(myFiles, q, tab);
+  const loaded = everyone ? all.files !== null : mine.data !== null;
+  const error = everyone ? all.error : mine.error?.message ?? null;
+  const counts = everyone
+    ? { all: (all.counts.image ?? 0) + (all.counts.document ?? 0), photo: all.counts.image ?? 0, document: all.counts.document ?? 0, removed: 0 }
+    : tabCounts(myFiles);
+  const groups = byProject(shown as MyFile[]);
   const TABS: Array<[FileTab, string]> = [
     ["all", "All"],
     ["photo", "Photos"],
     ["document", "Documents"],
-    ["removed", "Removed"],
+    ...(everyone ? [] : ([["removed", "Removed"]] as Array<[FileTab, string]>)),
   ];
 
   return (
     <>
       <TopBar
-        title="My Files"
-        sub="Everything you've uploaded"
-        search={<SearchBox value={q} onChange={setQ} placeholder="Search files, projects or slots" testId="files-search" />}
+        title={pm ? "Files" : "My Files"}
+        sub={everyone ? "Every project's photos and documents" : "Everything you've uploaded"}
+        action={
+          pm ? (
+            <Button
+              onClick={() => {
+                setScope(everyone ? "mine" : "all");
+                if (tab === "removed") setTab("all");
+              }}
+              data-testid="files-scope"
+              sx={{ color: "#073f2b", bgcolor: "#fff", height: 36, px: 1.5, "&:hover": { bgcolor: "#eafff4" } }}
+            >
+              {everyone ? T("Just mine") : T("Everyone's")}
+            </Button>
+          ) : undefined
+        }
+        search={<SearchBox value={q} onChange={setQ} placeholder={everyone ? "Search by file, project, person or slot" : "Search files, projects or slots"} testId="files-search" />}
         tabs={<SegTabs label="Filter files" value={tab} onChange={setTab} options={TABS.map(([v, l]) => ({ value: v, label: l, count: counts[v] }))} />}
       />
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {error.message}
+              {error}
             </Alert>
           )}
-          {!data && !error && (
+          {!loaded && !error && (
             <Box sx={{ ...GRID, mt: 3 }}>
               {Array.from({ length: 4 }, (_, i) => (
                 <Skeleton key={i} variant="rounded" height={80} />
               ))}
             </Box>
           )}
-          {data && files.length === 0 && (
+          {loaded && !everyone && myFiles.length === 0 && (
             <Card sx={{ p: 4, mt: 2, textAlign: "center" }} data-testid="files-empty">
               <FolderOpenRoundedIcon sx={{ fontSize: 42, color: "primary.main" }} />
-              <Typography sx={{ fontWeight: 600, mt: 1 }}>Nothing uploaded yet</Typography>
+              <Typography sx={{ fontWeight: 600, mt: 1 }}>{T("Nothing uploaded yet")}</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-                Photos and documents you add to a project&apos;s milestones will appear here.
+                {T("Photos and documents you add to a project's milestones will appear here.")}
               </Typography>
             </Card>
           )}
-          {data && files.length > 0 && shown.length === 0 && (
+          {loaded && (everyone || myFiles.length > 0) && shown.length === 0 && (
             <Card sx={{ p: 4, mt: 2, textAlign: "center" }} data-testid="files-none-match">
               {tab === "removed" ? <DeleteSweepOutlinedIcon sx={{ fontSize: 36, color: "text.disabled" }} /> : <SearchRoundedIcon sx={{ fontSize: 36, color: "text.disabled" }} />}
-              <Typography sx={{ fontWeight: 600, mt: 1 }}>{tab === "removed" && !q ? "Nothing removed" : "No files match"}</Typography>
+              <Typography sx={{ fontWeight: 600, mt: 1 }}>{tab === "removed" && !q ? T("Nothing removed") : T("No files match")}</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-                {tab === "removed" && !q ? "None of your uploads has been taken off a project." : "Try a file name, project or slot, e.g. “jalan panels” or “pdf”."}
+                {tab === "removed" && !q ? T("None of your uploads has been taken off a project.") : T("Try a file name, project or slot, e.g. “jalan panels” or “pdf”.")}
               </Typography>
             </Card>
           )}
@@ -147,7 +231,7 @@ export default function FilesPage() {
                 count={g.files.length}
                 action={
                   <Typography component={Link} href={href(g.projectId)} variant="body2" sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}>
-                    Open project
+                    {T("Open project")}
                   </Typography>
                 }
               />
@@ -158,9 +242,14 @@ export default function FilesPage() {
               </Box>
             </Box>
           ))}
+          {everyone && all.more && (
+            <Stack sx={{ alignItems: "center", mt: 2.5 }}>
+              <Button onClick={() => void all.older()}>{T("Show more")}</Button>
+            </Stack>
+          )}
           {tab === "removed" && counts.removed > 0 && (
             <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 3 }}>
-              Removed files are kept. A project manager can restore one from the audit log.
+              {T("Removed files are kept. A project manager can restore one from the audit log.")}
             </Typography>
           )}
         </Page>

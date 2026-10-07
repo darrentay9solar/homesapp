@@ -18,9 +18,11 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from _lib import prefs as prefs_mod
 from _lib import push
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
+from _lib.i18n import tr
 
 BRAND = "9 Solar Home"
 
@@ -123,8 +125,14 @@ def send_whatsapp(to: str | None, template: str, params: list[str], *, copy_code
                     "components": [
                         {"type": "body", "parameters": [{"type": "text", "text": p} for p in params]},
                         *(
-                            [{"type": "button", "sub_type": "url", "index": "0",
-                              "parameters": [{"type": "text", "text": copy_code}]}]
+                            [
+                                {
+                                    "type": "button",
+                                    "sub_type": "url",
+                                    "index": "0",
+                                    "parameters": [{"type": "text", "text": copy_code}],
+                                }
+                            ]
                             if copy_code
                             else []
                         ),
@@ -282,16 +290,30 @@ def notify(
             (nid, recipient_uid, project_id, kind, title, body, link),
         )
 
+    # The alert is always on their Alerts screen (above). Their settings decide
+    # whether it also reaches their phone, inbox or WhatsApp right now.
+    person = fetch_one("select language, notification_prefs from users where uid = %s", (recipient_uid,)) or {}
+    lang = person.get("language") or "en"
+    settings = person.get("notification_prefs") or {}
+    why = prefs_mod.silenced(settings, kind)
+    off = lambda ch: SendResult("skipped", why or f"{ch} turned off in their settings")  # noqa: E731
+
     results: dict[str, SendResult] = {}
     try:
-        if (pushed := push_to(recipient_uid, nid, title, body, link, urgent=urgent)) is not None:
+        if why or not prefs_mod.channel_on(settings, "push"):
+            if fetch_one("select 1 from push_subscriptions where uid = %s", (recipient_uid,)):
+                results["push"] = off("phone notifications")
+        elif (pushed := push_to(recipient_uid, nid, tr(title, lang), tr(body, lang), link, urgent=urgent)) is not None:
             results["push"] = pushed
     except Exception as exc:  # a phone must never stop the alert itself
         results["push"] = SendResult("failed", f"push error: {exc}")
     if email:
-        results["email"] = send_email(*email)
+        results["email"] = off("email") if why or not prefs_mod.channel_on(settings, "email") else send_email(*email)
     if mobile:
-        results.update(send_mobile(*mobile))
+        if why or not prefs_mod.channel_on(settings, "mobile"):
+            results["whatsapp"] = off("WhatsApp and SMS")
+        else:
+            results.update(send_mobile(*mobile))
     if results:
         with transaction(None) as cur:
             for channel, r in results.items():
@@ -326,7 +348,7 @@ def email_shell(heading: str, paragraphs: list[str], cta: tuple[str, str] | None
         label, url = cta
         button = (
             f'<tr><td style="padding:20px 0 4px"><a href="{e(url)}" style="display:inline-block;'
-            f'background:#16c47f;color:#06120a;font-weight:700;text-decoration:none;padding:12px 20px;'
+            f"background:#16c47f;color:#06120a;font-weight:700;text-decoration:none;padding:12px 20px;"
             f'border-radius:10px">{e(label)}</a></td></tr>'
             f'<tr><td style="font-size:12px;color:#7d8a80;padding-top:10px;word-break:break-all">'
             f"Or open: {e(url)}</td></tr>"
@@ -416,8 +438,11 @@ def msg_account_rejected(name: str, note: str | None) -> dict[str, Any]:
 def msg_role_requested(name: str, from_role: str, to_role: str, reason: str | None, url: str) -> dict[str, Any]:
     h, t = email_shell(
         "Role change request",
-        [f"{name} has asked to change their role from {from_role} to {to_role}.",
-         *([f"Their reason: {reason}"] if reason else []), "Review it to approve or decline."],
+        [
+            f"{name} has asked to change their role from {from_role} to {to_role}.",
+            *([f"Their reason: {reason}"] if reason else []),
+            "Review it to approve or decline.",
+        ],
         ("Review request", url),
     )
     return {
@@ -432,8 +457,11 @@ def msg_role_decided(name: str, role: str, approved: bool, note: str | None, url
         lines = [f"Hi {name},", f"Your role has been changed to {role}."]
         title, sms = "Role changed", f"{BRAND}: Hi {name}, your GetHomeApps role is now {role}. {url}"
     else:
-        lines = [f"Hi {name},", f"Your request to become {role} wasn't approved.",
-                 *([f"Note from {BRAND}: {note}"] if note else [])]
+        lines = [
+            f"Hi {name},",
+            f"Your request to become {role} wasn't approved.",
+            *([f"Note from {BRAND}: {note}"] if note else []),
+        ]
         title = "Role request declined"
         sms = f"{BRAND}: Hi {name}, your request to become {role} wasn't approved." + (f" Note: {note}" if note else "")
     h, t = email_shell(title, lines, ("Open GetHomeApps", url))

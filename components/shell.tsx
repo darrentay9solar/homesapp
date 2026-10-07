@@ -30,6 +30,7 @@ import { DESIGN } from "@/lib/client/design";
 import { Logo } from "./icons";
 import { RoleAvatar } from "./m";
 
+import { T, TR } from "@/lib/client/i18n";
 /** phone: false keeps a tab off the phone's bottom bar (at most five fit); it stays in the desktop drawer. */
 type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
 
@@ -99,7 +100,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
       <Box
         component="nav"
-        aria-label="Main"
+        aria-label={T("Main")}
+        data-nav="side"
         sx={{
           display: { xs: "none", lg: "flex" },
           flexDirection: "column",
@@ -118,9 +120,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Stack direction="row" component={Link} href="/" sx={{ alignItems: "center", gap: 1.5, px: 1, pb: 3 }}>
           <Logo size={36} />
           <Box>
-            <Typography sx={{ fontWeight: 600, letterSpacing: "0.2em", fontSize: 13.5 }}>GETHOMEAPPS</Typography>
+            <Typography sx={{ fontWeight: 600, letterSpacing: "0.2em", fontSize: 13.5 }}>{T("GETHOMEAPPS")}</Typography>
             <Typography sx={{ color: "text.secondary", letterSpacing: "0.22em", fontSize: 8.5, fontWeight: 600 }}>
-              9 SOLAR HOME · 九太阳家
+              {T("9 SOLAR HOME · 九太阳家")}
             </Typography>
           </Box>
         </Stack>
@@ -137,7 +139,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               }}
             >
               <ListItemIcon sx={{ minWidth: 40 }}>{withBadge(t.icon, t.href === "/alerts" && unread)}</ListItemIcon>
-              <ListItemText primary={t.label} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: 14.5 } } }} />
+              <ListItemText primary={TR(t.label)} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: 14.5 } } }} />
             </ListItemButton>
           ))}
         </List>
@@ -154,14 +156,14 @@ export function AppShell({ children }: { children: ReactNode }) {
               {me.fullName ?? me.email}
             </Typography>
             <Typography noWrap variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-              {me.roleLabel}
+              {TR(me.roleLabel)}
             </Typography>
           </Box>
         </Stack>
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        {state?.actingAs && <ActingBanner name={me.fullName ?? me.email} role={me.roleLabel} by={state.actingAs.byName} />}
+        {state?.actingAs && <ActingBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} by={state.actingAs.byName} />}
         {children}
       </Box>
 
@@ -185,7 +187,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <BottomNavigationAction
               key={t.href}
               value={t.href}
-              label={t.label}
+              label={TR(t.label)}
               icon={withBadge(t.icon, t.href === "/alerts" && unread)}
             />
           ))}
@@ -206,7 +208,8 @@ function ActingBanner({ name, role, by }: { name: string; role: string; by: stri
       sx={{ position: "sticky", top: 0, zIndex: (t) => t.zIndex.appBar + 1, px: 2, py: 0.75, display: "flex", alignItems: "center", gap: 1.5, bgcolor: "warning.main", color: "#1a1204" }}
     >
       <Typography sx={{ flex: 1, fontSize: 13, fontWeight: 600 }} noWrap>
-        Acting as {name} ({role}) · development only{by ? ` · you are ${by}` : ""}
+        {T("Acting as {name} ({role}) · development only", { name, role: TR(role) })}
+        {by ? ` · ${T("you are {name}", { name: by })}` : ""}
       </Typography>
       <Box
         component="button"
@@ -222,7 +225,7 @@ function ActingBanner({ name, role, by }: { name: string; role: string; by: stri
         }}
         sx={{ border: 0, borderRadius: `${DESIGN.radius.chip}px`, px: 1.25, py: 0.5, fontFamily: "inherit", fontWeight: 700, fontSize: 12.5, cursor: "pointer", bgcolor: "rgba(0,0,0,0.18)", color: "inherit" }}
       >
-        Stop
+        {T("Stop")}
       </Box>
     </Box>
   );

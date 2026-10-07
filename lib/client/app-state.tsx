@@ -4,9 +4,15 @@ import { useRouter } from "next/navigation";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 
 import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
 import Snackbar from "@mui/material/Snackbar";
+import Typography from "@mui/material/Typography";
 
 import { useApi } from "./api";
+import { currentLang, type Lang, T, translate, useLang } from "./i18n";
+import type { Prefs } from "./prefs";
 import { registration, setBadge } from "./push";
 
 export type Role = "homeowner" | "project_manager" | "contractor" | "epc_team";
@@ -22,14 +28,19 @@ export type Me = {
     contactNo: string | null;
     address: string | null;
     postalCode: string | null;
+    avatar?: string | null;
   };
   unread?: number;
   /** Account settings: verified steps and any role request waiting for a PM. */
   settings?: {
+    language: Lang;
+    notificationPrefs: Prefs;
     mobileVerifiedAt: string | null;
     passwordChangedAt: string | null;
     roleRequest: { role: Role; roleLabel: string; reason: string | null; createdAt: string } | null;
   };
+  /** A disabled account: expired on its date, or disabled by a PM (and maybe re-enabling on a date). */
+  disabled?: { reason: "manual" | "scheduled"; expiredOn: string | null; enableOn: string | null };
   /** Development only: a project manager testing as this account. */
   actingAs?: { byName: string | null; byUid: number };
 };
@@ -67,8 +78,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (data && data.state !== "active") router.replace("/onboarding");
   }, [data, router]);
 
+  const { lang, setLang } = useLang();
+  const accountLang = data?.settings?.language;
+  useEffect(() => {
+    if (accountLang && accountLang !== lang && !data?.actingAs) setLang(accountLang);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the account's choice changes
+  }, [accountLang]);
+
   const toast = useCallback((m: string, tone: "ok" | "bad" = "ok") => {
-    setToastMsg({ m, tone, key: Date.now() });
+    // Server messages arrive in English; toasts show in the person's language.
+    setToastMsg({ m: translate(m, currentLang()), tone, key: Date.now() });
   }, []);
 
   // Phone notifications: the service worker tells open windows about each
@@ -100,16 +119,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   if (error) {
     return (
-      <main className="login">
-        <div className="empty">
-          Couldn&apos;t load your account: {error.message}
-          <div style={{ marginTop: 14 }}>
-            <button className="btn g" onClick={() => void reload()}>
-              Try again
-            </button>
-          </div>
-        </div>
-      </main>
+      <Box component="main" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center", p: 3, bgcolor: "background.default" }}>
+        <Card sx={{ p: 4, maxWidth: 420, textAlign: "center" }}>
+          <Typography sx={{ fontWeight: 600 }}>{T("Couldn't load your account")}</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.75 }}>
+            {error.message}
+          </Typography>
+          <Button variant="outlined" sx={{ mt: 2.5 }} onClick={() => void reload()}>
+            {T("Try again")}
+          </Button>
+        </Card>
+      </Box>
     );
   }
 
@@ -138,5 +158,5 @@ export function AppProvider({ children }: { children: ReactNode }) {
 }
 
 function Splash() {
-  return <div style={{ minHeight: "100dvh", background: "var(--surface)" }} aria-busy="true" />;
+  return <Box sx={{ minHeight: "100dvh", bgcolor: "background.default" }} aria-busy="true" />;
 }

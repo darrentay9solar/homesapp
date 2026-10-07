@@ -15,6 +15,8 @@ import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
 import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
+import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
+import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
@@ -24,7 +26,9 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
+import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Dialog from "@mui/material/Dialog";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
@@ -46,6 +50,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { AvatarEditor } from "@/components/avatar";
 import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, SettingRow, WaveHeader } from "@/components/m";
 import { splitPhone } from "@/components/phone-input";
 import { Page } from "@/components/shell";
@@ -54,6 +59,7 @@ import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
+import { T, TR } from "@/lib/client/i18n";
 import { type Status, filterPeople, statusOf } from "@/lib/client/people-search";
 
 type Person = {
@@ -67,8 +73,46 @@ type Person = {
   linked: boolean;
   invitedAt: string | null;
   groups: number[];
+  avatar: string | null;
+  disableOn: string | null;
+  enableOn: string | null;
+  disabledReason: "manual" | "scheduled" | null;
 };
 type Group = { id: number; name: string; members: number[]; projects: number };
+
+/** Tomorrow's date in Singapore, the earliest an expiry or enable date can be. */
+function tomorrowSg(): string {
+  return new Date(Date.now() + 8 * 3_600_000 + 86_400_000).toISOString().slice(0, 10);
+}
+
+/** "19 Oct 2026" from "2026-10-19". */
+function day(iso: string): string {
+  return d2s(`${iso}T12:00:00+08:00`);
+}
+
+/** Expiry chosen when an account is made: a date, or "No expiry" ticked. One is required. */
+function ExpiryFields({ value, onChange }: { value: { expiresOn: string; noExpiry: boolean }; onChange: (v: { expiresOn: string; noExpiry: boolean }) => void }) {
+  const tomorrow = tomorrowSg();
+  return (
+    <Box>
+      <Field
+        label={T("Account expires on")}
+        type="date"
+        icon={<EventBusyRoundedIcon />}
+        value={value.expiresOn}
+        disabled={value.noExpiry}
+        onChange={(e) => onChange({ ...value, expiresOn: e.target.value })}
+        helperText={T("It disables itself that day. You can change the date later.")}
+        slotProps={{ htmlInput: { min: tomorrow, "data-testid": "expires-on" } }}
+      />
+      <FormControlLabel
+        sx={{ mt: 0.5 }}
+        control={<Checkbox checked={value.noExpiry} onChange={(e) => onChange({ expiresOn: e.target.checked ? "" : value.expiresOn, noExpiry: e.target.checked })} slotProps={{ input: { "data-testid": "no-expiry" } as object }} />}
+        label={T("No expiry")}
+      />
+    </Box>
+  );
+}
 type Request = {
   id: number;
   fullName: string;
@@ -170,7 +214,7 @@ export default function PeoplePage() {
     <>
       {/* Green header, after the reference's "My Task" screen. */}
       <TopBar
-        title="People"
+        title={T("People")}
         action={
           <Button
             onClick={() => setDialog({ kind: "newuser" })}
@@ -178,20 +222,20 @@ export default function PeoplePage() {
             sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}
           >
             <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-              New account
+              {T("New account")}
             </Box>
             <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
-              New
+              {T("New")}
             </Box>
           </Button>
         }
         search={
           <Stack direction="row" sx={{ gap: 1 }}>
-            <SearchBox value={q} onChange={setQ} placeholder="Search people" testId="people-search" />
+            <SearchBox value={q} onChange={setQ} placeholder={T("Search people")} testId="people-search" />
             <StatusMenu value={status} onChange={setStatus} />
           </Stack>
         }
-        tabs={<SegTabs label="Filter by role" value={role} onChange={setRole} options={TABS.map(([v, l]) => ({ value: v, label: l, count: count(v) }))} />}
+        tabs={<SegTabs label={T("Filter by role")} value={role} onChange={setRole} options={TABS.map(([v, l]) => ({ value: v, label: l, count: count(v) }))} />}
       />
 
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
@@ -207,7 +251,7 @@ export default function PeoplePage() {
             <>
               {data.requests.length + data.roleRequests.length > 0 && !filtering && (
                 <>
-                  <Heading title="Waiting for approval" count={data.requests.length + data.roleRequests.length} />
+                  <Heading title={T("Waiting for approval")} count={data.requests.length + data.roleRequests.length} />
                   <Box sx={GRID}>
                     {data.requests.map((r) => (
                       <RequestCard key={r.id} r={r} onReview={() => setDialog({ kind: "review", id: r.id })} />
@@ -220,7 +264,7 @@ export default function PeoplePage() {
               )}
 
               <Heading
-                title={role === "all" ? "All people" : tabLabel}
+                title={role === "all" ? T("All people") : tabLabel}
                 count={shown.length}
                 action={
                   filtering && (
@@ -232,7 +276,7 @@ export default function PeoplePage() {
                         setStatus("all");
                       }}
                     >
-                      Clear filters
+                      {T("Clear filters")}
                     </Button>
                   )
                 }
@@ -240,9 +284,9 @@ export default function PeoplePage() {
               {shown.length === 0 ? (
                 <Card sx={{ p: 4, textAlign: "center" }} data-testid="people-empty">
                   <SearchRoundedIcon sx={{ fontSize: 36, color: "text.disabled" }} />
-                  <Typography sx={{ fontWeight: 600, mt: 1 }}>Nobody matches</Typography>
+                  <Typography sx={{ fontWeight: 600, mt: 1 }}>{T("Nobody matches")}</Typography>
                   <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-                    Try a name, email, phone, role, group or status — e.g. &ldquo;apex epc&rdquo;.
+                    {T("Try a name, email, phone, role, group or status — e.g. “apex epc”.")}
                   </Typography>
                 </Card>
               ) : (
@@ -256,16 +300,16 @@ export default function PeoplePage() {
               {!filtering && (
                 <>
                   <Heading
-                    title="Contractor groups"
+                    title={T("Contractor groups")}
                     count={data.groups.length}
                     action={
                       <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDialog({ kind: "newgroup" })}>
-                        New group
+                        {T("New group")}
                       </Button>
                     }
                   />
                   {data.groups.length === 0 ? (
-                    <Card sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>No groups yet.</Card>
+                    <Card sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>{T("No groups yet.")}</Card>
                   ) : (
                     <Box sx={GRID}>
                       {data.groups.map((g) => (
@@ -303,12 +347,12 @@ export default function PeoplePage() {
 /** Status filter: a 40px icon button, labelled on desktop. */
 function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: Status | "all") => void }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const label = value === "all" ? "Any status" : STATUS_LABEL[value];
+  const label = T(value === "all" ? "Any status" : STATUS_LABEL[value]);
   return (
     <>
       <Button
         onClick={(e) => setAnchor(e.currentTarget)}
-        aria-label={`Status filter: ${label}`}
+        aria-label={T("Status filter: {label}", { label: T(label) })}
         sx={{
           height: 40,
           minWidth: 40,
@@ -336,7 +380,7 @@ function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: 
               setAnchor(null);
             }}
           >
-            {s === "all" ? "Any status" : STATUS_LABEL[s]}
+            {s === "all" ? T("Any status") : STATUS_LABEL[s]}
           </MenuItem>
         ))}
       </Menu>
@@ -358,10 +402,18 @@ function Loading() {
 
 // --------------------------------------------------------------- cards
 
+/** "Expires 19 Oct", "Expired", or "Enables 1 Nov" — only when a date is set. */
+function ScheduleChip({ person: u }: { person: Person }) {
+  if (!u.active && u.disabledReason === "scheduled") return <Chip size="small" color="error" variant="outlined" label={T("Expired")} data-testid="expired-chip" />;
+  if (!u.active && u.enableOn) return <Chip size="small" color="info" variant="outlined" label={T("Enables {date}", { date: day(u.enableOn) })} />;
+  if (u.active && u.disableOn) return <Chip size="small" color="warning" variant="outlined" label={T("Expires {date}", { date: day(u.disableOn) })} data-testid="expires-chip" />;
+  return null;
+}
+
 function StatusBadge({ status }: { status: Status }) {
   const color = status === "active" ? "success" : status === "invited" ? "secondary" : "error";
   return (
-    <Chip size="small" variant="outlined" color={color} label={STATUS_LABEL[status].toUpperCase()} sx={{ letterSpacing: "0.08em", fontSize: 10.5, height: 24 }} />
+    <Chip size="small" variant="outlined" color={color} label={T(STATUS_LABEL[status]).toUpperCase()} sx={{ letterSpacing: "0.08em", fontSize: 10.5, height: 24 }} />
   );
 }
 
@@ -392,14 +444,15 @@ function PersonCard({ person: u, groupNames, onOpen }: { person: Person; groupNa
                 {u.fullName ?? u.email}
               </Typography>
               <ContactLine icon={<MailOutlineRoundedIcon />} text={u.email} />
-              <ContactLine icon={<PhoneRoundedIcon />} text={u.contactNo ?? "No mobile on file"} />
+              <ContactLine icon={<PhoneRoundedIcon />} text={u.contactNo ?? T("No mobile on file")} />
             </Box>
-            <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={42} />
+            <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={42} src={u.avatar} />
           </Stack>
         </Box>
         <Divider />
         <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pl: 2.25, py: 1 }}>
           <RoleChip role={u.role} />
+          <ScheduleChip person={u} />
           <Typography variant="caption" noWrap sx={{ color: "text.secondary", flex: 1, minWidth: 0 }}>
             {groupNames.join(", ")}
           </Typography>
@@ -417,13 +470,13 @@ function RequestCard({ r, onReview }: { r: Request; onReview: () => void }) {
         <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1.5 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="caption" sx={{ color: "warning.main", fontWeight: 600 }}>
-              Requested {ago(r.createdAt)}
+              {T("Requested {when}", { when: ago(r.createdAt) })}
             </Typography>
             <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
               {r.fullName}
             </Typography>
             <ContactLine icon={<MailOutlineRoundedIcon />} text={r.email} />
-            <ContactLine icon={<PhoneRoundedIcon />} text={r.contactNo ?? "No mobile given"} />
+            <ContactLine icon={<PhoneRoundedIcon />} text={r.contactNo ?? T("No mobile given")} />
           </Box>
           <RoleAvatar name={r.fullName} role={r.role} size={42} />
         </Stack>
@@ -431,12 +484,12 @@ function RequestCard({ r, onReview }: { r: Request; onReview: () => void }) {
       <Divider />
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pl: 2.25, py: 0.75 }}>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          Asked for
+          {T("Asked for")}
         </Typography>
         <RoleChip role={r.role} />
         <Box sx={{ flex: 1 }} />
-        <Button size="small" variant="contained" onClick={onReview} data-testid="role-review">
-          Review
+        <Button size="small" variant="contained" onClick={onReview} data-testid="request-review">
+          {T("Review")}
         </Button>
       </Stack>
     </EdgeCard>
@@ -450,7 +503,7 @@ function RoleRequestCard({ r, onReview }: { r: RoleRequest; onReview: () => void
         <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1.5 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="caption" sx={{ color: "warning.main", fontWeight: 600 }}>
-              Role change · {ago(r.createdAt)}
+              {T("Role change · {when}", { when: ago(r.createdAt) })}
             </Typography>
             <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
               {r.fullName}
@@ -469,12 +522,12 @@ function RoleRequestCard({ r, onReview }: { r: RoleRequest; onReview: () => void
       <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, px: 1.5, pl: 2.25, py: 0.75, flexWrap: "wrap" }}>
         <RoleChip role={r.from} />
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          to
+          {T("to")}
         </Typography>
         <RoleChip role={r.role} />
         <Box sx={{ flex: 1 }} />
-        <Button size="small" variant="contained" onClick={onReview}>
-          Review
+        <Button size="small" variant="contained" onClick={onReview} data-testid="role-review">
+          {T("Review")}
         </Button>
       </Stack>
     </EdgeCard>
@@ -502,7 +555,7 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
             <Stack direction="row" sx={{ gap: 0.5, alignItems: "center" }}>
               <SolarPowerRoundedIcon sx={{ fontSize: 15 }} />
               <Typography variant="caption">
-                {group.projects} project{group.projects === 1 ? "" : "s"}
+                {T(group.projects === 1 ? "{n} project" : "{n} projects", { n: group.projects })}
               </Typography>
             </Stack>
           </Stack>
@@ -517,7 +570,7 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
       <Box sx={{ flex: 1 }}>
         {members.length === 0 ? (
           <Typography variant="body2" sx={{ color: "text.secondary", px: 2.75, py: 1.5 }}>
-            No members yet.
+            {T("No members yet.")}
           </Typography>
         ) : (
           <List dense disablePadding sx={{ pl: 0.75 }}>
@@ -525,7 +578,7 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
               <ListItem
                 key={u.uid}
                 secondaryAction={
-                  <Tooltip title="Remove from group">
+                  <Tooltip title={T("Remove from group")}>
                     <IconButton edge="end" size="small" disabled={busy} aria-label={`Remove ${u.fullName ?? u.email}`} onClick={() => void run(`/groups/${group.id}/members/${u.uid}`, { method: "DELETE" })}>
                       <PersonRemoveRoundedIcon fontSize="small" />
                     </IconButton>
@@ -535,7 +588,7 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
                 <ListItemAvatar sx={{ minWidth: 42 }}>
                   <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={30} />
                 </ListItemAvatar>
-                <ListItemText primary={u.fullName ?? u.email} secondary={ROLE_NAME[u.role]} slotProps={{ primary: { noWrap: true } }} />
+                <ListItemText primary={u.fullName ?? u.email} secondary={TR(ROLE_NAME[u.role])} slotProps={{ primary: { noWrap: true } }} />
               </ListItem>
             ))}
           </List>
@@ -544,10 +597,10 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
       <Divider />
       <Stack direction="row" sx={{ px: 1.5, py: 0.75, alignItems: "center" }}>
         <Button size="small" startIcon={<GroupAddRoundedIcon />} onClick={onAdd}>
-          Add member
+          {T("Add member")}
         </Button>
         <Box sx={{ flex: 1 }} />
-        <Tooltip title={group.projects ? "Assigned to projects — can't delete" : "Delete group"}>
+        <Tooltip title={group.projects ? T("Assigned to projects — can't delete") : T("Delete group")}>
           <span>
             <IconButton
               size="small"
@@ -584,6 +637,7 @@ function Detail({ k, v }: { k: string; v: string }) {
 
 function ReviewDialog({ request: r, groups, reload, onClose }: { request: Request; groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
   const [grant, setGrant] = useState<Role>(r.role);
+  const [expiry, setExpiry] = useState({ expiresOn: "", noExpiry: false });
   const [groupId, setGroupId] = useState("");
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
@@ -592,13 +646,13 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
 
   if (declining) {
     return (
-      <MDialog title="Decline Request" heading={`Decline ${first}'s request?`} subtitle="They'll be told by email, and by WhatsApp or SMS. They can ask again later." onClose={onClose}>
+      <MDialog title={T("Decline Request")} heading={T("Decline {name}'s request?", { name: first })} subtitle={T("They'll be told by email, and by WhatsApp or SMS. They can ask again later.")} onClose={onClose}>
         <Field
-          label="Reason (sent to them)"
+          label={T("Reason (sent to them)")}
           icon={<ChatBubbleOutlineRoundedIcon />}
           multiline
           minRows={3}
-          placeholder="e.g. We couldn't find a project at this address yet — please call us."
+          placeholder={T("e.g. We couldn't find a project at this address yet — please call us.")}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
@@ -612,10 +666,10 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
               if (await run(`/account-requests/${r.id}/reject`, { method: "POST", json: { note: reason } })) onClose();
             }}
           >
-            {busy ? "Declining…" : "Decline Request"}
+            {busy ? T("Declining…") : T("Decline Request")}
           </Button>
           <Button size="large" onClick={() => setDeclining(false)}>
-            Cancel
+            {T("Cancel")}
           </Button>
         </Stack>
       </MDialog>
@@ -623,13 +677,13 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
   }
 
   return (
-    <MDialog title="Review Request" onClose={onClose}>
+    <MDialog title={T("Review Request")} onClose={onClose}>
       <Stack sx={{ alignItems: "center", textAlign: "center", mb: 2.5 }}>
         <RoleAvatar name={r.fullName} role={r.role} size={68} />
         <Typography sx={{ mt: 1.25, color: "primary.main", fontWeight: 600, fontSize: 20 }}>{r.fullName}</Typography>
         <Stack direction="row" sx={{ gap: 1, alignItems: "center", mt: 0.5 }}>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            Asked for
+            {T("Asked for")}
           </Typography>
           <RoleChip role={r.role} />
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -647,17 +701,17 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
         <Detail k="Note" v={r.note ? `“${r.note}”` : "—"} />
       </Card>
       <Stack sx={{ gap: 2.5 }}>
-        <Field select label="Grant role" icon={<BadgeRoundedIcon />} value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText="You can grant a different role from the one they asked for.">
+        <Field select label={T("Grant role")} icon={<BadgeRoundedIcon />} value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText={T("You can grant a different role from the one they asked for.")}>
           {ROLES.map((k) => (
             <MenuItem key={k} value={k}>
-              {ROLE_NAME[k]}
+              {TR(ROLE_NAME[k])}
               {k === r.role ? " (requested)" : ""}
             </MenuItem>
           ))}
         </Field>
         {CREW.includes(grant) && (
-          <Field select label="Contractor group" icon={<GroupsRoundedIcon />} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-            <MenuItem value="">None for now</MenuItem>
+          <Field select label={T("Contractor group")} icon={<GroupsRoundedIcon />} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+            <MenuItem value="">{T("None for now")}</MenuItem>
             {groups.map((g) => (
               <MenuItem key={g.id} value={String(g.id)}>
                 {g.name}
@@ -665,21 +719,22 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
             ))}
           </Field>
         )}
+        <ExpiryFields value={expiry} onChange={setExpiry} />
       </Stack>
       <Stack sx={{ gap: 1, mt: 3 }}>
         <Button
           size="large"
           variant="contained"
-          disabled={busy}
+          disabled={busy || !(expiry.noExpiry || expiry.expiresOn)}
           onClick={async () => {
-            const json = { role: grant, groupId: groupId ? Number(groupId) : null };
+            const json = { role: grant, groupId: groupId ? Number(groupId) : null, ...expiry };
             if (await run(`/account-requests/${r.id}/approve`, { method: "POST", json })) onClose();
           }}
         >
-          {busy ? "Approving…" : `Approve as ${ROLE_NAME[grant]}`}
+          {busy ? T("Approving…") : T("Approve as {role}", { role: ROLE_NAME[grant] })}
         </Button>
         <Button size="large" variant="outlined" color="error" disabled={busy} onClick={() => setDeclining(true)}>
-          Decline
+          {T("Decline")}
         </Button>
       </Stack>
     </MDialog>
@@ -696,8 +751,8 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
 
   if (declining) {
     return (
-      <MDialog title="Decline Request" heading={`Decline ${first}'s request?`} subtitle={`They stay ${r.fromLabel}. They'll be told in the app, by email, and by WhatsApp or SMS.`} onClose={onClose}>
-        <Field label="Reason (sent to them)" icon={<ChatBubbleOutlineRoundedIcon />} multiline minRows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+      <MDialog title={T("Decline Request")} heading={T("Decline {name}'s request?", { name: first })} subtitle={T("They stay {role}. They'll be told in the app, by email, and by WhatsApp or SMS.", { role: r.fromLabel })} onClose={onClose}>
+        <Field label={T("Reason (sent to them)")} icon={<ChatBubbleOutlineRoundedIcon />} multiline minRows={3} value={note} onChange={(e) => setNote(e.target.value)} />
         <Stack sx={{ gap: 1, mt: 3 }}>
           <Button
             size="large"
@@ -708,10 +763,10 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
               if (await run(`/role-requests/${r.id}/reject`, { method: "POST", json: { note } })) onClose();
             }}
           >
-            {busy ? "Declining…" : "Decline Request"}
+            {busy ? T("Declining…") : T("Decline Request")}
           </Button>
           <Button size="large" onClick={() => setDeclining(false)}>
-            Cancel
+            {T("Cancel")}
           </Button>
         </Stack>
       </MDialog>
@@ -719,14 +774,14 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
   }
 
   return (
-    <MDialog title="Review Role Change" onClose={onClose}>
+    <MDialog title={T("Review Role Change")} onClose={onClose}>
       <Stack sx={{ alignItems: "center", textAlign: "center", mb: 2.5 }}>
         <RoleAvatar name={r.fullName} role={r.from} size={68} />
         <Typography sx={{ mt: 1.25, color: "primary.main", fontWeight: 600, fontSize: 20 }}>{r.fullName}</Typography>
         <Stack direction="row" sx={{ gap: 1, alignItems: "center", mt: 0.5 }}>
           <RoleChip role={r.from} />
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            to
+            {T("to")}
           </Typography>
           <RoleChip role={r.role} />
         </Stack>
@@ -741,17 +796,17 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
         <Detail k="Why" v={r.reason ? `“${r.reason}”` : "—"} />
       </Card>
       <Stack sx={{ gap: 2.5 }}>
-        <Field select label="Grant role" icon={<BadgeRoundedIcon />} value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText="You can grant a different role from the one they asked for. The change is in the audit log and can be reverted there.">
+        <Field select label={T("Grant role")} icon={<BadgeRoundedIcon />} value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText={T("You can grant a different role from the one they asked for. The change is in the audit log and can be reverted there.")}>
           {ROLES.filter((k) => k !== r.from).map((k) => (
             <MenuItem key={k} value={k}>
-              {ROLE_NAME[k]}
+              {TR(ROLE_NAME[k])}
               {k === r.role ? " (requested)" : ""}
             </MenuItem>
           ))}
         </Field>
         {CREW.includes(grant) && !CREW.includes(r.from) && (
-          <Field select label="Contractor group" icon={<GroupsRoundedIcon />} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-            <MenuItem value="">None for now</MenuItem>
+          <Field select label={T("Contractor group")} icon={<GroupsRoundedIcon />} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+            <MenuItem value="">{T("None for now")}</MenuItem>
             {groups.map((g) => (
               <MenuItem key={g.id} value={String(g.id)}>
                 {g.name}
@@ -770,10 +825,10 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
             if (await run(`/role-requests/${r.id}/approve`, { method: "POST", json })) onClose();
           }}
         >
-          {busy ? "Approving…" : `Make ${first} ${ROLE_NAME[grant]}`}
+          {busy ? T("Approving…") : T("Make {name} {role}", { name: first, role: ROLE_NAME[grant] })}
         </Button>
         <Button size="large" variant="outlined" color="error" disabled={busy} onClick={() => setDeclining(true)}>
-          Decline
+          {T("Decline")}
         </Button>
       </Stack>
     </MDialog>
@@ -783,31 +838,33 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
 function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
   const { run, busy } = useAction(reload);
   const [f, setF] = useState({ fullName: "", email: "", role: "homeowner" as Role, contactNo: "", groupId: "", postalCode: "", address: "", icLast4: "" });
+  const [expiry, setExpiry] = useState({ expiresOn: "", noExpiry: false });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const mobileOk = splitPhone(f.contactNo).local.replace(/\D/g, "").length >= 6;
-  const ok = f.fullName.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim()) && mobileOk;
+  const expiryOk = expiry.noExpiry || Boolean(expiry.expiresOn);
+  const ok = f.fullName.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim()) && mobileOk && expiryOk;
 
   return (
     <MDialog
-      title="New Account"
-      heading="Create their login"
-      subtitle="They'll get an email, and a WhatsApp (or SMS) message, inviting them in with this role."
+      title={T("New Account")}
+      heading={T("Create their login")}
+      subtitle={T("They'll get an email, and a WhatsApp (or SMS) message, inviting them in with this role.")}
       onClose={onClose}
     >
       <Stack sx={{ gap: 2.5 }}>
-        <Field label="Full name" required icon={<PersonOutlineRoundedIcon />} placeholder="e.g. Aisha Rahman" value={f.fullName} onChange={set("fullName")} autoComplete="off" />
-        <Field label="Email" required type="email" icon={<MailOutlineRoundedIcon />} placeholder="name@example.com" value={f.email} onChange={set("email")} autoComplete="off" />
-        <PhoneField required value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} helperText="For WhatsApp, or SMS if WhatsApp can't deliver" />
-        <Field select label="Role" required icon={<BadgeRoundedIcon />} value={f.role} onChange={set("role")}>
+        <Field label={T("Full name")} required icon={<PersonOutlineRoundedIcon />} placeholder={T("e.g. Aisha Rahman")} value={f.fullName} onChange={set("fullName")} autoComplete="off" />
+        <Field label={T("Email")} required type="email" icon={<MailOutlineRoundedIcon />} placeholder={T("name@example.com")} value={f.email} onChange={set("email")} autoComplete="off" />
+        <PhoneField required value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} helperText={T("For WhatsApp, or SMS if WhatsApp can't deliver")} />
+        <Field select label={T("Role")} required icon={<BadgeRoundedIcon />} value={f.role} onChange={set("role")}>
           {ROLES.map((k) => (
             <MenuItem key={k} value={k}>
-              {ROLE_NAME[k]}
+              {TR(ROLE_NAME[k])}
             </MenuItem>
           ))}
         </Field>
         {CREW.includes(f.role) && (
-          <Field select label="Contractor group" icon={<GroupsRoundedIcon />} value={f.groupId} onChange={set("groupId")}>
-            <MenuItem value="">None for now</MenuItem>
+          <Field select label={T("Contractor group")} icon={<GroupsRoundedIcon />} value={f.groupId} onChange={set("groupId")}>
+            <MenuItem value="">{T("None for now")}</MenuItem>
             {groups.map((g) => (
               <MenuItem key={g.id} value={String(g.id)}>
                 {g.name}
@@ -816,12 +873,13 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
           </Field>
         )}
         <Stack direction="row" sx={{ gap: 1.5 }}>
-          <Field label="Postal code" icon={<PlaceOutlinedIcon />} placeholder="6 digits" value={f.postalCode} onChange={set("postalCode")} slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }} />
+          <Field label={T("Postal code")} icon={<PlaceOutlinedIcon />} placeholder={T("6 digits")} value={f.postalCode} onChange={set("postalCode")} slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }} />
           {f.role === "homeowner" && (
-            <Field label="NRIC last 4" icon={<FingerprintRoundedIcon />} placeholder="567D" value={f.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4 } }} />
+            <Field label={T("NRIC last 4")} icon={<FingerprintRoundedIcon />} placeholder="567D" value={f.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4 } }} />
           )}
         </Stack>
-        <Field label="Address" icon={<HomeOutlinedIcon />} placeholder="Filled in from the postal code" value={f.address} onChange={set("address")} />
+        <Field label={T("Address")} icon={<HomeOutlinedIcon />} placeholder={T("Filled in from the postal code")} value={f.address} onChange={set("address")} />
+        <ExpiryFields value={expiry} onChange={setExpiry} />
       </Stack>
       <Button
         fullWidth
@@ -830,13 +888,13 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
         disabled={busy || !ok}
         sx={{ mt: 3 }}
         onClick={async () => {
-          if (await run("/people", { method: "POST", json: { ...f, groupId: f.groupId ? Number(f.groupId) : null } })) onClose();
+          if (await run("/people", { method: "POST", json: { ...f, ...expiry, groupId: f.groupId ? Number(f.groupId) : null } })) onClose();
         }}
       >
-        {busy ? "Creating…" : "Create Account"}
+        {busy ? T("Creating…") : T("Create Account")}
       </Button>
       <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        {ok ? "We never ask for a full NRIC." : "Enter their name, email and mobile."}
+        {ok ? T("We never ask for a full NRIC.") : !expiryOk && f.fullName && mobileOk ? T("Set when the account expires, or tick No expiry.") : T("Enter their name, email and mobile.")}
       </Typography>
     </MDialog>
   );
@@ -846,8 +904,8 @@ function NewGroupDialog({ reload, onClose }: { reload: () => Promise<void>; onCl
   const [name, setName] = useState("");
   const { run, busy } = useAction(reload);
   return (
-    <MDialog title="New Group" heading="Create a contractor group" subtitle="Groups can be assigned to projects as one unit." onClose={onClose} maxWidth="xs">
-      <Field label="Group name" required icon={<GroupsRoundedIcon />} placeholder="e.g. Northline Roofing Pte Ltd" value={name} onChange={(e) => setName(e.target.value)} />
+    <MDialog title={T("New Group")} heading={T("Create a contractor group")} subtitle={T("Groups can be assigned to projects as one unit.")} onClose={onClose} maxWidth="xs">
+      <Field label={T("Group name")} required icon={<GroupsRoundedIcon />} placeholder={T("e.g. Northline Roofing Pte Ltd")} value={name} onChange={(e) => setName(e.target.value)} />
       <Button
         fullWidth
         size="large"
@@ -858,7 +916,7 @@ function NewGroupDialog({ reload, onClose }: { reload: () => Promise<void>; onCl
           if (await run("/groups", { method: "POST", json: { name } })) onClose();
         }}
       >
-        Create Group
+        {T("Create Group")}
       </Button>
     </MDialog>
   );
@@ -868,9 +926,9 @@ function AddMemberDialog({ group, users, groupById, reload, onClose }: { group: 
   const { run, busy } = useAction(reload);
   const avail = users.filter((u) => CREW.includes(u.role) && u.active && !group.members.includes(u.uid));
   return (
-    <MDialog title="Add Member" heading={group.name} subtitle="Contractor admins and EPC crew. A person can be in more than one group." onClose={onClose}>
+    <MDialog title={T("Add Member")} heading={group.name} subtitle={T("Contractor admins and EPC crew. A person can be in more than one group.")} onClose={onClose}>
       {avail.length === 0 ? (
-        <Alert severity="info">Everyone eligible is already a member. Create a contractor admin or EPC account first.</Alert>
+        <Alert severity="info">{T("Everyone eligible is already a member. Create a contractor admin or EPC account first.")}</Alert>
       ) : (
         <Card>
           <List disablePadding>
@@ -879,14 +937,73 @@ function AddMemberDialog({ group, users, groupById, reload, onClose }: { group: 
                 <ListItemAvatar>
                   <RoleAvatar name={u.fullName ?? u.email} role={u.role} />
                 </ListItemAvatar>
-                <ListItemText primary={u.fullName ?? u.email} secondary={`${ROLE_NAME[u.role]}${u.groups.length ? ` · in ${u.groups.map((g) => groupById.get(g)?.name).join(", ")}` : ""}`} />
-                <Chip size="small" color="primary" label="Add" />
+                <ListItemText primary={u.fullName ?? u.email} secondary={`${TR(ROLE_NAME[u.role])}${u.groups.length ? ` · in ${u.groups.map((g) => groupById.get(g)?.name).join(", ")}` : ""}`} />
+                <Chip size="small" color="primary" label={T("Add")} />
               </ListItemButton>
             ))}
           </List>
         </Card>
       )}
     </MDialog>
+  );
+}
+
+/**
+ * Enabled now, when the account expires (disables itself), and, while it's
+ * disabled, when it enables itself. Only project managers see this.
+ */
+function AccountSchedule({ person: u, busy, run }: { person: Person; busy: boolean; run: (path: string, init: RequestInit & { json?: unknown }) => Promise<boolean> }) {
+  const [disableOn, setDisableOn] = useState(u.disableOn ?? "");
+  const [enableOn, setEnableOn] = useState(u.enableOn ?? "");
+  const tomorrow = tomorrowSg();
+  const save = (json: Record<string, unknown>) => void run(`/people/${u.uid}`, { method: "PATCH", json });
+  const expired = !u.active && u.disabledReason === "scheduled";
+  return (
+    <SettingRow
+      icon={<PowerSettingsNewRoundedIcon />}
+      tint="#CE2E33"
+      label={T("Account enabled")}
+      sub={expired ? T("Expired on {date}. Move the expiry date later to enable it again.", { date: day(u.disableOn ?? "") }) : "Disabling blocks sign-in; history stays in the audit log"}
+      right={<Switch checked={u.active} disabled={busy || expired} onChange={() => save({ active: !u.active })} slotProps={{ input: { "aria-label": T("Account enabled") } }} />}
+    >
+      <Stack sx={{ gap: 2 }} data-testid="account-schedule">
+        <Stack direction="row" sx={{ gap: 1, alignItems: "flex-start" }}>
+          <Field
+            label={T("Expires on")}
+            type="date"
+            icon={<EventBusyRoundedIcon />}
+            value={disableOn}
+            onChange={(e) => setDisableOn(e.target.value)}
+            helperText={u.disableOn ? undefined : "No expiry"}
+            slotProps={{ htmlInput: { min: tomorrow, "data-testid": "disable-on" } }}
+          />
+          <Button variant="outlined" disabled={busy || disableOn === (u.disableOn ?? "") || !disableOn} onClick={() => save({ disableOn })} sx={{ flex: "0 0 auto", height: 52 }}>
+            {T("Save")}
+          </Button>
+        </Stack>
+        {u.disableOn && (
+          <Button size="small" disabled={busy} onClick={() => save({ disableOn: null })} sx={{ alignSelf: "flex-start", mt: -1.5 }}>
+            {T("Remove the expiry")}
+          </Button>
+        )}
+        {!u.active && (
+          <Stack direction="row" sx={{ gap: 1, alignItems: "flex-start" }}>
+            <Field
+              label={T("Enable again on")}
+              type="date"
+              icon={<EventAvailableRoundedIcon />}
+              value={enableOn}
+              onChange={(e) => setEnableOn(e.target.value)}
+              helperText={u.enableOn ? undefined : "Stays disabled until a project manager enables it"}
+              slotProps={{ htmlInput: { min: tomorrow, "data-testid": "enable-on" } }}
+            />
+            <Button variant="outlined" disabled={busy || enableOn === (u.enableOn ?? "") || !enableOn} onClick={() => save({ enableOn })} sx={{ flex: "0 0 auto", height: 52 }}>
+              {T("Save")}
+            </Button>
+          </Stack>
+        )}
+      </Stack>
+    </SettingRow>
   );
 }
 
@@ -900,14 +1017,15 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
   return (
     <Dialog open onClose={onClose} fullScreen={phone} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { bgcolor: "background.default", overflowX: "hidden" } } }}>
       <Box sx={{ position: "relative", pb: 3 }}>
-        <WaveHeader title="Profile" onBack={onClose} height={150} />
+        <WaveHeader title={T("Profile")} onBack={onClose} height={150} />
 
         <Card sx={{ mx: 2.5, mt: -4, pt: 6.5, pb: 2.5, px: 2, textAlign: "center", overflow: "visible", position: "relative" }}>
           <Box sx={{ position: "absolute", left: "50%", top: -40, transform: "translateX(-50%)", borderRadius: "50%", p: 0.5, bgcolor: "background.paper" }}>
-            <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={76} />
+            {/* Project managers can replace or remove anyone's picture. */}
+            <AvatarEditor name={u.fullName ?? u.email} role={u.role} src={u.avatar} base={isMe ? "/me" : `/people/${u.uid}`} size={76} onChanged={reload} />
           </Box>
           <Typography variant="h6">{u.fullName ?? u.email}</Typography>
-          <Typography sx={{ color: "text.secondary", mt: 0.25 }}>{u.contactNo ?? "No mobile on file"}</Typography>
+          <Typography sx={{ color: "text.secondary", mt: 0.25 }}>{u.contactNo ?? T("No mobile on file")}</Typography>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
             {u.email}
           </Typography>
@@ -916,14 +1034,14 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
             <StatusBadge status={status} />
           </Stack>
           <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 1 }}>
-            {u.linked ? "Has signed in" : u.invitedAt ? `Invited ${d2s(u.invitedAt)} — not signed in yet` : "No login yet"}
+            {u.linked ? T("Has signed in") : u.invitedAt ? T("Invited {date} — not signed in yet", { date: d2s(u.invitedAt) }) : T("No login yet")}
           </Typography>
         </Card>
 
         <Box sx={{ px: 2.5 }}>
-          <Typography sx={{ fontWeight: 600, fontSize: 17, mt: 3, mb: 1.5 }}>General</Typography>
+          <Typography sx={{ fontWeight: 600, fontSize: 17, mt: 3, mb: 1.5 }}>{T("General")}</Typography>
           <Stack sx={{ gap: 1.25 }}>
-            <SettingRow icon={<BadgeRoundedIcon />} tint="#2563EB" label="Role" sub="Controls what they can see and edit">
+            <SettingRow icon={<BadgeRoundedIcon />} tint="#2563EB" label={T("Role")} sub={T("Controls what they can see and edit")}>
               <TextField
                 select
                 size="small"
@@ -932,24 +1050,24 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
                 onChange={(e) => {
                   const next = e.target.value as Role;
                   const leaving = CREW.includes(u.role) && !CREW.includes(next) && u.groups.length > 0;
-                  if (leaving && !confirm(`${u.fullName ?? "They"} will also leave their contractor groups. Continue?`)) return;
+                  if (leaving && !confirm(T("{name} will also leave their contractor groups. Continue?", { name: u.fullName ?? T("They") }))) return;
                   void run(`/people/${u.uid}`, { method: "PATCH", json: { role: next } });
                 }}
               >
                 {ROLES.map((k) => (
                   <MenuItem key={k} value={k}>
-                    {ROLE_NAME[k]}
+                    {TR(ROLE_NAME[k])}
                   </MenuItem>
                 ))}
               </TextField>
             </SettingRow>
 
             {CREW.includes(u.role) && (
-              <SettingRow icon={<GroupsRoundedIcon />} tint="#B45309" label="Contractor groups" sub={u.groups.length ? "Tap to add or remove" : "Not in a group — sees no contractor projects"}>
+              <SettingRow icon={<GroupsRoundedIcon />} tint="#B45309" label={T("Contractor groups")} sub={u.groups.length ? T("Tap to add or remove") : T("Not in a group — sees no contractor projects")}>
                 <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
                   {groups.length === 0 && (
                     <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                      No groups exist yet.
+                      {T("No groups exist yet.")}
                     </Typography>
                   )}
                   {groups.map((g) => {
@@ -969,11 +1087,11 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
               </SettingRow>
             )}
 
-            <SettingRow icon={<SolarPowerRoundedIcon />} tint="#0A9A63" label="Projects they can open" right={<Chip size="small" label={projects?.length ?? "…"} />}>
+            <SettingRow icon={<SolarPowerRoundedIcon />} tint="#0A9A63" label={T("Projects they can open")} right={<Chip size="small" label={projects?.length ?? "…"} />}>
               {!projects && <Skeleton variant="rounded" height={40} />}
               {projects && projects.length === 0 && (
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  None yet.
+                  {T("None yet.")}
                 </Typography>
               )}
               {projects && projects.length > 0 && (
@@ -987,15 +1105,7 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
               )}
             </SettingRow>
 
-            {!isMe && (
-              <SettingRow
-                icon={<PowerSettingsNewRoundedIcon />}
-                tint="#CE2E33"
-                label="Account enabled"
-                sub="Disabling blocks sign-in; history stays in the audit log"
-                right={<Switch checked={u.active} disabled={busy} onChange={() => void run(`/people/${u.uid}`, { method: "PATCH", json: { active: !u.active } })} slotProps={{ input: { "aria-label": "Account enabled" } }} />}
-              />
-            )}
+            {!isMe && <AccountSchedule person={u} busy={busy} run={run} />}
           </Stack>
         </Box>
       </Box>

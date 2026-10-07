@@ -36,6 +36,7 @@ import { useApp } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { type FieldDef, type ProjectFields, type Section, showValue, SP_STATUS, type StoredFile } from "@/lib/client/projects";
 
+import { T, TR } from "@/lib/client/i18n";
 type Ctx = { pid: number; data: ProjectFields; reload: () => Promise<void> };
 
 /** One section of the brief's milestone lists: a card that opens to its fields. */
@@ -65,12 +66,12 @@ export function SectionPanel({ ctx, section: s, index, open, onToggle }: { ctx: 
           {s.complete ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : s.lockedReason ? <LockOutlinedIcon sx={{ fontSize: 16 }} /> : index + 1}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 600, fontSize: 15 }}>{s.name}</Typography>
+          <Typography sx={{ fontWeight: 600, fontSize: 15 }}>{TR(s.name)}</Typography>
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-            {s.lockedReason ?? `${s.done} of ${s.total} required · ${s.sub}`}
+            {s.lockedReason ? TR(s.lockedReason) : T("{done} of {total} required · {sub}", { done: s.done, total: s.total, sub: TR(s.sub) })}
           </Typography>
         </Box>
-        {s.complete ? <Chip size="small" color="success" label="Done" /> : !s.lockedReason && <Chip size="small" variant="outlined" label={`${s.total - s.done} to go`} />}
+        {s.complete ? <Chip size="small" color="success" label={T("Done")} /> : !s.lockedReason && <Chip size="small" variant="outlined" label={T("{n} to go", { n: s.total - s.done })} />}
         <ExpandMoreRoundedIcon sx={{ color: "text.secondary", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </ButtonBase>
       <Collapse in={open} unmountOnExit>
@@ -81,7 +82,7 @@ export function SectionPanel({ ctx, section: s, index, open, onToggle }: { ctx: 
           )}
           {canReopen && recorded && (
             <Button size="small" color="warning" variant="outlined" startIcon={<LockOpenRoundedIcon />} onClick={() => setReopening(true)} sx={{ alignSelf: "flex-start" }}>
-              Reopen Milestone {s.milestone}
+              {T("Reopen Milestone {n}", { n: s.milestone })}
             </Button>
           )}
         </Stack>
@@ -98,7 +99,7 @@ function ChecklistItem({ f }: { f: FieldDef }) {
     <Stack direction="row" sx={{ gap: 1.25, py: 1, alignItems: "flex-start" }} data-testid="checklist-item">
       {done ? <CheckCircleRoundedIcon color="primary" sx={{ fontSize: 20, mt: "1px" }} /> : <RadioButtonUncheckedRoundedIcon sx={{ fontSize: 20, mt: "1px", color: "text.disabled" }} />}
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: 14.5, fontWeight: done ? 600 : 400, color: done ? "text.primary" : "text.secondary" }}>{f.label}</Typography>
+        <Typography sx={{ fontSize: 14.5, fontWeight: done ? 600 : 400, color: done ? "text.primary" : "text.secondary" }}>{TR(f.label)}</Typography>
         {f.kind === "auto" && f.value != null && (
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             {String(f.value)}
@@ -126,7 +127,7 @@ function useSave(ctx: Ctx, f: FieldDef) {
       setState("saved");
       await ctx.reload();
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : `Couldn't save ${f.label}.`, "bad");
+      toast(err instanceof ApiError ? err.message : `Couldn't save ${TR(f.label)}.`, "bad");
       setState("idle");
     }
   }
@@ -138,10 +139,10 @@ function FieldRow({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
   const label = (
     <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: 0.75 }}>
       <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: "text.secondary", flex: 1, minWidth: 0 }}>
-        {f.label}
-        {f.required ? <Box component="span" sx={{ color: "error.main" }}> *</Box> : <Chip component="span" size="small" label="Optional" variant="outlined" sx={{ ml: 0.75, height: 18, fontSize: 10 }} />}
+        {TR(f.label)}
+        {f.required ? <Box component="span" sx={{ color: "error.main" }}> *</Box> : <Chip component="span" size="small" label={T("Optional")} variant="outlined" sx={{ ml: 0.75, height: 18, fontSize: 10 }} />}
       </Typography>
-      {f.filled && <CheckRoundedIcon sx={{ fontSize: 17, color: "primary.main" }} aria-label="Filled" />}
+      {f.filled && <CheckRoundedIcon sx={{ fontSize: 17, color: "primary.main" }} aria-label={T("Filled")} />}
       {locked && (
         <Tooltip title={locked}>
           <LockOutlinedIcon sx={{ fontSize: 16, color: "text.disabled" }} aria-label={locked} />
@@ -164,7 +165,7 @@ function FieldRow({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
       {control}
       {f.note && (
         <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.5 }}>
-          {f.note}
+          {TR(f.note)}
         </Typography>
       )}
     </Box>
@@ -175,8 +176,8 @@ function ReadOnly({ f }: { f: FieldDef }) {
   const v = showValue(f);
   return (
     <Box sx={(t) => ({ minHeight: DESIGN.height.field, px: 1.75, display: "flex", alignItems: "center", gap: 1, borderRadius: `${DESIGN.radius.field}px`, bgcolor: alpha(t.palette.text.primary, 0.04), border: 1, borderColor: "divider" })}>
-      <Typography sx={{ fontSize: 15, color: v ? "text.primary" : "text.disabled", overflowWrap: "anywhere" }}>{v || (f.kind === "auto" ? "Calculated once there's a date" : "Not filled in")}</Typography>
-      {f.kind === "auto" && <Chip size="small" variant="outlined" label="Auto" sx={{ ml: "auto" }} />}
+      <Typography sx={{ fontSize: 15, color: v ? "text.primary" : "text.disabled", overflowWrap: "anywhere" }}>{v || (f.kind === "auto" ? T("Calculated once there's a date") : T("Not filled in"))}</Typography>
+      {f.kind === "auto" && <Chip size="small" variant="outlined" label={T("Auto")} sx={{ ml: "auto" }} />}
     </Box>
   );
 }
@@ -206,7 +207,7 @@ function Typed({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
     <Field
       type={f.kind === "date" ? "date" : f.kind === "number" ? "number" : "text"}
       value={text}
-      placeholder={ic ? (f.value ? "Recorded · type to replace" : "e.g. 567D") : f.kind === "number" ? "0" : ""}
+      placeholder={ic ? (f.value ? T("Recorded · type to replace") : "e.g. 567D") : f.kind === "number" ? "0" : ""}
       onChange={(e) => {
         setText(e.target.value);
         if (f.kind === "date" && e.target.value && e.target.value !== initial) void save(e.target.value);
@@ -215,7 +216,7 @@ function Typed({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}
-      helperText={ic ? "Only the last 4 characters, e.g. 567D. Stored privately and never shown again." : undefined}
+      helperText={ic ? T("Only the last 4 characters, e.g. 567D. Stored privately and never shown again.") : undefined}
       slotProps={{
         htmlInput: { inputMode: f.kind === "number" ? "numeric" : undefined, maxLength: ic ? 4 : 200, min: f.kind === "number" ? 0 : undefined, "aria-label": f.label },
         input: { endAdornment: <Status state={state} /> },
@@ -229,12 +230,12 @@ function YesNo({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
   const v = f.value === true ? "yes" : f.value === false ? "no" : null;
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
-      <ToggleButtonGroup exclusive value={v} onChange={(_, next: string | null) => next && next !== v && void save(next === "yes")} aria-label={f.label} sx={{ flex: 1, maxWidth: 320 }}>
+      <ToggleButtonGroup exclusive value={v} onChange={(_, next: string | null) => next && next !== v && void save(next === "yes")} aria-label={TR(f.label)} sx={{ flex: 1, maxWidth: 320 }}>
         <ToggleButton value="yes" sx={{ flex: 1 }} color="primary">
-          Yes
+          {T("Yes")}
         </ToggleButton>
         <ToggleButton value="no" sx={{ flex: 1 }} color="primary">
-          No
+          {T("No")}
         </ToggleButton>
       </ToggleButtonGroup>
       <Status state={state} />
@@ -247,10 +248,10 @@ function SpStatus({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
   const v = f.value === 1 || f.value === 2 ? String(f.value) : null;
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
-      <ToggleButtonGroup exclusive value={v} onChange={(_, next: string | null) => next && next !== v && void save(Number(next))} aria-label={f.label} sx={{ flex: 1 }}>
+      <ToggleButtonGroup exclusive value={v} onChange={(_, next: string | null) => next && next !== v && void save(Number(next))} aria-label={TR(f.label)} sx={{ flex: 1 }}>
         {[1, 2].map((n) => (
           <ToggleButton key={n} value={String(n)} sx={{ flex: 1, fontSize: 13 }} color="primary">
-            {SP_STATUS[n]}
+            {TR(SP_STATUS[n])}
           </ToggleButton>
         ))}
       </ToggleButtonGroup>
@@ -280,7 +281,7 @@ function Retailer({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
       renderInput={(params) => (
         <TextField
           {...params}
-          placeholder="Choose, or type a retailer not in the list"
+          placeholder={T("Choose, or type a retailer not in the list")}
           slotProps={{
             ...params.slotProps,
             htmlInput: { ...params.slotProps.htmlInput, "aria-label": f.label },
@@ -336,7 +337,7 @@ function FileSlot({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
   }
 
   async function remove(file: StoredFile) {
-    if (!confirm(`Remove ${file.name}? It can be restored from the audit log.`)) return;
+    if (!confirm(T("Remove {name}? It can be restored from the audit log.", { name: file.name }))) return;
     try {
       const res = await fetcher<{ message: string }>(`/projects/${ctx.pid}/files/${file.id}`, { method: "DELETE" });
       toast(res.message);
@@ -381,9 +382,9 @@ function FileSlot({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
         >
           {busy ? <CircularProgress size={18} /> : many ? <AddPhotoAlternateOutlinedIcon /> : <UploadFileRoundedIcon />}
           <Box sx={{ textAlign: "left" }}>
-            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{busy ? `Uploading ${busy}…` : files.length ? (many ? "Add more photos" : "Replace or add another") : many ? "Add photos" : "Upload document"}</Typography>
+            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{busy ? T("Uploading {name}…", { name: busy }) : files.length ? (many ? T("Add more photos") : T("Replace or add another")) : many ? T("Add photos") : T("Upload document")}</Typography>
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              Photos or PDF, up to 25 MB{ctx.data.storage === "local" ? " · saved on this computer until Cloudflare R2 is set up" : ""}
+              {ctx.data.storage === "local" ? T("Photos or PDF, up to 25 MB · saved on this computer until Cloudflare R2 is set up") : T("Photos or PDF, up to 25 MB")}
             </Typography>
           </Box>
           <input
@@ -403,7 +404,7 @@ function FileSlot({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
       )}
       {ctx.data.storage === null && canChange && (
         <Typography variant="caption" sx={{ color: "warning.main", display: "block", mt: 0.5 }}>
-          File storage isn&apos;t set up yet (Cloudflare R2), so uploads will be refused.
+          {T("File storage isn't set up yet (Cloudflare R2), so uploads will be refused.")}
         </Typography>
       )}
     </Box>
@@ -417,7 +418,7 @@ function ReopenDialog({ ctx, n, onClose }: { ctx: Ctx; n: number; onClose: () =>
   const { toast } = useApp();
   const [busy, setBusy] = useState(false);
   return (
-    <MDialog title="Reopen Milestone" heading={`Reopen Milestone ${n}?`} subtitle={`Its fields become editable for the crew again${n < 3 ? `, and any later milestone reopens too` : ""}. Recorded in the audit log.`} onClose={onClose} maxWidth="xs">
+    <MDialog title={T("Reopen Milestone")} heading={T("Reopen Milestone {n}?", { n })} subtitle={n < 3 ? T("Its fields become editable for the crew again, and any later milestone reopens too. Recorded in the audit log.") : T("Its fields become editable for the crew again. Recorded in the audit log.")} onClose={onClose} maxWidth="xs">
       <Stack sx={{ gap: 1 }}>
         <Button
           size="large"
@@ -432,15 +433,15 @@ function ReopenDialog({ ctx, n, onClose }: { ctx: Ctx; n: number; onClose: () =>
               onClose();
               await ctx.reload();
             } catch (err) {
-              toast(err instanceof ApiError ? err.message : "Couldn't reopen it.", "bad");
+              toast(err instanceof ApiError ? err.message : T("Couldn't reopen it."), "bad");
               setBusy(false);
             }
           }}
         >
-          {busy ? "Reopening…" : `Reopen Milestone ${n}`}
+          {busy ? T("Reopening…") : T("Reopen Milestone {n}", { n })}
         </Button>
         <Button size="large" onClick={onClose}>
-          Cancel
+          {T("Cancel")}
         </Button>
       </Stack>
     </MDialog>

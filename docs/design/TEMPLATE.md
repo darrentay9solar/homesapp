@@ -4,15 +4,20 @@ Every screen follows this template: the account screens (Sign In, Create
 Account, Forgot Password, Request Access) and the app (Projects, People,
 Audit, Account, Alerts, Sites). It records what was agreed while building them.
 
+- **Built on Material UI.** Every screen, the account screens included, is
+  made from MUI components and the shared pieces in `components/m.tsx`,
+  `components/topbar.tsx` and `components/auth.tsx`. There is no
+  screen-specific CSS: `app/globals.css` only holds resets.
 - **Numbers** (colours, sizes, rounding, widths) live in one file,
-  `lib/client/design.ts`. The MUI theme, the shared components and the
-  account screens' CSS all read from it, so nothing is set twice.
+  `lib/client/design.ts`. The MUI theme and the shared components read from
+  it, so nothing is set twice.
 - **Live template:** `/dev-preview/template` (development only) shows every
   piece below with the real components, in both themes.
 - **Design check:** `/dev-preview/design-check` (development only) opens
-  every screen at phone and desktop width, in Black and Light, measures it
-  against this template, and lists anything that doesn't match. Run it
-  after any change to a screen.
+  every screen and dialog at phone, tablet and desktop width, in Black and
+  Light, in English and Chinese, measures it against this template, taps
+  every date and time field to make sure its picker opens, and lists
+  anything that doesn't match. Run it after any change to a screen.
 
 ---
 
@@ -21,7 +26,8 @@ Audit, Account, Alerts, Sites). It records what was agreed while building them.
 | | Rule |
 |---|---|
 | **Font** | Poppins everywhere. The one exception is the sign-in sky's headline, which uses Fraunces ("Rooftop solar, *tracked to the day*"). |
-| **Themes** | Black and Light. Chosen in Account → Appearance, remembered per device, and applied before the page draws. |
+| **Themes** | Black and Light. Chosen in Account → Settings → Appearance, remembered per device, and applied before the page draws. |
+| **Language** | English or Simplified Chinese. Chosen in Account → Settings → Language; kept with the account (so it follows the person to another phone) and in a cookie (so the first paint is already right). Chinese text falls back to Noto Sans SC / PingFang SC after Poppins. |
 | **Header green** | `#0E7F53`, the same in both themes. Every green header is a gradient from it: `#0E7F53 → #0A5C3E → #073F2B`. A large flat green panel (desktop sign-in) is solid `#0E7F53`. |
 | **Accent green** | Buttons, links, focused fields and progress: `#0A9A63` in Light, `#16C47F` in Black. |
 | **Role colours** | Homeowner blue, Contractor Admin amber, EPC Team violet, Project Manager green. Used for avatars, role chips and a card's coloured edge, so lists of people read at a glance. |
@@ -41,6 +47,7 @@ Audit, Account, Alerts, Sites). It records what was agreed while building them.
 | Card | 18px corners, 1px border | same |
 | Chip | 8px corners | same |
 | Icon tile (settings rows, kind icons) | 38px, 11px corners, tinted | same |
+| Profile picture | Round; 84px on Account and a person's Profile, 32–42px in lists. Without one, the role-coloured initials | same |
 
 A **disabled** main button stays green, dimmed, never grey.
 
@@ -74,6 +81,9 @@ No screen ever scrolls sideways.
 - **Long forms** (Create Account, Request Access) use the compact column,
   420px wide and centred. Everything else is the same.
 - Codes are six boxes. Passwords have a show/hide eye.
+- Built from `AuthShell` and its parts (`AuthHeading`, `AuthField`,
+  `AuthButton`, …) in `components/auth.tsx`. Each part carries a
+  `data-auth` marker the design check measures.
 
 ## 3. App screens (Projects, People, Audit, Account…)
 
@@ -117,6 +127,10 @@ card, such as "Status" or "Days running", never as a section title.
 - **Settings row** (`SettingRow`): tinted icon tile, label, sub-line, and
   an optional control on the right or below. Used in Account and in a
   person's Profile.
+- **Account → Settings** groups Language (an English / 简体中文 toggle),
+  Appearance (Light / Black) and Notifications (a row whose sub-line says
+  what's happening now, e.g. "Quiet from 22:00 to 07:00", opening the
+  Notifications dialog).
 - **Timeline** (Audit):
   - a date rail on the left
   - a card per place per day: tinted shell, white card inside
@@ -132,6 +146,9 @@ Every dialog has the same parts, top to bottom:
 - **Fields:**
   - each with an icon and the label on the border
   - mobile numbers use one field with the country code inside it ("SG +65 ▾ | 9123 4567")
+  - date and time fields use the phone's own picker, which opens from a tap
+    anywhere on the field (the icon, the padding or the text), not only the
+    small calendar mark
 - **Main button:** full width, dimmed green while it can't be pressed.
 - **Caption:** one centred line under the button saying what happens next,
   or what's missing.
@@ -153,7 +170,18 @@ restores also need a written reason.
 
 - Buttons say what they do: "Create Account", "Approve as EPC Team",
   "Restore". They're Title Case on the main button.
-- Dates as Singapore writes them: "19 Oct 2026", "19 Oct 2026 14:05". Times
-  are Singapore time, whatever the device says.
+- Dates as Singapore writes them: "19 Oct 2026", "19 Oct 2026 14:05" (in
+  Chinese, "2026年10月19日"). Times are Singapore time, whatever the device
+  says.
+- **Every word on a screen is translatable.** Write the English in the code
+  wrapped in `T("…")` (with `{name}` blanks for values: `T("Approve as
+  {role}", { role })`), and put the Chinese in `api/_lib/i18n/zh.json`.
+  Text that comes from the server (messages, alert titles, field labels) is
+  shown with `TR(text)`, which matches it against the same file, patterns
+  included. The shared components (`TopBar`, `Heading`, `Field`,
+  `MDialog`, `SettingRow`, `SegTabs`, `SearchBox`) translate their string
+  props themselves. A unit test fails if any `T("…")` key has no Chinese.
+- Never build a sentence from pieces ("1 change" + "s"): give each form its
+  own key, so each language can say it its own way.
 - Mobile numbers always carry their country code: "+65 9123 4567".
 - Never say "error". Say what happened and what to do next.

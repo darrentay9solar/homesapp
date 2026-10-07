@@ -3,6 +3,8 @@
  * location, and wording. The rules themselves are the server's.
  */
 
+import { locale, T } from "./i18n";
+
 export type CheckIn = {
   id: number;
   visitId: number | null;
@@ -74,22 +76,28 @@ export function getFix(timeoutMs = 20_000): Promise<Fix> {
 export function describeFix(f: Fix): { text: string; good: boolean } {
   const m = Math.round(f.accuracy);
   return f.accuracy <= MAX_ACCURACY_M
-    ? { text: `Location found · accurate to ${m} m`, good: true }
-    : { text: `Location is rough (±${m} m). Step outside or away from walls for a better fix.`, good: false };
+    ? { text: T("Location found · accurate to {m} m", { m }), good: true }
+    : { text: T("Location is rough (±{m} m). Step outside or away from walls for a better fix.", { m }), good: false };
 }
 
 const SG = "Asia/Singapore";
-export const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: SG });
+export const hhmm = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: SG });
 
 /** "Mon, 12 Oct" — how a visit's day reads in a list. */
 export function visitDay(isoDate: string): string {
-  return new Date(`${isoDate}T12:00:00+08:00`).toLocaleDateString("en-SG", { weekday: "short", day: "numeric", month: "short", timeZone: SG });
+  return new Date(`${isoDate}T12:00:00+08:00`).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short", timeZone: SG });
 }
 
 /** One line per check-in: who, when they arrived and left, and with how many. */
 export function describeCheckIn(c: CheckIn): string {
-  const arrived = `${c.by.name ?? "Crew"} in ${hhmm(c.inAt)} (${c.crewIn} crew${c.distance !== null ? `, ${Math.round(c.distance)} m` : ""})`;
-  return c.outAt ? `${arrived} · out ${hhmm(c.outAt)} (${c.crewOut ?? 0} still on site)` : `${arrived} · still on site`;
+  const who = c.by.name ?? T("Crew");
+  const arrived =
+    c.distance !== null
+      ? T("{name} in {time} ({n} crew, {m} m)", { name: who, time: hhmm(c.inAt), n: c.crewIn, m: Math.round(c.distance) })
+      : T("{name} in {time} ({n} crew)", { name: who, time: hhmm(c.inAt), n: c.crewIn });
+  return c.outAt
+    ? T("{arrived} · out {time} ({n} still on site)", { arrived, time: hhmm(c.outAt), n: c.crewOut ?? 0 })
+    : T("{arrived} · still on site", { arrived });
 }
 
 export const STATE_LABEL: Record<VisitState, string> = { upcoming: "Upcoming", today: "Today", attended: "Attended", missed: "No check-in" };

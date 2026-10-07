@@ -57,7 +57,8 @@ export const theme = createTheme({
   },
   shape: { borderRadius: 14 },
   typography: {
-    fontFamily: 'var(--font-poppins), "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif',
+    // Chinese characters fall back to the device's own Chinese font (Poppins has none).
+    fontFamily: 'var(--font-poppins), "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif',
     h4: { fontWeight: 600, letterSpacing: "-0.02em" },
     h5: { fontWeight: 600, letterSpacing: "-0.015em" },
     h6: { fontWeight: 600, letterSpacing: "-0.01em" },

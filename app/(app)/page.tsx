@@ -20,6 +20,7 @@ import { useApi } from "@/lib/client/api";
 import { useMe } from "@/lib/client/app-state";
 import { filterProjects, type ProjectList, sortProjects, type Tab, TABS } from "@/lib/client/projects";
 
+import { T } from "@/lib/client/i18n";
 /**
  * Projects. Project managers see every project and can create one; contractor
  * admins and EPC crew see the projects they're on; a homeowner goes straight
@@ -61,16 +62,16 @@ export default function ProjectsPage() {
               sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}
             >
               <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-                Create project
+                {T("Create project")}
               </Box>
               <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
-                New
+                {T("New")}
               </Box>
             </Button>
           )
         }
-        search={<SearchBox value={q} onChange={setQ} placeholder="Search projects, people, places" testId="projects-search" />}
-        tabs={<SegTabs label="Filter projects" value={tab} onChange={setTab} options={TABS.map(([v, l]) => ({ value: v, label: l, count: data ? count(v) : undefined }))} />}
+        search={<SearchBox value={q} onChange={setQ} placeholder={T("Search projects, people, places")} testId="projects-search" />}
+        tabs={<SegTabs label={T("Filter projects")} value={tab} onChange={setTab} options={TABS.map(([v, l]) => ({ value: v, label: l, count: data ? count(v) : undefined }))} />}
       />
 
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
@@ -91,14 +92,14 @@ export default function ProjectsPage() {
           {data && (
             <>
               <Heading
-                title={tab === "all" ? "Projects" : (TABS.find(([v]) => v === tab)?.[1] ?? "Projects")}
+                title={tab === "all" ? T("Projects") : (TABS.find(([v]) => v === tab)?.[1] ?? T("Projects"))}
                 count={shown.length}
                 action={
                   all.length > 0 &&
                   (red ? (
-                    <Chip size="small" color="error" label={`${red} need${red === 1 ? "s" : ""} attention`} onClick={() => setTab("attention")} />
+                    <Chip size="small" color="error" label={T(red === 1 ? "{n} needs attention" : "{n} need attention", { n: red })} onClick={() => setTab("attention")} />
                   ) : (
-                    <Chip size="small" color="success" variant="outlined" label="All on track" />
+                    <Chip size="small" color="success" variant="outlined" label={T("All on track")} />
                   ))
                 }
               />
@@ -108,23 +109,23 @@ export default function ProjectsPage() {
                     <>
                       <SolarPowerRoundedIcon sx={{ fontSize: 42, color: "primary.main" }} />
                       <Typography sx={{ fontWeight: 600, mt: 1 }}>
-                        {homeowner ? "No project is linked to your account yet" : data.canCreate ? "No projects yet" : "No projects assigned to you yet"}
+                        {homeowner ? T("No project is linked to your account yet") : data.canCreate ? T("No projects yet") : T("No projects assigned to you yet")}
                       </Typography>
                       <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-                        {data.canCreate ? "Create the first one to get started." : "You'll be notified when 9 Solar Home adds you to one."}
+                        {data.canCreate ? T("Create the first one to get started.") : T("You'll be notified when 9 Solar Home adds you to one.")}
                       </Typography>
                       {data.canCreate && (
                         <Button variant="contained" startIcon={<AddRoundedIcon />} sx={{ mt: 2 }} onClick={() => setCreating(true)}>
-                          Create project
+                          {T("Create project")}
                         </Button>
                       )}
                     </>
                   ) : (
                     <>
                       <SearchRoundedIcon sx={{ fontSize: 36, color: "text.disabled" }} />
-                      <Typography sx={{ fontWeight: 600, mt: 1 }}>Nothing matches</Typography>
+                      <Typography sx={{ fontWeight: 600, mt: 1 }}>{T("Nothing matches")}</Typography>
                       <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-                        Try a project, homeowner, contractor or postal code, or words like &ldquo;late&rdquo;.
+                        {T("Try a project, homeowner, contractor or postal code, or words like “late”.")}
                       </Typography>
                     </>
                   )}

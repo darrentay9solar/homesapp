@@ -355,7 +355,8 @@ def test_upload_link_for_every_slot_and_stage(api, world, monkeypatch, stage, sl
         assert "uploadUrl" not in r.json()
         return
     key = r.json()["key"]
-    assert re.fullmatch(rf"projects/{pid}/{slot}/{UUID_RE}\.{storage.ALLOWED_TYPES[ctype]}", key)
+    folder = "images" if ctype.startswith("image/") else "documents"
+    assert re.fullmatch(rf"projects/{pid}/{folder}/{slot}/{UUID_RE}\.{storage.ALLOWED_TYPES[ctype]}", key)
     assert r.json()["headers"] == {"Content-Type": ctype}
     assert_upload_link(r.json()["uploadUrl"], key, ctype, 1234)
 

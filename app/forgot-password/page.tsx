@@ -1,11 +1,13 @@
 "use client";
 
 import { useSignIn } from "@clerk/nextjs";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { AuthField, AuthShell, OtpInput, PASSWORD_MIN, PasswordField, ResendCode, clerkMessage } from "@/components/auth";
-import { I } from "@/components/icons";
+import { AuthBadge, AuthButton, AuthError, AuthField, AuthHeading, AuthRules, AuthShell, AuthSubtitle, OtpInput, PASSWORD_MIN, PasswordField, ResendCode, clerkMessage } from "@/components/auth";
+import { T } from "@/lib/client/i18n";
 
 type Step = "email" | "code" | "password" | "done";
 
@@ -47,8 +49,8 @@ export default function ForgotPasswordPage() {
     setErr(null);
     const { error } = await signIn.create({ identifier: email.trim() });
     if (error) {
-      const code = (error as { errors?: Array<{ code?: string }> }).errors?.[0]?.code ?? (error as { code?: string }).code;
-      if (code === "form_identifier_not_found") {
+      const c = (error as { errors?: Array<{ code?: string }> }).errors?.[0]?.code ?? (error as { code?: string }).code;
+      if (c === "form_identifier_not_found") {
         setUnknown(true);
         setStep("code");
         return;
@@ -65,11 +67,11 @@ export default function ForgotPasswordPage() {
   async function verify(value = code) {
     if (value.length < 6) return;
     setErr(null);
-    if (unknown) return setErr("That code isn't right. Check the email and try again.");
+    if (unknown) return setErr(T("That code isn't right. Check the email and try again."));
     const { error } = await signIn.resetPasswordEmailCode.verifyCode({ code: value });
     if (error) return setErr(clerkMessage(error));
     if (signIn.status === "needs_new_password") setStep("password");
-    else setErr("Something went wrong. Please start again.");
+    else setErr(T("Something went wrong. Please start again."));
   }
 
   const longEnough = password.length >= PASSWORD_MIN;
@@ -82,7 +84,7 @@ export default function ForgotPasswordPage() {
     const { error } = await signIn.resetPasswordEmailCode.submitPassword({ password, signOutOfOtherSessions: true });
     if (error) return setErr(clerkMessage(error));
     if (signIn.status === "complete") setStep("done");
-    else setErr("Your password was changed, but signing in needs another step. Please sign in again.");
+    else setErr(T("Your password was changed, but signing in needs another step. Please sign in again."));
   }
 
   async function finish() {
@@ -93,14 +95,14 @@ export default function ForgotPasswordPage() {
   if (step === "done") {
     return (
       <AuthShell title="All Set">
-        <div className="badge">
-          <I.tick size={34} />
-        </div>
-        <h2>Password updated</h2>
-        <p className="subtitle">You&apos;re signed in. Other devices using the old password have been signed out.</p>
-        <button className="btn p full" disabled={busy} onClick={() => void finish()}>
-          Continue to GetHomeApps
-        </button>
+        <AuthBadge>
+          <CheckRoundedIcon />
+        </AuthBadge>
+        <AuthHeading>{T("Password updated")}</AuthHeading>
+        <AuthSubtitle>{T("You're signed in. Other devices using the old password have been signed out.")}</AuthSubtitle>
+        <AuthButton disabled={busy} onClick={() => void finish()}>
+          {T("Continue to GetHomeApps")}
+        </AuthButton>
       </AuthShell>
     );
   }
@@ -108,33 +110,14 @@ export default function ForgotPasswordPage() {
   if (step === "password") {
     return (
       <AuthShell title="Reset Password" back={() => setStep("code")}>
-        <h2>Enter new password</h2>
-        <p className="subtitle">Your new password must be different from previously used passwords.</p>
+        <AuthHeading>{T("Enter new password")}</AuthHeading>
+        <AuthSubtitle>{T("Your new password must be different from previously used passwords.")}</AuthSubtitle>
         <form onSubmit={save} noValidate>
-          <PasswordField
-            id="fp-pw"
-            label="Password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <PasswordField
-            id="fp-pw2"
-            label="Confirm password"
-            autoComplete="new-password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-          <div className="rules" aria-live="polite">
-            <span className={longEnough ? "ok" : ""}>
-              {longEnough ? "✓" : "•"} {PASSWORD_MIN}+ characters
-            </span>
-            <span className={matches ? "ok" : ""}>{matches ? "✓" : "•"} Passwords match</span>
-          </div>
-          {err && <div className="err">{err}</div>}
-          <button className="btn p full" disabled={busy || !longEnough || !matches}>
-            {busy ? "Saving…" : "Continue"}
-          </button>
+          <PasswordField id="fp-pw" label="Password" value={password} onChange={(e) => setPassword(e.target.value)} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
+          <PasswordField id="fp-pw2" label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
+          <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { ok: matches, text: T("Passwords match") }]} />
+          <AuthError>{err}</AuthError>
+          <AuthButton disabled={busy || !longEnough || !matches}>{busy ? T("Saving…") : T("Continue")}</AuthButton>
         </form>
       </AuthShell>
     );
@@ -143,40 +126,35 @@ export default function ForgotPasswordPage() {
   if (step === "code") {
     return (
       <AuthShell title="Email Verification" back={() => setStep("email")}>
-        <h2>Get your code</h2>
-        <p className="subtitle">
-          If an account uses <b>{email.trim()}</b>, we&apos;ve sent it a 6-digit code.
-        </p>
+        <AuthHeading>{T("Get your code")}</AuthHeading>
+        <AuthSubtitle>{T("If an account uses {email}, we've sent it a 6-digit code.", { email: email.trim() })}</AuthSubtitle>
         <OtpInput value={code} onChange={setCode} onComplete={(v) => void verify(v)} />
-        {err && <div className="err" style={{ marginTop: 8 }}>{err}</div>}
+        <AuthError>{err}</AuthError>
         <ResendCode onResend={async () => void (unknown || (await signIn.resetPasswordEmailCode.sendCode()))} />
-        <button className="btn p full" disabled={busy || code.length < 6} onClick={() => void verify()}>
-          {busy ? "Checking…" : "Verify and Proceed"}
-        </button>
+        <AuthButton disabled={busy || code.length < 6} onClick={() => void verify()} sx={{ mt: 2.75 }}>
+          {busy ? T("Checking…") : T("Verify and Proceed")}
+        </AuthButton>
       </AuthShell>
     );
   }
 
   return (
     <AuthShell title="Forgot Password" back="/sign-in">
-      <h2>Your email address</h2>
-      <p className="subtitle">Enter the email address associated with your account.</p>
+      <AuthHeading>{T("Your email address")}</AuthHeading>
+      <AuthSubtitle>{T("Enter the email address associated with your account.")}</AuthSubtitle>
       <form onSubmit={sendCode} noValidate>
         <AuthField
           id="fp-email"
           label="Email"
-          icon={I.mail}
+          icon={<MailOutlineRoundedIcon />}
           type="email"
-          inputMode="email"
-          autoComplete="email"
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          slotProps={{ htmlInput: { inputMode: "email", autoComplete: "email" } }}
         />
-        {err && <div className="err">{err}</div>}
-        <button className="btn p full" disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())}>
-          {busy ? "Sending…" : "Send Code"}
-        </button>
+        <AuthError>{err}</AuthError>
+        <AuthButton disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())}>{busy ? T("Sending…") : T("Send Code")}</AuthButton>
       </form>
     </AuthShell>
   );

@@ -7,13 +7,14 @@ same rules first only so people get a clear message.
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from _lib import clerk, notify
-from _lib.account import ROLE_LABEL, Account
+from _lib.account import ROLE_LABEL, SG, Account, apply_schedule
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.profile import ROLES, ProfileIn, clean_email, clean_profile
 from _lib.web import role
@@ -24,9 +25,25 @@ pm_only = role("project_manager")
 CREW_ROLES = ("contractor", "epc_team")
 
 
+def avatar_url(u: dict[str, Any]) -> str | None:
+    """Where a person's picture loads from; the version changes whenever it does."""
+    if not u.get("avatar_key"):
+        return None
+    v = int(u["avatar_updated_at"].timestamp()) if u.get("avatar_updated_at") else 0
+    return f"/api/py/avatars/{u['uid']}?v={v}"
+
+
+def iso_day(d: date | None) -> str | None:
+    return d.isoformat() if d else None
+
+
 def _user_row(u: dict[str, Any], groups: list[int]) -> dict[str, Any]:
     return {
         "uid": u["uid"],
+        "avatar": avatar_url(u),
+        "disableOn": iso_day(u.get("disable_on")),
+        "enableOn": iso_day(u.get("enable_on")),
+        "disabledReason": u.get("disabled_reason"),
         "fullName": u["full_name"],
         "email": u["email"],
         "role": u["user_type"],
@@ -44,6 +61,7 @@ def _user_row(u: dict[str, Any], groups: list[int]) -> dict[str, Any]:
 
 @router.get("/people")
 def people(acct: Account = Depends(pm_only)) -> dict[str, Any]:
+    apply_schedule()  # anyone whose expiry or enable date has come shows as they now are
     users = fetch_all("select * from users order by active desc, full_name nulls last, email")
     members = fetch_all("select group_id, user_id from contractor_group_members")
     by_user: dict[int, list[int]] = {}
@@ -134,19 +152,49 @@ def visible_projects(uid: int, _acct: Account = Depends(pm_only)) -> list[dict[s
 class NewUserIn(ProfileIn):
     email: str = ""
     groupId: int | None = None
+    # Asked when an account is made: when it expires, or that it doesn't.
+    expiresOn: str | None = None
+    noExpiry: bool = False
+
+
+def sg_today() -> date:
+    return datetime.now(SG).date()
+
+
+def parse_day(raw: str | None, what: str) -> date | None:
+    if not raw:
+        return None
+    try:
+        d = date.fromisoformat(raw)
+    except ValueError as exc:
+        raise HTTPException(400, f"The {what} isn't a date.") from exc
+    if d <= sg_today():
+        raise HTTPException(400, f"The {what} must be after today.")
+    return d
+
+
+def expiry_from(expires_on: str | None, no_expiry: bool) -> date | None:
+    """A new account's expiry: a date after today, or explicitly none."""
+    if no_expiry:
+        return None
+    d = parse_day(expires_on, "expiry date")
+    if not d:
+        raise HTTPException(400, "Set when the account expires, or tick No expiry.")
+    return d
 
 
 @router.post("/people")
 def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     email = clean_email(body.email)
     p = clean_profile(body, require_mobile=True)
+    expires = expiry_from(body.expiresOn, body.noExpiry)
     if fetch_one("select 1 from users where lower(email) = %s", (email,)):
         raise HTTPException(409, "An account with that email already exists.")
 
     with transaction(acct.uid) as cur:
         cur.execute(
             "insert into users (full_name, user_type, contact_no, ic_last4, email, address, postal_code, "
-            "invited_at, invited_by) values (%s,%s,%s,%s,%s,%s,%s, now(), %s) returning uid",
+            "invited_at, invited_by, disable_on) values (%s,%s,%s,%s,%s,%s,%s, now(), %s, %s) returning uid",
             (
                 p["full_name"],
                 p["user_type"],
@@ -156,6 +204,7 @@ def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, 
                 p["address"],
                 p["postal_code"],
                 acct.uid,
+                expires,
             ),
         )
         uid = cur.fetchone()["uid"]
@@ -195,15 +244,62 @@ def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, 
 class UserPatch(BaseModel):
     role: str | None = None
     active: bool | None = None
+    # Dates (YYYY-MM-DD) or null to clear; leave out to keep. disableOn is the
+    # expiry: the account disables itself that day. enableOn re-enables a
+    # disabled account that day.
+    disableOn: str | None = None
+    enableOn: str | None = None
+
+
+def day_text(d: date) -> str:
+    return f"{d.day} {d:%b %Y}"
 
 
 @router.patch("/people/{uid}")
 def update_user(uid: int, body: UserPatch, acct: Account = Depends(pm_only)) -> dict[str, Any]:
-    user = fetch_one("select uid, user_type, active, full_name from users where uid = %s", (uid,))
+    user = fetch_one("select * from users where uid = %s", (uid,))
     if not user:
         raise HTTPException(404, "No such account.")
     if body.role is not None and body.role not in ROLES:
         raise HTTPException(400, "Choose a role.")
+    sent = body.model_fields_set
+    today = sg_today()
+    disable_on = parse_day(body.disableOn, "expiry date") if "disableOn" in sent else user["disable_on"]
+    enable_on = parse_day(body.enableOn, "enable date") if "enableOn" in sent else user["enable_on"]
+    active = user["active"] if body.active is None else body.active
+    if uid == acct.uid and (active is False or (disable_on and "disableOn" in sent)):
+        raise HTTPException(400, "You can't disable your own account, or set it to expire.")
+    if enable_on and disable_on and enable_on >= disable_on:
+        raise HTTPException(400, "The enable date must be before the expiry date.")
+    reason = user["disabled_reason"]
+    messages: list[str] = []
+    name = user["full_name"] or "Account"
+
+    if body.active is True and not user["active"]:
+        if disable_on and disable_on <= today:
+            raise HTTPException(400, "Their expiry date has passed. Move it later or clear it first.")
+        reason, enable_on = None, None
+        messages.append(f"{name} re-enabled.")
+    elif body.active is False and user["active"]:
+        reason = "manual"
+        messages.append(f"{name} disabled — sign-in blocked. Their history stays in the audit log.")
+    elif not user["active"] and user["disabled_reason"] == "scheduled" and "disableOn" in sent and body.active is None:
+        # Moving an expired account's expiry later (or clearing it) re-enables it.
+        if not disable_on or disable_on > today:
+            active, reason = True, None
+            messages.append(f"{name} re-enabled: the expiry date moved.")
+    if "disableOn" in sent:
+        messages.append(
+            f"{name}'s account expires on {day_text(disable_on)}."
+            if disable_on
+            else f"{name}'s account doesn't expire."
+        )
+    if "enableOn" in sent:
+        messages.append(
+            f"{name}'s account enables itself on {day_text(enable_on)}."
+            if enable_on
+            else f"{name}'s account won't enable itself."
+        )
 
     with transaction(acct.uid) as cur:
         if body.role is not None and body.role != user["user_type"]:
@@ -211,17 +307,15 @@ def update_user(uid: int, body: UserPatch, acct: Account = Depends(pm_only)) -> 
             # Only crews belong in contractor groups; leaving the role leaves the groups.
             if body.role not in CREW_ROLES:
                 cur.execute("delete from contractor_group_members where user_id = %s", (uid,))
-        if body.active is not None and body.active != user["active"]:
-            if uid == acct.uid and not body.active:
-                raise HTTPException(400, "You can't disable your own account.")
-            cur.execute("update users set active = %s, updated_at = now() where uid = %s", (body.active, uid))
-
-    name = user["full_name"] or "Account"
-    if body.active is False:
-        return {"message": f"{name} disabled — sign-in blocked. Their history stays in the audit log."}
-    if body.active is True:
-        return {"message": f"{name} re-enabled."}
-    return {"message": f"{name} is now {ROLE_LABEL[body.role or user['user_type']]}."}
+            messages.append(f"{name} is now {ROLE_LABEL[body.role]}.")
+        cur.execute(
+            "update users set active = %s, disabled_reason = %s, disable_on = %s, enable_on = %s, updated_at = now() "
+            "where uid = %s and (active, disabled_reason, disable_on, enable_on) "
+            "is distinct from (%s, %s, %s, %s)",
+            (active, reason, disable_on, enable_on, uid, active, reason, disable_on, enable_on),
+        )
+    apply_schedule()  # an expiry of today, say, takes effect now
+    return {"message": " ".join(messages) or "Nothing changed."}
 
 
 # -------------------------------------------------------------- requests
@@ -230,6 +324,8 @@ def update_user(uid: int, body: UserPatch, acct: Account = Depends(pm_only)) -> 
 class DecisionIn(BaseModel):
     role: str | None = None
     note: str | None = None
+    expiresOn: str | None = None
+    noExpiry: bool = False
     # Contractor admins and EPC crew can be put into a group as they're approved,
     # the same as when a PM creates their account directly.
     groupId: int | None = None
@@ -246,6 +342,7 @@ def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only))
         raise HTTPException(409, f"This request has already been {req['status']}.")
     if fetch_one("select 1 from users where lower(email) = lower(%s)", (req["email"],)):
         raise HTTPException(409, "An account with that email already exists. Decline this request instead.")
+    expires = expiry_from(body.expiresOn, body.noExpiry)
 
     # One transaction: the account, the approval and any group membership
     # exist together or not at all.
@@ -255,6 +352,8 @@ def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only))
             (request_id, body.role, (body.note or "").strip() or None),
         )
         uid = cur.fetchone()["uid"]
+        if expires:
+            cur.execute("update users set disable_on = %s where uid = %s", (expires, uid))
         if body.groupId and body.role in CREW_ROLES:
             cur.execute(
                 "insert into contractor_group_members (group_id, user_id, added_by) values (%s, %s, %s)",

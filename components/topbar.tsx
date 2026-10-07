@@ -19,6 +19,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 
 import { type Role, useApp } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
+import { useLang } from "@/lib/client/i18n";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
 import { PAGE_COLUMN, PAGE_GUTTER } from "./shell";
@@ -61,6 +62,7 @@ export function TopBar({
   tabs?: ReactNode;
 }) {
   const { me } = useApp();
+  const { t, tr } = useLang();
   const unread = me?.unread ?? 0;
   return (
     <Box
@@ -78,22 +80,22 @@ export function TopBar({
       <Box data-layout="header-column" sx={PAGE_COLUMN}>
         <Stack direction="row" sx={{ alignItems: "center", gap: 1, minHeight: 44 }}>
           {onBack && (
-            <IconButton onClick={onBack} aria-label="Back" sx={{ color: "#fff", ml: -1 }}>
+            <IconButton onClick={onBack} aria-label={t("Back")} sx={{ color: "#fff", ml: -1 }}>
               <ArrowBackRoundedIcon />
             </IconButton>
           )}
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography component="h1" noWrap sx={{ fontWeight: 600, fontSize: { xs: DESIGN.type.pageTitle.phone, lg: DESIGN.type.pageTitle.desktop } }}>
-              {title}
+              {tr(title)}
             </Typography>
             {sub && (
               <Typography noWrap sx={{ fontSize: { xs: 12.5, lg: 14 }, color: "rgba(255,255,255,0.78)" }}>
-                {sub}
+                {typeof sub === "string" ? tr(sub) : sub}
               </Typography>
             )}
           </Box>
           {action}
-          <IconButton component={Link} href="/alerts" aria-label={unread ? `${unread} unread alerts` : "Alerts"} sx={{ color: "#fff" }}>
+          <IconButton component={Link} href="/alerts" aria-label={unread ? t("{n} unread alerts", { n: unread }) : t("Alerts")} sx={{ color: "#fff" }}>
             <Badge color="warning" variant="dot" invisible={!unread}>
               <NotificationsRoundedIcon />
             </Badge>
@@ -118,10 +120,11 @@ export function TopBar({
 }
 
 export function Heading({ title, count, action }: { title: string; count?: number; action?: ReactNode }) {
+  const { tr } = useLang();
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 2.5, mb: 1.25 }}>
       <Typography component="h2" sx={{ fontWeight: 600, fontSize: { xs: DESIGN.type.sectionTitle.phone, lg: DESIGN.type.sectionTitle.desktop } }}>
-        {title}
+        {tr(title)}
       </Typography>
       {count !== undefined && <Chip size="small" label={count} sx={{ height: 20, fontSize: 11 }} />}
       <Box sx={{ flex: 1 }} />
@@ -141,6 +144,8 @@ export function SearchBox({
   placeholder: string;
   testId?: string;
 }) {
+  const { t, tr } = useLang();
+  placeholder = tr(placeholder);
   return (
     <Box
       sx={{
@@ -166,7 +171,7 @@ export function SearchBox({
         sx={{ flex: 1, minWidth: 0, color: "#fff", fontSize: 16, "& input::placeholder": { color: "rgba(255,255,255,0.65)", opacity: 1 } }}
       />
       {value && (
-        <IconButton size="small" aria-label="Clear search" onClick={() => onChange("")} sx={{ color: "#fff", p: 0.5 }}>
+        <IconButton size="small" aria-label={t("Clear search")} onClick={() => onChange("")} sx={{ color: "#fff", p: 0.5 }}>
           <CloseRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       )}
@@ -190,6 +195,7 @@ export function SegTabs<T extends string>({
   label: string;
 }) {
   const track = useRef<HTMLDivElement>(null);
+  const { tr } = useLang();
   useEffect(() => {
     track.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [value]);
@@ -197,7 +203,7 @@ export function SegTabs<T extends string>({
     <Box
       ref={track}
       role="tablist"
-      aria-label={label}
+      aria-label={tr(label)}
       sx={{
         mt: 1,
         display: "flex",
@@ -234,7 +240,7 @@ export function SegTabs<T extends string>({
               transition: "background-color .18s, color .18s",
             }}
           >
-            {o.label}
+            {tr(o.label)}
             {o.count !== undefined && (
               <Box component="span" sx={{ fontSize: 10.5, opacity: 0.7 }}>
                 {o.count}

@@ -8,11 +8,14 @@ request — signing in to Clerk alone grants nothing.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
 from _lib import clerk
 from _lib.auth import ClerkIdentity
 from _lib.db import fetch_one, transaction
+
+SG = timezone(timedelta(hours=8))
 
 State = Literal["active", "deactivated", "pending", "rejected", "no_account"]
 
@@ -44,9 +47,27 @@ class Account:
         return self.user["user_type"] if self.user else None
 
 
+def schedule_due(user: dict[str, Any]) -> bool:
+    """Has this account's disable (expiry) or enable date come, without being applied yet?"""
+    today = datetime.now(SG).date()
+    if user["active"] and user.get("disable_on") and user["disable_on"] <= today:
+        return True
+    return bool(not user["active"] and user.get("enable_on") and user["enable_on"] <= today)
+
+
+def apply_schedule() -> int:
+    """Disables expired accounts and enables ones whose date has come (migration 0025). Returns how many changed."""
+    row = fetch_one("select apply_account_schedule() as n")
+    return int(row["n"]) if row else 0
+
+
 def resolve(identity: ClerkIdentity) -> Account:
     # 1. Already linked — the common case, one indexed lookup.
     user = fetch_one("select * from users where clerk_user_id = %s", (identity.clerk_user_id,))
+    if user and schedule_due(user):
+        # Their expiry (or re-enable) date has come: apply it before anything else.
+        apply_schedule()
+        user = fetch_one("select * from users where clerk_user_id = %s", (identity.clerk_user_id,))
     if user:
         return Account("active" if user["active"] else "deactivated", identity, user=user)
 
@@ -58,8 +79,7 @@ def resolve(identity: ClerkIdentity) -> Account:
     #    VERIFIED email: anyone can type an address, only its owner can verify it.
     if cu.verified_emails:
         invited = fetch_one(
-            "select uid from users where lower(email) = any(%s) and clerk_user_id is null "
-            "order by uid limit 1",
+            "select uid from users where lower(email) = any(%s) and clerk_user_id is null " "order by uid limit 1",
             (cu.verified_emails,),
         )
         if invited:
@@ -73,9 +93,7 @@ def resolve(identity: ClerkIdentity) -> Account:
                 )
                 linked = cur.fetchone()
             if linked:
-                return Account(
-                    "active" if linked["active"] else "deactivated", identity, user=linked, clerk_user=cu
-                )
+                return Account("active" if linked["active"] else "deactivated", identity, user=linked, clerk_user=cu)
 
     # 3. They asked for an account themselves.
     req = fetch_one(

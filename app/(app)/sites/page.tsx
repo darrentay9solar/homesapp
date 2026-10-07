@@ -24,6 +24,7 @@ import { useApi } from "@/lib/client/api";
 import { useMe } from "@/lib/client/app-state";
 import { hhmm, type SiteRow, visitDay } from "@/lib/client/sites";
 
+import { T } from "@/lib/client/i18n";
 /**
  * The EPC team's day: where they're on site now (check out), where they're
  * due today, and every site they can check in at — any day of the week.
@@ -52,19 +53,19 @@ export default function SitesPage() {
               {s.address}
             </Typography>
           </Box>
-          {s.open ? <Chip size="small" color="success" label="On site" /> : s.today.length ? <Chip size="small" color="warning" label="Due today" /> : null}
+          {s.open ? <Chip size="small" color="success" label={T("On site")} /> : s.today.length ? <Chip size="small" color="warning" label={T("Due today")} /> : null}
         </Stack>
         <Stack sx={{ mt: 1.25, gap: 0.5 }}>
           {s.open && (
             <Typography variant="body2" sx={{ color: "primary.main", fontWeight: 600 }}>
-              Checked in {hhmm(s.open.inAt)} with {s.open.crewIn} crew
+              {T("Checked in {time} with {n} crew", { time: hhmm(s.open.inAt), n: s.open.crewIn })}
             </Typography>
           )}
           {s.today.map((v) => (
             <Stack key={v.id} direction="row" sx={{ gap: 0.75, alignItems: "center", color: "warning.main" }}>
               <EventRoundedIcon sx={{ fontSize: 16 }} />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                Today{v.time ? ` at ${v.time}` : ""}
+                {v.time ? T("Today at {time}", { time: v.time }) : T("Today")}
                 {v.note ? ` · ${v.note}` : ""}
               </Typography>
             </Stack>
@@ -73,7 +74,7 @@ export default function SitesPage() {
             <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", color: "text.secondary" }}>
               <EventRoundedIcon sx={{ fontSize: 16 }} />
               <Typography variant="body2">
-                Next visit {visitDay(s.next.date)}
+                {T("Next visit {day}", { day: visitDay(s.next.date) })}
                 {s.next.time ? ` at ${s.next.time}` : ""}
                 {s.next.note ? ` · ${s.next.note}` : ""}
               </Typography>
@@ -81,7 +82,7 @@ export default function SitesPage() {
           )}
           {!s.located && (
             <Typography variant="caption" sx={{ color: "warning.main" }}>
-              No GPS location for this site yet, so check-in is off.
+              {T("No GPS location for this site yet, so check-in is off.")}
             </Typography>
           )}
         </Stack>
@@ -96,7 +97,7 @@ export default function SitesPage() {
             onClick={() => setTarget(s)}
             sx={{ mt: 1.75 }}
           >
-            {s.open ? "Check Out" : "Check In"}
+            {s.open ? T("Check Out") : T("Check In")}
           </Button>
         )}
       </Box>
@@ -105,7 +106,7 @@ export default function SitesPage() {
 
   return (
     <>
-      <TopBar title="Sites" sub="GPS check-in and check-out" />
+      <TopBar title={T("Sites")} sub={T("GPS check-in and check-out")} />
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
           {error && (
@@ -123,33 +124,33 @@ export default function SitesPage() {
           {data && sites.length === 0 && (
             <Card sx={{ p: 4, mt: 2, textAlign: "center" }} data-testid="sites-empty">
               <PlaceRoundedIcon sx={{ fontSize: 42, color: "primary.main" }} />
-              <Typography sx={{ fontWeight: 600, mt: 1 }}>No sites to check in at yet</Typography>
+              <Typography sx={{ fontWeight: 600, mt: 1 }}>{T("No sites to check in at yet")}</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-                Projects appear here once they&apos;re approved and your contractor group is on them.
+                {T("Projects appear here once they're approved and your contractor group is on them.")}
               </Typography>
             </Card>
           )}
           {onSite.length > 0 && (
             <>
-              <Heading title="On site now" count={onSite.length} />
+              <Heading title={T("On site now")} count={onSite.length} />
               <Box sx={GRID}>{onSite.map((s) => card(s, (t) => t.palette.success.main))}</Box>
             </>
           )}
           {today.length > 0 && (
             <>
-              <Heading title="Due today" count={today.length} />
+              <Heading title={T("Due today")} count={today.length} />
               <Box sx={GRID}>{today.map((s) => card(s, (t) => t.palette.warning.main))}</Box>
             </>
           )}
           {rest.length > 0 && (
             <>
-              <Heading title={onSite.length || today.length ? "Your other sites" : "Your sites"} count={rest.length} />
+              <Heading title={onSite.length || today.length ? T("Your other sites") : T("Your sites")} count={rest.length} />
               <Box sx={GRID}>{rest.map((s) => card(s, (t) => t.palette.primary.main))}</Box>
             </>
           )}
           {data && sites.length > 0 && (
             <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 3 }}>
-              Check in on arrival and out when you leave, at the house with a good GPS signal. You can check in any day, not just scheduled ones.
+              {T("Check in on arrival and out when you leave, at the house with a good GPS signal. You can check in any day, not just scheduled ones.")}
             </Typography>
           )}
         </Page>

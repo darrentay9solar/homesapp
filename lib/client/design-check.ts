@@ -35,6 +35,8 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
   const doc = win.document;
   const cs = (e: Element) => win.getComputedStyle(e);
   const all = (sel: string) => [...doc.querySelectorAll(sel)].filter(visible);
+  // The first one showing: Next keeps a hidden copy of a nearby page drawn, which must not count.
+  const one = (sel: string): Element | null => all(sel)[0] ?? null;
   const w = win.innerWidth;
   const desktop = w >= DESIGN.layout.desktopFrom;
   const out: Finding[] = [];
@@ -53,7 +55,7 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
 
   if (kind === "app") {
     // ---- green header
-    const header = doc.querySelector("header");
+    const header = one("header");
     if (!header || !visible(header)) fail("Green wave header", "no page header");
     else {
       if (!cs(header).backgroundImage.includes(rgb(DESIGN.green.header))) fail("Green wave header", "header isn't the header-green gradient");
@@ -74,17 +76,18 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
     }
 
     // ---- column: header and content line up
-    const hc = doc.querySelector("[data-layout=header-column]");
-    const pc = doc.querySelector("[data-layout=column]");
-    if (hc && pc && !doc.querySelector("[data-layout=column]")?.closest("[data-narrow]")) {
+    const hc = one("[data-layout=header-column]");
+    const pc = one("[data-layout=column]");
+    if (hc && pc && !pc.closest("[data-narrow]")) {
       const a = hc.getBoundingClientRect();
       const b = pc.getBoundingClientRect();
       if (b.width >= a.width - 2 && !near(a.left, b.left, 2)) fail("Header lines up with content", `header column at ${Math.round(a.left)}px, content at ${Math.round(b.left)}px`);
     }
 
     // ---- navigation
-    const side = doc.querySelector("nav[aria-label=Main]");
-    const bottom = doc.querySelector(".MuiBottomNavigation-root");
+    // Found by a marker, not its label, which is translated.
+    const side = one("nav[data-nav=side]");
+    const bottom = one(".MuiBottomNavigation-root");
     if (desktop) {
       if (!side || !visible(side)) fail("Desktop: side menu", "side menu not showing");
       if (bottom && visible(bottom)) fail("Desktop: side menu", "bottom bar is showing on desktop");
@@ -96,28 +99,28 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
 
   if (kind === "auth") {
     if (desktop) {
-      const side = doc.querySelector(".auth-side");
+      const side = one("[data-auth=side]");
       if (!side || !visible(side)) fail("Desktop sign-in: sky on the left", "no sky panel");
-      const main = doc.querySelector(".auth-main");
+      const main = one("[data-auth=main]");
       if (main && cs(main).backgroundColor !== rgb(DESIGN.green.header)) fail("Desktop sign-in: green panel", `panel is ${cs(main).backgroundColor}, should be header green`);
-      for (const b of all(".card-auth .btn.p")) {
-        if (!near(px(cs(b).borderRadius), DESIGN.radius.button)) fail("Main button shape", `${label(b)} has ${cs(b).borderRadius} corners, should be ${DESIGN.radius.button}px`);
-        const content = b.closest(".content");
+      const content = one("[data-auth=content]");
+      for (const b of all("[data-auth=card] .MuiButton-sizeLarge.MuiButton-contained")) {
         if (content && b.getBoundingClientRect().width < content.getBoundingClientRect().width - 2) fail("Main button full width", `${label(b)} doesn't fill the column`);
+        if (cs(b).backgroundColor !== "rgb(255, 255, 255)") fail("Desktop sign-in: white main button", `${label(b)} is ${cs(b).backgroundColor}`);
       }
     } else {
-      const band = doc.querySelector(".band");
+      const band = one("[data-auth=band]");
       if (!band || !visible(band)) fail("Phone sign-in: green wave header", "no header band");
       else {
         if (!band.querySelector("linearGradient")) fail("Phone sign-in: green wave header", "band isn't the header-green gradient");
         const h1 = band.querySelector("h1");
         if (h1 && !near(px(cs(h1).fontSize), DESIGN.type.dialogTitle)) fail("Header title", `${px(cs(h1).fontSize)}px, should be ${DESIGN.type.dialogTitle}px`);
       }
-      for (const f of all(".af")) if (!near(px(cs(f).height), DESIGN.height.field)) fail("Field height", `${px(cs(f).height)}px, should be ${DESIGN.height.field}px`);
-      for (const b of all(".btn.p")) {
-        if (!near(px(cs(b).height), DESIGN.height.buttonLarge)) fail("Main button height", `${label(b)} is ${px(cs(b).height)}px, should be ${DESIGN.height.buttonLarge}px`);
-        if (!near(px(cs(b).borderRadius), DESIGN.radius.buttonLarge)) fail("Main button shape", `${label(b)} has ${cs(b).borderRadius} corners`);
-      }
+    }
+    // Leftovers from the old stylesheet would mean a screen isn't on the template.
+    for (const el of all("[class]")) {
+      const legacy = [...el.classList].filter((c) => /^(btn|af|inp|err|subtitle|alt|rules|otp|band|card-auth|auth-main|auth-side)$/.test(c));
+      if (legacy.length) fail("Built from the template", `old CSS class ${legacy.join(", ")} on ${label(el)}`);
     }
   }
 
@@ -141,7 +144,9 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
   for (const b of all(".MuiButton-sizeLarge.MuiButton-contained")) {
     if (!near(px(cs(b).height), DESIGN.height.buttonLarge)) fail("Main button height", `${label(b)} is ${px(cs(b).height)}px`);
     if (!near(px(cs(b).borderRadius), DESIGN.radius.buttonLarge)) fail("Main button shape", `${label(b)} has ${cs(b).borderRadius} corners`);
-    if (b.classList.contains("Mui-disabled") && b.classList.contains("MuiButton-colorPrimary")) {
+    // On the desktop sign-in panel the main button is white, dimmed when disabled (template §2).
+    const onPanel = desktop && kind === "auth" && b.closest("[data-auth=card]");
+    if (!onPanel && b.classList.contains("Mui-disabled") && b.classList.contains("MuiButton-colorPrimary")) {
       const bg = cs(b).backgroundColor;
       if (!(bg === rgb(DESIGN.green.light) || bg === rgb(DESIGN.green.dark))) fail("Disabled stays green", `${label(b)} is ${bg}`);
     }
@@ -161,4 +166,48 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
     seen.add(k);
     return true;
   });
+}
+
+/**
+ * Every date and time field opens its picker from a tap anywhere on it — the
+ * calendar icon, the padding, or the text — and is wide enough to show its
+ * value. The picker itself is replaced by a stand-in while checking, so
+ * nothing actually opens.
+ */
+export function checkPickers(win: Window): Finding[] {
+  const doc = win.document;
+  const out: Finding[] = [];
+  const proto = (win as unknown as { HTMLInputElement: typeof HTMLInputElement }).HTMLInputElement.prototype as HTMLInputElement & { showPicker?: () => void };
+  const real = Object.getOwnPropertyDescriptor(proto, "showPicker");
+  const opened: Element[] = [];
+  Object.defineProperty(proto, "showPicker", {
+    configurable: true,
+    writable: true,
+    value: function (this: HTMLInputElement) {
+      opened.push(this);
+    },
+  });
+  try {
+    const fields = [...doc.querySelectorAll<HTMLInputElement>("input[type=date], input[type=time]")].filter((i) => !i.disabled && visible(i.closest(".MuiInputBase-root") ?? i));
+    for (const input of fields) {
+      const root = input.closest(".MuiInputBase-root");
+      const name = label(input.closest(".MuiFormControl-root") ?? input);
+      if (!root) {
+        out.push({ rule: "Picker opens", detail: `${name} isn't a template field` });
+        continue;
+      }
+      // A tap on the icon (or the field's edge when it has none), then on the text.
+      for (const target of [root.querySelector(".MuiInputAdornment-root") ?? root, input]) {
+        opened.length = 0;
+        target.dispatchEvent(new (win as unknown as { MouseEvent: typeof MouseEvent }).MouseEvent("click", { bubbles: true, cancelable: true }));
+        if (!opened.includes(input)) out.push({ rule: "Picker opens", detail: `${name}: tapping the ${target === input ? "text" : "icon"} doesn't open the ${input.type} picker` });
+      }
+      if (input.getBoundingClientRect().width < 72) out.push({ rule: "Picker width", detail: `${name} is too narrow to show its ${input.type}` });
+    }
+  } finally {
+    if (real) Object.defineProperty(proto, "showPicker", real);
+    else delete (proto as { showPicker?: unknown }).showPicker;
+    (doc.activeElement as HTMLElement | null)?.blur?.();
+  }
+  return out;
 }

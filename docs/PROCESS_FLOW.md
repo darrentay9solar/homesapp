@@ -254,12 +254,39 @@ opens what it's about (the project, its site visits, People or Account). See
 | **Mobile** | A 6-digit code by **WhatsApp**, or **SMS** if WhatsApp can't deliver (or "Send by SMS instead"). Valid 10 minutes, 5 tries. The number changes only once the code is right. |
 | **Password** | Current password, then the new one twice (15+ characters). Other devices are signed out. **Forgot it?** signs out and emails a reset code that only works from that inbox. |
 | **Role** | "Ask" a project manager. It appears in People → Waiting for approval, beside new accounts. The PM approves (optionally a different role, or adds a group) or declines with a reason. The role change can be reverted in the audit log. |
-| **Notifications** | Phone notifications on or off for this device. |
+| **Picture** | Tap the avatar → **Change picture** (cropped square, up to 5 MB) or **Remove picture**. Saved in R2 under `profiles/`. A PM can change or remove anyone's from their Profile in People; nobody else can touch someone else's. |
+| **Settings → Language** | English or 简体中文. Every screen switches at once; phone notifications arrive in that language too. It follows the account to other devices. |
+| **Settings → Appearance** | Light or Black, for this device. |
+| **Settings → Notifications** | Pause everything (1 hour, 8 hours, until 8 am, a week), quiet hours (e.g. 22:00–07:00), whether crews running late still get through, which kinds of alert reach the phone, and which channels (phone, email, WhatsApp/SMS). Alerts always stay on the Alerts screen; these only silence the phone, email and WhatsApp. Turning phone notifications on for this device is in the same dialog. |
 
 - **TC-27:** Change your name; Audit shows it under you, and Revert puts it back.
 - **TC-28:** *Act as* Priya → Account → Mobile → Change, type a new number → **Send code**. On a laptop without WhatsApp/SMS the code shows on screen. A wrong code says how many tries are left; the right one changes the number, marked **Verified**.
 - **TC-29:** *Act as* Priya → **Need a different role? → Ask** for EPC Team with a reason. As yourself, People shows **Role change · Priya Nair · Contractor Admin → EPC Team**. Approve it: she's now EPC Team, and told.
 - **TC-30:** Account → Password → Change with a wrong current password. It's refused, and nothing changes.
+- **TC-32:** Account → Settings → Language → **简体中文**. The menu, headers, buttons, fields, dates ("10月7日") and toasts are in Chinese, and so are messages from the server ("已保存。每项更改都在审计日志中。"). Reload: still Chinese. Switch back to English.
+- **TC-33:** Account → Settings → Notifications → quiet hours **22:00 to 07:00** → Save. The row reads "Quiet from 22:00 to 07:00". *Act as* Ravi and schedule a visit for him at 23:00 tomorrow from your side: the alert is on his Alerts screen, and the delivery log shows the phone push as skipped "during their quiet hours". A **Running late** alert still gets through while "Crews running late always get through" is on.
+- **TC-34:** Account → tap your picture → **Change picture**, choose a photo. It shows on Account, in the menu, and on your People card. *Act as* Priya: her Profile has no Change button on your picture. As yourself, open Priya in People → change her picture, then **Remove picture**: both are in the audit log.
+
+### People: expiry and disabling
+
+Every new account is given an **expiry date**, or **No expiry** is ticked;
+one of the two is required, when a PM creates the account and when they
+approve a request. On that day (Singapore time) the account disables
+itself and can't sign in; the person sees "Your account has expired".
+
+- **Disable** (the switch in a person's Profile) blocks sign-in straight
+  away. Optionally pick **Enable again on**: it turns itself back on that day.
+- **Extending the expiry** (a later date, or removing it) re-enables an
+  account that expired. One a PM disabled by hand stays disabled.
+- Only PMs set these. Nobody can disable or expire their own account, and
+  the last active PM is never disabled automatically.
+- The schedule is applied when the person signs in, when People opens, and
+  every 15 minutes by the reminders job.
+
+- **TC-35:** People → **New account** without an expiry date and with No expiry unticked: Create is refused. Tick **No expiry**: it's created.
+- **TC-36:** Open Ravi → **Expires on** tomorrow → Save. His card shows "Expires …". *(To see it fire, set it in the database to yesterday and open People: he shows **Expired** and can't sign in.)* Move the date a month later: he's **re-enabled**, and told why in the toast.
+- **TC-37:** Open Priya → switch **Account enabled** off, **Enable again on** next Monday → Save. She shows as Disabled with "Enables …". Switch her back on by hand: the date is cleared.
+- **TC-38:** Search People for "expired" or "已到期": only expired accounts.
 
 ### My Files
 
@@ -270,6 +297,19 @@ filter Photos, Documents and **Removed**: files a PM or crew member took
 off a project. Those are kept, and a PM can restore them from the audit log.
 
 - **TC-31:** *Act as* Ravi → Files. His Jalan Kayu panel photos are listed. Search "inverter" narrows to the inverter photo; tapping it opens it.
+
+**Everyone's files (PMs).** A PM's My Files has **Everyone's**: every photo
+and document on every project, newest first, each with who uploaded it (with
+their picture and role). The search runs on the server across file name,
+project, address, slot (in English or Chinese), uploader name, email and
+role, and "photo"/"pdf"/"照片"/"文件". Photos/Documents tabs count across
+everything; **Show more** loads the next page.
+
+In R2, project files are filed by **project, then type, then slot**:
+`projects/{project}/images/{slot}/…` and `projects/{project}/documents/{slot}/…`.
+Profile pictures are under `profiles/{person}/images/`.
+
+- **TC-39:** As yourself → My Files → **Everyone's** → search "priya pdf": only Priya's documents. Search "照片 jalan": Jalan Kayu's photos.
 
 ---
 
@@ -301,7 +341,7 @@ off a project. Those are kept, and a PM can restore them from the audit log.
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 2,798 tests. That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
+- **Python:** `npm run test:py`, 2,861 tests (including the settings, pictures, account-expiry and translation tests). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
   - **The whole flow, in order:** `tests_py/test_full_flow.py` takes one project from creation to Ready for handover in 18 steps, with every role doing their part (see [TEST_CASES.md](TEST_CASES.md)). It runs twice: with files on the laptop, and with files in the real R2 dev bucket.
   - **R2 requests only when asked for:** a normal run uses no R2. `npm run test:r2` runs just the 39 tests that use the real dev bucket. That's about 85 requests with tiny files, all deleted afterwards, and the bucket is left empty.
   - `tests_py/test_project_work.py` covers the same flow in smaller pieces:
@@ -309,5 +349,5 @@ off a project. Those are kept, and a PM can restore them from the audit log.
   - conditional fields, decline and ask again
   - uploads (and refused uploads)
   - the IC rule, linking a homeowner, the database's rules, and act-as
-- **Front end:** `npm run test:web`.
-- **Design:** `/dev-preview/design-check`, 144 checks across phone, tablet and desktop, in Black and Light.
+- **Front end:** `npm run test:web`, including `tests/i18n.test.ts`: the dictionary is complete for every `T("…")` key, patterns translate server messages, notification settings, and Chinese search words.
+- **Design:** `/dev-preview/design-check`, 336 checks: 28 screens and dialogs across phone, tablet and desktop, in Black and Light, in English and Chinese. Every date and time field on them is tapped to make sure its picker opens.

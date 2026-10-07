@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { Fraunces, Poppins } from "next/font/google";
+import { cookies } from "next/headers";
 
 import { Providers } from "@/components/providers";
 
@@ -63,33 +64,36 @@ export const viewport: Viewport = {
   themeColor: "#08090a",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // English or Chinese, from the cookie the language setting writes, so the
+  // first paint is already in the right language.
+  const lang = (await cookies()).get("gha-lang")?.value === "zh" ? "zh" : "en";
   return (
     // Clerk's own screens use the app's tokens, so sign-in follows the
     // Black/Light choice instead of looking like a different product.
     <ClerkProvider
       appearance={{
         variables: {
-          colorPrimary: "var(--brand)",
-          colorBackground: "var(--card)",
-          colorForeground: "var(--tx)",
-          colorMutedForeground: "var(--tx-3)",
-          colorInput: "var(--card-2)",
-          colorInputForeground: "var(--tx)",
-          colorNeutral: "var(--tx)",
-          colorPrimaryForeground: "var(--on-brand)",
+          colorPrimary: "var(--mui-palette-primary-main)",
+          colorBackground: "var(--mui-palette-background-paper)",
+          colorForeground: "var(--mui-palette-text-primary)",
+          colorMutedForeground: "var(--mui-palette-text-secondary)",
+          colorInput: "var(--mui-palette-background-default)",
+          colorInputForeground: "var(--mui-palette-text-primary)",
+          colorNeutral: "var(--mui-palette-text-primary)",
+          colorPrimaryForeground: "var(--mui-palette-primary-contrastText)",
           borderRadius: "11px",
-          fontFamily: "var(--ff)",
+          fontFamily: "var(--font-poppins), sans-serif",
         },
         elements: {
-          cardBox: { boxShadow: "none", border: "1px solid var(--line-soft)", width: "100%" },
+          cardBox: { boxShadow: "none", border: "1px solid var(--mui-palette-divider)", width: "100%" },
           rootBox: { width: "100%" },
         },
       }}
     >
       {/* suppressHydrationWarning: data-theme is set by the boot script
           before React hydrates, so it legitimately differs from the server. */}
-      <html lang="en-SG" className={`${poppins.variable} ${fraunces.variable}`} suppressHydrationWarning>
+      <html lang={lang === "zh" ? "zh-Hans-SG" : "en-SG"} className={`${poppins.variable} ${fraunces.variable}`} suppressHydrationWarning>
         <head>
           <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         </head>
@@ -97,7 +101,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {/* Collects Material UI's styles during server rendering so pages
               arrive styled, with no flash of unstyled components. */}
           <AppRouterCacheProvider>
-            <Providers>{children}</Providers>
+            <Providers lang={lang}>{children}</Providers>
           </AppRouterCacheProvider>
         </body>
       </html>

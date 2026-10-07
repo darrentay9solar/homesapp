@@ -3,6 +3,8 @@
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { currentLang, translate } from "./i18n";
+
 /**
  * Talking to the Python API from the browser.
  *
@@ -58,7 +60,8 @@ export function useFetcher(): Fetcher {
         const serverMessage =
           data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : "";
         const message = serverMessage || `Request failed (${res.status})`;
-        throw new ApiError(message, res.status);
+        // The server writes in English; shown in the person's language.
+        throw new ApiError(translate(message, currentLang()), res.status);
       }
       return data as T;
     },

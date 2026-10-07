@@ -6,9 +6,11 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 
+from _lib import prefs
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one
 from _lib.web import account, act_as_allowed, role
+from _routes.people import avatar_url
 
 router = APIRouter()
 
@@ -25,6 +27,7 @@ def public_user(u: dict[str, Any]) -> dict[str, Any]:
         "address": u["address"],
         "postalCode": u["postal_code"],
         "active": u["active"],
+        "avatar": avatar_url(u),
     }
 
 
@@ -54,6 +57,8 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             (u["uid"],),
         )
         out["settings"] = {
+            "language": u.get("language") or "en",
+            "notificationPrefs": prefs.normalise(u.get("notification_prefs")),
             "mobileVerifiedAt": u["mobile_verified_at"].isoformat() if u.get("mobile_verified_at") else None,
             "passwordChangedAt": u["password_changed_at"].isoformat() if u.get("password_changed_at") else None,
             "roleRequest": {
@@ -64,6 +69,13 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             }
             if rr
             else None,
+        }
+    if acct.state == "deactivated" and acct.user:
+        u = acct.user
+        out["disabled"] = {
+            "reason": u.get("disabled_reason") or "manual",
+            "expiredOn": u["disable_on"].isoformat() if u.get("disable_on") else None,
+            "enableOn": u["enable_on"].isoformat() if u.get("enable_on") else None,
         }
     if acct.acting_pm:
         out["actingAs"] = {"byName": acct.acting_pm["full_name"], "byUid": acct.acting_pm["uid"]}

@@ -1,12 +1,14 @@
 "use client";
 
 import { useAuth, useSignIn } from "@clerk/nextjs";
+import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
+import Box from "@mui/material/Box";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
-import { AuthField, AuthShell, Mark, OtpInput, PasswordField, ResendCode, clerkMessage, safeRedirect } from "@/components/auth";
-import { I } from "@/components/icons";
+import { AuthAlt, AuthButton, AuthError, AuthField, AuthHeading, AuthLink, AuthShell, AuthSubtitle, Mark, OtpInput, PasswordField, ResendCode, clerkMessage, safeRedirect } from "@/components/auth";
+import { T } from "@/lib/client/i18n";
 
 /**
  * Sign in — the template's design, with Clerk doing the authentication
@@ -53,7 +55,7 @@ function SignInFlow() {
       setStep("code");
       return;
     }
-    setErr("Your account needs another sign-in step we don't support yet. Contact your project manager.");
+    setErr(T("Your account needs another sign-in step we don't support yet. Contact your project manager."));
   }
 
   async function submitPassword(e: React.FormEvent) {
@@ -75,16 +77,14 @@ function SignInFlow() {
   if (step === "code") {
     return (
       <AuthShell title="Email Verification" back={() => setStep("start")}>
-        <h2>Get your code</h2>
-        <p className="subtitle">
-          New device — enter the 6-digit code we sent to <b>{email}</b>.
-        </p>
+        <AuthHeading>{T("Get your code")}</AuthHeading>
+        <AuthSubtitle>{T("New device — enter the 6-digit code we sent to {email}.", { email })}</AuthSubtitle>
         <OtpInput value={code} onChange={setCode} onComplete={(v) => void submitCode(v)} />
-        {err && <div className="err" style={{ marginTop: 8 }}>{err}</div>}
+        <AuthError>{err}</AuthError>
         <ResendCode onResend={async () => void (await signIn.mfa.sendEmailCode())} />
-        <button className="btn p full" disabled={busy || code.length < 6} onClick={() => void submitCode()}>
-          {busy ? "Checking…" : "Verify and Proceed"}
-        </button>
+        <AuthButton disabled={busy || code.length < 6} onClick={() => void submitCode()} sx={{ mt: 2.75 }}>
+          {busy ? T("Checking…") : T("Verify and Proceed")}
+        </AuthButton>
       </AuthShell>
     );
   }
@@ -92,34 +92,31 @@ function SignInFlow() {
   return (
     <AuthShell title="Sign In">
       <Mark />
-      <h2>Welcome back</h2>
-      <p className="subtitle">Rooftop solar, tracked to the day.</p>
+      <AuthHeading>{T("Welcome back")}</AuthHeading>
+      <AuthSubtitle>{T("Rooftop solar, tracked to the day.")}</AuthSubtitle>
       <form onSubmit={submitPassword} noValidate>
         <AuthField
           id="si-email"
           label="Email"
-          icon={I.mail}
+          icon={<MailOutlineRoundedIcon />}
           type="email"
-          inputMode="email"
-          autoComplete="email"
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          slotProps={{ htmlInput: { inputMode: "email", autoComplete: "email" } }}
         />
         <PasswordField
           id="si-password"
           label="Password"
-          autoComplete="current-password"
           placeholder="Your password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          slotProps={{ htmlInput: { autoComplete: "current-password" } }}
         />
-        <div style={{ textAlign: "right", margin: "-8px 2px 18px" }}>
+        <Box sx={{ textAlign: "right", mt: -1, mb: 2.25, mx: 0.25 }}>
           {/* The typed email is carried over in sessionStorage, not the URL —
               addresses in URLs end up in history, logs and referrers. */}
-          <Link
-            className="textlink"
-            style={{ fontSize: 12.5 }}
+          <AuthLink
             href="/forgot-password"
             onClick={() => {
               try {
@@ -129,17 +126,15 @@ function SignInFlow() {
               }
             }}
           >
-            Forgot password?
-          </Link>
-        </div>
-        {err && <div className="err">{err}</div>}
-        <button className="btn p full" disabled={busy || !email.trim() || !password}>
-          {busy ? "Signing in…" : "Sign In"}
-        </button>
+            {T("Forgot password?")}
+          </AuthLink>
+        </Box>
+        <AuthError>{err}</AuthError>
+        <AuthButton disabled={busy || !email.trim() || !password}>{busy ? T("Signing in…") : T("Sign In")}</AuthButton>
       </form>
-      <div className="alt">
-        New here? <Link href="/sign-up">Create an account</Link>
-      </div>
+      <AuthAlt>
+        {T("New here?")} <Link href="/sign-up">{T("Create an account")}</Link>
+      </AuthAlt>
     </AuthShell>
   );
 }

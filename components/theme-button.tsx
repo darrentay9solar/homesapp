@@ -1,37 +1,31 @@
 "use client";
 
+import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
+import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
+import IconButton from "@mui/material/IconButton";
+
+import { T } from "@/lib/client/i18n";
 import { useTheme } from "@/lib/client/theme";
 
-import { I } from "./icons";
-
-/** The round sun/moon button on the sign-in screen. */
-export function ThemeButton() {
+/** The round sun/moon button on the account screens. `onGreen`: white, for a green header or panel. */
+export function ThemeButton({ onGreen = false }: { onGreen?: boolean }) {
   const [theme, setTheme] = useTheme();
   return (
-    <button
-      className="icobtn"
-      title="Switch theme"
-      aria-label={theme === "dark" ? "Switch to light" : "Switch to black"}
+    <IconButton
+      title={T("Switch theme")}
+      aria-label={theme === "dark" ? T("Switch to light") : T("Switch to black")}
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      sx={{
+        width: 40,
+        height: 40,
+        border: 1,
+        borderColor: onGreen ? "rgba(255,255,255,0.4)" : "divider",
+        color: onGreen ? "#fff" : "text.secondary",
+        "&:hover": { bgcolor: onGreen ? "rgba(255,255,255,0.12)" : "action.hover" },
+        "& svg": { fontSize: 19 },
+      }}
     >
-      {theme === "dark" ? <I.sun /> : <I.moon />}
-    </button>
-  );
-}
-
-/** The Black / Light segmented control in Account → Appearance. */
-export function ThemeToggle() {
-  const [theme, setTheme] = useTheme();
-  return (
-    <div className="themetoggle" role="radiogroup" aria-label="Appearance">
-      <button className={theme === "dark" ? "on" : ""} role="radio" aria-checked={theme === "dark"} onClick={() => setTheme("dark")}>
-        <I.moon />
-        Black
-      </button>
-      <button className={theme === "light" ? "on" : ""} role="radio" aria-checked={theme === "light"} onClick={() => setTheme("light")}>
-        <I.sun />
-        Light
-      </button>
-    </div>
+      {theme === "dark" ? <LightModeRoundedIcon /> : <DarkModeRoundedIcon />}
+    </IconButton>
   );
 }

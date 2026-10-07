@@ -16,6 +16,7 @@ import { useApp } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { currentSubscription, currentSupport, keyBytes, type PushState, registration } from "@/lib/client/push";
 
+import { T, TR } from "@/lib/client/i18n";
 const COPY: Record<PushState, { title: string; text: string }> = {
   on: { title: "Alerts reach this phone", text: "You'll get a notification here for everything on this screen, even when the app is closed." },
   off: { title: "Get alerts on this phone", text: "Turn on notifications to hear about approvals, site visits and crews running late, even when the app is closed." },
@@ -125,9 +126,9 @@ export function PushSetup({ compact = false }: { compact?: boolean }) {
           {state === "needs-install" ? <IosShareRoundedIcon /> : state === "blocked" || state === "unsupported" ? <NotificationsOffRoundedIcon /> : <NotificationsActiveRoundedIcon />}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 600 }}>{c.title}</Typography>
+          <Typography sx={{ fontWeight: 600 }}>{TR(c.title)}</Typography>
           <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
-            {c.text}
+            {TR(c.text)}
           </Typography>
         </Box>
       </Stack>
@@ -141,15 +142,15 @@ export function PushSetup({ compact = false }: { compact?: boolean }) {
           {on ? (
             <>
               <Button disabled={busy} onClick={() => void test()}>
-                Send a test
+                {T("Send a test")}
               </Button>
               <Button disabled={busy} color="inherit" onClick={() => void turnOff()}>
-                Turn off
+                {T("Turn off")}
               </Button>
             </>
           ) : (
             <Button variant="contained" disabled={busy} onClick={() => void turnOn()} data-testid="push-on">
-              {busy ? "Turning on…" : "Turn on notifications"}
+              {busy ? T("Turning on…") : T("Turn on notifications")}
             </Button>
           )}
         </Stack>

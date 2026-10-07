@@ -42,6 +42,31 @@ Notifications**) → **Turn on notifications**, then allow them.
 
 "Send a test" on the same card sends one to that device.
 
+## Each person's notification settings
+
+**Account → Settings → Notifications** lets each person choose:
+
+| Setting | What it does |
+|---|---|
+| **Pause** | Silence everything for 1 hour, 8 hours, until 8 am tomorrow, or a week. **Resume now** ends it. |
+| **Quiet hours** | Every day between two times (Singapore time), e.g. 22:00 to 07:00. Works across midnight. |
+| **Crews running late always get through** | On by default: urgent alerts ignore the pause and quiet hours. |
+| **What to be told about** | Approvals, Site visits, Crews running late, Milestones and handover, People to review (PMs), Your account. Turning one off silences it. |
+| **How** | Phone notifications, Email, WhatsApp or SMS: each on or off. |
+
+**Alerts always land on the Alerts screen.** These settings only decide
+whether the phone, email and WhatsApp/SMS are used as well. When one is
+skipped, `notification_deliveries` records it as `skipped` with the reason
+("during their quiet hours", "muted in their settings", "paused in their
+settings", "email turned off in their settings"), so a PM can see why
+someone wasn't reached. The settings live in `users.notification_prefs`;
+`api/_lib/prefs.py` holds the rules and `tests_py/test_settings_photos.py`
+tests every combination.
+
+Notifications also follow the person's **language**: someone who chose
+简体中文 gets the phone notification's title and text in Chinese (from
+`api/_lib/i18n/zh.json`). Emails and WhatsApp messages are still in English.
+
 ## Server setup (once per environment)
 
 Phone notifications are signed with a VAPID key pair. The laptop already has

@@ -1,5 +1,7 @@
 /** The Alerts screen's shapes and pure logic: grouping by day, filtering, and where an alert goes. */
 
+import { locale } from "./i18n";
+
 export type AlertRow = {
   id: number;
   kind: string;
@@ -42,7 +44,7 @@ export function groupByDay(list: AlertRow[], now = new Date()): Array<{ label: s
           ? "Today"
           : k === yesterday
             ? "Yesterday"
-            : new Date(`${k}T12:00:00+08:00`).toLocaleDateString("en-SG", { weekday: "long", day: "numeric", month: "short", timeZone: SG }),
+            : new Date(`${k}T12:00:00+08:00`).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "short", timeZone: SG }),
       alerts,
     }));
 }
@@ -53,5 +55,5 @@ export function safeLink(link: string | null | undefined): string {
 }
 
 export function timeOf(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-SG", { hour: "numeric", minute: "2-digit", timeZone: SG });
+  return new Date(iso).toLocaleTimeString(locale(), { hour: "numeric", minute: "2-digit", timeZone: SG });
 }

@@ -37,6 +37,7 @@ import { pickerFilter } from "@/lib/client/search";
 import { useApp } from "@/lib/client/app-state";
 import { type Options, planDates, type ProjectRow, STATUS_TONE } from "@/lib/client/projects";
 
+import { T, TR } from "@/lib/client/i18n";
 /** Where a project opens: inside the dev preview when browsing it, otherwise the app. */
 export function useProjectHref() {
   const pathname = usePathname();
@@ -51,20 +52,20 @@ const edgeColor = (p: ProjectRow) => (t: Theme) => {
 
 export function StatusChip({ p, size = "small" }: { p: Pick<ProjectRow, "status" | "statusLabel">; size?: "small" | "medium" }) {
   const tone = STATUS_TONE[p.status];
-  return <Chip size={size} label={p.statusLabel} color={tone} variant={tone === "default" ? "outlined" : "filled"} sx={{ fontWeight: 600 }} />;
+  return <Chip size={size} label={TR(p.statusLabel)} color={tone} variant={tone === "default" ? "outlined" : "filled"} sx={{ fontWeight: 600 }} />;
 }
 
 export function TimingChip({ p }: { p: Pick<ProjectRow, "attention" | "flags"> }) {
-  if (!p.attention) return <Chip size="small" variant="outlined" color="success" label="On time" />;
+  if (!p.attention) return <Chip size="small" variant="outlined" color="success" label={T("On time")} />;
   const late = p.flags.some((f) => f.kind === "overdue");
-  return <Chip size="small" color="error" icon={<WarningAmberRoundedIcon />} label={late ? "Late" : "Issue"} />;
+  return <Chip size="small" color="error" icon={<WarningAmberRoundedIcon />} label={late ? T("Late") : T("Issue")} />;
 }
 
 function Meta({ k, v, bad }: { k: string; v: string; bad?: boolean }) {
   return (
     <Box sx={{ minWidth: 0 }}>
       <Typography variant="caption" sx={{ color: "text.secondary", display: "block", lineHeight: 1.3 }}>
-        {k}
+        {TR(k)}
       </Typography>
       <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 600, color: bad ? "error.main" : "text.primary" }}>
         {v}
@@ -105,13 +106,13 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
           <Stack direction="row" sx={{ gap: 0.75, mt: 1.25, flexWrap: "wrap" }}>
             <StatusChip p={p} />
             <TimingChip p={p} />
-            <Chip size="small" variant="outlined" label={p.milestone === 3 ? "All milestones" : `Milestone ${p.currentMilestone}`} />
+            <Chip size="small" variant="outlined" label={p.milestone === 3 ? T("All milestones") : T("Milestone {n}", { n: p.currentMilestone })} />
           </Stack>
 
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1, mt: 1.5 }}>
             <Meta k="Start" v={p.startDate ? d2s(p.startDate) : "—"} />
             <Meta k="Target end" v={p.endDate ? d2s(p.endDate) : "—"} bad={overdue} />
-            <Meta k="Elapsed" v={`${p.daysElapsed} day${p.daysElapsed === 1 ? "" : "s"}`} />
+            <Meta k="Elapsed" v={p.daysElapsed === 1 ? T("1 day") : T("{n} days", { n: p.daysElapsed })} />
           </Box>
 
           <LinearProgress
@@ -122,7 +123,7 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
           />
           <Stack direction="row" sx={{ justifyContent: "space-between", mt: 0.75 }}>
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              {p.progress}% complete
+              {T("{n}% complete", { n: p.progress })}
             </Typography>
             <Typography variant="caption" noWrap sx={{ color: "text.secondary" }}>
               {p.pm.name ?? ""}
@@ -135,7 +136,7 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
                 <Stack key={f.text} direction="row" sx={{ gap: 0.75, alignItems: "flex-start", color: "error.main" }}>
                   <WarningAmberRoundedIcon sx={{ fontSize: 15, mt: "2px" }} />
                   <Typography variant="caption" sx={{ lineHeight: 1.45 }}>
-                    {f.text}
+                    {TR(f.text)}
                   </Typography>
                 </Stack>
               ))}
@@ -161,7 +162,7 @@ export function ProgressRing({ value, size = 108, color = "primary" }: { value: 
           </Box>
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary", fontSize: size * 0.095, mt: 0.25 }}>
-          Complete
+          {T("Complete")}
         </Typography>
       </Stack>
     </Box>
@@ -274,19 +275,19 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
 
   return (
     <MDialog
-      title={p ? "Edit Project" : "Create Project"}
-      heading={p ? "Project details" : "A new installation"}
-      subtitle={p ? "Every field is required. Each change is recorded in the audit log." : "Every field is required."}
+      title={p ? T("Edit Project") : T("Create Project")}
+      heading={p ? T("Project details") : T("A new installation")}
+      subtitle={p ? T("Every field is required. Each change is recorded in the audit log.") : T("Every field is required.")}
       onClose={onClose}
     >
       <Stack sx={{ gap: 2.5 }}>
-        <Field label="Project name" required icon={<SolarPowerRoundedIcon />} placeholder="e.g. Hillcrest Villa" value={f.name} onChange={set("name")} />
+        <Field label={T("Project name")} required icon={<SolarPowerRoundedIcon />} placeholder={T("e.g. Hillcrest Villa")} value={f.name} onChange={set("name")} />
 
         <Field
-          label="Postal code"
+          label={T("Postal code")}
           required
           icon={<PlaceOutlinedIcon />}
-          placeholder="6 digits — finds the address and site location"
+          placeholder={T("6 digits — finds the address and site location")}
           value={f.postal}
           onChange={(e) => setF((x) => ({ ...x, postal: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
           error={Boolean(geo && geo.postal === f.postal && !geo.ok)}
@@ -301,10 +302,10 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           }
           slotProps={{
             htmlInput: { inputMode: "numeric", maxLength: 6 },
-            input: geo && geo.postal === f.postal && geo.ok ? { endAdornment: <InputAdornment position="end"><Chip size="small" color="success" label="Located" /></InputAdornment> } : undefined,
+            input: geo && geo.postal === f.postal && geo.ok ? { endAdornment: <InputAdornment position="end"><Chip size="small" color="success" label={T("Located")} /></InputAdornment> } : undefined,
           }}
         />
-        <Field label="Project address" required icon={<HomeOutlinedIcon />} multiline minRows={2} placeholder="Filled in from the postal code" value={f.address} onChange={set("address")} />
+        <Field label={T("Project address")} required icon={<HomeOutlinedIcon />} multiline minRows={2} placeholder={T("Filled in from the postal code")} value={f.address} onChange={set("address")} />
 
         <Autocomplete
           freeSolo
@@ -333,9 +334,9 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Homeowner"
+              label={T("Homeowner")}
               required
-              placeholder="Choose their account, or type a name"
+              placeholder={T("Choose their account, or type a name")}
               helperText={
                 linked
                   ? "Account linked: they'll be asked to approve the project."
@@ -358,11 +359,11 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
             />
           )}
         />
-        <PhoneField required label="Homeowner contact no." value={f.contact} onChange={(v) => setF((x) => ({ ...x, contact: v }))} />
+        <PhoneField required label={T("Homeowner contact no.")} value={f.contact} onChange={(v) => setF((x) => ({ ...x, contact: v }))} />
 
         <Box>
           <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 500, display: "block", mb: 0.75 }}>
-            Contractor *
+            {T("Contractor *")}
           </Typography>
           <ToggleButtonGroup
             exclusive
@@ -372,13 +373,13 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
             onChange={(_, v: Contractor | null) => v && setCtr(v)}
             sx={{ mb: 1.75 }}
           >
-            <ToggleButton value="group">Group</ToggleButton>
-            <ToggleButton value="users">Individuals</ToggleButton>
-            <ToggleButton value="text">Free text</ToggleButton>
+            <ToggleButton value="group">{T("Group")}</ToggleButton>
+            <ToggleButton value="users">{T("Individuals")}</ToggleButton>
+            <ToggleButton value="text">{T("Free text")}</ToggleButton>
           </ToggleButtonGroup>
           {ctr === "group" && (
-            <Field select label="Contractor group" required icon={<GroupsRoundedIcon />} value={f.groupId} onChange={set("groupId")}
-              helperText={opts?.groups.length === 0 ? "No groups yet. Create one in People." : "Everyone in the group is told about the project."}>
+            <Field select label={T("Contractor group")} required icon={<GroupsRoundedIcon />} value={f.groupId} onChange={set("groupId")}
+              helperText={opts?.groups.length === 0 ? T("No groups yet. Create one in People.") : T("Everyone in the group is told about the project.")}>
               {(opts?.groups ?? []).map((g) => (
                 <MenuItem key={g.id} value={String(g.id)}>
                   {g.name} · {g.members.length} member{g.members.length === 1 ? "" : "s"}
@@ -411,34 +412,34 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Contractor admins & EPC crew"
+                  label={T("Contractor admins & EPC crew")}
                   required
-                  helperText="Each person chosen is told about the project."
+                  helperText={T("Each person chosen is told about the project.")}
                   slotProps={{ ...params.slotProps, inputLabel: { ...params.slotProps.inputLabel, shrink: true } }}
                 />
               )}
             />
           )}
           {ctr === "text" && (
-            <Field label="Contractor name" required icon={<EngineeringRoundedIcon />} placeholder="e.g. Northline Roofing Pte Ltd" value={f.ctrText} onChange={set("ctrText")}
-              helperText="A typed name has no accounts to notify." />
+            <Field label={T("Contractor name")} required icon={<EngineeringRoundedIcon />} placeholder={T("e.g. Northline Roofing Pte Ltd")} value={f.ctrText} onChange={set("ctrText")}
+              helperText={T("A typed name has no accounts to notify.")} />
           )}
         </Box>
 
         <Box>
           <Stack direction="row" sx={{ gap: 1.5 }}>
-            <Field label="Start date" type="date" icon={<CalendarMonthRoundedIcon />} value={f.start} onChange={set("start")} />
-            <Field label="End date" type="date" icon={<CalendarMonthRoundedIcon />} value={f.end} onChange={set("end")} />
+            <Field label={T("Start date")} type="date" icon={<CalendarMonthRoundedIcon />} value={f.start} onChange={set("start")} />
+            <Field label={T("End date")} type="date" icon={<CalendarMonthRoundedIcon />} value={f.end} onChange={set("end")} />
           </Stack>
           <DatesNote start={f.start} end={f.end} />
         </Box>
       </Stack>
 
       <Button fullWidth size="large" variant="contained" disabled={!ok || busy} sx={{ mt: 3 }} onClick={() => void submit()}>
-        {busy ? (p ? "Saving…" : "Creating…") : p ? "Save Changes" : "Next — Create Project"}
+        {busy ? (p ? T("Saving…") : T("Creating…")) : p ? T("Save Changes") : T("Next — Create Project")}
       </Button>
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        {!ok ? "Complete every field to continue." : p ? "Anyone newly added to the project will be notified." : "The homeowner, contractor admins and EPC crew will be notified."}
+        {!ok ? T("Complete every field to continue.") : p ? T("Anyone newly added to the project will be notified.") : T("The homeowner, contractor admins and EPC crew will be notified.")}
       </Typography>
     </MDialog>
   );
@@ -446,17 +447,17 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
 
 function DatesNote({ start, end }: { start: string; end: string }) {
   const d = planDates(start, end);
-  let text: ReactNode = "Give a start date, an end date, or both. A missing one is set three weeks from the other.";
+  let text: ReactNode = T("Give a start date, an end date, or both. A missing one is set three weeks from the other.");
   let color = "text.secondary";
   if (d?.error) {
-    text = d.error;
+    text = TR(d.error);
     color = "error.main";
   } else if (d) {
-    const filled = !start ? "start set 3 weeks before the end" : !end ? "end set 3 weeks after the start" : null;
+    const filled = !start ? T("start set 3 weeks before the end") : !end ? T("end set 3 weeks after the start") : null;
     text = (
       <>
-        Runs <b>{d2s(d.start)}</b> → <b>{d2s(d.end)}</b>
-        {filled ? ` (${filled})` : ""}. Only a project manager can change these later.
+        {T("Runs")} <b>{d2s(d.start)}</b> → <b>{d2s(d.end)}</b>
+        {filled ? ` (${filled})` : ""}. {T("Only a project manager can change these later.")}
       </>
     );
   }
@@ -474,7 +475,7 @@ export function DetailRow({ icon, k, children }: { icon: ReactNode; k: string; c
         <Box sx={{ color: "text.secondary", display: "grid", mt: "1px", "& svg": { fontSize: 20 } }}>{icon}</Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-            {k}
+            {TR(k)}
           </Typography>
           <Box sx={{ fontSize: 14.5, overflowWrap: "anywhere" }}>{children}</Box>
         </Box>

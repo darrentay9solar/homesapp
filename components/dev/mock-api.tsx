@@ -30,8 +30,15 @@ const FIXTURES: Record<string, unknown> = {
       contactNo: "+65 9123 4567",
       address: null,
       postalCode: null,
+      avatar: null,
     },
-    settings: { mobileVerifiedAt: iso(60 * 24 * 12), passwordChangedAt: iso(60 * 24 * 40), roleRequest: null },
+    settings: {
+      mobileVerifiedAt: iso(60 * 24 * 12),
+      passwordChangedAt: iso(60 * 24 * 40),
+      roleRequest: null,
+      language: "en",
+      notificationPrefs: { pausedUntil: null, quiet: { on: true, from: "22:00", to: "07:00" }, urgent: true, mute: [], channels: { push: true, email: true, mobile: true } },
+    },
   },
   "GET /people": {
     me: 1,
@@ -62,11 +69,11 @@ const FIXTURES: Record<string, unknown> = {
       { uid: 1, fullName: "Wei Ming Tan", email: "weiming@example.com", role: "project_manager", roleLabel: "Project Manager", contactNo: "+65 9123 4567", active: true, linked: true, invitedAt: null, groups: [] },
       { uid: 2, fullName: "Charlotte Sim", email: "charlotte@example.com", role: "project_manager", roleLabel: "Project Manager", contactNo: "+65 9001 2201", active: true, linked: true, invitedAt: null, groups: [] },
       { uid: 3, fullName: "Priya Nair", email: "priya@example.com", role: "contractor", roleLabel: "Contractor Admin", contactNo: "+65 9001 2202", active: true, linked: true, invitedAt: null, groups: [1, 2] },
-      { uid: 4, fullName: "Ravi Kumar", email: "ravi@example.com", role: "epc_team", roleLabel: "EPC Team", contactNo: "+65 9001 2203", active: true, linked: false, invitedAt: iso(3000), groups: [1] },
+      { uid: 4, fullName: "Ravi Kumar", email: "ravi@example.com", role: "epc_team", roleLabel: "EPC Team", contactNo: "+65 9001 2203", active: true, linked: false, invitedAt: iso(3000), groups: [1], disableOn: day(30) },
       { uid: 5, fullName: "Jasmine Lee", email: "jasmine@example.com", role: "homeowner", roleLabel: "Homeowner", contactNo: "+65 9123 4477", active: true, linked: true, invitedAt: null, groups: [] },
       { uid: 6, fullName: "Daniel Ong", email: "daniel@example.com", role: "homeowner", roleLabel: "Homeowner", contactNo: "+65 8877 2210", active: true, linked: false, invitedAt: iso(600), groups: [] },
-      { uid: 7, fullName: "Farah Ismail", email: "farah@example.com", role: "homeowner", roleLabel: "Homeowner", contactNo: null, active: true, linked: true, invitedAt: null, groups: [] },
-      { uid: 8, fullName: "Marcus Teo", email: "marcus@example.com", role: "homeowner", roleLabel: "Homeowner", contactNo: "+65 9330 5521", active: false, linked: true, invitedAt: null, groups: [] },
+      { uid: 7, fullName: "Farah Ismail", email: "farah@example.com", role: "homeowner", roleLabel: "Homeowner", contactNo: null, active: true, linked: true, invitedAt: null, groups: [], disabledReason: null },
+      { uid: 8, fullName: "Marcus Teo", email: "marcus@example.com", role: "homeowner", roleLabel: "Homeowner", contactNo: "+65 9330 5521", active: false, linked: true, invitedAt: null, groups: [], disableOn: day(-3), disabledReason: "scheduled" },
     ],
   },
 };
@@ -85,17 +92,57 @@ const ALERTS = [
 
 const MY_FILES = {
   files: [
-    { id: 901, name: "Roof east (panels).jpg", category: "panel_pictures", categoryLabel: "Panel pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 2_840_112, uploadedAt: iso(55), removed: null },
-    { id: 902, name: "Inverter serial plate.jpg", category: "inverter_pictures", categoryLabel: "Inverter pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 1_920_400, uploadedAt: iso(70), removed: null },
-    { id: 903, name: "SP forms (signed).pdf", category: "sp_forms_signed", categoryLabel: "SP forms (signed)", projectId: 102, projectName: "Sunbird Circle", contentType: "application/pdf", kind: "document", size: 412_880, uploadedAt: iso(60 * 26), removed: null },
-    { id: 904, name: "Utility bill June.pdf", category: "utility_bill", categoryLabel: "Utility bill", projectId: 105, projectName: "Punggol Waterway Terrace", contentType: "application/pdf", kind: "document", size: 228_004, uploadedAt: iso(60 * 24 * 9), removed: null },
-    { id: 905, name: "Panels blurry.jpg", category: "panel_pictures", categoryLabel: "Panel pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 2_100_000, uploadedAt: iso(60 * 30), removed: { at: iso(60 * 29), by: "Wei Ming Tan" } },
+    { id: 901, name: "Roof east (panels).jpg", category: "panel_pictures", categoryLabel: "Installed Panel Pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 2_840_112, uploadedAt: iso(55), removed: null },
+    { id: 902, name: "Inverter serial plate.jpg", category: "inverter_pictures", categoryLabel: "Installed Inverter Pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 1_920_400, uploadedAt: iso(70), removed: null },
+    { id: 903, name: "SP forms (signed).pdf", category: "sp_forms_signed", categoryLabel: "SP Forms Signed by Homeowner", projectId: 102, projectName: "Sunbird Circle", contentType: "application/pdf", kind: "document", size: 412_880, uploadedAt: iso(60 * 26), removed: null },
+    { id: 904, name: "Utility bill June.pdf", category: "utility_bill", categoryLabel: "Utility Bill", projectId: 105, projectName: "Punggol Waterway Terrace", contentType: "application/pdf", kind: "document", size: 228_004, uploadedAt: iso(60 * 24 * 9), removed: null },
+    { id: 905, name: "Panels blurry.jpg", category: "panel_pictures", categoryLabel: "Installed Panel Pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 2_100_000, uploadedAt: iso(60 * 30), removed: { at: iso(60 * 29), by: "Wei Ming Tan" } },
   ],
 };
 
+// ------------------------------------------------------------ everyone's files (PMs)
+
+const UPLOADERS = {
+  priya: { uid: 3, name: "Priya Nair", role: "contractor", avatar: null },
+  ravi: { uid: 4, name: "Ravi Kumar", role: "epc_team", avatar: null },
+  wei: { uid: 1, name: "Wei Ming Tan", role: "project_manager", avatar: null },
+  daniel: { uid: 6, name: "Daniel Ong", role: "homeowner", avatar: null },
+};
+const ALL_FILES = [
+  { id: 1201, name: "Roof east (panels).jpg", category: "panel_pictures", categoryLabel: "Installed Panel Pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 2_840_112, uploadedAt: iso(55), removed: null, uploader: UPLOADERS.ravi },
+  { id: 1202, name: "Inverter serial plate.jpg", category: "inverter_pictures", categoryLabel: "Installed Inverter Pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 1_920_400, uploadedAt: iso(70), removed: null, uploader: UPLOADERS.ravi },
+  { id: 1203, name: "SP forms (signed).pdf", category: "sp_forms_signed", categoryLabel: "SP Forms Signed by Homeowner", projectId: 102, projectName: "Sunbird Circle", contentType: "application/pdf", kind: "document", size: 412_880, uploadedAt: iso(60 * 26), removed: null, uploader: UPLOADERS.priya },
+  { id: 1204, name: "Utility bill June.pdf", category: "utility_bill", categoryLabel: "Utility Bill", projectId: 105, projectName: "Punggol Waterway Terrace", contentType: "application/pdf", kind: "document", size: 228_004, uploadedAt: iso(60 * 24 * 9), removed: null, uploader: UPLOADERS.daniel },
+  { id: 1205, name: "PVL letter.pdf", category: "pvl_letter", categoryLabel: "PVL Letter", projectId: 102, projectName: "Sunbird Circle", contentType: "application/pdf", kind: "document", size: 310_220, uploadedAt: iso(60 * 24 * 12), removed: null, uploader: UPLOADERS.wei },
+];
+
+function allFiles(search: URLSearchParams) {
+  const words = (search.get("q") ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+  const kind = search.get("kind") ?? "all";
+  const list = ALL_FILES.filter(
+    (f) =>
+      (kind === "all" || (kind === "image" ? f.kind === "photo" : f.kind === "document")) &&
+      words.every((w) => [f.name, f.projectName, f.categoryLabel, f.uploader.name].join(" ").toLowerCase().includes(w))
+  );
+  return {
+    files: list,
+    more: false,
+    counts: { image: ALL_FILES.filter((f) => f.kind === "photo").length, document: ALL_FILES.filter((f) => f.kind === "document").length },
+  };
+}
+
+/** The preview's account follows the language picked on this browser. */
+function me() {
+  const m = FIXTURES["GET /me"] as { settings: Record<string, unknown> };
+  const zh = /(?:^|;\s*)gha-lang=zh\b/.test(document.cookie);
+  return { ...m, settings: { ...m.settings, language: zh ? "zh" : "en" } };
+}
+
 // ------------------------------------------------------------ projects
 
-const day = (offset: number) => new Date(now + offset * 86_400_000).toISOString().slice(0, 10);
+function day(offset: number) {
+  return new Date(now + offset * 86_400_000).toISOString().slice(0, 10);
+}
 const G = (done: number, total: number) => ({ done, total, complete: done === total });
 const TEAM_APEX = [
   { uid: 1, name: "Wei Ming Tan", role: "project_manager" },
@@ -535,6 +582,8 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "GET /storage/check") return { mode: "r2", environment: "production", bucket: "gethomeapps-prod", ok: true, problem: null };
   if (key === "GET /sites") return SITES;
   if (key === "GET /my-files") return MY_FILES;
+  if (key === "GET /all-files") return allFiles(search);
+  if (key === "PATCH /me/settings") return { message: "Settings saved." };
   if (key === "GET /alerts") return { alerts: ALERTS, more: false, unread: ALERTS.filter((a) => !a.read).length };
   if (key === "POST /alerts/read") return { unread: 0 };
   if (key === "GET /push/key") return { publicKey: null, devices: 0 };
@@ -561,6 +610,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
     }
     return { state: "no_account", clerk: { fullName: "Aisha Rahman", email: "aisha@example.com", phone: "+65 9123 4567" } };
   }
+  if (key === "GET /me") return me();
   if (key in FIXTURES) return FIXTURES[key];
   if (/^GET \/people\/\d+\/projects$/.test(key)) {
     return [

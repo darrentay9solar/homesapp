@@ -81,6 +81,7 @@ import { DESIGN } from "@/lib/client/design";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
+import { T, TR } from "@/lib/client/i18n";
 type View = "timeline" | "people";
 type Filter = AuditPage | "all";
 type Confirm = { spec: ActionSpec; entry: AuditEntry | null };
@@ -146,17 +147,17 @@ export default function AuditPage() {
   return (
     <HistoryCtx.Provider value={(auditId, field) => setHistory({ auditId, field })}>
       <TopBar
-        title="Audit Log"
+        title={T("Audit Log")}
         action={<ViewSwitch value={view} onChange={setView} />}
         search={
           <SearchBox
             value={q}
             onChange={setQ}
-            placeholder={view === "timeline" ? "Search changes, people, places" : "Search people"}
+            placeholder={view === "timeline" ? T("Search changes, people, places") : T("Search people")}
             testId="audit-search"
           />
         }
-        tabs={<SegTabs label="Filter by page" value={filter} onChange={setFilter} options={view === "timeline" ? timelineTabs : peopleTabs} />}
+        tabs={<SegTabs label={T("Filter by page")} value={filter} onChange={setFilter} options={view === "timeline" ? timelineTabs : peopleTabs} />}
       />
 
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
@@ -175,8 +176,7 @@ export default function AuditPage() {
             <PeopleView people={people} error={peopleError} q={q} filter={filter} onOpen={setPerson} />
           )}
           <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 3 }}>
-            Entries can never be edited or deleted. A revert or restore is a new change, with its reason, that points back
-            at the entry it undoes.
+            {T("Entries can never be edited or deleted. A revert or restore is a new change, with its reason, that points back at the entry it undoes.")}
           </Typography>
         </Page>
       </Box>
@@ -216,7 +216,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
     ["people", "By person", <GroupsRoundedIcon key="p" sx={{ fontSize: 18 }} />],
   ];
   return (
-    <Stack direction="row" role="tablist" aria-label="View" sx={{ p: "3px", gap: "3px", borderRadius: `${DESIGN.radius.control}px`, bgcolor: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.14)" }}>
+    <Stack direction="row" role="tablist" aria-label={T("View")} sx={{ p: "3px", gap: "3px", borderRadius: `${DESIGN.radius.control}px`, bgcolor: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.14)" }}>
       {opts.map(([v, label, icon]) => {
         const on = v === value;
         return (
@@ -224,7 +224,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
             key={v}
             role="tab"
             aria-selected={on}
-            aria-label={label}
+            aria-label={T(label)}
             onClick={() => onChange(v)}
             sx={{
               height: 30,
@@ -240,7 +240,7 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
           >
             {icon}
             <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-              {label}
+              {T(label)}
             </Box>
           </ButtonBase>
         );
@@ -301,14 +301,16 @@ function Timeline({
       />
       <RailRow
         rail={
-          <Typography sx={{ color: "primary.main", fontWeight: 600, fontSize: { xs: 13, lg: 15 } }}>Now</Typography>
+          <Typography sx={{ color: "primary.main", fontWeight: 600, fontSize: { xs: 13, lg: 15 } }}>{T("Now")}</Typography>
         }
         dot={<Dot live />}
       >
         <Typography sx={{ color: "text.secondary", fontSize: 14, pt: { lg: 0.25 } }}>
           {shown.length === all.length
-            ? `${all.length} change${all.length === 1 ? "" : "s"}${filter !== "all" ? ` on ${PAGE_LABEL[filter]}` : ""}, newest first`
-            : `${shown.length} of ${all.length} changes match`}
+            ? filter !== "all"
+              ? T(all.length === 1 ? "{n} change on {page}, newest first" : "{n} changes on {page}, newest first", { n: all.length, page: PAGE_LABEL[filter] })
+              : T(all.length === 1 ? "{n} change, newest first" : "{n} changes, newest first", { n: all.length })
+            : T("{shown} of {n} changes match", { shown: shown.length, n: all.length })}
         </Typography>
       </RailRow>
 
@@ -316,9 +318,9 @@ function Timeline({
         <RailRow rail={null} dot={null}>
           <Card sx={{ p: 4, textAlign: "center" }}>
             <SearchRoundedIcon sx={{ fontSize: 36, color: "text.disabled" }} />
-            <Typography sx={{ fontWeight: 600, mt: 1 }}>{all.length ? "Nothing matches" : "No changes yet"}</Typography>
+            <Typography sx={{ fontWeight: 600, mt: 1 }}>{all.length ? T("Nothing matches") : T("No changes yet")}</Typography>
             <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-              {all.length ? "Try a name, a place, a page or a field — e.g. “priya panel”." : "Everything anyone changes will appear here."}
+              {all.length ? T("Try a name, a place, a page or a field — e.g. “priya panel”.") : T("Everything anyone changes will appear here.")}
             </Typography>
           </Card>
         </RailRow>
@@ -334,7 +336,7 @@ function Timeline({
               <>
                 <Typography sx={{ fontWeight: 600, fontSize: { xs: 22, lg: 32 }, lineHeight: 1 }}>{day}</Typography>
                 <Typography sx={{ fontSize: { xs: 11, lg: 14 }, mt: 0.5, fontWeight: name === "Today" ? 600 : 500, color: name === "Today" ? "primary.main" : "text.secondary" }}>
-                  {name === "Today" || name === "Yesterday" ? name : `${name}, ${month}`}
+                  {name === "Today" || name === "Yesterday" ? T(name) : `${name}, ${month}`}
                 </Typography>
               </>
             }
@@ -366,7 +368,7 @@ function Timeline({
               }
             }}
           >
-            {loadingMore ? "Loading…" : "Load older changes"}
+            {loadingMore ? T("Loading…") : T("Load older changes")}
           </Button>
         </RailRow>
       )}
@@ -470,10 +472,10 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography noWrap sx={{ fontWeight: 600, fontSize: { xs: 15, lg: 16 } }}>
-            {card.location.label}
+            {TR(card.location.label)}
           </Typography>
           <Typography noWrap variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-            {card.pages.map((p) => PAGE_LABEL[p]).join(" · ")} · {card.entries.length} change{card.entries.length === 1 ? "" : "s"}
+            {card.pages.map((p) => T(PAGE_LABEL[p])).join(" · ")} · {T(card.entries.length === 1 ? "{n} change" : "{n} changes", { n: card.entries.length })}
           </Typography>
         </Box>
         <AvatarGroup max={4} sx={{ "& .MuiAvatar-root": { width: 32, height: 32, fontSize: 11.5, borderColor: "background.paper" } }}>
@@ -489,7 +491,7 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
           <Chip
             size="small"
             icon={<GroupsRoundedIcon />}
-            label={`${card.people.length} people changed this`}
+            label={T("{n} people changed this", { n: card.people.length })}
             sx={(t) => ({ bgcolor: alpha(t.palette.warning.main, 0.16), color: "warning.main", "& .MuiChip-icon": { color: "inherit" } })}
           />
           {card.people.map((p) => {
@@ -530,7 +532,7 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
           onClick={() => setOpen((o) => !o)}
           sx={{ width: "100%", py: 1.1, gap: 0.5, fontFamily: "inherit", fontSize: 13, fontWeight: 600, color: "primary.main" }}
         >
-          {open ? "Close" : card.entries.length > FIRST ? `Open all ${card.entries.length} changes` : "Open to see every change"}
+          {open ? T("Close") : card.entries.length > FIRST ? T("Open all {n} changes", { n: card.entries.length }) : T("Open to see every change")}
           <ExpandMoreRoundedIcon sx={{ fontSize: 18, transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
         </ButtonBase>
       </Card>
@@ -568,13 +570,13 @@ function EntryRow({
         <Box sx={(t) => ({ width: 8, height: 8, mt: 0.85, flex: "0 0 auto", borderRadius: "50%", bgcolor: tone(role)(t) })} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" sx={{ gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
-            <Typography sx={{ fontWeight: 600, fontSize: 14.5 }}>{e.summary}</Typography>
+            <Typography sx={{ fontWeight: 600, fontSize: 14.5 }}>{TR(e.summary)}</Typography>
             <LinkChips entry={e} />
-            {latest && !expanded && <Typography variant="caption" sx={{ color: "text.secondary" }}>latest</Typography>}
+            {latest && !expanded && <Typography variant="caption" sx={{ color: "text.secondary" }}>{T("latest")}</Typography>}
           </Stack>
           <Typography variant="body2" sx={{ color: "text.secondary", fontSize: 13, mt: 0.15 }}>
             <Box component="span" sx={(t) => ({ color: tone(role)(t), fontWeight: 600 })}>
-              {e.actor?.name ?? "Outside the app"}
+              {e.actor?.name ?? T("Outside the app")}
             </Box>
             {" · "}
             {timeOf(e.at)}
@@ -583,7 +585,7 @@ function EntryRow({
           <ReasonLine reason={e.reason} />
           {!expanded && e.changes.length > 0 && (
             <Typography variant="caption" noWrap component="div" sx={{ color: "text.secondary", mt: 0.25 }}>
-              {e.changes.slice(0, 3).map((c) => fieldLabel(c.field)).join(", ")}
+              {e.changes.slice(0, 3).map((c) => TR(fieldLabel(c.field))).join(T(", "))}
               {e.changes.length > 3 ? "…" : ""}
             </Typography>
           )}
@@ -610,7 +612,7 @@ function EntryFooter({ entry: e, current, onRevert }: { entry: AuditEntry; curre
     return (
       <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", color: "text.secondary", mt: 0.5 }}>
         <LockOutlinedIcon sx={{ fontSize: 15 }} />
-        <Typography variant="caption">{e.lockedReason}</Typography>
+        <Typography variant="caption">{TR(e.lockedReason)}</Typography>
       </Stack>
     );
   }
@@ -641,7 +643,7 @@ function EntryFooter({ entry: e, current, onRevert }: { entry: AuditEntry; curre
     return (
       <Box sx={{ mt: 0.5 }}>
         <Button size="small" variant="outlined" color="warning" startIcon={<UndoRoundedIcon />} onClick={() => onRevert(e, current.map((c) => c.field))}>
-          Revert all {current.length}
+          {T("Revert all {n}", { n: current.length })}
         </Button>
       </Box>
     );
@@ -690,7 +692,7 @@ function ChangeLine({
     >
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 500, display: "block", lineHeight: 1.4 }}>
-          {fieldLabel(c.field)}
+          {TR(fieldLabel(c.field))}
         </Typography>
         <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", flexWrap: "wrap", fontSize: dense ? 13 : 14, lineHeight: 1.45 }}>
           {action !== "insert" && (
@@ -707,7 +709,7 @@ function ChangeLine({
         </Stack>
         {c.note && c.state !== "locked" && (
           <Typography variant="caption" sx={{ color: c.state === "reverted" ? "warning.main" : "text.secondary", display: "block" }}>
-            {c.note}
+            {TR(c.note)}
           </Typography>
         )}
       </Box>
@@ -716,19 +718,19 @@ function ChangeLine({
         <Button
           size="small"
           color="warning"
-          aria-label={`Revert ${fieldLabel(c.field)}`}
+          aria-label={T("Revert {field}", { field: TR(fieldLabel(c.field)) })}
           onClick={onRevert}
           sx={{ flex: "0 0 auto", minWidth: 36, px: { xs: 0.75, sm: 1 }, gap: 0.5 }}
         >
           <UndoRoundedIcon sx={{ fontSize: 17 }} />
           <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-            Revert
+            {T("Revert")}
           </Box>
         </Button>
       )}
-      {c.state === "reverted" && <Chip size="small" label="Reverted" variant="outlined" color="warning" sx={{ height: 22, fontSize: 10.5 }} />}
+      {c.state === "reverted" && <Chip size="small" label={T("Reverted")} variant="outlined" color="warning" sx={{ height: 22, fontSize: 10.5 }} />}
       {auditId !== undefined && action !== "delete" && c.state !== "locked" && (
-        <IconButton size="small" aria-label={`Version history of ${fieldLabel(c.field)}`} onClick={() => openHistory(auditId, c.field)} sx={{ color: "text.secondary" }}>
+        <IconButton size="small" aria-label={T("Version history of {field}", { field: TR(fieldLabel(c.field)) })} onClick={() => openHistory(auditId, c.field)} sx={{ color: "text.secondary" }}>
           <HistoryRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       )}
@@ -777,9 +779,9 @@ function PeopleView({
   const shown = people.filter((p) => (filter === "all" || p.pages.includes(filter)) && matchesAuditPerson(p, q));
   return (
     <>
-      <Heading title={filter === "all" ? "Everyone who changed something" : `Changed ${PAGE_LABEL[filter]}`} count={shown.length} />
+      <Heading title={filter === "all" ? T("Everyone who changed something") : T("Changed {page}", { page: PAGE_LABEL[filter] })} count={shown.length} />
       {shown.length === 0 ? (
-        <Card sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>Nobody matches.</Card>
+        <Card sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>{T("Nobody matches.")}</Card>
       ) : (
         <Box sx={GRID} data-testid="audit-people">
           {shown.map((p) => (
@@ -799,15 +801,15 @@ function PersonAuditCard({ p, onOpen }: { p: AuditPerson; onOpen: () => void }) 
           <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1.5 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Last change {ago(p.lastAt)}
+                {T("Last change {when}", { when: ago(p.lastAt) })}
               </Typography>
               <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
                 {p.name}
               </Typography>
               <Stack direction="row" sx={{ gap: 2, mt: 0.5, color: "text.secondary" }}>
-                <Stat icon={<EditRoundedIcon />} text={`${p.changes} change${p.changes === 1 ? "" : "s"}`} />
-                <Stat icon={<PlaceRoundedIcon />} text={`${p.places} place${p.places === 1 ? "" : "s"}`} />
-                {p.reverts > 0 && <Stat icon={<UndoRoundedIcon />} text={`${p.reverts} revert${p.reverts === 1 ? "" : "s"}`} />}
+                <Stat icon={<EditRoundedIcon />} text={T(p.changes === 1 ? "{n} change" : "{n} changes", { n: p.changes })} />
+                <Stat icon={<PlaceRoundedIcon />} text={T(p.places === 1 ? "{n} place" : "{n} places", { n: p.places })} />
+                {p.reverts > 0 && <Stat icon={<UndoRoundedIcon />} text={T(p.reverts === 1 ? "{n} revert" : "{n} reverts", { n: p.reverts })} />}
               </Stack>
             </Box>
             <PersonAvatar name={p.name} role={p.role} size={42} />
@@ -815,7 +817,7 @@ function PersonAuditCard({ p, onOpen }: { p: AuditPerson; onOpen: () => void }) 
         </Box>
         <Divider />
         <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, px: 1.5, pl: 2.25, py: 1, overflow: "hidden" }}>
-          {p.role ? <RoleChip role={p.role} /> : <Chip size="small" label={p.roleLabel} />}
+          {p.role ? <RoleChip role={p.role} /> : <Chip size="small" label={TR(p.roleLabel)} />}
           <Typography variant="caption" noWrap sx={{ color: "text.secondary", flex: 1, minWidth: 0 }}>
             {p.pages.map((x) => PAGE_LABEL[x]).join(" · ")}
           </Typography>
@@ -866,7 +868,7 @@ function PersonDialog({
 
   return (
     <Dialog open onClose={onClose} fullScreen={phone} fullWidth maxWidth="md" slotProps={{ paper: { sx: { overflowX: "hidden" } } }}>
-      <WaveHeader title="Activity" onBack={onClose} height={150} />
+      <WaveHeader title={T("Activity")} onBack={onClose} height={150} />
       <Box sx={{ px: { xs: 2, sm: 4 }, mt: -5.5, position: "relative" }}>
         <Card sx={{ p: 2, display: "flex", alignItems: "center", gap: 1.75, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.5)" }}>
           <PersonAvatar name={p.name} role={p.role} size={56} />
@@ -875,7 +877,7 @@ function PersonDialog({
               {p.name}
             </Typography>
             <Stack direction="row" sx={{ gap: 1, alignItems: "center", mt: 0.5, flexWrap: "wrap" }}>
-              {p.role ? <RoleChip role={p.role} /> : <Chip size="small" label={p.roleLabel} />}
+              {p.role ? <RoleChip role={p.role} /> : <Chip size="small" label={TR(p.roleLabel)} />}
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 {p.changes} changes · {p.places} places · last {ago(p.lastAt)}
               </Typography>
@@ -887,13 +889,13 @@ function PersonDialog({
       <Box sx={{ px: { xs: 2, sm: 4 }, pt: 3, pb: { xs: "calc(32px + env(safe-area-inset-bottom))", sm: 4 } }}>
         {error && <Alert severity="error">{error.message}</Alert>}
         {!data && !error && <Skeleton variant="rounded" height={260} />}
-        {data && sessions.length === 0 && <Typography sx={{ color: "text.secondary", textAlign: "center", py: 4 }}>No changes.</Typography>}
+        {data && sessions.length === 0 && <Typography sx={{ color: "text.secondary", textAlign: "center", py: 4 }}>{T("No changes.")}</Typography>}
         {sessions.map((s, i) => (
           <SessionBlock key={`${s.location.key}-${s.end}`} session={s} last={i === sessions.length - 1} refs={refs} onRevert={onRevert} />
         ))}
         {data?.nextBefore && (
           <Typography variant="caption" component="p" sx={{ color: "text.secondary", textAlign: "center" }}>
-            Showing the latest {data.entries.length}. Older changes are on the timeline.
+            {T("Showing the latest {n}. Older changes are on the timeline.", { n: data.entries.length })}
           </Typography>
         )}
       </Box>
@@ -914,7 +916,7 @@ function SessionBlock({
 }) {
   const head = s.entries[0];
   const { icon, color } = ACTION_STYLE(s.entries.length === 1 ? head : { ...head, action: "update", revertsId: null, table: "" });
-  const title = s.entries.length === 1 ? `${head.summary} · ${s.location.label}` : `${s.entries.length} changes to ${s.location.label}`;
+  const title = s.entries.length === 1 ? `${TR(head.summary)} · ${TR(s.location.label)}` : T("{n} changes to {place}", { n: s.entries.length, place: TR(s.location.label) });
   return (
     <Box
       data-testid="audit-session"
@@ -981,7 +983,7 @@ function SessionChild({ entry: e, refs, onRevert }: { entry: AuditEntry; refs: R
             bgcolor: alpha(t.palette.text.primary, 0.04),
           })}
         >
-          <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{e.summary}</Typography>
+          <Typography sx={{ fontWeight: 500, fontSize: 14 }}>{TR(e.summary)}</Typography>
           {e.changes.length > 0 && (
             <Stack sx={{ gap: 0.5, mt: 0.75 }}>
               {e.changes.map((c) => (
@@ -1006,10 +1008,10 @@ function LinkChips({ entry: e }: { entry: AuditEntry }) {
   return (
     <>
       {e.revertsId && (
-        <Chip size="small" icon={<UndoRoundedIcon />} label={`Undoes #${e.revertsId}`} color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5 }} />
+        <Chip size="small" icon={<UndoRoundedIcon />} label={T("Undoes #{n}", { n: e.revertsId })} color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5 }} />
       )}
       {e.restoresId && (
-        <Chip size="small" icon={<RestoreRoundedIcon />} label={`Restores #${e.restoresId}`} color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5 }} />
+        <Chip size="small" icon={<RestoreRoundedIcon />} label={T("Restores #{n}", { n: e.restoresId })} color="warning" variant="outlined" sx={{ height: 20, fontSize: 10.5 }} />
       )}
     </>
   );
@@ -1019,7 +1021,7 @@ function ReasonLine({ reason }: { reason: string | null }) {
   if (!reason) return null;
   return (
     <Typography variant="caption" component="div" sx={{ color: "warning.main", mt: 0.35, fontStyle: "italic", overflowWrap: "anywhere" }}>
-      Reason: “{reason}”
+      {T("Reason: “{reason}”", { reason })}
     </Typography>
   );
 }
@@ -1064,10 +1066,12 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
   return (
     <MDialog
       title={ACTION_TITLE[spec.kind]}
-      heading={!p ? "Checking…" : blocked ? "Not possible as it stands" : `${p.summary}?`}
+      heading={!p ? T("Checking…") : blocked ? T("Not possible as it stands") : `${TR(p.summary)}?`}
       subtitle={
         e
-          ? `Undoes ${who ? `${who}'s` : "a"} change from ${dt2s(e.at)} as a new change signed by you. Their entry stays in the log.`
+          ? who
+            ? T("Undoes {name}'s change from {date} as a new change signed by you. Their entry stays in the log.", { name: who, date: dt2s(e.at) })
+            : T("Undoes a change from {date} as a new change signed by you. Their entry stays in the log.", { date: dt2s(e.at) })
           : "Brings back the version you picked as a new change signed by you. Nothing in the log is changed or removed."
       }
       onClose={onClose}
@@ -1077,7 +1081,7 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
 
       {p && blocked && (
         <Alert severity="error" sx={{ mb: 2 }} data-testid="action-blockers">
-          <Typography sx={{ fontWeight: 600, fontSize: 14, mb: 0.5 }}>Why</Typography>
+          <Typography sx={{ fontWeight: 600, fontSize: 14, mb: 0.5 }}>{T("Why")}</Typography>
           {p.blockers.map((b) => (
             <Typography key={b} variant="body2" sx={{ mt: 0.5 }}>
               {b}
@@ -1089,16 +1093,16 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
       {p && !blocked && (
         <>
           <Typography variant="overline" sx={{ color: "text.secondary", display: "block", mb: 1 }}>
-            What will be written
+            {T("What will be written")}
           </Typography>
           <Stack sx={{ gap: 1.25 }} data-testid="action-effects">
             {p.effects.map((x, i) => (
               <Box key={i}>
                 <Typography sx={{ fontWeight: 600, fontSize: 14 }}>
-                  {x.summary}
+                  {TR(x.summary)}
                   <Box component="span" sx={{ color: "text.secondary", fontWeight: 400 }}>
                     {" "}
-                    · {x.location}
+                    · {TR(x.location)}
                   </Box>
                 </Typography>
                 <Stack sx={{ gap: 0.5, mt: 0.75 }}>
@@ -1116,7 +1120,7 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
         <FormControlLabel
           sx={{ mt: 1.5 }}
           control={<Checkbox checked={spec.withRelated !== false} onChange={(ev) => setSpec({ ...spec, withRelated: ev.target.checked })} />}
-          label={<Typography variant="body2">Also restore what was deleted along with it</Typography>}
+          label={<Typography variant="body2">{T("Also restore what was deleted along with it")}</Typography>}
         />
       )}
 
@@ -1132,16 +1136,16 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
 
       {p && !blocked && (
         <Field
-          label="Reason"
+          label={T("Reason")}
           required
           icon={<EditNoteRoundedIcon />}
           multiline
           minRows={2}
           sx={{ mt: 2.5 }}
-          placeholder="e.g. Panel count was entered for the wrong house."
+          placeholder={T("e.g. Panel count was entered for the wrong house.")}
           value={reason}
           onChange={(ev) => setReason(ev.target.value)}
-          helperText={`Kept with this change in the audit log. At least ${MIN_REASON} characters.`}
+          helperText={T("Kept with this change in the audit log. At least {n} characters.", { n: MIN_REASON })}
           slotProps={{ htmlInput: { maxLength: 500, "data-testid": "action-reason" } }}
         />
       )}
@@ -1168,11 +1172,11 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
               }
             }}
           >
-            {busy ? "Working…" : verb}
+            {busy ? T("Working…") : verb}
           </Button>
         )}
         <Button size="large" onClick={onClose}>
-          {blocked ? "Close" : "Cancel"}
+          {blocked ? T("Close") : T("Cancel")}
         </Button>
       </Stack>
     </MDialog>
@@ -1203,21 +1207,21 @@ function HistoryDialog({
   const chosen = list.find((v) => v.id === picked && v.restorable);
 
   return (
-    <MDialog title="Version History" heading={fieldLabel(field)} subtitle={h ? h.location : undefined} onClose={onClose}>
+    <MDialog title={T("Version History")} heading={TR(fieldLabel(field))} subtitle={h ? TR(h.location) : undefined} onClose={onClose}>
       {error && <Alert severity="error">{error.message}</Alert>}
       {!h && !error && <Skeleton variant="rounded" height={200} />}
       {h?.lockedReason && (
         <Alert severity="info" icon={<LockOutlinedIcon />} sx={{ mb: 2 }}>
-          {h.lockedReason}
+          {TR(h.lockedReason)}
         </Alert>
       )}
       {h && !h.exists && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          This record was deleted. Restore the record itself first; then its values can be restored.
+          {T("This record was deleted. Restore the record itself first; then its values can be restored.")}
         </Alert>
       )}
 
-      <Stack sx={{ gap: 0.5 }} role="listbox" aria-label="Versions" data-testid="history-versions">
+      <Stack sx={{ gap: 0.5 }} role="listbox" aria-label={T("Versions")} data-testid="history-versions">
         {list.map((v) => {
           const on = picked === v.id;
           return (
@@ -1244,19 +1248,19 @@ function HistoryDialog({
               <Typography sx={{ fontWeight: 600, fontSize: 14 }}>{dt2s(v.at)}</Typography>
               {v.current && (
                 <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
-                  Current version
+                  {T("Current version")}
                 </Typography>
               )}
               <Typography sx={{ fontSize: 14, mt: 0.25, overflowWrap: "anywhere", color: v.deleted ? "error.main" : "text.primary" }}>
-                {v.deleted ? "Record deleted" : formatValue(field, v.value, h?.refs)}
+                {v.deleted ? T("Record deleted") : formatValue(field, v.value, h?.refs)}
               </Typography>
               <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mt: 0.5, flexWrap: "wrap" }}>
                 <Box sx={(t) => ({ width: 8, height: 8, borderRadius: "50%", bgcolor: tone(v.actor.role)(t) })} />
                 <Typography variant="caption" sx={{ color: "text.secondary" }}>
                   {v.actor.name}
                 </Typography>
-                {v.revertsId && <Chip size="small" label={`Undoes #${v.revertsId}`} variant="outlined" color="warning" sx={{ height: 18, fontSize: 10 }} />}
-                {v.restoresId && <Chip size="small" label={`Restores #${v.restoresId}`} variant="outlined" color="warning" sx={{ height: 18, fontSize: 10 }} />}
+                {v.revertsId && <Chip size="small" label={T("Undoes #{n}", { n: v.revertsId })} variant="outlined" color="warning" sx={{ height: 18, fontSize: 10 }} />}
+                {v.restoresId && <Chip size="small" label={T("Restores #{n}", { n: v.restoresId })} variant="outlined" color="warning" sx={{ height: 18, fontSize: 10 }} />}
               </Stack>
               <ReasonLine reason={v.reason} />
             </ButtonBase>
@@ -1278,7 +1282,7 @@ function HistoryDialog({
         </Button>
       )}
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        Restoring changes only this field. You&apos;ll see exactly what happens, and give a reason, before anything is saved.
+        {T("Restoring changes only this field. You'll see exactly what happens, and give a reason, before anything is saved.")}
       </Typography>
     </MDialog>
   );

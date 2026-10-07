@@ -1,6 +1,9 @@
 "use client";
 
+import Box from "@mui/material/Box";
 import { useEffect, useRef, useState } from "react";
+
+import { T } from "@/lib/client/i18n";
 
 /**
  * The desktop welcome scene: night sky over the curve of the Earth. The sun
@@ -265,28 +268,77 @@ export function SkyScene() {
   const dotY = 30 - (above ? Math.sin(a) * 24 : 0);
 
   return (
-    <div className="sky">
-      <canvas ref={canvas} aria-hidden="true" />
-      <div className="sky-clock" aria-hidden="true">
+    <Box sx={{ position: "absolute", inset: 0 }}>
+      <Box component="canvas" ref={canvas} aria-hidden="true" sx={{ display: "block", width: "100%", height: "100%" }} />
+      {/* The class names mark these two for the design check: the clock uses
+          a monospace face and the headline Fraunces, on purpose. */}
+      <Box
+        className="sky-clock"
+        aria-hidden="true"
+        sx={{
+          position: "absolute",
+          top: 24,
+          right: 24,
+          display: "flex",
+          alignItems: "center",
+          gap: 1.75,
+          py: 1.25,
+          pl: 1.75,
+          pr: 2.25,
+          borderRadius: 999,
+          bgcolor: "rgba(10,12,20,0.55)",
+          border: "1px solid rgba(255,255,255,0.14)",
+          backdropFilter: "blur(10px)",
+          color: "#fff",
+        }}
+      >
         <svg width="62" height="36" viewBox="0 0 62 36">
           <path d="M4 30 A26 24 0 0 1 56 30" fill="none" stroke="rgba(255,255,255,.35)" strokeDasharray="2 3" />
           <path d="M0 30 H60" stroke="rgba(255,255,255,.35)" />
           <circle cx={dotX} cy={dotY} r="3.2" fill={above ? "#ffd27a" : "#cfd3dc"} />
         </svg>
-        <div>
-          <b>
+        <Box>
+          <Box component="b" sx={{ display: "block", fontFamily: '"Cascadia Mono", ui-monospace, "SF Mono", Consolas, monospace', fontSize: 19, fontWeight: 600, letterSpacing: "0.02em", lineHeight: 1.1 }}>
             {String(hh).padStart(2, "0")}:{String(mm).padStart(2, "0")}
-          </b>
-          <small>{clock.label}</small>
-        </div>
-      </div>
-      <div className="sky-copy">
-        <h2>
-          Rooftop solar,
+          </Box>
+          <Box component="small" sx={{ display: "block", fontSize: 12.5, color: "rgba(255,255,255,0.72)" }}>
+            {T(clock.label)}
+          </Box>
+        </Box>
+      </Box>
+      <Box className="sky-copy" sx={{ position: "absolute", left: "clamp(40px, 5vw, 88px)", right: 40, top: "30%", color: "#fff", pointerEvents: "none" }}>
+        <Box
+          component="h2"
+          sx={{
+            m: 0,
+            textAlign: "left",
+            color: "#fff",
+            fontFamily: "var(--font-display), Georgia, serif",
+            fontWeight: 350,
+            fontSize: "clamp(44px, 4.2vw, 76px)",
+            lineHeight: 1.04,
+            letterSpacing: "-0.015em",
+            // Fraunces' "soft" axis rounds every terminal — curves, not blunt ends.
+            fontVariationSettings: '"SOFT" 100, "opsz" 144',
+            textShadow: "0 2px 30px rgba(0,0,0,0.35)",
+            "& em": {
+              fontStyle: "italic",
+              fontWeight: 300,
+              // Lit by the sunrise.
+              background: "linear-gradient(90deg, #ffe2b8, #ffb36b 60%, #ff9a5c)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              pr: "0.08em",
+              textShadow: "none",
+            },
+          }}
+        >
+          {T("Rooftop solar,")}
           <br />
-          <em>tracked to the day.</em>
-        </h2>
-      </div>
-    </div>
+          <em>{T("tracked to the day.")}</em>
+        </Box>
+      </Box>
+    </Box>
   );
 }

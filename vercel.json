@@ -41,5 +41,10 @@
       "source": "/api/py/:path*",
       "destination": "/api/index"
     }
-  ]
+  ],
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "api/_lib/i18n/**"
+    }
+  }
 }
