@@ -1,4 +1,4 @@
-# Upload, R2 storage, GPS and full-flow test cases
+# Test cases
 
 | File | Cases | What |
 |---|---|---|
@@ -6,6 +6,10 @@
 | `tests_py/test_gps_cases.py` | 631 | GPS location |
 | `tests_py/test_r2_setup.py` | 1,470 | Cloudflare R2, development and production |
 | `tests_py/test_full_flow.py` | 36 | One project from creation to Ready for handover, twice |
+| `tests_py/test_account_settings.py` | 29 | Name, email, mobile codes, password, role requests, My Files |
+| `tests_py/test_alerts.py` | 46 | Alerts, phone notifications (Web Push), crews running late |
+| `tests/search.test.ts` | 146 | Every search in the app (projects, people, audit, My Files, form pickers) |
+| `tests/alerts.test.ts` | 22 | The Alerts screen and which devices can get notifications |
 
 Each case is one pytest test, run against the real API and the real database
 rules on the Neon **test** branch. Nothing touches dev or production data.
@@ -15,7 +19,7 @@ npm run test:py    # everything except the requests to R2 (those are skipped)
 npm run test:r2    # only the 39 tests that use the real R2 dev bucket (~85 requests)
 ```
 
-**Last run: 2,723 passed** (39 of them against the real R2 dev bucket).
+**Last run: 2,798 Python tests passed** (39 of them against the real R2 dev bucket) **and 265 front-end tests.**
 
 ---
 
@@ -140,6 +144,16 @@ what must work. It runs twice:
    - one read the error from the wrong field
 4. **The whole flow: nothing wrong in the app.** Two of my own expectations were wrong. The crew pressing Approve gets "nothing for you to approve" (and nothing changes), not "not allowed". And a test helper couldn't name a file of a disallowed type.
 5. **Fixed: with R2 set up on the laptop, the existing upload tests would have broken.** They expected the local storage. Tests now use the local storage unless they're marked as R2 tests, so the suite never spends R2 requests. Tests that need the real bucket only run with `npm run test:r2`.
+6. **Fixed: calendars didn't open from the calendar icon.** Every date and time field (Create/Edit Project, Schedule Visit, milestone dates) has a calendar icon that wasn't part of the input, so tapping it, the natural thing on a phone, did nothing. Tapping anywhere on the field now opens the phone's own date or time picker.
+7. **Fixed: search gaps.**
+   - The homeowner picker in Create Project only matched names; it now matches email and phone too.
+   - The crew picker now matches roles ("epc").
+   - The audit timeline's "sites" didn't find site check-ins (the page is called "Site visits").
+   - The audit's by-person search ignored accents differently from everywhere else.
+
+   All searches now share one set of rules.
+8. **Fixed: `npm run test:py` didn't run on Windows** (the virtualenv path). npm scripts now start Python through `scripts/py.mjs`.
+9. **Push encryption matches the standard's own worked example** (RFC 8291) byte for byte, and a separately written decryptor reads every message back.
 
 ## What these don't cover yet
 

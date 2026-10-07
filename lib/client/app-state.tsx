@@ -7,6 +7,7 @@ import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
 
 import { useApi } from "./api";
+import { registration, setBadge } from "./push";
 
 export type Role = "homeowner" | "project_manager" | "contractor" | "epc_team";
 
@@ -23,6 +24,12 @@ export type Me = {
     postalCode: string | null;
   };
   unread?: number;
+  /** Account settings: verified steps and any role request waiting for a PM. */
+  settings?: {
+    mobileVerifiedAt: string | null;
+    passwordChangedAt: string | null;
+    roleRequest: { role: Role; roleLabel: string; reason: string | null; createdAt: string } | null;
+  };
   /** Development only: a project manager testing as this account. */
   actingAs?: { byName: string | null; byUid: number };
 };
@@ -63,6 +70,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const toast = useCallback((m: string, tone: "ok" | "bad" = "ok") => {
     setToastMsg({ m, tone, key: Date.now() });
   }, []);
+
+  // Phone notifications: the service worker tells open windows about each
+  // alert; the unread count, the Alerts screen and the icon badge follow.
+  const active = data?.state === "active";
+  useEffect(() => {
+    if (!active || typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    void registration();
+    const onMessage = (e: MessageEvent<{ type?: string; url?: string }>) => {
+      if (e.data?.type === "alert") {
+        void reload();
+        window.dispatchEvent(new Event("gha-alert"));
+      } else if (e.data?.type === "open" && e.data.url?.startsWith("/")) {
+        router.push(e.data.url);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    // Coming back to the app (e.g. after reading a notification elsewhere) refreshes the count.
+    const onVisible = () => document.visibilityState === "visible" && void reload();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [active, reload, router]);
+  useEffect(() => {
+    if (typeof data?.unread === "number") setBadge(data.unread);
+  }, [data?.unread]);
 
   if (error) {
     return (

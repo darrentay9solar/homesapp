@@ -5,6 +5,7 @@
  */
 
 import type { Role } from "./app-state";
+import { matchesAll } from "./search";
 
 export type Page = "projects" | "milestones" | "files" | "sites" | "signatures" | "people" | "groups";
 export type LineState = "current" | "reverted" | "superseded" | "locked";
@@ -359,6 +360,7 @@ export function matchesEntry(e: AuditEntry, query: string, refs?: Refs): boolean
       e.location.label,
       e.summary,
       PAGE_LABEL[e.page],
+      e.page, // "sites" finds Site visits, matching the app's Sites tab
       ...e.changes.flatMap((c) => [fieldLabel(c.field), formatValue(c.field, c.from, refs), formatValue(c.field, c.to, refs)]),
     ]
       .filter(Boolean)
@@ -395,4 +397,9 @@ export function versionList(h: FieldHistory): Array<Version & { current: boolean
     if (isCurrent) currentMarked = true;
     return { ...v, current: isCurrent, restorable: !v.deleted && !isCurrent && h.exists && !h.lockedReason };
   });
+}
+
+/** The audit log's "By person" search: name, email or role. */
+export function matchesAuditPerson(p: { name: string; email?: string | null; roleLabel?: string | null }, query: string): boolean {
+  return matchesAll([p.name, p.email, p.roleLabel], query);
 }

@@ -531,9 +531,11 @@ def test_18_storage_holds_exactly_the_project_files_then_is_cleaned_up(client, t
             if p.is_file() and p.suffix != ".type"
         }
     else:
-        stored = set(bucket_keys(client, prefix))
+        stored = {k.removeprefix("pytest/") for k in bucket_keys(client, f"pytest/{prefix}")}
     assert stored == set(s["keys"]), "nothing extra, nothing missing"
     for key in s["keys"]:
         storage.delete(key)
-    left = bucket_keys(client, prefix) if backend == "r2" else list((storage.LOCAL_DIR / prefix).rglob("*.*"))
+    left = (
+        bucket_keys(client, f"pytest/{prefix}") if backend == "r2" else list((storage.LOCAL_DIR / prefix).rglob("*.*"))
+    )
     assert left == []

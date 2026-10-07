@@ -18,7 +18,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import type { TransitionProps } from "@mui/material/transitions";
 import Typography from "@mui/material/Typography";
-import { forwardRef, type ReactElement, type ReactNode, type Ref, useState } from "react";
+import { forwardRef, type MouseEvent, type ReactElement, type ReactNode, type Ref, useState } from "react";
 
 import type { Role } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
@@ -193,7 +193,29 @@ export function WaveHeader({ title, onBack, height = 112 }: { title: string; onB
  * A text field in the sign-up style: an icon at the start and the label
  * always sitting on the border.
  */
+const PICKERS = new Set(["date", "time", "datetime-local", "month"]);
+
+/**
+ * Opens the browser's own date or time picker. Tapping the calendar icon or
+ * the padding around the text isn't a tap on the <input>, so without this
+ * nothing opens there; and desktop Chrome only opens the picker from its own
+ * small indicator. showPicker() is missing on older browsers and throws when
+ * the picker is already open: either way the native tap behaviour remains.
+ */
+export function openPicker(root: Element | null) {
+  const input = root?.querySelector("input");
+  if (!input || input.disabled || input.readOnly) return;
+  input.focus();
+  try {
+    (input as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+  } catch {
+    /* not supported, or already open */
+  }
+}
+
 export function Field({ icon, ...props }: TextFieldProps & { icon?: ReactNode }) {
+  const picker = typeof props.type === "string" && PICKERS.has(props.type);
+  const input = props.slotProps?.input as { onClick?: (e: MouseEvent<HTMLDivElement>) => void; sx?: object } | undefined;
   return (
     <TextField
       {...props}
@@ -202,7 +224,23 @@ export function Field({ icon, ...props }: TextFieldProps & { icon?: ReactNode })
         inputLabel: { shrink: true, ...(props.slotProps?.inputLabel as object) },
         input: {
           ...(icon ? { startAdornment: <InputAdornment position="start" sx={{ color: "text.secondary", "& svg": { fontSize: 20 } }}>{icon}</InputAdornment> } : {}),
-          ...(props.slotProps?.input as object),
+          ...(input as object),
+          ...(picker
+            ? {
+                onClick: (e: MouseEvent<HTMLDivElement>) => {
+                  input?.onClick?.(e);
+                  openPicker(e.currentTarget);
+                },
+                sx: {
+                  cursor: "pointer",
+                  "& input": { cursor: "pointer", minWidth: 0 },
+                  // iPhone: an empty date input otherwise collapses and centres its text.
+                  "& input::-webkit-date-and-time-value": { textAlign: "left", minHeight: "1.4375em" },
+                  "& input::-webkit-calendar-picker-indicator": { cursor: "pointer", opacity: 0.6 },
+                  ...input?.sx,
+                },
+              }
+            : {}),
         },
       }}
     />

@@ -39,6 +39,11 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string }>
   { name: "Sites", path: "/dev-preview/sites", kind: "app" },
   { name: "Check Out dialog", path: "/dev-preview/sites", kind: "app", click: "Check Out" },
   { name: "Schedule Visit dialog", path: "/dev-preview/projects/101", kind: "app", click: "Schedule visit" },
+  { name: "My Files", path: "/dev-preview/files", kind: "app" },
+  { name: "Change Mobile dialog", path: "/dev-preview/account", kind: "app", click: "[data-testid=edit-mobile]" },
+  { name: "Change Password dialog", path: "/dev-preview/account", kind: "app", click: "[data-testid=edit-password]" },
+  { name: "Change Email dialog", path: "/dev-preview/account", kind: "app", click: "[data-testid=edit-email]" },
+  { name: "Role Change review", path: "/dev-preview/people", kind: "app", click: "[data-testid=role-review]" },
   { name: "Template", path: "/dev-preview/template", kind: "app" },
   // Dialogs only exist once opened: these press the button first.
   { name: "Create Project dialog", path: "/dev-preview/projects", kind: "app", click: "Create project" },
@@ -81,6 +86,8 @@ async function measure(path: string, kind: Kind, w: number, h: number, click?: s
     await new Promise((r) => setTimeout(r, 500)); // fonts and transitions settle
     if (click) {
       const find = () =>
+        // "[data-testid=…]" picks one button when several say the same thing ("Change").
+        (click.startsWith("[") ? doc.querySelector<HTMLButtonElement>(click) : null) ??
         [...doc.querySelectorAll<HTMLButtonElement>("button")].find((b) => (b.textContent ?? "").includes(click)) ??
         // On phones "New account" reads "New".
         [...doc.querySelectorAll<HTMLButtonElement>("header button")].find((b) => /^\s*New\s*$/.test(b.textContent ?? ""));

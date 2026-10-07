@@ -1,4 +1,4 @@
-"""Notifications: in-app, email (Resend) and WhatsApp (Meta Cloud API).
+"""Notifications: in-app (with a phone notification), email (Resend) and WhatsApp (Meta Cloud API).
 
 Both outbound channels are optional. Without their keys a send is recorded
 as "skipped" with the reason, so the app works before the accounts exist and
@@ -18,8 +18,9 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from _lib import push
 from _lib.auth import env
-from _lib.db import fetch_one, transaction
+from _lib.db import fetch_all, fetch_one, transaction
 
 BRAND = "9 Solar Home"
 
@@ -100,7 +101,8 @@ def to_whatsapp_number(raw: str | None) -> str | None:
     return None
 
 
-def send_whatsapp(to: str | None, template: str, params: list[str]) -> SendResult:
+def send_whatsapp(to: str | None, template: str, params: list[str], *, copy_code: str | None = None) -> SendResult:
+    """A template message. ``copy_code`` fills an authentication template's copy-code button."""
     token, phone_id = env("WHATSAPP_TOKEN"), env("WHATSAPP_PHONE_NUMBER_ID")
     if not token or not phone_id:
         return SendResult("skipped", "WhatsApp not configured (WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID)")
@@ -119,7 +121,13 @@ def send_whatsapp(to: str | None, template: str, params: list[str]) -> SendResul
                     "name": template,
                     "language": {"code": env("WHATSAPP_TEMPLATE_LANG") or "en"},
                     "components": [
-                        {"type": "body", "parameters": [{"type": "text", "text": p} for p in params]}
+                        {"type": "body", "parameters": [{"type": "text", "text": p} for p in params]},
+                        *(
+                            [{"type": "button", "sub_type": "url", "index": "0",
+                              "parameters": [{"type": "text", "text": copy_code}]}]
+                            if copy_code
+                            else []
+                        ),
                     ],
                 },
             },
@@ -179,6 +187,68 @@ def send_mobile(raw_number: str | None, template: str, params: list[str], sms_te
     return results
 
 
+# ------------------------------------------------------------------ links
+
+SITE_KINDS = {"visit_assigned", "visit_reminder", "visit_missed", "crew_arrived_late"}
+ACCOUNT_KINDS = {"account_created", "account_approved", "account_rejected", "role_approved", "role_rejected"}
+REVIEW_KINDS = {"account_request", "role_request"}
+
+
+def default_link(kind: str, project_id: int | None) -> str:
+    """Where an alert takes you: the thing it's about."""
+    if kind in REVIEW_KINDS:
+        return "/people"
+    if kind in ACCOUNT_KINDS:
+        return "/account"
+    if project_id:
+        return f"/projects/{project_id}#site-visits" if kind in SITE_KINDS else f"/projects/{project_id}"
+    return "/alerts"
+
+
+# ------------------------------------------------------------------ phones
+
+
+def push_to(
+    recipient_uid: int, nid: int, title: str, body: str, link: str, *, urgent: bool = False
+) -> SendResult | None:
+    """The alert on every phone or browser where this person turned notifications on.
+
+    None when they have none (nothing to record). Phones that are gone are forgotten.
+    """
+    subs = fetch_all("select * from push_subscriptions where uid = %s", (recipient_uid,))
+    if not subs:
+        return None
+    unread = fetch_one(
+        "select count(*)::int as n from notifications where recipient_uid = %s and read_at is null",
+        (recipient_uid,),
+        actor_uid=recipient_uid,
+    )
+    message = {"id": nid, "title": title, "body": body, "url": link, "unread": unread["n"] if unread else 0}
+    outcomes = []
+    for sub in subs:
+        r = push.send(sub, message, urgent=urgent)
+        outcomes.append(r)
+        with transaction(None) as cur:
+            if r.status == "gone":
+                cur.execute("delete from push_subscriptions where subscription_id = %s", (sub["subscription_id"],))
+            elif r.status == "sent":
+                cur.execute(
+                    "update push_subscriptions set last_success_at = now(), failures = 0 where subscription_id = %s",
+                    (sub["subscription_id"],),
+                )
+            elif r.status == "failed":
+                cur.execute(
+                    "update push_subscriptions set failures = failures + 1 where subscription_id = %s",
+                    (sub["subscription_id"],),
+                )
+    sent = sum(r.status == "sent" for r in outcomes)
+    if sent:
+        return SendResult("sent", f"{sent} of {len(outcomes)} devices")
+    if all(r.status == "skipped" for r in outcomes):
+        return SendResult("skipped", outcomes[0].detail)
+    return SendResult("failed", "; ".join(r.detail or r.status for r in outcomes if r.status != "sent")[:500])
+
+
 # ------------------------------------------------------------- recording
 
 
@@ -189,6 +259,8 @@ def notify(
     body: str,
     *,
     project_id: int | None = None,
+    link: str | None = None,
+    urgent: bool = False,
     email: tuple[str, str, str, str] | None = None,  # (to, subject, html, text)
     mobile: tuple[str | None, str, list[str], str] | None = None,  # (number, template, params, sms text)
 ) -> dict[str, SendResult]:
@@ -202,14 +274,20 @@ def notify(
     row = fetch_one("select nextval(pg_get_serial_sequence('notifications','notification_id')) as id")
     assert row is not None
     nid = int(row["id"])
+    link = link or default_link(kind, project_id)
     with transaction(None) as cur:
         cur.execute(
-            "insert into notifications (notification_id, recipient_uid, project_id, kind, title, body) "
-            "values (%s, %s, %s, %s, %s, %s)",
-            (nid, recipient_uid, project_id, kind, title, body),
+            "insert into notifications (notification_id, recipient_uid, project_id, kind, title, body, link) "
+            "values (%s, %s, %s, %s, %s, %s, %s)",
+            (nid, recipient_uid, project_id, kind, title, body, link),
         )
 
     results: dict[str, SendResult] = {}
+    try:
+        if (pushed := push_to(recipient_uid, nid, title, body, link, urgent=urgent)) is not None:
+            results["push"] = pushed
+    except Exception as exc:  # a phone must never stop the alert itself
+        results["push"] = SendResult("failed", f"push error: {exc}")
     if email:
         results["email"] = send_email(*email)
     if mobile:
@@ -227,7 +305,7 @@ def notify(
 
 
 def describe(results: dict[str, SendResult]) -> str:
-    label = {"email": "Email", "whatsapp": "WhatsApp", "sms": "SMS"}
+    label = {"email": "Email", "whatsapp": "WhatsApp", "sms": "SMS", "push": "Phone notification"}
     parts = [r.describe(label[ch]) for ch, r in results.items()]
     return " · ".join(parts)
 
@@ -332,4 +410,37 @@ def msg_account_rejected(name: str, note: str | None) -> dict[str, Any]:
         "sms": f"{BRAND}: Hi {name}, your GetHomeApps account request wasn't approved."
         + (f" Note: {note}" if note else "")
         + " Please contact your project manager.",
+    }
+
+
+def msg_role_requested(name: str, from_role: str, to_role: str, reason: str | None, url: str) -> dict[str, Any]:
+    h, t = email_shell(
+        "Role change request",
+        [f"{name} has asked to change their role from {from_role} to {to_role}.",
+         *([f"Their reason: {reason}"] if reason else []), "Review it to approve or decline."],
+        ("Review request", url),
+    )
+    return {
+        "email": (f"{BRAND}: {name} asked to become {to_role}", h, t),
+        "title": "Role change request",
+        "body": f"{name} asked to change from {from_role} to {to_role}.",
+    }
+
+
+def msg_role_decided(name: str, role: str, approved: bool, note: str | None, url: str) -> dict[str, Any]:
+    if approved:
+        lines = [f"Hi {name},", f"Your role has been changed to {role}."]
+        title, sms = "Role changed", f"{BRAND}: Hi {name}, your GetHomeApps role is now {role}. {url}"
+    else:
+        lines = [f"Hi {name},", f"Your request to become {role} wasn't approved.",
+                 *([f"Note from {BRAND}: {note}"] if note else [])]
+        title = "Role request declined"
+        sms = f"{BRAND}: Hi {name}, your request to become {role} wasn't approved." + (f" Note: {note}" if note else "")
+    h, t = email_shell(title, lines, ("Open GetHomeApps", url))
+    return {
+        "email": (f"{BRAND}: {title.lower()}", h, t),
+        "whatsapp": ("role_changed" if approved else "role_declined", [name, role]),
+        "sms": sms,
+        "title": title,
+        "body": f"You're now {role}." if approved else f"Your request to become {role} wasn't approved.",
     }

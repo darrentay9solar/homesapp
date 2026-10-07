@@ -139,10 +139,14 @@ def presign(
 
 
 def _sign(cfg: R2, method: str, key: str, seconds: int, headers: dict[str, str], query: dict[str, str]) -> str:
+    # R2_KEY_PREFIX keeps automated test runs in their own folder of the dev
+    # bucket ("pytest/"), apart from the demo and anyone trying the app. Unset in
+    # real use. An empty key is the bucket itself (a listing), never prefixed.
+    stored = ((env("R2_KEY_PREFIX") or "") + key) if key else key
     return presign(
         method=method,
         host=cfg.host,
-        path=f"/{cfg.bucket}/" + urllib.parse.quote(key, safe="/-_.~"),
+        path=f"/{cfg.bucket}/" + urllib.parse.quote(stored, safe="/-_.~"),
         region="auto",
         key_id=cfg.key_id,
         secret=cfg.secret,

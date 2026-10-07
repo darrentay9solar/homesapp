@@ -2,6 +2,7 @@
 
 import AccountCircleRoundedIcon from "@mui/icons-material/AccountCircleRounded";
 import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
+import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
@@ -29,7 +30,8 @@ import { DESIGN } from "@/lib/client/design";
 import { Logo } from "./icons";
 import { RoleAvatar } from "./m";
 
-type Tab = { href: string; label: string; icon: ReactNode };
+/** phone: false keeps a tab off the phone's bottom bar (at most five fit); it stays in the desktop drawer. */
+type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
 
 /** Tabs per role, from the prototype. Audit is project managers only. */
 const TABS: Record<Role, Tab[]> = {
@@ -43,16 +45,19 @@ const TABS: Record<Role, Tab[]> = {
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon /> },
+    { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
   ],
   contractor: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
+    { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
   ],
   epc_team: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     { href: "/sites", label: "Sites", icon: <PlaceRoundedIcon /> },
+    { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
   ],
@@ -176,7 +181,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         }}
       >
         <BottomNavigation showLabels value={current} onChange={(_, v: string) => router.push(v)} sx={{ height: 64, bgcolor: "transparent" }}>
-          {tabs.map((t) => (
+          {tabs.filter((t) => t.phone !== false).map((t) => (
             <BottomNavigationAction
               key={t.href}
               value={t.href}

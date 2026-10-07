@@ -69,6 +69,8 @@ def field_lock(table: str, field: str) -> str | None:
         )
     if table == "users" and field == "email":
         return "Email is the person's sign-in identity, so it isn't restored from the log."
+    if table == "users" and field in ("mobile_verified_at", "password_changed_at"):
+        return "This records when the person verified something; it can't be rewound."
     return None
 
 

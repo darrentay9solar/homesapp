@@ -60,6 +60,11 @@ def people(acct: Account = Depends(pm_only)) -> dict[str, Any]:
         "select request_id, full_name, email, requested_type, contact_no, address, postal_code, note, created_at "
         "from account_requests where status = 'pending' order by created_at"
     )
+    role_requests = fetch_all(
+        "select r.request_id, r.uid, r.from_type, r.requested_type, r.reason, r.created_at, u.full_name, u.email, "
+        "u.contact_no from role_change_requests r join users u on u.uid = r.uid where r.status = 'pending' "
+        "order by r.created_at"
+    )
     return {
         "me": acct.uid,
         "users": [_user_row(u, by_user.get(u["uid"], [])) for u in users],
@@ -86,6 +91,22 @@ def people(acct: Account = Depends(pm_only)) -> dict[str, Any]:
                 "createdAt": r["created_at"].isoformat(),
             }
             for r in requests
+        ],
+        "roleRequests": [
+            {
+                "id": r["request_id"],
+                "uid": r["uid"],
+                "fullName": r["full_name"] or r["email"],
+                "email": r["email"],
+                "contactNo": r["contact_no"],
+                "from": r["from_type"],
+                "fromLabel": ROLE_LABEL[r["from_type"]],
+                "role": r["requested_type"],
+                "roleLabel": ROLE_LABEL[r["requested_type"]],
+                "reason": r["reason"],
+                "createdAt": r["created_at"].isoformat(),
+            }
+            for r in role_requests
         ],
     }
 

@@ -18,7 +18,7 @@ from fastapi import FastAPI
 
 from _lib import storage
 from _lib.web import install_error_handlers
-from _routes import audit, me, onboarding, people, project_work, projects, sites
+from _routes import alerts, audit, files, me, onboarding, people, project_work, projects, settings, sites
 
 app = FastAPI(
     title="GetHomeApps API",
@@ -37,6 +37,9 @@ app.include_router(audit.router, prefix=PREFIX)
 app.include_router(projects.router, prefix=PREFIX)
 app.include_router(project_work.router, prefix=PREFIX)
 app.include_router(sites.router, prefix=PREFIX)
+app.include_router(settings.router, prefix=PREFIX)
+app.include_router(files.router, prefix=PREFIX)
+app.include_router(alerts.router, prefix=PREFIX)
 
 
 @app.get(f"{PREFIX}/ping")

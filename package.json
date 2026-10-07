@@ -29,10 +29,11 @@
     "db:verify-accounts": "tsx scripts/verify-accounts.ts",
     "db:status": "tsx scripts/migration-status.ts",
     "db:bootstrap-pm": "tsx scripts/bootstrap-pm.ts",
-    "dev:api": ".venv/Scripts/python.exe -m uvicorn index:app --app-dir api --port 8000",
-    "test:py": ".venv/Scripts/python.exe -m pytest -q",
-    "test:r2": ".venv/Scripts/python.exe -m pytest -q --r2-live -m r2_live",
-    "test:web": "tsx --test tests/people-search.test.ts tests/audit.test.ts tests/projects.test.ts tests/sites.test.ts"
+    "dev:api": "node scripts/py.mjs -m uvicorn index:app --app-dir api --port 8000",
+    "test:py": "node scripts/py.mjs -m pytest -q",
+    "vapid-keys": "node scripts/py.mjs scripts/vapid-keys.py",
+    "test:r2": "node scripts/py.mjs -m pytest -q --r2-live -m r2_live",
+    "test:web": "tsx --test tests/people-search.test.ts tests/audit.test.ts tests/projects.test.ts tests/sites.test.ts tests/search.test.ts tests/alerts.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.10",

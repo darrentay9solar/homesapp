@@ -31,6 +31,7 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { Field, MDialog } from "@/components/m";
 import { ApiError, useFetcher } from "@/lib/client/api";
+import { pickerFilter } from "@/lib/client/search";
 import { useApp } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { type FieldDef, type ProjectFields, type Section, showValue, SP_STATUS, type StoredFile } from "@/lib/client/projects";
@@ -267,6 +268,7 @@ function Retailer({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
     <Autocomplete
       freeSolo
       options={ctx.data.retailers}
+      filterOptions={pickerFilter((o) => [o.name])}
       value={value}
       getOptionLabel={(o) => (typeof o === "string" ? o : o.name)}
       isOptionEqualToValue={(a, b) => typeof b !== "string" && a.id === b.id}

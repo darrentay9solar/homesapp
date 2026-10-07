@@ -108,6 +108,12 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "account_rejected",
   // A project manager reverted or restored something you changed.
   "audit_restore",
+  // Someone asked to change their role; a PM decided.
+  "role_request",
+  "role_approved",
+  "role_rejected",
+  // The crew checked in an hour or more after a visit's start time.
+  "crew_arrived_late",
 ]);
 
 /**
@@ -115,6 +121,8 @@ export const notificationKindEnum = pgEnum("notification_kind", [
  * are kept, not deleted: who let whom in, and when, is exactly the question an
  * access review asks.
  */
+export const roleRequestStatusEnum = pgEnum("role_request_status", ["pending", "approved", "rejected", "cancelled"]);
+
 export const accountRequestStatusEnum = pgEnum("account_request_status", [
   "pending",
   "approved",
@@ -128,6 +136,8 @@ export const notificationChannelEnum = pgEnum("notification_channel", [
   // Fallback when WhatsApp can't deliver (not configured, or the person
   // isn't on WhatsApp). Never sent as well as WhatsApp, only instead of it.
   "sms",
+  // A phone or browser notification (Web Push), alongside in-app.
+  "push",
 ]);
 
 export const deliveryStatusEnum = pgEnum("delivery_status", [
@@ -206,6 +216,14 @@ export const users = pgTable(
     }),
     clerkInvitationId: text("clerk_invitation_id"),
 
+    /**
+     * Set by the person themselves through verified steps only (migration
+     * 0022): when their mobile was last confirmed with a code, and when they
+     * last changed their password (the password itself lives in Clerk).
+     */
+    mobileVerifiedAt: timestamp("mobile_verified_at", { withTimezone: true }),
+    passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -216,6 +234,63 @@ export const users = pgTable(
     // Three digits then the checksum letter. Rejects a full NRIC outright, so
     // one cannot arrive through a stray import, a seed script or a fixture.
     check("users_ic_last4_format", sql`${table.icLast4} ~ '^[0-9]{3}[A-Za-z]$'`),
+  ]
+);
+
+// ------------------------------------------------------- account settings
+
+/**
+ * One-time codes for confirming a new mobile number, sent by WhatsApp or SMS.
+ * Only a hash of the code is kept; a code lasts ten minutes and five wrong
+ * tries. Not audited: the change it unlocks (users.contact_no) is.
+ */
+export const verificationCodes = pgTable(
+  "verification_codes",
+  {
+    codeId: serial("code_id").primaryKey(),
+    uid: integer("uid")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    purpose: varchar("purpose", { length: 16 }).notNull(),
+    target: varchar("target", { length: 32 }).notNull(),
+    codeHash: text("code_hash").notNull(),
+    channel: varchar("channel", { length: 12 }),
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("verification_codes_uid_idx").on(table.uid, table.createdAt),
+    check("verification_codes_purpose", sql`${table.purpose} in ('mobile')`),
+    check("verification_codes_channel", sql`${table.channel} in ('whatsapp', 'sms', 'dev')`),
+  ]
+);
+
+/**
+ * Someone with an account asking to change their role ("I've moved from the
+ * contractor's office to the EPC crew"). A project manager approves or
+ * declines it, as with account requests; approving changes users.user_type.
+ */
+export const roleChangeRequests = pgTable(
+  "role_change_requests",
+  {
+    requestId: serial("request_id").primaryKey(),
+    uid: integer("uid")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    fromType: userTypeEnum("from_type").notNull(),
+    requestedType: userTypeEnum("requested_type").notNull(),
+    reason: text("reason"),
+    status: roleRequestStatusEnum("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: integer("decided_by").references(() => users.uid, { onDelete: "set null" }),
+    decisionNote: text("decision_note"),
+  },
+  (table) => [
+    uniqueIndex("role_change_requests_one_pending").on(table.uid).where(sql`${table.status} = 'pending'`),
+    check("role_change_requests_differs", sql`${table.requestedType} <> ${table.fromType}`),
   ]
 );
 
@@ -814,12 +889,37 @@ export const notifications = pgTable(
     kind: notificationKindEnum("kind").notNull(),
     title: text("title").notNull(),
     body: text("body"),
+    /** Where tapping the alert goes, e.g. /projects/7#site-visits. */
+    link: text("link"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     readAt: timestamp("read_at", { withTimezone: true }),
   },
   (table) => [
     index("notifications_recipient_idx").on(table.recipientUid, table.createdAt.desc()),
   ]
+);
+
+/**
+ * A phone or browser where someone turned notifications on (Web Push). One
+ * person can have several (phone, tablet, laptop). Removed when they turn it
+ * off, or when the push service says the phone no longer accepts them.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    subscriptionId: serial("subscription_id").primaryKey(),
+    uid: integer("uid")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    failures: integer("failures").notNull().default(0),
+  },
+  (table) => [index("push_subscriptions_uid_idx").on(table.uid)]
 );
 
 /**

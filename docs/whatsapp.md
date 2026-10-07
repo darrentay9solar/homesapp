@@ -1,17 +1,37 @@
-# Email and WhatsApp notifications
+# Email, WhatsApp and SMS
 
-The sending code is built (`lib/notify/`). Until the keys below exist, every
-send is recorded as **skipped** with the reason, and the project manager sees
-that on screen ("Email skipped — email not configured"). Nothing breaks.
+The sending code is built (`api/_lib/notify.py`). Until the keys below exist,
+every send is recorded as **skipped** with the reason, and the project manager
+sees that on screen ("Email skipped — email not configured"). Nothing breaks.
 
-What gets sent today:
+## Why SMS and WhatsApp don't send yet
 
-| Event                               | In-app | Email | WhatsApp template  |
-| ----------------------------------- | :----: | :---: | ------------------ |
-| PM creates an account               |   ✓    |   ✓   | `account_created`  |
-| Someone requests an account (→ PMs) |   ✓    |   ✓   | —                  |
-| PM approves a request               |   ✓    |   ✓   | `account_approved` |
-| PM declines a request               |   —    |   ✓   | `account_rejected` |
+Nothing is wrong with the code: **none of the keys are set**. Vercel has no
+`WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `TWILIO_ACCOUNT_SID`,
+`TWILIO_AUTH_TOKEN`, `SMS_FROM`, `RESEND_API_KEY` or `EMAIL_FROM`, so each send
+is skipped and recorded so. Set them up in this order (the checklist at the end
+lists every value):
+
+1. **WhatsApp test number** (Step 1 below, 15 minutes): proves the wiring to
+   up to 5 phones you choose.
+2. **Templates** (Step 2): approval takes minutes to a day.
+3. **Permanent token** (Step 3), then the settings (Step 4).
+4. **Business verification + your own number** (Step 5): the long one; start it now.
+5. **Twilio SMS** for people not on WhatsApp, after registering the sender
+   name with SGNIC.
+6. **Resend email** with your domain.
+
+What gets sent:
+
+| Event                                   | In-app + phone | Email | WhatsApp template (SMS if it fails) |
+| --------------------------------------- | :------------: | :---: | ----------------------------------- |
+| PM creates an account                   |       ✓        |   ✓   | `account_created`                   |
+| Someone requests an account (→ PMs)     |       ✓        |   ✓   | —                                   |
+| PM approves / declines a request        |       ✓        |   ✓   | `account_approved` / `account_rejected` |
+| Someone asks for a different role (→ PMs) |     ✓        |   ✓   | —                                   |
+| PM approves / declines a role change    |       ✓        |   ✓   | `role_changed` / `role_declined`    |
+| Confirming a new mobile number          |       —        |   —   | `verification_code` (Authentication) |
+| Visits, milestones, approvals, crews running late | ✓    |   —   | — (phone notification instead; see docs/alerts.md) |
 
 Every attempt is stored in `notification_deliveries` with its status and the
 provider's message id.
@@ -93,6 +113,26 @@ Open the app: {{3}}
 Hi {{1}}, your request for a GetHomeApps account wasn't approved. If you think this is a mistake, please contact your 9 Solar Home project manager.
 ```
 
+**`role_changed`**
+
+```
+Hi {{1}}, your GetHomeApps role has been changed to {{2}}.
+```
+
+**`role_declined`**
+
+```
+Hi {{1}}, your request to become {{2}} in GetHomeApps wasn't approved. Your project manager can tell you more.
+```
+
+**`verification_code`**: a different kind of template. Choose category
+**Authentication** (not Utility), then **Copy code** as the button type. Meta
+writes the text itself ("*{{1}}* is your verification code."); tick "Add
+security recommendation" and set the code to expire in **10 minutes**. The app
+sends the code as both the text and the button's value. Authentication
+messages cost about S$0.02 in Singapore. If this template isn't approved yet,
+the code goes by SMS instead (when Twilio is set up).
+
 Meta asks for sample values for each placeholder (e.g. "Tan Wei Ming",
 "Homeowner", "https://homesapp-alpha.vercel.app"). Approval is usually
 minutes to a day. If Meta re-categorises one as Marketing, edit the wording
@@ -171,6 +211,25 @@ Setup:
    TWILIO_AUTH_TOKEN=...
    SMS_FROM=MG...           # the Messaging Service SID
    ```
+
+### Checklist: every setting
+
+In `.env.local` (laptop) and Vercel → Settings → Environment Variables (all
+environments), then redeploy:
+
+| Setting                    | From                                              |
+| -------------------------- | ------------------------------------------------- |
+| `WHATSAPP_TOKEN`           | Step 3, the system user token                     |
+| `WHATSAPP_PHONE_NUMBER_ID` | Step 1 (test number) or Step 5 (your own number)  |
+| `TWILIO_ACCOUNT_SID`       | Twilio console, Account Info                      |
+| `TWILIO_AUTH_TOKEN`        | Twilio console, Account Info                      |
+| `SMS_FROM`                 | Your Messaging Service SID (starts `MG`)          |
+| `RESEND_API_KEY`           | Resend → API Keys                                 |
+| `EMAIL_FROM`               | e.g. `9 Solar Home <noreply@mail.yourdomain.sg>`  |
+
+To check: Account → Mobile → Change, enter your own number. The message under
+the code box says whether it came by WhatsApp or SMS. On a laptop with neither
+set up, the code is shown on screen instead ("Development only").
 
 ### Phone numbers
 

@@ -81,7 +81,20 @@ type Request = {
   note: string | null;
   createdAt: string;
 };
-type Data = { me: number; users: Person[]; groups: Group[]; requests: Request[] };
+type RoleRequest = {
+  id: number;
+  uid: number;
+  fullName: string;
+  email: string;
+  contactNo: string | null;
+  from: Role;
+  fromLabel: string;
+  role: Role;
+  roleLabel: string;
+  reason: string | null;
+  createdAt: string;
+};
+type Data = { me: number; users: Person[]; groups: Group[]; requests: Request[]; roleRequests: RoleRequest[] };
 
 const ROLES = Object.keys(ROLE_NAME) as Role[];
 const CREW: Role[] = ["contractor", "epc_team"];
@@ -96,6 +109,7 @@ const STATUS_LABEL: Record<Status, string> = { active: "Active", invited: "Invit
 
 type DialogState =
   | { kind: "review"; id: number }
+  | { kind: "role"; id: number }
   | { kind: "newuser" }
   | { kind: "newgroup" }
   | { kind: "addmember"; id: number }
@@ -191,12 +205,15 @@ export default function PeoplePage() {
 
           {data && (
             <>
-              {data.requests.length > 0 && !filtering && (
+              {data.requests.length + data.roleRequests.length > 0 && !filtering && (
                 <>
-                  <Heading title="Waiting for approval" count={data.requests.length} />
+                  <Heading title="Waiting for approval" count={data.requests.length + data.roleRequests.length} />
                   <Box sx={GRID}>
                     {data.requests.map((r) => (
                       <RequestCard key={r.id} r={r} onReview={() => setDialog({ kind: "review", id: r.id })} />
+                    ))}
+                    {data.roleRequests.map((r) => (
+                      <RoleRequestCard key={`role-${r.id}`} r={r} onReview={() => setDialog({ kind: "role", id: r.id })} />
                     ))}
                   </Box>
                 </>
@@ -265,6 +282,9 @@ export default function PeoplePage() {
 
       {data && dialog?.kind === "review" && data.requests.find((r) => r.id === dialog.id) && (
         <ReviewDialog request={data.requests.find((r) => r.id === dialog.id)!} groups={data.groups} reload={reload} onClose={close} />
+      )}
+      {data && dialog?.kind === "role" && data.roleRequests.find((r) => r.id === dialog.id) && (
+        <RoleReviewDialog request={data.roleRequests.find((r) => r.id === dialog.id)!} groups={data.groups} reload={reload} onClose={close} />
       )}
       {data && dialog?.kind === "newuser" && <NewUserDialog groups={data.groups} reload={reload} onClose={close} />}
       {data && dialog?.kind === "newgroup" && <NewGroupDialog reload={reload} onClose={close} />}
@@ -412,6 +432,44 @@ function RequestCard({ r, onReview }: { r: Request; onReview: () => void }) {
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pl: 2.25, py: 0.75 }}>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
           Asked for
+        </Typography>
+        <RoleChip role={r.role} />
+        <Box sx={{ flex: 1 }} />
+        <Button size="small" variant="contained" onClick={onReview} data-testid="role-review">
+          Review
+        </Button>
+      </Stack>
+    </EdgeCard>
+  );
+}
+
+function RoleRequestCard({ r, onReview }: { r: RoleRequest; onReview: () => void }) {
+  return (
+    <EdgeCard color={(t) => t.palette.warning.main}>
+      <Box sx={{ p: 1.5, pl: 2.25, flex: 1 }}>
+        <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1.5 }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="caption" sx={{ color: "warning.main", fontWeight: 600 }}>
+              Role change · {ago(r.createdAt)}
+            </Typography>
+            <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
+              {r.fullName}
+            </Typography>
+            <ContactLine icon={<MailOutlineRoundedIcon />} text={r.email} />
+            {r.reason && (
+              <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5, overflowWrap: "anywhere" }}>
+                &ldquo;{r.reason}&rdquo;
+              </Typography>
+            )}
+          </Box>
+          <RoleAvatar name={r.fullName} role={r.from} size={42} />
+        </Stack>
+      </Box>
+      <Divider />
+      <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, px: 1.5, pl: 2.25, py: 0.75, flexWrap: "wrap" }}>
+        <RoleChip role={r.from} />
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          to
         </Typography>
         <RoleChip role={r.role} />
         <Box sx={{ flex: 1 }} />
@@ -619,6 +677,100 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
           }}
         >
           {busy ? "Approving…" : `Approve as ${ROLE_NAME[grant]}`}
+        </Button>
+        <Button size="large" variant="outlined" color="error" disabled={busy} onClick={() => setDeclining(true)}>
+          Decline
+        </Button>
+      </Stack>
+    </MDialog>
+  );
+}
+
+function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: RoleRequest; groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
+  const [grant, setGrant] = useState<Role>(r.role);
+  const [groupId, setGroupId] = useState("");
+  const [declining, setDeclining] = useState(false);
+  const [note, setNote] = useState("");
+  const { run, busy } = useAction(reload);
+  const first = r.fullName.split(" ")[0];
+
+  if (declining) {
+    return (
+      <MDialog title="Decline Request" heading={`Decline ${first}'s request?`} subtitle={`They stay ${r.fromLabel}. They'll be told in the app, by email, and by WhatsApp or SMS.`} onClose={onClose}>
+        <Field label="Reason (sent to them)" icon={<ChatBubbleOutlineRoundedIcon />} multiline minRows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+        <Stack sx={{ gap: 1, mt: 3 }}>
+          <Button
+            size="large"
+            variant="contained"
+            color="error"
+            disabled={busy}
+            onClick={async () => {
+              if (await run(`/role-requests/${r.id}/reject`, { method: "POST", json: { note } })) onClose();
+            }}
+          >
+            {busy ? "Declining…" : "Decline Request"}
+          </Button>
+          <Button size="large" onClick={() => setDeclining(false)}>
+            Cancel
+          </Button>
+        </Stack>
+      </MDialog>
+    );
+  }
+
+  return (
+    <MDialog title="Review Role Change" onClose={onClose}>
+      <Stack sx={{ alignItems: "center", textAlign: "center", mb: 2.5 }}>
+        <RoleAvatar name={r.fullName} role={r.from} size={68} />
+        <Typography sx={{ mt: 1.25, color: "primary.main", fontWeight: 600, fontSize: 20 }}>{r.fullName}</Typography>
+        <Stack direction="row" sx={{ gap: 1, alignItems: "center", mt: 0.5 }}>
+          <RoleChip role={r.from} />
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            to
+          </Typography>
+          <RoleChip role={r.role} />
+        </Stack>
+      </Stack>
+      <Card sx={{ px: 2, py: 0.5, mb: 3 }}>
+        <Detail k="Email" v={r.email} />
+        <Divider />
+        <Detail k="Mobile" v={r.contactNo ?? "—"} />
+        <Divider />
+        <Detail k="Asked" v={ago(r.createdAt)} />
+        <Divider />
+        <Detail k="Why" v={r.reason ? `“${r.reason}”` : "—"} />
+      </Card>
+      <Stack sx={{ gap: 2.5 }}>
+        <Field select label="Grant role" icon={<BadgeRoundedIcon />} value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText="You can grant a different role from the one they asked for. The change is in the audit log and can be reverted there.">
+          {ROLES.filter((k) => k !== r.from).map((k) => (
+            <MenuItem key={k} value={k}>
+              {ROLE_NAME[k]}
+              {k === r.role ? " (requested)" : ""}
+            </MenuItem>
+          ))}
+        </Field>
+        {CREW.includes(grant) && !CREW.includes(r.from) && (
+          <Field select label="Contractor group" icon={<GroupsRoundedIcon />} value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+            <MenuItem value="">None for now</MenuItem>
+            {groups.map((g) => (
+              <MenuItem key={g.id} value={String(g.id)}>
+                {g.name}
+              </MenuItem>
+            ))}
+          </Field>
+        )}
+      </Stack>
+      <Stack sx={{ gap: 1, mt: 3 }}>
+        <Button
+          size="large"
+          variant="contained"
+          disabled={busy}
+          onClick={async () => {
+            const json = { role: grant, groupId: groupId ? Number(groupId) : null };
+            if (await run(`/role-requests/${r.id}/approve`, { method: "POST", json })) onClose();
+          }}
+        >
+          {busy ? "Approving…" : `Make ${first} ${ROLE_NAME[grant]}`}
         </Button>
         <Button size="large" variant="outlined" color="error" disabled={busy} onClick={() => setDeclining(true)}>
           Decline

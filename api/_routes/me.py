@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from _lib.account import ROLE_LABEL, Account
-from _lib.db import fetch_all
+from _lib.db import fetch_all, fetch_one
 from _lib.web import account, act_as_allowed, role
 
 router = APIRouter()
@@ -40,6 +40,30 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             "requestedRoleLabel": ROLE_LABEL[r["requested_type"]],
             "decisionNote": r["decision_note"],
             "createdAt": r["created_at"].isoformat(),
+        }
+    if acct.user:
+        u = acct.user
+        unread = fetch_one(
+            "select count(*)::int as n from notifications where recipient_uid = %s and read_at is null",
+            (u["uid"],),
+            actor_uid=u["uid"],
+        )
+        out["unread"] = unread["n"] if unread else 0
+        rr = fetch_one(
+            "select requested_type, reason, created_at from role_change_requests where uid = %s and status = 'pending'",
+            (u["uid"],),
+        )
+        out["settings"] = {
+            "mobileVerifiedAt": u["mobile_verified_at"].isoformat() if u.get("mobile_verified_at") else None,
+            "passwordChangedAt": u["password_changed_at"].isoformat() if u.get("password_changed_at") else None,
+            "roleRequest": {
+                "role": rr["requested_type"],
+                "roleLabel": ROLE_LABEL[rr["requested_type"]],
+                "reason": rr["reason"],
+                "createdAt": rr["created_at"].isoformat(),
+            }
+            if rr
+            else None,
         }
     if acct.acting_pm:
         out["actingAs"] = {"byName": acct.acting_pm["full_name"], "byUid": acct.acting_pm["uid"]}

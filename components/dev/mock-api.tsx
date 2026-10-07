@@ -31,6 +31,7 @@ const FIXTURES: Record<string, unknown> = {
       address: null,
       postalCode: null,
     },
+    settings: { mobileVerifiedAt: iso(60 * 24 * 12), passwordChangedAt: iso(60 * 24 * 40), roleRequest: null },
   },
   "GET /people": {
     me: 1,
@@ -50,6 +51,13 @@ const FIXTURES: Record<string, unknown> = {
         contactNo: "+65 8222 1100", address: null, postalCode: null, note: "I'm with Apex Solar", createdAt: iso(1500),
       },
     ],
+    roleRequests: [
+      {
+        id: 21, uid: 3, fullName: "Priya Nair", email: "priya@example.com", contactNo: "+65 9001 2202",
+        from: "contractor", fromLabel: "Contractor Admin", role: "epc_team", roleLabel: "EPC Team",
+        reason: "I'm moving to the Apex EPC crew from next month.", createdAt: iso(45),
+      },
+    ],
     users: [
       { uid: 1, fullName: "Wei Ming Tan", email: "weiming@example.com", role: "project_manager", roleLabel: "Project Manager", contactNo: "+65 9123 4567", active: true, linked: true, invitedAt: null, groups: [] },
       { uid: 2, fullName: "Charlotte Sim", email: "charlotte@example.com", role: "project_manager", roleLabel: "Project Manager", contactNo: "+65 9001 2201", active: true, linked: true, invitedAt: null, groups: [] },
@@ -61,6 +69,28 @@ const FIXTURES: Record<string, unknown> = {
       { uid: 8, fullName: "Marcus Teo", email: "marcus@example.com", role: "homeowner", roleLabel: "Homeowner", contactNo: "+65 9330 5521", active: false, linked: true, invitedAt: null, groups: [] },
     ],
   },
+};
+
+// ------------------------------------------------------------ alerts
+
+const ALERTS = [
+  { id: 9001, kind: "visit_missed", kindLabel: "Running late", title: "Running late · Seletar Hills Home", body: "The EPC crew was due today at 09:00 and hasn't checked in an hour later.", link: "/projects/103#site-visits", projectId: 103, projectName: "Seletar Hills Home", createdAt: iso(12), read: false, urgent: true },
+  { id: 9002, kind: "role_request", kindLabel: "People", title: "Role change request", body: "Priya Nair asked to change from Contractor Admin to EPC Team.", link: "/people", projectId: null, projectName: null, createdAt: iso(45), read: false, urgent: false },
+  { id: 9003, kind: "milestone_complete", kindLabel: "Milestone", title: "Milestone 1 complete · Jalan Kayu Residence", body: "Panels installed and scaffolding removed. The SP application has been submitted.", link: "/projects/101", projectId: 101, projectName: "Jalan Kayu Residence", createdAt: iso(180), read: true, urgent: false },
+  { id: 9004, kind: "approval_request", kindLabel: "Approval", title: "Approve Sunbird Circle", body: "Daniel Ong approved the project. Approve it to start the work.", link: "/projects/102", projectId: 102, projectName: "Sunbird Circle", createdAt: iso(60 * 26), read: true, urgent: false },
+  { id: 9005, kind: "crew_arrived_late", kindLabel: "Running late", title: "Crew arrived 1 h 20 min late · Jalan Kayu Residence", body: "Ravi Kumar checked in at 10:20 for the 09:00 visit, with 4 crew.", link: "/projects/101#site-visits", projectId: 101, projectName: "Jalan Kayu Residence", createdAt: iso(60 * 27), read: true, urgent: true },
+];
+
+// ------------------------------------------------------------ my files
+
+const MY_FILES = {
+  files: [
+    { id: 901, name: "Roof east (panels).jpg", category: "panel_pictures", categoryLabel: "Panel pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 2_840_112, uploadedAt: iso(55), removed: null },
+    { id: 902, name: "Inverter serial plate.jpg", category: "inverter_pictures", categoryLabel: "Inverter pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 1_920_400, uploadedAt: iso(70), removed: null },
+    { id: 903, name: "SP forms (signed).pdf", category: "sp_forms_signed", categoryLabel: "SP forms (signed)", projectId: 102, projectName: "Sunbird Circle", contentType: "application/pdf", kind: "document", size: 412_880, uploadedAt: iso(60 * 26), removed: null },
+    { id: 904, name: "Utility bill June.pdf", category: "utility_bill", categoryLabel: "Utility bill", projectId: 105, projectName: "Punggol Waterway Terrace", contentType: "application/pdf", kind: "document", size: 228_004, uploadedAt: iso(60 * 24 * 9), removed: null },
+    { id: 905, name: "Panels blurry.jpg", category: "panel_pictures", categoryLabel: "Panel pictures", projectId: 101, projectName: "Jalan Kayu Residence", contentType: "image/jpeg", kind: "photo", size: 2_100_000, uploadedAt: iso(60 * 30), removed: { at: iso(60 * 29), by: "Wei Ming Tan" } },
+  ],
 };
 
 // ------------------------------------------------------------ projects
@@ -504,6 +534,11 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "POST /projects") return { id: 101, message: "Preview only — nothing was saved." };
   if (key === "GET /storage/check") return { mode: "r2", environment: "production", bucket: "gethomeapps-prod", ok: true, problem: null };
   if (key === "GET /sites") return SITES;
+  if (key === "GET /my-files") return MY_FILES;
+  if (key === "GET /alerts") return { alerts: ALERTS, more: false, unread: ALERTS.filter((a) => !a.read).length };
+  if (key === "POST /alerts/read") return { unread: 0 };
+  if (key === "GET /push/key") return { publicKey: null, devices: 0 };
+  if (key === "POST /me/mobile/send") return { sentBy: "dev", to: "•••• 4567", message: "Preview only — code shown here.", devCode: "123456" };
   const visitsFor = path.match(/^\/projects\/(\d+)\/visits$/);
   if (method === "GET" && visitsFor) return projectVisits(Number(visitsFor[1]));
   if (method !== "GET" && path.startsWith("/check-ins/")) return { message: "Preview only — nothing was saved." };

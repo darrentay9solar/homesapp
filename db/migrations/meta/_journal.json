@@ -155,6 +155,27 @@
       "when": 1791283313929,
       "tag": "0021_site_visits",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791347419358,
+      "tag": "0022_account_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791347785110,
+      "tag": "0023_my_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791349528374,
+      "tag": "0024_alerts",
+      "breakpoints": true
     }
   ]
 }

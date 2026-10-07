@@ -179,7 +179,8 @@ Once a project is approved, a **PM or the crew** schedules the days the EPC team
 **Who is told, and when:**
 - **When it's scheduled:** the crew, "Site visit assigned".
 - **An hour before a timed visit:** the EPC crew, "Site visit in 1 hour".
-- **An hour after the start, with no check-in:** the EPC crew and the PM, "EPC team did not check in". An untimed visit counts as missed the next morning.
+- **An hour after the start, with no check-in:** the project's PM and the EPC crew, urgently, "Running late · <project>". An untimed visit counts as missed the next morning.
+- **The crew checks in an hour or more late:** the project's PM, "Crew arrived 1 h 20 min late". Once per visit.
 
 Each reminder is sent once. Reminders run every 15 minutes (`.github/workflows/visit-reminders.yml`), once `CRON_SECRET` is set.
 
@@ -229,6 +230,47 @@ Every create, edit, approval, upload, removal and reopen is recorded: who, when,
 
 - **TC-16:** After TC-07, open Audit. Jalan Kayu's card lists Priya's changes field by field.
 
+### Throughout: alerts
+
+Everything above that tells someone something is an **alert**: on the
+**Alerts** screen and, for anyone who turns them on, as a **phone
+notification**. Both show the same alerts. Tapping either marks it read and
+opens what it's about (the project, its site visits, People or Account). See
+[alerts.md](alerts.md).
+
+- **TC-23:** As yourself, open Alerts → **Turn on notifications** → **Send a test**. The notification arrives on this device. Tapping it opens Alerts.
+- **TC-24:** *Act as* Ravi; Seletar's visit this morning had no check-in. After the next 15-minute run, your Alerts shows **Running late · Seletar Hills Home** in red. Tapping it opens Seletar's site visits.
+- **TC-25:** *Act as* Ravi, check in at Jalan Kayu more than an hour after its visit time. You (the PM) get **Crew arrived … late**. A second crew member checking in doesn't repeat it.
+- **TC-26:** **Mark all read** clears the unread count, the dot on the Alerts tab, and the app icon's badge.
+
+### Throughout: your account
+
+**Account** is where each person manages themselves. Every change is in the audit log.
+
+| Setting | How it's confirmed |
+|---|---|
+| **Name** | Saved straight away. A PM can revert it. |
+| **Email** (the sign-in) | A 6-digit code from Clerk to the new address. It isn't restored from the log, because it's the sign-in. |
+| **Mobile** | A 6-digit code by **WhatsApp**, or **SMS** if WhatsApp can't deliver (or "Send by SMS instead"). Valid 10 minutes, 5 tries. The number changes only once the code is right. |
+| **Password** | Current password, then the new one twice (15+ characters). Other devices are signed out. **Forgot it?** signs out and emails a reset code that only works from that inbox. |
+| **Role** | "Ask" a project manager. It appears in People → Waiting for approval, beside new accounts. The PM approves (optionally a different role, or adds a group) or declines with a reason. The role change can be reverted in the audit log. |
+| **Notifications** | Phone notifications on or off for this device. |
+
+- **TC-27:** Change your name; Audit shows it under you, and Revert puts it back.
+- **TC-28:** *Act as* Priya → Account → Mobile → Change, type a new number → **Send code**. On a laptop without WhatsApp/SMS the code shows on screen. A wrong code says how many tries are left; the right one changes the number, marked **Verified**.
+- **TC-29:** *Act as* Priya → **Need a different role? → Ask** for EPC Team with a reason. As yourself, People shows **Role change · Priya Nair · Contractor Admin → EPC Team**. Approve it: she's now EPC Team, and told.
+- **TC-30:** Account → Password → Change with a wrong current password. It's refused, and nothing changes.
+
+### My Files
+
+**My Files** (a tab for crews; in the menu and on Account for PMs) lists
+every photo and document you've uploaded, on any project, grouped by
+project. Search it by file name, project, slot or type ("jalan pdf"). Tabs
+filter Photos, Documents and **Removed**: files a PM or crew member took
+off a project. Those are kept, and a PM can restore them from the audit log.
+
+- **TC-31:** *Act as* Ravi → Files. His Jalan Kayu panel photos are listed. Search "inverter" narrows to the inverter photo; tapping it opens it.
+
 ---
 
 ## 4. How to run the test cases
@@ -259,7 +301,7 @@ Every create, edit, approval, upload, removal and reopen is recorded: who, when,
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 2,723 tests. That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
+- **Python:** `npm run test:py`, 2,798 tests. That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
   - **The whole flow, in order:** `tests_py/test_full_flow.py` takes one project from creation to Ready for handover in 18 steps, with every role doing their part (see [TEST_CASES.md](TEST_CASES.md)). It runs twice: with files on the laptop, and with files in the real R2 dev bucket.
   - **R2 requests only when asked for:** a normal run uses no R2. `npm run test:r2` runs just the 39 tests that use the real dev bucket. That's about 85 requests with tiny files, all deleted afterwards, and the bucket is left empty.
   - `tests_py/test_project_work.py` covers the same flow in smaller pieces:
@@ -268,4 +310,4 @@ Every create, edit, approval, upload, removal and reopen is recorded: who, when,
   - uploads (and refused uploads)
   - the IC rule, linking a homeowner, the database's rules, and act-as
 - **Front end:** `npm run test:web`.
-- **Design:** `/dev-preview/design-check`, 114 checks across phone, tablet and desktop, in Black and Light.
+- **Design:** `/dev-preview/design-check`, 144 checks across phone, tablet and desktop, in Black and Light.

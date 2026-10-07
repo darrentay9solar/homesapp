@@ -21,7 +21,7 @@ import Stack from "@mui/material/Stack";
 import { alpha } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
 import { useParams, useRouter } from "next/navigation";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { Field, MDialog, RoleChip } from "@/components/m";
 import { SectionPanel } from "@/components/project-fields";
@@ -107,6 +107,7 @@ function Body({ p, fields, visits, reload }: { p: ProjectRow; fields: ProjectFie
           <Details p={p} />
         </Box>
         {visits && <SiteSchedule pid={p.id} name={p.name} address={p.address} data={visits} reload={reload} />}
+        {visits && <ScrollToHash />}
       </Stack>
       <Box sx={{ minWidth: 0, mt: { lg: -2.5 } }}>
         <Heading title={fields?.relation === "homeowner" ? "Your installation" : "Milestones"} />
@@ -352,4 +353,13 @@ function MilestoneTrack({ p }: { p: ProjectRow }) {
       ))}
     </Box>
   );
+}
+
+/** An alert's link can point at a part of the page (#site-visits); go there once it exists. */
+function ScrollToHash() {
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (id) document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  return null;
 }

@@ -57,6 +57,8 @@ class ClerkUser:
     primary_email: str | None
     full_name: str | None
     phone: str | None
+    password_enabled: bool = False
+    updated_at_ms: int = 0
 
 
 def get_user(clerk_user_id: str) -> ClerkUser:
@@ -82,7 +84,9 @@ def get_user(clerk_user_id: str) -> ClerkUser:
         meta_mobile = (data.get("unsafe_metadata") or {}).get("mobile")
         phone = meta_mobile if isinstance(meta_mobile, str) and meta_mobile.strip() else None
     name = " ".join(x for x in (data.get("first_name"), data.get("last_name")) if x) or None
-    return ClerkUser(data["id"], verified, primary, name, phone)
+    return ClerkUser(
+        data["id"], verified, primary, name, phone, bool(data.get("password_enabled")), int(data.get("updated_at") or 0)
+    )
 
 
 def create_invitation(email: str, redirect_url: str) -> dict[str, Any]:

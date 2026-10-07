@@ -33,6 +33,7 @@ import { splitPhone } from "@/components/phone-input";
 import { EdgeCard } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
+import { pickerFilter } from "@/lib/client/search";
 import { useApp } from "@/lib/client/app-state";
 import { type Options, planDates, type ProjectRow, STATUS_TONE } from "@/lib/client/projects";
 
@@ -308,6 +309,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
         <Autocomplete
           freeSolo
           options={opts?.homeowners ?? []}
+          filterOptions={pickerFilter((o) => [o.name, o.email, o.contactNo])}
           value={homeowner}
           onChange={(_, v) => {
             setHomeowner(v);
@@ -388,6 +390,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
             <Autocomplete
               multiple
               options={opts?.crew ?? []}
+              filterOptions={pickerFilter((o) => [o.name, ROLE_NAME[o.role]])}
               value={crew}
               onChange={(_, v) => setCrew(v)}
               getOptionLabel={(o) => o.name}

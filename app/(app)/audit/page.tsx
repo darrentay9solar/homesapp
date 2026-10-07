@@ -74,6 +74,7 @@ import {
   type Refs,
   revertVerb,
   timeOf,
+  matchesAuditPerson,
 } from "@/lib/client/audit";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { DESIGN } from "@/lib/client/design";
@@ -773,12 +774,7 @@ function PeopleView({
         ))}
       </Box>
     );
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = people.filter(
-    (p) =>
-      (filter === "all" || p.pages.includes(filter)) &&
-      words.every((w) => [p.name, p.email ?? "", p.roleLabel].join(" ").toLowerCase().includes(w))
-  );
+  const shown = people.filter((p) => (filter === "all" || p.pages.includes(filter)) && matchesAuditPerson(p, q));
   return (
     <>
       <Heading title={filter === "all" ? "Everyone who changed something" : `Changed ${PAGE_LABEL[filter]}`} count={shown.length} />

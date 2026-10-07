@@ -41,6 +41,7 @@ TABLES: dict[str, tuple[tuple[str, ...], str]] = {
     "project_signatures": (("signature_id",), "signatures"),
     "users": (("uid",), "people"),
     "account_requests": (("request_id",), "people"),
+    "role_change_requests": (("request_id",), "people"),
     "contractor_groups": (("group_id",), "groups"),
     "contractor_group_members": (("group_id", "user_id"), "groups"),
 }
@@ -49,6 +50,7 @@ PAGES = ("projects", "milestones", "files", "sites", "signatures", "people", "gr
 # Rows whose history is evidence, or whose decisions are final, are never rewritten.
 NO_REVERT: dict[str, str] = {
     "account_requests": "Decisions on access requests are final.",
+    "role_change_requests": "Decisions on role requests are final. To undo one, revert the role itself.",
     "site_check_ins": "GPS check-ins are site evidence and can't be edited.",
     "project_signatures": "Signatures are legal records and can't be edited.",
 }
@@ -107,6 +109,16 @@ def _summary(a: dict[str, Any], names: dict[str, dict[int, str]]) -> str:
         return {"approved": "Approved access request", "rejected": "Declined access request"}.get(
             status, "Updated access request"
         )
+    if t == "role_change_requests":
+        if act == "insert":
+            want = (ch.get("requested_type") or {}).get("to")
+            return f"Asked to become {ROLE_LABEL.get(want, 'another role')}"
+        status = (ch.get("status") or {}).get("to")
+        return {
+            "approved": "Approved role change",
+            "rejected": "Declined role change",
+            "cancelled": "Withdrew role request",
+        }.get(status, "Updated role request")
     if t in LINK_TABLES:
         uid = (ch.get("user_id") or {}).get("to" if act == "insert" else "from") or (a["entity_key"] or {}).get(
             "user_id"
@@ -185,6 +197,7 @@ def _names(entries: list[dict[str, Any]], reader: int) -> dict[str, dict[int, st
     retailers: set[int] = set()
     projects: set[int] = set()
     requests: set[int] = set()
+    role_requests: set[int] = set()
     for a in entries:
         pid = _project_of(a)
         if pid:
@@ -196,6 +209,8 @@ def _names(entries: list[dict[str, Any]], reader: int) -> dict[str, dict[int, st
             groups.add(int(a["entity_id"]))
         if t == "account_requests" and a["entity_id"]:
             requests.add(int(a["entity_id"]))
+        if t == "role_change_requests" and a["entity_id"]:
+            role_requests.add(int(a["entity_id"]))
         for f, v in (a["changes"] or {}).items():
             for side in ("from", "to"):
                 x = v.get(side)
@@ -213,7 +228,23 @@ def _names(entries: list[dict[str, Any]], reader: int) -> dict[str, dict[int, st
     def lookup(q: str, ids: set[int]) -> dict[int, str]:
         return {r["id"]: r["name"] for r in fetch_all(q, {"ids": list(ids)}, reader)} if ids else {}
 
+    # A role request belongs to the person who made it.
+    role_owner = (
+        {
+            r["id"]: r["uid"]
+            for r in fetch_all(
+                "select request_id as id, uid from role_change_requests where request_id = any(%(ids)s)",
+                {"ids": list(role_requests)},
+                reader,
+            )
+        }  # fmt: skip
+        if role_requests
+        else {}
+    )
+    users.update(role_owner.values())
+
     return {
+        "role_owner": role_owner,  # type: ignore[dict-item]
         "users": lookup(
             "select uid as id, coalesce(full_name, email) as name from users where uid = any(%(ids)s)", users
         ),
@@ -249,6 +280,10 @@ def _location(a: dict[str, Any], names: dict[str, dict[int, str]]) -> dict[str, 
     if t == "users":
         return {"key": f"person:{eid}", "kind": "person", "id": eid,
                 "label": names["users"].get(eid) or was("full_name") or was("email") or f"Account #{eid}"}  # fmt: skip
+    if t == "role_change_requests":
+        owner = names.get("role_owner", {}).get(eid) or was("uid")
+        return {"key": f"person:{owner}", "kind": "person", "id": owner,
+                "label": names["users"].get(owner) or f"Account #{owner}"}  # fmt: skip
     if t == "account_requests":
         return {"key": f"request:{eid}", "kind": "request", "id": eid,
                 "label": f"Access request · {names['requests'].get(eid) or was('full_name') or eid}"}  # fmt: skip
@@ -405,7 +440,9 @@ def log(
         where.append(
             {
                 "project": "(project_id = %(lid)s or (entity_table = 'projects' and entity_id = %(lids)s))",
-                "person": "(entity_table = 'users' and entity_id = %(lids)s)",
+                "person": "((entity_table = 'users' and entity_id = %(lids)s) "
+                "or (entity_table = 'role_change_requests' "
+                "and entity_id in (select request_id::text from role_change_requests where uid = %(lid)s)))",
                 "request": "(entity_table = 'account_requests' and entity_id = %(lids)s)",
                 "group": "(entity_table in ('contractor_groups', 'contractor_group_members') "
                 "and entity_id = %(lids)s)",

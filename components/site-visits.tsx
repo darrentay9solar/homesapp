@@ -210,7 +210,7 @@ export function SiteSchedule({ pid, name, address, data, reload }: { pid: number
   }
 
   return (
-    <Box data-testid="site-schedule">
+    <Box data-testid="site-schedule" id="site-visits" sx={{ scrollMarginTop: 16 }}>
       <Heading
         title="Site schedule"
         count={data.visits.length}

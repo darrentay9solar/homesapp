@@ -85,10 +85,22 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 @pytest.fixture(autouse=True)
+def _no_real_push(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests never send to real push services; tests about push replace this with their own recorder."""
+    from _lib import push
+
+    monkeypatch.setattr(push, "send", lambda sub, message, urgent=False: push.PushResult("skipped", "tests"))
+
+
+@pytest.fixture(autouse=True)
 def _laptop_storage(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """Uploads go to web/.uploads/ in tests, even when .env.local has R2 settings,
     so the suite never spends R2 requests. Tests marked real_r2 or r2_live opt out."""
-    if request.node.get_closest_marker("real_r2") or request.node.get_closest_marker("r2_live"):
+    if request.node.get_closest_marker("r2_live"):
+        # Real requests to the dev bucket stay under pytest/, apart from the demo's files.
+        monkeypatch.setenv("R2_KEY_PREFIX", "pytest/")
+        return
+    if request.node.get_closest_marker("real_r2"):
         return
     from _lib import storage
 

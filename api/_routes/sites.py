@@ -285,8 +285,8 @@ def check_in(pid: int, body: FixIn, acct: Account = Depends(active)) -> dict[str
     if acct.role != "epc_team":
         raise HTTPException(403, "Check-in is for the EPC team.")
     visit = fetch_one(
-        "select visit_id from site_visits where project_id = %s and scheduled_date = %s "
-        "order by scheduled_time nulls last limit 1",
+        "select visit_id, scheduled_date, scheduled_time from site_visits "
+        "where project_id = %s and scheduled_date = %s order by scheduled_time nulls last limit 1",
         (pid, today()),
     )
     try:
@@ -301,7 +301,33 @@ def check_in(pid: int, body: FixIn, acct: Account = Depends(active)) -> dict[str
         raise _gps_error(exc) from exc
     at = row["checked_in_at"].astimezone(SG).strftime("%H:%M")
     n = body.crew
+    if visit and visit["scheduled_time"]:
+        _tell_if_late(p, visit, row["checked_in_at"], acct, n)
     return {"message": f"Checked in at {at} with {n} crew on site.", "at": row["checked_in_at"].isoformat()}
+
+
+def _tell_if_late(p: dict[str, Any], visit: dict[str, Any], at: datetime, acct: Account, crew: int) -> None:
+    """The first check-in for a timed visit an hour or more after its start: the project's PM is told."""
+    hh, mm = (int(x) for x in visit["scheduled_time"].split(":"))
+    d = visit["scheduled_date"]
+    start = datetime(d.year, d.month, d.day, hh, mm, tzinfo=SG)
+    late = at.astimezone(SG) - start
+    if late < timedelta(hours=1) or not p["project_manager_id"]:
+        return
+    first = fetch_one("select count(*)::int as n from site_check_ins where visit_id = %s", (visit["visit_id"],))
+    if first and first["n"] > 1:
+        return
+    mins = int(late.total_seconds() // 60)
+    span = f"{mins // 60} h {mins % 60} min" if mins % 60 else f"{mins // 60} h"
+    who = acct.user["full_name"] or "The EPC crew"
+    notify.notify(
+        p["project_manager_id"],
+        "crew_arrived_late",
+        f"Crew arrived {span} late · {p['name']}",
+        f"{who} checked in at {at.astimezone(SG):%H:%M} for the {visit['scheduled_time']} visit, with {crew} crew.",
+        project_id=p["project_id"],
+        urgent=True,
+    )
 
 
 @router.post("/check-ins/{cid}/check-out")
@@ -379,9 +405,11 @@ def run_reminders(now: datetime) -> dict[str, int]:
                 notify.notify(
                     uid,
                     "visit_missed",
-                    "EPC team did not check in",
-                    f"{v['name']} — the crew was scheduled for {when}. No check-in recorded.",
+                    f"Running late · {v['name']}",
+                    f"The EPC crew was due {when} and hasn't checked in"
+                    + (" an hour later." if start else ". No check-in that day."),
                     project_id=v["project_id"],
+                    urgent=True,
                 )
             _mark(v["visit_id"], "missed")
             sent["missed"] += 1

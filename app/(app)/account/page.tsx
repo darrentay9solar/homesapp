@@ -1,15 +1,15 @@
 "use client";
 
 import { SignOutButton } from "@clerk/nextjs";
+import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import CloudOutlinedIcon from "@mui/icons-material/CloudOutlined";
 import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
-import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
-import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
+import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import Alert from "@mui/material/Alert";
@@ -21,13 +21,17 @@ import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
+import Link from "next/link";
 import { useState } from "react";
+
+import { PushSetup } from "@/components/alerts";
+import { EmailDialog, MobileDialog, NameDialog, PasswordDialog, PasswordIcon, RoleDialog, VerifiedNote } from "@/components/account-settings";
 
 import { Field, ROLE_NAME, RoleAvatar, RoleChip, SettingRow } from "@/components/m";
 import { Page } from "@/components/shell";
 import { Heading, TopBar } from "@/components/topbar";
 import { ACT_AS_KEY, useApi, useFetcher } from "@/lib/client/api";
-import { type Role, useMe } from "@/lib/client/app-state";
+import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { useTheme } from "@/lib/client/theme";
 
 const ACCESS: Record<Role, string> = {
@@ -41,10 +45,34 @@ const ACCESS: Record<Role, string> = {
 };
 
 /** Your account, in the same design as a person's Profile in People. */
+type Edit = "name" | "email" | "mobile" | "password" | "role" | null;
+
+function when(iso: string | null | undefined): string {
+  return iso ? new Date(iso).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" }) : "";
+}
+
 export default function AccountPage() {
   const me = useMe();
+  const { me: state, reloadMe, toast } = useApp();
+  const fetcher = useFetcher();
   const [theme, setTheme] = useTheme();
+  const [edit, setEdit] = useState<Edit>(null);
   if (!me) return null;
+  const s = state?.settings;
+  const change = (what: Edit, label = "Change") => (
+    <Button size="small" variant="outlined" onClick={() => setEdit(what)} data-testid={`edit-${what}`}>
+      {label}
+    </Button>
+  );
+  const withdraw = async () => {
+    try {
+      const r = await fetcher<{ message: string }>("/me/role-request", { method: "DELETE" });
+      toast(r.message);
+      await reloadMe();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Couldn't withdraw it.", "bad");
+    }
+  };
   return (
     <>
       <TopBar title="Account" sub={me.roleLabel} />
@@ -60,11 +88,35 @@ export default function AccountPage() {
             </Box>
           </Card>
 
-          <Heading title="Contact" />
+          <Heading title="Your details" />
           <Stack sx={{ gap: 1.25 }}>
-            <SettingRow icon={<MailOutlineRoundedIcon />} tint="#2563EB" label="Email" sub={<Box sx={{ overflowWrap: "anywhere" }}>{me.email}</Box>} />
-            <SettingRow icon={<PhoneRoundedIcon />} tint="#0A9A63" label="Mobile" sub={me.contactNo ?? "Not on file. Ask a project manager to add it."} />
+            <SettingRow icon={<PersonOutlineRoundedIcon />} tint="#0E7490" label="Name" sub={me.fullName ?? "Not set"} right={change("name")} />
+            <SettingRow icon={<MailOutlineRoundedIcon />} tint="#2563EB" label="Email" sub={<Box sx={{ overflowWrap: "anywhere" }}>{me.email} · used to sign in</Box>} right={change("email")} />
+            <SettingRow
+              icon={<PhoneRoundedIcon />}
+              tint="#0A9A63"
+              label="Mobile"
+              sub={
+                <>
+                  {me.contactNo ?? "Not on file"}
+                  <VerifiedNote at={s?.mobileVerifiedAt} />
+                </>
+              }
+              right={change("mobile", me.contactNo ? "Change" : "Add")}
+            />
           </Stack>
+
+          <Heading title="Security" />
+          <SettingRow
+            icon={<PasswordIcon />}
+            tint="#BE185D"
+            label="Password"
+            sub={s?.passwordChangedAt ? `Last changed ${when(s.passwordChangedAt)}` : "Change it with your current password, or reset it by email."}
+            right={change("password")}
+          />
+
+          <Heading title="Notifications" />
+          <PushSetup />
 
           <Heading title="Appearance" />
           <SettingRow icon={theme === "dark" ? <DarkModeRoundedIcon /> : <LightModeRoundedIcon />} tint="#7C3AED" label="Theme" sub="Light is easier to read on a rooftop in daylight; Black saves battery indoors.">
@@ -86,13 +138,42 @@ export default function AccountPage() {
           </SettingRow>
 
           <Heading title="Your access" />
-          <SettingRow icon={<ShieldOutlinedIcon />} tint="#B45309" label={me.roleLabel} sub={ACCESS[me.role]} />
-
-          <Heading title="Commercial" />
           <Stack sx={{ gap: 1.25 }}>
-            <SettingRow icon={<PaymentsRoundedIcon />} tint="#0A9A63" label="Admin fee" right={<Typography sx={{ fontWeight: 600 }}>S$3,500.00</Typography>} />
-            <SettingRow icon={<SolarPowerRoundedIcon />} tint="#2A6FBF" label="Export credit" right={<Typography sx={{ fontWeight: 600 }}>SP Group · monthly</Typography>} />
+            <SettingRow icon={<ShieldOutlinedIcon />} tint="#B45309" label={me.roleLabel} sub={ACCESS[me.role]} />
+            {me.role !== "project_manager" &&
+              (s?.roleRequest ? (
+                <SettingRow
+                  icon={<BadgeOutlinedIcon />}
+                  tint="#B7791F"
+                  label={`Waiting: ${s.roleRequest.roleLabel}`}
+                  sub={`You asked on ${when(s.roleRequest.createdAt)}. A project manager will review it.`}
+                  right={
+                    <Button size="small" color="error" onClick={() => void withdraw()}>
+                      Withdraw
+                    </Button>
+                  }
+                />
+              ) : (
+                <SettingRow icon={<BadgeOutlinedIcon />} tint="#6D28D9" label="Need a different role?" sub="Ask a project manager to change it." right={change("role", "Ask")} />
+              ))}
           </Stack>
+
+          {me.role !== "homeowner" && (
+            <>
+              <Heading title="Your files" />
+              <SettingRow
+                icon={<FolderOpenRoundedIcon />}
+                tint="#0891B2"
+                label="My Files"
+                sub="Every photo and document you've uploaded, on any project."
+                right={
+                  <Button size="small" variant="outlined" component={Link} href="/files">
+                    Open
+                  </Button>
+                }
+              />
+            </>
+          )}
 
           {me.role === "project_manager" && <StorageCheck />}
           {me.role === "project_manager" && <ActAs />}
@@ -107,6 +188,11 @@ export default function AccountPage() {
           </Typography>
         </Page>
       </Box>
+      {edit === "name" && <NameDialog current={me.fullName ?? ""} onClose={() => setEdit(null)} />}
+      {edit === "email" && <EmailDialog current={me.email} onClose={() => setEdit(null)} />}
+      {edit === "mobile" && <MobileDialog current={me.contactNo} onClose={() => setEdit(null)} />}
+      {edit === "password" && <PasswordDialog onClose={() => setEdit(null)} />}
+      {edit === "role" && <RoleDialog current={me.role} onClose={() => setEdit(null)} />}
     </>
   );
 }
