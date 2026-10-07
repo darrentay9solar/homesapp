@@ -255,14 +255,17 @@ Every create, edit, approval, upload, removal and reopen is recorded: who, when,
    - An amber banner shows whose screens you're on. **Stop** returns you to yourself.
    - Changes are recorded as that person.
    - This only works on your computer, against a database that isn't production.
-4. **Files:** until Cloudflare R2 is set up (docs/r2.md), uploads are kept in `web/.uploads/` on your computer. The flow is identical once R2 is configured.
+4. **Files:** on your computer, uploads go to the Cloudflare R2 **dev** bucket (`gethomeapps-dev`). On the live site they go to `gethomeapps-prod`. Automated tests keep their files in `web/.uploads/` instead, so they use no R2 requests. See [r2.md](r2.md).
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 2,686 tests. That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md). `tests_py/test_project_work.py` walks this flow end to end:
+- **Python:** `npm run test:py`, 2,723 tests. That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
+  - **The whole flow, in order:** `tests_py/test_full_flow.py` takes one project from creation to Ready for handover in 18 steps, with every role doing their part (see [TEST_CASES.md](TEST_CASES.md)). It runs twice: with files on the laptop, and with files in the real R2 dev bucket.
+  - **R2 requests only when asked for:** a normal run uses no R2. `npm run test:r2` runs just the 39 tests that use the real dev bucket. That's about 85 requests with tiny files, all deleted afterwards, and the bucket is left empty.
+  - `tests_py/test_project_work.py` covers the same flow in smaller pieces:
   - create, approve, Milestone 1 and reopening
   - conditional fields, decline and ask again
   - uploads (and refused uploads)
   - the IC rule, linking a homeowner, the database's rules, and act-as
 - **Front end:** `npm run test:web`.
-- **Design:** `/dev-preview/design-check`, 102 checks across phone, tablet and desktop, in Black and Light.
+- **Design:** `/dev-preview/design-check`, 114 checks across phone, tablet and desktop, in Black and Light.

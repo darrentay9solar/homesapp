@@ -68,6 +68,22 @@ def _fake_clerk_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(auth, "_jwks_client", lambda: _FakeJwks())
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--r2-live", action="store_true", help="also run the tests that send requests to the real R2 dev bucket"
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """R2 requests count against the free allowance, so live R2 tests only run when asked for."""
+    if config.getoption("--r2-live"):
+        return
+    skip = pytest.mark.skip(reason="sends requests to R2; run with --r2-live")
+    for item in items:
+        if item.get_closest_marker("r2_live"):
+            item.add_marker(skip)
+
+
 @pytest.fixture(autouse=True)
 def _laptop_storage(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
     """Uploads go to web/.uploads/ in tests, even when .env.local has R2 settings,

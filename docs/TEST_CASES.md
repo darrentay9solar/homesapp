@@ -1,15 +1,21 @@
-# Upload, R2 storage and GPS test cases
+# Upload, R2 storage, GPS and full-flow test cases
 
-1,081 automated cases: 450 for uploading pictures and documents, and 631 for
-GPS location. Each case is one pytest test, run against the real API and the
-real database rules on the Neon **test** branch. Nothing touches dev or
-production.
+| File | Cases | What |
+|---|---|---|
+| `tests_py/test_upload_cases.py` | 450 | Uploading pictures and documents |
+| `tests_py/test_gps_cases.py` | 631 | GPS location |
+| `tests_py/test_r2_setup.py` | 1,470 | Cloudflare R2, development and production |
+| `tests_py/test_full_flow.py` | 36 | One project from creation to Ready for handover, twice |
+
+Each case is one pytest test, run against the real API and the real database
+rules on the Neon **test** branch. Nothing touches dev or production data.
 
 ```bash
-.venv/Scripts/python.exe -m pytest -q tests_py/test_upload_cases.py tests_py/test_gps_cases.py
+npm run test:py    # everything except the requests to R2 (those are skipped)
+npm run test:r2    # only the 39 tests that use the real R2 dev bucket (~85 requests)
 ```
 
-**Last run: 1,081 passed** (with the rest of the suite: 1,176 passed).
+**Last run: 2,723 passed** (39 of them against the real R2 dev bucket).
 
 ---
 
@@ -51,16 +57,16 @@ The rules: a phone fix accurate to **50 m or better**, within the project's radi
 ## Cloudflare R2 setup: `tests_py/test_r2_setup.py` (1,470)
 
 Checks R2 is set up properly for development and production. Only the
-**Live** group contacts Cloudflare: about 30 requests with tiny files, all
-deleted afterwards. That's nothing against the free 1 million writes and
+**Live** group contacts Cloudflare, and only with `npm run test:r2`: about 30
+requests with tiny files, all deleted afterwards. That's nothing against the free 1 million writes and
 10 million reads a month. Every other case checks the links the app signs
 with an independent signature check, the same way R2 checks them, without
 sending anything. The rest of the suite never touches R2: in tests, uploads
 go to `web/.uploads/`.
 
 ```bash
-.venv/Scripts/python.exe -m pytest -q tests_py/test_r2_setup.py              # all 1,470
-.venv/Scripts/python.exe -m pytest -q tests_py/test_r2_setup.py -m "not r2_live"  # without contacting R2
+.venv/Scripts/python.exe -m pytest -q tests_py/test_r2_setup.py --r2-live   # all 1,470
+.venv/Scripts/python.exe -m pytest -q tests_py/test_r2_setup.py             # 1,449, without contacting R2
 ```
 
 **Last run: 1,470 passed.**
@@ -83,6 +89,42 @@ live site confirms it with one request (see [r2.md](r2.md)).
 
 ---
 
+## The whole flow: `tests_py/test_full_flow.py` (18 steps × 2 = 36)
+
+One project goes from creation to Ready for handover, step by step, in the
+order of [PROCESS_FLOW.md](PROCESS_FLOW.md). Every role plays its part
+through the real API, and each step checks what must be refused as well as
+what must work. It runs twice:
+- **laptop:** files in `web/.uploads/`. Part of every `npm run test:py`.
+- **r2:** files in the real R2 dev bucket, with `npm run test:r2`. It uploads
+  15 files of about 70 bytes, about 55 requests in all, and leaves the bucket
+  empty.
+
+| # | Step | Checked |
+|---|---|---|
+| 1 | PM creates the project from a postal code | Only a PM can. The address and the site's GPS come from the postal code. A start date alone gives an end date 3 weeks later. Status is *Awaiting homeowner*, and the homeowner is asked to approve. |
+| 2 | Before approval | Nobody can fill in a field or get an upload link, not even the PM, so nothing reaches storage. Outsiders don't see the project. |
+| 3 | Homeowner declines, PM asks again | The PM can't approve first. The decline reason reaches the PM. A reminder puts the project back to *Awaiting homeowner*. |
+| 4 | Homeowner, then PM approve | The crew has nothing to approve. After the homeowner's approval it's still locked for the crew until the PM approves. Milestone 1 then opens; Milestone 2 doesn't. |
+| 5 | Dates | Only the PM can change the end date, and the change is in the audit log under the PM's name. |
+| 6 | Site visit scheduled | The contractor admin schedules today's visit and the EPC crew is told. The homeowner can't schedule. |
+| 7 | EPC checks in and out | The admin can't check in. 1 km away is refused with the GPS message. 22 m away with a good fix works, and the visit shows *Attended*. Check-out with 3 crew works. A visit with a check-in can't be cancelled. |
+| 8 | Before Milestone 1 | The homeowner can't upload. An HTML file is refused. The utility bill, GST proof, signed SP forms and MOC change are uploaded. The first upload starts the project (*In progress*). Retailer, IC and SP status are saved. |
+| 9 | Survey, panels, inverter | Every detail is saved. Two panel photos (JPEG and PNG) and an inverter photo are uploaded. The homeowner sees both panel photos. |
+| 10 | A photo removed by mistake | The homeowner can't remove it; the EPC can. The audit log names the EPC. A PM restores it with a reason, and it opens again byte for byte, because the stored copy is never deleted. |
+| 11 | Milestone 1 complete | Not complete until the SP submission screenshot arrives. Then *Milestone 1 complete*, and the homeowner, PM and crew are told. |
+| 12 | Milestone 1 locked | The crew can't change a field or add a photo. The crew can't reopen it; a PM can, and then the crew can edit again. |
+| 13 | Milestone 2 | Milestone 3 uploads are refused until Milestone 2 is done. Commissioning, the breaker answer, the PVL date and the PVL letter complete it. |
+| 14 | Milestone 3 and closing documents | Inspection dates, the appointment letter, the As Built PV Layout, the final submission and handover documents, and FusionSolar access. Not complete until the signed completion form arrives, then *Ready for handover*. |
+| 15 | Ready for handover | All three milestones are recorded and no required field is empty. The homeowner's project list shows 100%. |
+| 16 | Every file | All 15 files are on the project. The homeowner gets identical bytes back. Outsiders get no link to any of them. |
+| 17 | The audit log | The PM, homeowner, admin and EPC each appear. All 15 uploads and the restore are recorded. The crew can't read the log. |
+| 18 | Storage | Storage holds exactly the project's 15 files, nothing extra and nothing missing. Afterwards it's empty. |
+
+**Last run: 36 passed** (18 laptop, 18 R2). The dev bucket was empty afterwards.
+
+---
+
 ## What the testing found
 
 1. **Fixed: anyone could record a GPS check-in for anyone.** The location rules were enforced, but nothing checked *who* checked in: any signed-in account could record one for any person on any project, at any stage. The check-in screen doesn't exist yet, so this couldn't have been misused. It's now a database rule (migration 0020):
@@ -96,7 +138,8 @@ live site confirms it with one request (see [r2.md](r2.md)).
    - one expected "not allowed" where the app deliberately answers "not found", so outsiders aren't told a file exists
    - one built a malformed timestamp
    - one read the error from the wrong field
-4. **Fixed: with R2 set up on the laptop, the existing upload tests would have broken.** They expected the local storage. Tests now use the local storage unless they're marked as R2 tests, so the suite never spends R2 requests.
+4. **The whole flow: nothing wrong in the app.** Two of my own expectations were wrong. The crew pressing Approve gets "nothing for you to approve" (and nothing changes), not "not allowed". And a test helper couldn't name a file of a disallowed type.
+5. **Fixed: with R2 set up on the laptop, the existing upload tests would have broken.** They expected the local storage. Tests now use the local storage unless they're marked as R2 tests, so the suite never spends R2 requests. Tests that need the real bucket only run with `npm run test:r2`.
 
 ## What these don't cover yet
 
