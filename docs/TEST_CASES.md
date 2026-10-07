@@ -78,8 +78,8 @@ go to `web/.uploads/`.
 | **Live** | 21 | **Dev bucket:** the PM storage check passes. Upload, size and type as stored, a byte-identical download that keeps a Chinese and emoji file name, and deletion. Refused: no link, a bigger file, another type, a tampered link, another key, an expired link, and the dev key on the prod bucket. A full upload through the app is opened by the homeowner, and a file that never arrived is refused. **CORS on both buckets:** the dev bucket allows the laptop and the live site; the prod bucket allows only the live site. Lookalike sites are refused. |
 
 Production's own key can't be tested from the laptop, because it lives only in
-Vercel. Once it's there, `/api/py/storage/check` on the live site confirms it
-with one request (see [r2.md](r2.md)).
+Vercel. Once it's there, **Account → File storage → Check file storage** on the
+live site confirms it with one request (see [r2.md](r2.md)).
 
 ---
 
