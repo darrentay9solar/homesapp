@@ -7,9 +7,9 @@ your accounts or keys), and what's still to build from the original brief.
 
 Step by step, with where to click: **[YOUR_STEPS.md](YOUR_STEPS.md)**. In short:
 
-1. Fix the dev database login (Neon), so the demo site has its data.
-2. Let the demo site upload photos (the dev bucket's CORS, Cloudflare).
-3. Make yourself the superadmin (one line in Neon's SQL editor).
+1. ~~Fix the dev database login~~ done (new dev branch).
+2. ~~Let the demo site upload photos~~ done.
+3. ~~Make yourself the superadmin~~ done.
 4. ~~Phone notification keys for the live site~~ done.
 5. ~~The 15-minute reminder job~~ done.
 6. Email (Resend), 7. WhatsApp (Meta), 8. SMS (Twilio).

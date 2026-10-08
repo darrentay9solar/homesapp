@@ -15,7 +15,10 @@ Both run the same code: every update goes to both at once.
 
 ---
 
-## 1. Fix the dev database login (needed for the demo)
+## 1. Fix the dev database login (needed for the demo) — ✅ done 8 Oct 2026
+
+A new dev branch (endpoint `ep-dry-cloud`) replaced the deleted one; the demo
+site runs on it with the sample data. Kept for reference.
 
 The dev database is refusing the passwords in `web/.env.local` (both the
 owner login and the app login). The test and production databases are fine.
@@ -43,7 +46,7 @@ Then I'll do the rest for the demo:
 - give the demo site its database address;
 - check every role works on <https://gethomeapps-demo.vercel.app>.
 
-## 2. Let the demo site upload photos (Cloudflare R2)
+## 2. Let the demo site upload photos (Cloudflare R2) — ✅ done 8 Oct 2026
 
 The dev bucket only accepts uploads from your laptop. Add the demo site:
 
@@ -63,7 +66,10 @@ The dev bucket only accepts uploads from your laptop. Add the demo site:
    ]
    ```
 
-## 3. Make yourself the superadmin (live site)
+## 3. Make yourself the superadmin (live site) — ✅ done 8 Oct 2026
+
+The live site's one account is now a superadmin. The SQL below stays for
+adding or changing superadmins later.
 
 A superadmin can't be created in the app, on purpose: their details go
 straight into the database. The superadmin sees and edits every project,
