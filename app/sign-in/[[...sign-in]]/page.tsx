@@ -8,6 +8,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { AuthAlt, AuthButton, AuthError, AuthField, AuthHeading, AuthLink, AuthShell, AuthSubtitle, Mark, OtpInput, PasswordField, ResendCode, clerkMessage, safeRedirect } from "@/components/auth";
+import { DemoPicker } from "@/components/demo-picker";
+import { DEMO_SITE } from "@/lib/client/demo";
 import { T } from "@/lib/client/i18n";
 
 /**
@@ -92,6 +94,7 @@ function SignInFlow() {
   return (
     <AuthShell title="Sign In">
       <Mark />
+      {DEMO_SITE && <DemoPicker />}
       <AuthHeading>{T("Welcome back")}</AuthHeading>
       <AuthSubtitle>{T("Rooftop solar, tracked to the day.")}</AuthSubtitle>
       <form onSubmit={submitPassword} noValidate>

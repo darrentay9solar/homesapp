@@ -5,21 +5,18 @@ your accounts or keys), and what's still to build from the original brief.
 
 ## 1. Settings for you to do
 
-Live site: <https://homesapp-alpha.vercel.app>. Vercel settings go under
-**Project → Settings → Environment Variables → Production**, then
-**Redeploy**.
+Step by step, with where to click: **[YOUR_STEPS.md](YOUR_STEPS.md)**. In short:
 
-| # | What | Where | Why it matters |
-|---|---|---|---|
-| 1 | **Fix the dev database login.** Both dev passwords are being refused (`DATABASE_URL`, `MIGRATION_DATABASE_URL`). Copy fresh connection strings from Neon → the dev branch → Connect, into `web/.env.local`. | Neon, `.env.local` | The app on your laptop can't reach its database. Migration 0026 also still needs to go on dev. |
-| 2 | **Phone notifications on the live site:** `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Make a fresh pair with `npm run vapid-keys`. | Vercel | Without them, nobody gets phone notifications from the live site (alerts still show in the app). See [alerts.md](alerts.md). |
-| 3 | **The 15-minute job:** `CRON_SECRET` in Vercel, plus `APP_URL` and `CRON_SECRET` as GitHub repository secrets. | Vercel and GitHub → Settings → Secrets → Actions | No "running late" or "visit in 1 hour" alerts, and expired accounts only switch off when someone signs in or People is opened. |
-| 4 | **Email:** `RESEND_API_KEY` and `EMAIL_FROM`, with your sending domain verified in Resend. | Resend, Vercel, `.env.local` | Invitations, approvals and decisions aren't emailed. |
-| 5 | **WhatsApp:** `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, and the message templates approved by Meta. | Meta Business, Vercel | No WhatsApp codes or messages. See [whatsapp.md](whatsapp.md). |
-| 6 | **SMS fallback:** `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `SMS_FROM`. | Twilio, Vercel | No SMS when WhatsApp can't deliver. |
-| 7 | **Production file-storage keys for the reset:** `PROD_R2_ACCESS_KEY_ID`, `PROD_R2_SECRET_ACCESS_KEY` in `.env.local`. | `.env.local` only | Needed for the production wipe and demo seed you chose, and to move older production files into the images/documents layout. |
-| 8 | **Clerk for production:** switch the Clerk instance from Development to Production keys (and add your domain) before real customers sign up. | Clerk dashboard, Vercel | Development keys show a "development" badge and have usage limits. |
-| 9 | **A custom domain** (optional), e.g. app.9solarhome.com. | Vercel → Domains | Then set `APP_URL` and `VAPID_SUBJECT` to it. |
+1. Fix the dev database login (Neon), so the demo site has its data.
+2. Let the demo site upload photos (the dev bucket's CORS, Cloudflare).
+3. Phone notification keys for the live site (or ask me to set them).
+4. The 15-minute reminder job (or ask me to set it up).
+5. Email (Resend), 6. WhatsApp (Meta), 7. SMS (Twilio).
+8. Clerk production keys before real customers, 9. your own domain.
+
+Production no longer needs a wipe or its R2 keys in `.env.local`. It
+already holds only your login, and sample data now lives on the demo site
+(<https://gethomeapps-demo.vercel.app>) alone.
 
 ## 2. Still to build, from the original brief
 

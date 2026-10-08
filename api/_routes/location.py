@@ -18,7 +18,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from _lib import notify
+from _lib import demo, notify
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.web import active, role
@@ -41,6 +41,8 @@ class LocationIn(BaseModel):
 
 @router.put("/me/location")
 def share(body: LocationIn, acct: Account = Depends(active)) -> dict[str, Any]:
+    if acct.demo:
+        raise HTTPException(403, demo.OFF["location"])
     if acct.acting_pm:
         raise HTTPException(403, "Not while testing as someone else: this phone is yours, not theirs.")
     if not (acct.user or {}).get("share_location"):

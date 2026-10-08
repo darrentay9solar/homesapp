@@ -1,8 +1,13 @@
 """Wipes a database back to empty and fills it with demo people and a project at every stage.
 
-    node scripts/py.mjs scripts/reset_and_seed.py --target dev
+    node scripts/py.mjs scripts/reset_and_seed.py --target dev          (the demo site's data)
     node scripts/py.mjs scripts/reset_and_seed.py --target test --no-seed
-    node scripts/py.mjs scripts/reset_and_seed.py --target prod --confirm-wipe-production
+    node scripts/py.mjs scripts/reset_and_seed.py --target prod --no-seed --confirm-wipe-production
+
+Sample people and projects only ever go on dev, the demo site's database:
+they're marked as sample people (users.is_demo) and the database is marked
+as the demo one, so visitors to the demo site can try the app as them.
+Production can only be emptied, never seeded.
 
 What it does, in one go:
   1. Deletes every project (with its files, visits, check-ins, milestones),
@@ -38,6 +43,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "api"))
 
 import httpx
 import psycopg
+from psycopg import sql as psql
 from psycopg.rows import dict_row
 
 from _lib import storage
@@ -265,7 +271,8 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     u: dict[str, int] = {}
     for key, name, role, mobile, groups in PEOPLE:
         u[key] = one(
-            "insert into users (full_name, user_type, email, contact_no, mobile_verified_at) values (%s, %s, %s, %s, now()) returning uid",
+            # is_demo: a sample person visitors can try the demo site as (only the owner can set it).
+            "insert into users (full_name, user_type, email, contact_no, mobile_verified_at, is_demo) values (%s, %s, %s, %s, now(), true) returning uid",
             name,
             role,
             f"{key}.demo@example.com",
@@ -275,7 +282,9 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             c.execute("insert into contractor_group_members (group_id, user_id) values (%s, %s)", (gid[g], u[key]))
     for h in ("jasmine", "daniel", "farah", "aisha", "kumar", "grace", "benjamin"):
         c.execute("update users set ic_last4 = %s where uid = %s", (f"{100 + u[h] % 900:03d}D", u[h]))
-    pm = keep[0]["uid"] if keep else u["charlotte"]
+    # On dev (the demo site) the sample PM runs the projects, so a visitor trying
+    # the app as Charlotte sees their alerts and approvals.
+    pm = u["charlotte"] if target == "dev" or not keep else keep[0]["uid"]
     sp = one("select retailer_id from electricity_retailers where name = 'SP Group'")["retailer_id"]
     alerts: list[tuple] = []
 
@@ -656,6 +665,34 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             (uid, pid, kind, title, body, link, mins, read),
         )
     c.execute("select set_config('app.actor_uid', '', false)")
+    share_sample_locations(c, u)
+
+
+def share_sample_locations(c: psycopg.Connection, u: dict[str, int]) -> None:
+    """People → Map on the demo: a few crew sharing their location, one of them on site, one out of date."""
+    sites = c.execute(
+        "select site_lat, site_lng from projects where site_lat is not null order by project_id"
+    ).fetchall()
+    if not sites:
+        return
+    where = [
+        ("ravi", sites[0]["site_lat"] + 0.0003, sites[0]["site_lng"] - 0.0002, 9, 3),
+        ("hafiz", sites[-1]["site_lat"] - 0.004, sites[-1]["site_lng"] + 0.006, 22, 12),
+        ("priya", 1.3329, 103.7436, 30, 95),
+    ]
+    for key, lat, lng, acc, mins in where:
+        c.execute("update users set share_location = true, share_location_changed_at = now() where uid = %s", (u[key],))
+        c.execute(
+            "insert into user_locations (uid, lat, lng, accuracy_m, recorded_at) "
+            "values (%s, %s, %s, %s, now() - make_interval(mins => %s))",
+            (u[key], lat, lng, acc, mins),
+        )
+
+
+def mark_demo_database(c: psycopg.Connection) -> None:
+    """The database's own "this is the demo" marker (api/_lib/demo.py). Never on production."""
+    db = c.execute("select current_database() as d").fetchone()["d"]
+    c.execute(psql.SQL("alter database {} set app.environment = 'demo'").format(psql.Identifier(db)))
 
 
 # ---------------------------------------------------------------------- main
@@ -676,6 +713,8 @@ def main() -> None:
     is_prod = bool(prod_url) and host(url) == host(prod_url)
     if a.target != "prod" and is_prod:
         sys.exit(f"Refusing: {URLS[a.target]} points at production.")
+    if a.target == "prod" and not a.no_seed:
+        sys.exit("Production never gets sample people or projects. To empty it, add --no-seed.")
     if a.target == "prod" and not a.confirm_wipe_production:
         sys.exit(
             "Production: add --confirm-wipe-production. Everything except real PM logins is deleted, including the audit log."
@@ -696,12 +735,15 @@ def main() -> None:
             for key in gone:
                 bucket.delete(key)
             print(f"  {bucket.cfg.bucket}: removed {len(gone)} stored files")
-        elif a.target == "dev":
+        else:  # laptop storage (dev without R2, and test)
             import shutil
 
             shutil.rmtree(storage.LOCAL_DIR / "projects", ignore_errors=True)
         if not a.no_seed:
             seed(c, keep, bucket, a.target)
+            if a.target == "dev":
+                mark_demo_database(c)
+                print("  marked as the demo database (app.environment = demo)")
             n = c.execute(
                 "select (select count(*) from projects) p, (select count(*) from users) u, (select count(*) from project_files) f"
             ).fetchone()

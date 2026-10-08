@@ -3,6 +3,7 @@
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { demoAs } from "./demo";
 import { currentLang, translate } from "./i18n";
 
 /**
@@ -43,9 +44,14 @@ export function useFetcher(): Fetcher {
   const { getToken } = useAuth();
   return useCallback(
     async <T,>(path: string, init: RequestInit & { json?: unknown } = {}) => {
-      const token = await getToken();
       const headers = new Headers(init.headers);
-      if (token) headers.set("Authorization", `Bearer ${token}`);
+      // On the demo site, the sample person picked on the sign-in page; otherwise the Clerk session.
+      const demo = demoAs();
+      if (demo) headers.set("X-Demo-As", demo);
+      else {
+        const token = await getToken();
+        if (token) headers.set("Authorization", `Bearer ${token}`);
+      }
       const as = actingAs();
       if (as) headers.set("X-Act-As", as);
       let body = init.body;

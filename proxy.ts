@@ -30,6 +30,11 @@ const isPublic = createRouteMatcher([
 export default clerkMiddleware(async (auth, request) => {
   if (isPublic(request)) return;
 
+  // The demonstration site only (NEXT_PUBLIC_DEMO_MODE=1 on that Vercel project):
+  // a visitor who picked a sample person on the sign-in page. Pages hold no
+  // data themselves; the API decides what that sample person may see.
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "1" && /^\d+$/.test(request.cookies.get("gha-demo")?.value ?? "")) return;
+
   // `auth.protect()` answers 404 for an unauthenticated visitor rather than
   // revealing that the route exists. That is a reasonable default for an API,
   // but for a page it looks like the site is broken — the root returned 404 in

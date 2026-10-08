@@ -47,13 +47,10 @@ export default function ProjectsPage() {
   const shown = filterProjects(all, { query: q, tab });
   const count = (t: Tab) => filterProjects(all, { tab: t }).length;
   const red = all.filter((p) => p.attention).length;
-  const title = homeowner ? "My Projects" : me.role === "project_manager" ? "All Projects" : "Assigned Projects";
-
   return (
     <>
       <TopBar
-        title={title}
-        sub={`${me.roleLabel} · ${me.fullName ?? me.email}`}
+        title={T("Projects")}
         action={
           data?.canCreate && (
             <Button

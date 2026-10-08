@@ -45,6 +45,8 @@ export type Me = {
   disabled?: { reason: "manual" | "scheduled"; expiredOn: string | null; enableOn: string | null };
   /** Development only: a project manager testing as this account. */
   actingAs?: { byName: string | null; byUid: number };
+  /** The demonstration site: a visitor trying the app as this sample person. */
+  demo?: boolean;
 };
 
 type Ctx = {

@@ -45,6 +45,9 @@ export const roleColor = (role: Role) => (t: Theme) => (t.palette.mode === "dark
  * The compact green header: title with an action and alerts, then search,
  * then the pill tabs. Scrolls away with the page so it never takes over a phone.
  */
+/** Read out by screen readers, not shown. */
+const visuallyHidden = { position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0, margin: "-1px", padding: 0 } as const;
+
 export function TopBar({
   title,
   sub,
@@ -52,6 +55,7 @@ export function TopBar({
   action,
   search,
   tabs,
+  hideTitle = false,
 }: {
   title: string;
   /** A second line under the title, e.g. a project's address. */
@@ -60,6 +64,8 @@ export function TopBar({
   action?: ReactNode;
   search?: ReactNode;
   tabs?: ReactNode;
+  /** Keep the title for screen readers only (Account: the tabs say it all). */
+  hideTitle?: boolean;
 }) {
   const { me } = useApp();
   const { t, tr } = useLang();
@@ -85,7 +91,12 @@ export function TopBar({
             </IconButton>
           )}
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography component="h1" noWrap sx={{ fontWeight: 600, fontSize: { xs: DESIGN.type.pageTitle.phone, lg: DESIGN.type.pageTitle.desktop } }}>
+            <Typography
+              component="h1"
+              noWrap
+              data-title-hidden={hideTitle || undefined}
+              sx={hideTitle ? visuallyHidden : { fontWeight: 600, fontSize: { xs: DESIGN.type.pageTitle.phone, lg: DESIGN.type.pageTitle.desktop } }}
+            >
               {tr(title)}
             </Typography>
             {sub && (

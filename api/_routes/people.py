@@ -218,10 +218,12 @@ def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, 
     # nothing to invite — the account links itself on their next sign-in.
     link = f"{notify.app_url()}/sign-in"
     try:
-        inv = clerk.create_invitation(email, f"{notify.app_url()}/sign-up")
+        # The demo never sends a real sign-up invitation.
+        inv = {} if acct.demo else clerk.create_invitation(email, f"{notify.app_url()}/sign-up")
         link = inv.get("url") or link
-        with transaction(acct.uid) as cur:
-            cur.execute("update users set clerk_invitation_id = %s where uid = %s", (inv.get("id"), uid))
+        if inv:
+            with transaction(acct.uid) as cur:
+                cur.execute("update users set clerk_invitation_id = %s where uid = %s", (inv.get("id"), uid))
     except clerk.ClerkApiError as exc:
         print(f"[people] invitation not created for uid {uid}: {exc}")
 

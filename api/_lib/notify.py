@@ -18,8 +18,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from _lib import demo, push
 from _lib import prefs as prefs_mod
-from _lib import push
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.i18n import tr
@@ -282,6 +282,9 @@ def notify(
     applies that to RETURNING too — a PM notifying someone else would be
     refused their own insert.
     """
+    if demo.enabled():
+        # Nothing leaves the demo: no emails, WhatsApps or texts, even to an address a visitor typed.
+        email = mobile = None
     row = fetch_one("select nextval(pg_get_serial_sequence('notifications','notification_id')) as id")
     assert row is not None
     nid = int(row["id"])

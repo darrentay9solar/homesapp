@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from _lib import demo
 from _lib.account import Account, resolve
 from _lib.auth import AuthError, ClerkIdentity, env, verify_token
 from _lib.db import fetch_one
@@ -41,7 +42,32 @@ def act_as_allowed() -> bool:
     return host(db) != host(prod)
 
 
-def account(request: Request, ident: ClerkIdentity = Depends(identity)) -> Account:
+def demo_account(target: str) -> Account:
+    """A visitor on the demo site, as the sample person they picked."""
+    if not demo.enabled():
+        raise HTTPException(401, "The demo isn't available here. Please sign in.")
+    user = (
+        fetch_one("select * from users where uid = %s and is_demo and active", (int(target),))
+        if target.isdigit()
+        else None
+    )
+    if not user:
+        raise HTTPException(401, "That sample person isn't available any more. Pick another on the sign-in page.")
+    return Account("active", ClerkIdentity(f"demo:{user['uid']}", None), user=user, demo=True)
+
+
+def account(request: Request) -> Account:
+    # On the demo site, the sample person a visitor picked wins over any sign-in
+    # they also have there. Anywhere else the header means nothing to a signed-in
+    # person, and gets a plain "sign in" to anyone else.
+    target = request.headers.get("x-demo-as", "").strip()
+    if target:
+        has_session = request.headers.get("authorization", "").lower().startswith("bearer ") or request.cookies.get(
+            "__session"
+        )
+        if demo.enabled() or not has_session:
+            return demo_account(target)
+    ident = identity(request)
     acct = resolve(ident)
     target = request.headers.get("x-act-as", "").strip()
     if target.isdigit() and acct.state == "active" and acct.role == "project_manager" and act_as_allowed():

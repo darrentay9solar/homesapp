@@ -25,7 +25,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from _lib import clerk, notify
+from _lib import clerk, demo, notify
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.profile import clean_phone
@@ -39,6 +39,8 @@ ROLES = tuple(ROLE_LABEL)
 
 def _yourself(acct: Account) -> None:
     """Sign-in email and password belong to the Clerk login, which while acting is the PM's own."""
+    if acct.demo:
+        raise HTTPException(403, demo.OFF["sign_in"])
     if acct.acting_pm:
         raise HTTPException(403, "Not while testing as someone else: this changes the sign-in itself.")
 

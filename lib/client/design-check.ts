@@ -63,6 +63,9 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
       const h1 = header.querySelector("h1");
       const size = desktop ? DESIGN.type.pageTitle.desktop : DESIGN.type.pageTitle.phone;
       if (!h1) fail("Page title", "no title in the header");
+      else if ((h1 as HTMLElement).dataset.titleHidden) {
+        // A screen whose tabs name it (Account) keeps its title for screen readers only.
+      }
       else if (!near(px(cs(h1).fontSize), size) || cs(h1).fontWeight !== "600") fail("Page title", `${px(cs(h1).fontSize)}px/${cs(h1).fontWeight}, should be ${size}px/600`);
     }
 

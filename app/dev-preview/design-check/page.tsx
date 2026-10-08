@@ -35,6 +35,7 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Create Account", path: "/sign-up", kind: "auth" },
   { name: "Forgot Password", path: "/forgot-password", kind: "auth" },
   { name: "Request Access", path: "/dev-preview/onboarding", kind: "auth" },
+  { name: "Demo sign-in", path: "/dev-preview/demo", kind: "auth" },
   { name: "Projects", path: "/dev-preview/projects", kind: "app" },
   { name: "Project page · fields", path: "/dev-preview/projects/101", kind: "app" },
   { name: "Project page · approval", path: "/dev-preview/projects/103", kind: "app" },

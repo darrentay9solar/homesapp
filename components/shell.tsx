@@ -32,6 +32,7 @@ import { RoleAvatar } from "./m";
 
 import { T, TR } from "@/lib/client/i18n";
 import { LocationSharer } from "./location-sharer";
+import { leaveDemo } from "@/lib/client/demo";
 /** phone: false keeps a tab off the phone's bottom bar (at most five fit); it stays in the desktop drawer. */
 type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
 
@@ -165,6 +166,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         {state?.actingAs && <ActingBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} by={state.actingAs.byName} />}
+        {state?.demo && <DemoBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} />}
         <LocationSharer />
         {children}
       </Box>
@@ -195,6 +197,32 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </BottomNavigation>
       </Paper>
+    </Box>
+  );
+}
+
+/** The demonstration site: whose screens these are, and a way to be someone else. */
+function DemoBanner({ name, role }: { name: string; role: string }) {
+  return (
+    <Box
+      role="status"
+      data-testid="demo-banner"
+      sx={{ position: "sticky", top: 0, zIndex: (t) => t.zIndex.appBar + 1, px: 2, py: 0.75, display: "flex", alignItems: "center", gap: 1.5, bgcolor: "info.main", color: "#fff" }}
+    >
+      <Typography sx={{ flex: 1, fontSize: 13, fontWeight: 600 }} noWrap>
+        {T("Demo · you're {name} ({role}) · sample data", { name, role })}
+      </Typography>
+      <Box
+        component="button"
+        onClick={() => {
+          leaveDemo();
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+          window.location.href = "/sign-in";
+        }}
+        sx={{ border: 0, borderRadius: `${DESIGN.radius.chip}px`, px: 1.25, py: 0.5, fontFamily: "inherit", fontWeight: 700, fontSize: 12.5, cursor: "pointer", bgcolor: "rgba(0,0,0,0.2)", color: "inherit", whiteSpace: "nowrap" }}
+      >
+        {T("Switch person")}
+      </Box>
     </Box>
   );
 }

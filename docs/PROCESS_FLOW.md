@@ -343,14 +343,41 @@ Profile pictures are under `profiles/{person}/images/`.
 
 ---
 
+## The demo site
+
+<https://gethomeapps-demo.vercel.app> runs the same code as the live site,
+on the dev database, filled with sample people and a project at every stage.
+Anyone with the link can try it: the sign-in page lists the sample people
+(a project manager, a contractor admin, EPC crew and homeowners), and tapping
+one opens the app as them, with no password. A blue bar shows whose screens
+these are, with **Switch person**.
+
+Everything works as on the live site, with these differences:
+
+- Visitors share the same sample people, so the demo turns off whatever
+  would reach someone else: changing a sign-in email or password, phone
+  notifications, and sharing your own location. People → Map shows sample
+  locations instead.
+- Nothing leaves the demo: no emails, WhatsApps, texts or sign-up
+  invitations, even to an address a visitor types in.
+- Visitors aren't at the houses, so Check In has **Demo: pretend I'm at the
+  house**.
+- Reset it whenever it gets messy: `node scripts/py.mjs
+  scripts/reset_and_seed.py --target dev`.
+
+The live site can't become a demo. The demo needs both its own switch
+(`DEMO_MODE`, set only on the demo's Vercel project) and a marker only the
+dev database has. Sample people can only be made by that script.
+
+- **TC-43:** Open the demo link, tap **Ravi Kumar**. Sites shows his sites; check in at Jalan Kayu with "pretend I'm at the house". **Switch person** → **Charlotte Sim**: Jalan Kayu's site visits show Ravi's check-in.
+
 ## 4. How to run the test cases
 
-1. **Sample data**, on the development database only (both scripts refuse production):
+1. **Sample data**, on the development database only (it refuses production). This is also the demo site's data:
    ```bash
-   .venv/Scripts/python.exe scripts/seed_demo.py
-   .venv/Scripts/python.exe scripts/seed_flow.py
+   node scripts/py.mjs scripts/reset_and_seed.py --target dev
    ```
-   This creates six projects, one at each stage:
+   This empties dev and creates the sample people and a project at each stage, including:
 
    | Project | Stage | Homeowner | Crew |
    |---|---|---|---|
@@ -371,7 +398,7 @@ Profile pictures are under `profiles/{person}/images/`.
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 2,889 tests (including settings, pictures, account expiry, translation and location sharing). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
+- **Python:** `npm run test:py`, 2,915 tests (including settings, pictures, account expiry, translation, location sharing and the demo site). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
   - **The whole flow, in order:** `tests_py/test_full_flow.py` takes one project from creation to Ready for handover in 18 steps, with every role doing their part (see [TEST_CASES.md](TEST_CASES.md)). It runs twice: with files on the laptop, and with files in the real R2 dev bucket.
   - **R2 requests only when asked for:** a normal run uses no R2. `npm run test:r2` runs just the 39 tests that use the real dev bucket. That's about 85 requests with tiny files, all deleted afterwards, and the bucket is left empty.
   - `tests_py/test_project_work.py` covers the same flow in smaller pieces:
@@ -380,4 +407,4 @@ Profile pictures are under `profiles/{person}/images/`.
   - uploads (and refused uploads)
   - the IC rule, linking a homeowner, the database's rules, and act-as
 - **Front end:** `npm run test:web`, including `tests/i18n.test.ts`: the dictionary is complete for every `T("…")` key, patterns translate server messages, notification settings, and Chinese search words.
-- **Design:** `/dev-preview/design-check`, 456 checks: 38 screens, tabs and dialogs across phone, tablet and desktop, in Black and Light, in English and Chinese. Every date and time field on them is tapped to make sure its picker opens, and no screen may stack two section titles (categories are tabs).
+- **Design:** `/dev-preview/design-check`, 468 checks: 39 screens, tabs and dialogs across phone, tablet and desktop, in Black and Light, in English and Chinese. Every date and time field on them is tapped to make sure its picker opens, and no screen may stack two section titles (categories are tabs).

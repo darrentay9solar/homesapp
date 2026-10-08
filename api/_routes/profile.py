@@ -23,7 +23,7 @@ from fastapi.responses import RedirectResponse, Response
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from _lib import prefs, storage
+from _lib import demo, prefs, storage
 from _lib.account import Account
 from _lib.db import fetch_one, transaction
 from _lib.i18n import LANGS
@@ -54,6 +54,8 @@ def save_settings(body: SettingsIn, acct: Account = Depends(active)) -> dict[str
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
     if body.shareLocation is not None:
+        if acct.demo:
+            raise HTTPException(403, demo.OFF["location"])
         if acct.acting_pm:
             raise HTTPException(403, "Not while testing as someone else: this phone is yours, not theirs.")
         sets["share_location"] = body.shareLocation

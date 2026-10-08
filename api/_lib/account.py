@@ -36,6 +36,8 @@ class Account:
     clerk_user: clerk.ClerkUser | None = field(default=None, repr=False)
     # Development only: the project manager who is acting as this account.
     acting_pm: dict[str, Any] | None = None
+    # The demonstration site: a visitor trying the app as this sample person (_lib/demo.py).
+    demo: bool = False
 
     @property
     def uid(self) -> int:

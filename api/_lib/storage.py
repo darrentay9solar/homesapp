@@ -272,7 +272,10 @@ def check() -> dict[str, object]:
     One read of a key that never exists: R2 answers "no such key" only if the
     access key is accepted and the bucket is there. Nothing is written.
     """
+    # The demo site is its own Vercel project ("production" to Vercel) but uses the dev bucket.
     environment = os.environ.get("VERCEL_ENV") or ("vercel" if os.environ.get("VERCEL") else "laptop")
+    if os.environ.get("DEMO_MODE", "").strip() == "1":
+        environment = "demo"
     m = mode()
     out: dict[str, object] = {"mode": m, "environment": environment, "bucket": None, "ok": False, "problem": None}
     if m != "r2":

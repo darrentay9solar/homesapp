@@ -45,7 +45,7 @@ type CheckTarget = { projectId: number; name: string; address: string; open: Che
  */
 export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarget; onClose: () => void; onDone: () => Promise<void> }) {
   const fetcher = useFetcher();
-  const { toast } = useApp();
+  const { toast, me } = useApp();
   const leaving = Boolean(t.open);
   const [crew, setCrew] = useState(String(t.open?.crewIn ?? ""));
   const [phase, setPhase] = useState<"idle" | "locating" | "sending">("idle");
@@ -53,7 +53,8 @@ export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarge
   const [problem, setProblem] = useState<string | null>(null);
   const n = Number(crew);
   const crewOk = crew !== "" && Number.isInteger(n) && (leaving ? n >= 0 : n >= 1) && n <= 200;
-  const simulated = DEV && t.site?.lat != null && t.site?.lng != null;
+  // A laptop, or a visitor on the demo site (who isn't at the house): stand in for the phone's GPS.
+  const simulated = (DEV || Boolean(me?.demo)) && t.site?.lat != null && t.site?.lng != null;
 
   async function go(useSite = false) {
     setProblem(null);
@@ -131,7 +132,7 @@ export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarge
       </Button>
       {simulated && (
         <Button fullWidth size="small" color="warning" disabled={!crewOk || busy} sx={{ mt: 1 }} onClick={() => void go(true)}>
-          {T("Use the site's location (development only)")}
+          {me?.demo ? T("Demo: pretend I'm at the house") : T("Use the site's location (development only)")}
         </Button>
       )}
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>

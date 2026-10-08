@@ -40,6 +40,7 @@ import { ago } from "@/components/ui";
 import { ACCESS } from "@/lib/client/access";
 import { ACT_AS_KEY, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
+import { leaveDemo } from "@/lib/client/demo";
 import { type Lang, locale, T, TR, useLang } from "@/lib/client/i18n";
 import { DEFAULT_PREFS, summary } from "@/lib/client/prefs";
 import { getFix } from "@/lib/client/sites";
@@ -64,6 +65,8 @@ export default function AccountPage() {
   const me = useMe();
   const [tab, setTab] = useTab<Tab>(["profile", "security", "settings", "access"], "profile");
   const [edit, setEdit] = useState<Edit>(null);
+  const { me: state } = useApp();
+  const demo = Boolean(state?.demo);
   if (!me) return null;
   const change = (what: Edit, label = "Change") => (
     <Button size="small" variant="outlined" onClick={() => setEdit(what)} data-testid={`edit-${what}`}>
@@ -72,7 +75,7 @@ export default function AccountPage() {
   );
   return (
     <>
-      <TopBar title={T("Account")} sub={TR(me.roleLabel)} tabs={<SegTabs label={T("Account")} value={tab} onChange={setTab} options={TABS.map(([value, label]) => ({ value, label }))} />} />
+      <TopBar title={T("Account")} hideTitle tabs={<SegTabs label={T("Account")} value={tab} onChange={setTab} options={TABS.map(([value, label]) => ({ value, label }))} />} />
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page narrow>
           <Stack sx={{ gap: 1.25, mt: 1 }} data-testid={`account-${tab}`}>
@@ -82,11 +85,29 @@ export default function AccountPage() {
             {tab === "access" && <AccessTab change={change} />}
           </Stack>
 
-          <SignOutButton redirectUrl="/sign-in">
-            <Button fullWidth size="large" variant="outlined" color="inherit" startIcon={<LogoutRoundedIcon />} sx={{ mt: 3 }}>
-              {T("Sign out")}
+          {demo ? (
+            <Button
+              fullWidth
+              size="large"
+              variant="outlined"
+              color="inherit"
+              startIcon={<LogoutRoundedIcon />}
+              sx={{ mt: 3 }}
+              onClick={() => {
+                leaveDemo();
+                // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+                window.location.href = "/sign-in";
+              }}
+            >
+              {T("Leave the demo")}
             </Button>
-          </SignOutButton>
+          ) : (
+            <SignOutButton redirectUrl="/sign-in">
+              <Button fullWidth size="large" variant="outlined" color="inherit" startIcon={<LogoutRoundedIcon />} sx={{ mt: 3 }}>
+                {T("Sign out")}
+              </Button>
+            </SignOutButton>
+          )}
           <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "text.secondary", mt: 2 }}>
             {T("GetHomeApps · 9 Solar Home · 九太阳家")}
           </Typography>
@@ -120,7 +141,7 @@ function ProfileTab({ change }: { change: Change }) {
         </Box>
       </Card>
       <SettingRow icon={<PersonOutlineRoundedIcon />} tint="#0E7490" label={T("Name")} sub={me.fullName ?? T("Not set")} right={change("name")} />
-      <SettingRow icon={<MailOutlineRoundedIcon />} tint="#2563EB" label={T("Email")} sub={<Box sx={{ overflowWrap: "anywhere" }}>{T("{email} · used to sign in", { email: me.email })}</Box>} right={change("email")} />
+      <SettingRow icon={<MailOutlineRoundedIcon />} tint="#2563EB" label={T("Email")} sub={<Box sx={{ overflowWrap: "anywhere" }}>{T("{email} · used to sign in", { email: me.email })}</Box>} right={state?.demo ? undefined : change("email")} />
       <SettingRow
         icon={<PhoneRoundedIcon />}
         tint="#0A9A63"
@@ -153,6 +174,7 @@ function ProfileTab({ change }: { change: Change }) {
 function SecurityTab({ change }: { change: Change }) {
   const { me: state } = useApp();
   const s = state?.settings;
+  if (state?.demo) return <SettingRow icon={<PasswordIcon />} tint="#BE185D" label={T("Password")} sub={T("Not in the demo: there are no passwords here.")} />;
   return (
     <SettingRow
       icon={<PasswordIcon />}
@@ -208,6 +230,9 @@ function ShareLocation() {
   const fetcher = useFetcher();
   const [busy, setBusy] = useState(false);
   const on = Boolean(state?.settings?.shareLocation);
+  if (state?.demo) {
+    return <SettingRow icon={<MyLocationRoundedIcon />} tint="#2563EB" label={T("Share my location")} sub={T("Off in the demo: everyone here shares the same sample people. People → Map shows sample locations.")} />;
+  }
   const sent = lastShared();
   const set = async (next: boolean) => {
     setBusy(true);

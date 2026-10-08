@@ -263,6 +263,13 @@ export const users = pgTable(
     shareLocation: boolean("share_location").notNull().default(false),
     shareLocationChangedAt: timestamp("share_location_changed_at", { withTimezone: true }),
 
+    /**
+     * A sample person on the demo site (migration 0027): visitors can try the
+     * app as them without a password. Only the database owner sets it, so
+     * only the dev database's seed script; production never has any.
+     */
+    isDemo: boolean("is_demo").notNull().default(false),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

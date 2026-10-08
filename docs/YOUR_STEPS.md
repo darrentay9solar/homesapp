@@ -1,0 +1,191 @@
+# Your steps
+
+What only you can do, because it needs your logins to Neon, Cloudflare,
+Meta, Twilio, Resend or Clerk. In order of importance. Steps 1 and 2 get the
+demo site working; the rest are for the live site.
+
+The two sites:
+
+| | Link | Data |
+|---|---|---|
+| **Live (production)** | <https://homesapp-alpha.vercel.app> | Real accounts only. Starts empty except your own login. |
+| **Demo** | <https://gethomeapps-demo.vercel.app> | Sample people and projects. Visitors pick a person and try the app, no password. |
+
+Both run the same code: every update goes to both at once.
+
+---
+
+## 1. Fix the dev database login (needed for the demo)
+
+The dev database is refusing the passwords in `web/.env.local` (both the
+owner login and the app login). The test and production databases are fine.
+Most likely the dev branch's passwords were reset or the branch was recreated.
+
+1. Go to <https://console.neon.tech> and open the GetHomeApps project.
+2. Click **Branches** and open the **dev** branch (its endpoint starts with
+   `ep-damp-fog`).
+3. Click **Roles** (left menu, under the branch).
+   - Beside **neondb_owner**, click **⋯ → Reset password**, confirm, and copy
+     the new password.
+   - Do the same for **gethomeapps_app**.
+4. Click **Connect** (top right). Choose **Branch: dev**, **Role:
+   neondb_owner**, and leave **Connection pooling** on. Copy the connection
+   string.
+5. Open `web/.env.local` and replace the value of
+   `MIGRATION_DATABASE_URL=` with it.
+6. In **Connect** again, choose **Role: gethomeapps_app**, copy, and replace
+   `DATABASE_URL=` in `web/.env.local`.
+7. Save the file and tell me "dev database fixed".
+
+Then I'll do the rest for the demo:
+- apply the latest database changes;
+- fill it with the sample people and projects;
+- give the demo site its database address;
+- check every role works on <https://gethomeapps-demo.vercel.app>.
+
+## 2. Let the demo site upload photos (Cloudflare R2)
+
+The dev bucket only accepts uploads from your laptop. Add the demo site:
+
+1. <https://dash.cloudflare.com> → **R2 Object Storage** → **gethomeapps-dev**
+   → **Settings**.
+2. Under **CORS Policy**, click **Edit**, replace what's there with this,
+   and **Save**:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["http://localhost:3000", "https://gethomeapps-demo.vercel.app"],
+       "AllowedMethods": ["GET", "PUT", "HEAD"],
+       "AllowedHeaders": ["content-type"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+## 3. Phone notifications on the live site (VAPID keys)
+
+Without these, nobody gets phone notifications from the live site (alerts
+still show inside the app).
+
+**Easiest:** reply "set the VAPID keys" and I'll make a fresh pair and add
+them to Vercel for you.
+
+To do it yourself:
+1. In a terminal in `web`, run `npm run vapid-keys`. It prints three lines.
+2. <https://vercel.com> → **homesapp** → **Settings** → **Environment
+   Variables**. Add each line for **Production**:
+   `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (tick **Sensitive**), and
+   `VAPID_SUBJECT` (`https://homesapp-alpha.vercel.app`).
+3. **Deployments** → the latest → **⋯ → Redeploy**.
+
+Keep the pair. Replacing it later switches notifications off on every phone
+until people turn them on again.
+
+## 4. The 15-minute job (reminders, "running late", expiry dates)
+
+This sends "site visit in 1 hour" and "running late" alerts. It also
+disables accounts on their expiry date even when nobody signs in.
+
+**Easiest:** reply "set up the reminder job" and I'll make the secret, add it
+to Vercel, and add both GitHub secrets.
+
+To do it yourself:
+1. Make a long random secret. In a terminal: `openssl rand -hex 32`, or any
+   password generator, 40+ characters.
+2. Vercel → **homesapp** → **Settings** → **Environment Variables** → add
+   `CRON_SECRET` = that secret, for **Production**, ticked **Sensitive**.
+   Then redeploy.
+3. <https://github.com/darrentay9solar/homesapp> → **Settings** → **Secrets
+   and variables** → **Actions** → **New repository secret**, twice:
+   - `APP_URL` = `https://homesapp-alpha.vercel.app`
+   - `CRON_SECRET` = the same secret as in Vercel.
+4. **Actions** → **Visit reminders** → **Run workflow** to try it. It should
+   finish green.
+
+## 5. Email (Resend)
+
+Used for invitations, approvals and decisions.
+
+1. Sign up at <https://resend.com>.
+2. **Domains** → **Add domain**, e.g. `9solarhome.com`. Add the DNS records
+   it shows at your domain registrar, and wait until Resend says
+   **Verified**.
+3. **API Keys** → **Create API key** (Sending access).
+4. Vercel → **homesapp** → Environment Variables (Production):
+   - `RESEND_API_KEY` = the key (Sensitive)
+   - `EMAIL_FROM` = e.g. `GetHomeApps <noreply@9solarhome.com>` (must be on
+     the verified domain)
+5. Redeploy.
+
+## 6. WhatsApp (Meta)
+
+Used for codes and messages. The full walk-through is in
+[whatsapp.md](whatsapp.md). In short:
+
+1. <https://business.facebook.com>: create or choose 9 Solar Home's Business
+   account and verify the business.
+2. <https://developers.facebook.com> → **My Apps** → **Create app** →
+   **Business** → add **WhatsApp**.
+3. Add and verify the business phone number. Note its **Phone number ID**.
+4. **Business settings** → **System users** → add one, give it the app and
+   the WhatsApp account, and **Generate token** (never expires, with
+   `whatsapp_business_messaging`).
+5. Create and submit the message templates listed in whatsapp.md, and wait
+   for approval (usually minutes to a day).
+6. Vercel (Production): `WHATSAPP_TOKEN` (Sensitive) and
+   `WHATSAPP_PHONE_NUMBER_ID`. Redeploy.
+
+## 7. SMS fallback (Twilio)
+
+Used when WhatsApp can't deliver.
+
+1. Sign up at <https://www.twilio.com>, upgrade the account (trial accounts
+   only text verified numbers), and buy a number or set an alphanumeric
+   sender ID that Singapore allows.
+2. From the Console home, copy the **Account SID** and **Auth Token**.
+3. Vercel (Production): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
+   (Sensitive), and `SMS_FROM` (the number or sender ID). Redeploy.
+
+## 8. Clerk production keys (before real customers sign up)
+
+The live site still uses Clerk's development keys. These show a "Development
+mode" badge and have sign-up limits.
+
+1. <https://dashboard.clerk.com> → your application → **Create production
+   instance** (top bar).
+2. It needs your own domain (step 9). Add the DNS records Clerk lists.
+3. Under **Configure**, copy the settings from development: email + password
+   sign-in, username off, and the same sign-in and sign-up URLs.
+4. **API keys** → copy the production `pk_live_…` and `sk_live_…`.
+5. Vercel → **homesapp** (not the demo) → Environment Variables
+   (Production): replace `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and
+   `CLERK_SECRET_KEY`. Redeploy.
+6. Sign up again on the live site with your own email; your project-manager
+   account links to the new login by email automatically.
+
+The demo keeps the development keys; that's what they're for.
+
+## 9. Your own address (optional, but needed for step 8)
+
+1. Vercel → **homesapp** → **Settings** → **Domains** → add e.g.
+   `app.9solarhome.com`, and add the DNS record it shows.
+2. Then update `APP_URL` (step 4, in GitHub too) and `VAPID_SUBJECT` (step 3)
+   to it.
+3. Optional: the same for the demo, e.g. `demo.9solarhome.com` on the
+   **gethomeapps-demo** project. Tell me, and I'll add it to step 2's
+   uploads list and the demo's settings.
+
+---
+
+### What's already done (nothing for you to do)
+
+- Production has every update and its database is up to date. It holds no
+  test accounts or test projects: only your own login.
+- The demo project exists on Vercel (gethomeapps-demo). It deploys with
+  every update and has its sign-in keys, the dev photo bucket and the demo
+  switch set. It's waiting on step 1 for its database.
+- Neither the demo nor production can ever turn the other's data into
+  sample data. The demo needs its own switch *and* a marker that only the
+  dev database has. Sample people can only be created by the seed script on
+  the dev database.

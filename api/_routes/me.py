@@ -80,6 +80,8 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
         }
     if acct.acting_pm:
         out["actingAs"] = {"byName": acct.acting_pm["full_name"], "byUid": acct.acting_pm["uid"]}
+    if acct.demo:
+        out["demo"] = True
     if acct.clerk_user:
         out["clerk"] = {
             "fullName": acct.clerk_user.full_name,

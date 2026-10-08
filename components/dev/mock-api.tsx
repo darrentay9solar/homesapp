@@ -133,6 +133,18 @@ function allFiles(search: URLSearchParams) {
   };
 }
 
+// ------------------------------------------------------------ demo site
+
+const DEMO_PEOPLE = {
+  people: [
+    { uid: 2, name: "Charlotte Sim", role: "project_manager", roleLabel: "Project Manager", avatar: null, about: null },
+    { uid: 3, name: "Priya Nair", role: "contractor", roleLabel: "Contractor Admin", avatar: null, about: "Apex Solar Contractors, Kim Seng M&E Services" },
+    { uid: 4, name: "Ravi Kumar", role: "epc_team", roleLabel: "EPC Team", avatar: null, about: "Apex Solar Contractors" },
+    { uid: 5, name: "Jasmine Lee", role: "homeowner", roleLabel: "Homeowner", avatar: null, about: "Jalan Kayu Residence" },
+    { uid: 6, name: "Daniel Ong", role: "homeowner", roleLabel: "Homeowner", avatar: null, about: "Sunbird Circle" },
+  ],
+};
+
 // ------------------------------------------------------------ locations
 
 const LOCATIONS = {
@@ -603,6 +615,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "GET /my-files") return MY_FILES;
   if (key === "GET /all-files") return allFiles(search);
   if (key === "GET /people/locations") return LOCATIONS;
+  if (key === "GET /demo/people") return DEMO_PEOPLE;
   if (key === "PATCH /me/settings") return { message: "Settings saved." };
   if (key === "GET /alerts") return { alerts: ALERTS, more: false, unread: ALERTS.filter((a) => !a.read).length };
   if (key === "POST /alerts/read") return { unread: 0 };
@@ -662,7 +675,7 @@ export function MockApi({ children }: { children: ReactNode }) {
   useState(install);
   const pathname = usePathname();
   // The sign-up screens stand alone, outside the signed-in app shell.
-  if (pathname.startsWith("/dev-preview/onboarding")) return <>{children}</>;
+  if (pathname.startsWith("/dev-preview/onboarding") || pathname.startsWith("/dev-preview/demo")) return <>{children}</>;
   return (
     <AppProvider>
       <AppShell>{children}</AppShell>
