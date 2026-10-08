@@ -33,7 +33,7 @@
     "test:py": "node scripts/py.mjs -m pytest -q",
     "vapid-keys": "node scripts/py.mjs scripts/vapid-keys.py",
     "test:r2": "node scripts/py.mjs -m pytest -q --r2-live -m r2_live",
-    "test:web": "tsx --test tests/people-search.test.ts tests/audit.test.ts tests/projects.test.ts tests/sites.test.ts tests/search.test.ts tests/alerts.test.ts tests/i18n.test.ts"
+    "test:web": "tsx --test tests/people-search.test.ts tests/audit.test.ts tests/projects.test.ts tests/sites.test.ts tests/search.test.ts tests/alerts.test.ts tests/i18n.test.ts tests/location.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.10",
@@ -46,11 +46,13 @@
     "@neondatabase/serverless": "^0.10.4",
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.45.3",
+    "leaflet": "^1.9.4",
     "next": "^16.3.8",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.22",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

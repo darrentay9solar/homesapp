@@ -15,7 +15,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { PushSetup } from "@/components/alerts";
 import { Page } from "@/components/shell";
-import { EdgeCard, GRID, Heading, SegTabs, TopBar } from "@/components/topbar";
+import { EdgeCard, GRID, SegTabs, TopBar } from "@/components/topbar";
 import { type AlertRow, type AlertTab, filterAlerts, groupByDay, safeLink, timeOf } from "@/lib/client/alerts";
 import { useApi, useFetcher } from "@/lib/client/api";
 import { useApp, useMe } from "@/lib/client/app-state";
@@ -174,7 +174,10 @@ function AlertsScreen() {
           )}
           {groups.map((g) => (
             <Box key={TR(g.label)}>
-              <Heading title={TR(g.label)} count={g.alerts.length} />
+              {/* The day, as a small label on the timeline: alerts are one list, newest first. */}
+              <Typography variant="caption" component="p" sx={{ color: "text.secondary", fontWeight: 600, mt: 2.5, mb: 1 }} data-testid="alerts-day">
+                {TR(g.label)} · {g.alerts.length}
+              </Typography>
               <Box sx={GRID}>
                 {g.alerts.map((a) => (
                   <AlertCard key={a.id} a={a} onOpen={() => void open(a)} />

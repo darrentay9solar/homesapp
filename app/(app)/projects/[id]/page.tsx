@@ -28,11 +28,12 @@ import { SectionPanel } from "@/components/project-fields";
 import { SiteSchedule } from "@/components/site-visits";
 import { DetailRow, NewProjectDialog, ProgressRing, StatusChip, TimingChip } from "@/components/projects";
 import { Page } from "@/components/shell";
-import { Heading, TopBar } from "@/components/topbar";
+import { SegTabs, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp, useMe } from "@/lib/client/app-state";
 import { firstOpenSection, type ProjectFields, type ProjectRow, SECTIONS } from "@/lib/client/projects";
+import { useTab } from "@/lib/client/tabs";
 import type { ProjectVisits } from "@/lib/client/sites";
 
 import { T, TR } from "@/lib/client/i18n";
@@ -51,13 +52,34 @@ export default function ProjectPage() {
   const reloadAll = useCallback(async () => {
     await Promise.all([reload(), reloadFields(), reloadVisits()]);
   }, [reload, reloadFields, reloadVisits]);
+  const [tab, setTab] = useTab<Tab>(["milestones", "details", "visits"], "milestones");
+  // An alert about a site visit links to #site-visits: open that tab.
+  useEffect(() => {
+    if (window.location.hash === "#site-visits") setTab("visits");
+  }, [setTab]);
 
   if (!me) return null;
   const back = () => (me.role === "homeowner" ? router.push("/") : router.back());
 
   return (
     <>
-      <TopBar title={p?.name ?? T("Project")} sub={p?.address} onBack={me.role === "homeowner" ? undefined : back} />
+      <TopBar
+        title={p?.name ?? T("Project")}
+        sub={p?.address}
+        onBack={me.role === "homeowner" ? undefined : back}
+        tabs={
+          <SegTabs
+            label={T("Project")}
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "milestones", label: fields?.relation === "homeowner" ? "Your installation" : "Milestones" },
+              { value: "details", label: "Details" },
+              { value: "visits", label: "Site visits", count: visits?.visits.length },
+            ]}
+          />
+        }
+      />
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
           {error && (
@@ -66,14 +88,20 @@ export default function ProjectPage() {
             </Alert>
           )}
           {!p && !error && <Skeleton variant="rounded" height={260} sx={{ mt: 2 }} />}
-          {p && <Body p={p} fields={fields} visits={visits} reload={reloadAll} />}
+          {p && <Body p={p} fields={fields} visits={visits} reload={reloadAll} tab={tab} />}
         </Page>
       </Box>
     </>
   );
 }
 
-function Body({ p, fields, visits, reload }: { p: ProjectRow; fields: ProjectFields | null; visits: ProjectVisits | null; reload: () => Promise<void> }) {
+type Tab = "milestones" | "details" | "visits";
+
+/**
+ * The automated header from the brief (progress, on track, days running) and
+ * anything needing attention stay in view; the rest is one tab at a time.
+ */
+function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: ProjectFields | null; visits: ProjectVisits | null; reload: () => Promise<void>; tab: Tab }) {
   const [editing, setEditing] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const first = fields ? firstOpenSection(fields.sections) : null;
@@ -94,32 +122,41 @@ function Body({ p, fields, visits, reload }: { p: ProjectRow; fields: ProjectFie
         )}
         <ActionBanner p={p} fields={fields} reload={reload} />
         <Summary p={p} />
-        <Box>
-          <Heading
-            title={T("Project details")}
-            action={
-              fields?.actions.editDetails && (
+      </Stack>
+      <Box sx={{ minWidth: 0 }} data-testid={`project-${tab}`}>
+        {tab === "milestones" && (
+          <>
+            <MilestoneTrack p={p} />
+            <Stack sx={{ gap: 1.25, mt: 2 }}>
+              {!ctx && SECTIONS.map((x) => <Skeleton key={x.key} variant="rounded" height={68} />)}
+              {ctx &&
+                ctx.data.sections.map((s, i) => (
+                  <SectionPanel key={s.key} ctx={ctx} section={s} index={i} open={isOpen(s.key)} onToggle={() => setOpen((o) => ({ ...o, [s.key]: !isOpen(s.key) }))} />
+                ))}
+            </Stack>
+          </>
+        )}
+        {tab === "details" && (
+          <>
+            {fields?.actions.editDetails && (
+              <Stack direction="row" sx={{ justifyContent: "flex-end", mb: 1 }}>
                 <Button size="small" startIcon={<EditRoundedIcon />} onClick={() => setEditing(true)}>
                   {T("Edit")}
                 </Button>
-              )
-            }
-          />
-          <Details p={p} />
-        </Box>
-        {visits && <SiteSchedule pid={p.id} name={p.name} address={p.address} data={visits} reload={reload} />}
-        {visits && <ScrollToHash />}
-      </Stack>
-      <Box sx={{ minWidth: 0, mt: { lg: -2.5 } }}>
-        <Heading title={fields?.relation === "homeowner" ? T("Your installation") : T("Milestones")} />
-        <MilestoneTrack p={p} />
-        <Stack sx={{ gap: 1.25, mt: 2 }}>
-          {!ctx && SECTIONS.map((x) => <Skeleton key={x.key} variant="rounded" height={68} />)}
-          {ctx &&
-            ctx.data.sections.map((s, i) => (
-              <SectionPanel key={s.key} ctx={ctx} section={s} index={i} open={isOpen(s.key)} onToggle={() => setOpen((o) => ({ ...o, [s.key]: !isOpen(s.key) }))} />
-            ))}
-        </Stack>
+              </Stack>
+            )}
+            <Details p={p} />
+          </>
+        )}
+        {tab === "visits" &&
+          (visits ? (
+            <>
+              <SiteSchedule pid={p.id} name={p.name} address={p.address} data={visits} reload={reload} />
+              <ScrollToHash />
+            </>
+          ) : (
+            <Skeleton variant="rounded" height={200} />
+          ))}
       </Box>
       {editing && <NewProjectDialog project={p} onClose={() => setEditing(false)} onSaved={reload} />}
     </Box>
@@ -157,7 +194,7 @@ function ActionBanner({ p, fields, reload }: { p: ProjectRow; fields: ProjectFie
     banner = (
       <Alert severity="warning" icon={false} data-testid="approval-banner" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
         <AlertTitle sx={{ fontWeight: 600, fontSize: 16 }}>{T("Please approve your solar installation")}</AlertTitle>
-        9 Solar Home has set up {p.name} at {p.address}. Check the details below, then approve so the installation can be scheduled.
+        {T("9 Solar Home has set up {name} at {address}. Check the details, then approve so the installation can be scheduled.", { name: p.name, address: p.address })}
         <Stack direction="row" sx={{ gap: 1, mt: 1.5 }}>
           <Button size="large" variant="contained" disabled={busy} onClick={() => void act("approve")} sx={{ flex: 1 }}>
             {T("Approve")}

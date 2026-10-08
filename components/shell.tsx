@@ -31,6 +31,7 @@ import { Logo } from "./icons";
 import { RoleAvatar } from "./m";
 
 import { T, TR } from "@/lib/client/i18n";
+import { LocationSharer } from "./location-sharer";
 /** phone: false keeps a tab off the phone's bottom bar (at most five fit); it stays in the desktop drawer. */
 type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
 
@@ -164,6 +165,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         {state?.actingAs && <ActingBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} by={state.actingAs.byName} />}
+        <LocationSharer />
         {children}
       </Box>
 

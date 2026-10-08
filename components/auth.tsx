@@ -28,7 +28,7 @@ import { T, TR } from "@/lib/client/i18n";
 import { Logo } from "./icons";
 import { COUNTRIES, joinPhone, splitPhone } from "./phone-input";
 import { SkyScene } from "./sky-scene";
-import { ThemeButton } from "./theme-button";
+import { LangButton, ThemeButton } from "./theme-button";
 
 /**
  * The account screens (Sign In, Create Account, Forgot Password, Request
@@ -118,6 +118,7 @@ export function AuthShell({
                   <Typography sx={{ fontWeight: 500, fontSize: 8.5, letterSpacing: "0.26em", color: "rgba(255,255,255,0.72)", mt: 0.25 }}>9 SOLAR HOME · 九太阳家</Typography>
                 </Box>
               </Stack>
+              <LangButton onGreen />
               <ThemeButton onGreen />
             </Stack>
 
@@ -133,17 +134,21 @@ export function AuthShell({
                 <path d="M0 0H440V96C380 132 320 118 244 122C156 127 76 140 0 172Z" fill="url(#authBandFill)" />
               </Box>
               <Stack direction="row" sx={{ position: "relative", alignItems: "center", gap: 1.25, px: 1.5, pt: "calc(12px + env(safe-area-inset-top))" }}>
-                {goBack ? (
-                  <IconButton aria-label={T("Back")} onClick={goBack} sx={{ color: "#fff" }}>
-                    <ArrowBackRoundedIcon />
-                  </IconButton>
-                ) : (
-                  <Box sx={{ width: 40 }} />
-                )}
+                {/* As wide as the two buttons on the right, so the title stays centred. */}
+                <Box sx={{ width: 88, flex: "0 0 auto" }}>
+                  {goBack && (
+                    <IconButton aria-label={T("Back")} onClick={goBack} sx={{ color: "#fff" }}>
+                      <ArrowBackRoundedIcon />
+                    </IconButton>
+                  )}
+                </Box>
                 <Typography component="h1" sx={{ flex: 1, textAlign: "center", fontSize: DESIGN.type.dialogTitle, fontWeight: 600, letterSpacing: "0.01em" }}>
                   {TR(title)}
                 </Typography>
-                <ThemeButton onGreen />
+                <Stack direction="row" sx={{ gap: 1, flex: "0 0 auto" }}>
+                  <LangButton onGreen />
+                  <ThemeButton onGreen />
+                </Stack>
               </Stack>
             </Box>
 

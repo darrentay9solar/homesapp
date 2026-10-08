@@ -1,3 +1,4 @@
+# ruff: noqa: RUF001  (Chinese full-width punctuation is the point)
 """English → Chinese on the server (_lib/i18n): what phones and alerts receive.
 
 The same dictionary drives the screens (lib/client/i18n.tsx); tests/i18n.test.ts

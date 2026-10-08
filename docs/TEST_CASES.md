@@ -19,7 +19,7 @@ npm run test:py    # everything except the requests to R2 (those are skipped)
 npm run test:r2    # only the 39 tests that use the real R2 dev bucket (~85 requests)
 ```
 
-**Last run: 2,861 Python tests passed** (39 of them against the real R2 dev bucket) **and 324 front-end tests.**
+**Last run: 2,889 Python tests passed** (39 of them against the real R2 dev bucket) **and 361 front-end tests.**
 
 ---
 

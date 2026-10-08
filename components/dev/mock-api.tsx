@@ -5,6 +5,7 @@ import { type ReactNode, useState } from "react";
 
 import { AppShell } from "@/components/shell";
 import { AppProvider } from "@/lib/client/app-state";
+import { currentLang } from "@/lib/client/i18n";
 
 /**
  * DEVELOPMENT ONLY. Renders real screens against sample data, without
@@ -37,6 +38,7 @@ const FIXTURES: Record<string, unknown> = {
       passwordChangedAt: iso(60 * 24 * 40),
       roleRequest: null,
       language: "en",
+      shareLocation: false,
       notificationPrefs: { pausedUntil: null, quiet: { on: true, from: "22:00", to: "07:00" }, urgent: true, mute: [], channels: { push: true, email: true, mobile: true } },
     },
   },
@@ -131,11 +133,28 @@ function allFiles(search: URLSearchParams) {
   };
 }
 
-/** The preview's account follows the language picked on this browser. */
+// ------------------------------------------------------------ locations
+
+const LOCATIONS = {
+  me: 1,
+  people: [
+    { uid: 4, name: "Ravi Kumar", role: "epc_team", roleLabel: "EPC Team", avatar: null, sharing: true, location: { lat: 1.3962, lng: 103.8734, accuracy: 11, at: iso(3) } },
+    { uid: 3, name: "Priya Nair", role: "contractor", roleLabel: "Contractor Admin", avatar: null, sharing: true, location: { lat: 1.3329, lng: 103.7436, accuracy: 25, at: iso(95) } },
+    { uid: 2, name: "Charlotte Sim", role: "project_manager", roleLabel: "Project Manager", avatar: null, sharing: false, location: null },
+    { uid: 5, name: "Jasmine Lee", role: "homeowner", roleLabel: "Homeowner", avatar: null, sharing: false, location: null },
+    { uid: 6, name: "Daniel Ong", role: "homeowner", roleLabel: "Homeowner", avatar: null, sharing: false, location: null },
+    { uid: 7, name: "Farah Ismail", role: "homeowner", roleLabel: "Homeowner", avatar: null, sharing: false, location: null },
+  ],
+};
+
+/**
+ * The preview's account is in whatever language this page is already in, so
+ * it never switches the page itself (the design check flips the cookie for
+ * its frames while it runs; its own page must stay put).
+ */
 function me() {
   const m = FIXTURES["GET /me"] as { settings: Record<string, unknown> };
-  const zh = /(?:^|;\s*)gha-lang=zh\b/.test(document.cookie);
-  return { ...m, settings: { ...m.settings, language: zh ? "zh" : "en" } };
+  return { ...m, settings: { ...m.settings, language: currentLang() } };
 }
 
 // ------------------------------------------------------------ projects
@@ -583,6 +602,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "GET /sites") return SITES;
   if (key === "GET /my-files") return MY_FILES;
   if (key === "GET /all-files") return allFiles(search);
+  if (key === "GET /people/locations") return LOCATIONS;
   if (key === "PATCH /me/settings") return { message: "Settings saved." };
   if (key === "GET /alerts") return { alerts: ALERTS, more: false, unread: ALERTS.filter((a) => !a.read).length };
   if (key === "POST /alerts/read") return { unread: 0 };

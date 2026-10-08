@@ -35,6 +35,8 @@ export type Me = {
   settings?: {
     language: Lang;
     notificationPrefs: Prefs;
+    /** Sharing this person's location with project managers (their own choice). */
+    shareLocation?: boolean;
     mobileVerifiedAt: string | null;
     passwordChangedAt: string | null;
     roleRequest: { role: Role; roleLabel: string; reason: string | null; createdAt: string } | null;

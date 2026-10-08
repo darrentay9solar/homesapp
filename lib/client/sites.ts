@@ -51,10 +51,10 @@ export const MAX_ACCURACY_M = 50;
 
 /** Why the browser couldn't give a location, in words a crew member can act on. */
 export function locationProblem(code: number | null): string {
-  if (code === 1) return "Location is blocked for GetHomeApps. Allow location in your browser or phone settings, then try again.";
-  if (code === 3) return "Couldn't get a GPS fix in time. Move to open sky, away from walls, and try again.";
-  if (code === null) return "This device can't share its location. Use a phone with GPS.";
-  return "Your location isn't available right now. Try again in a moment.";
+  if (code === 1) return T("Location is blocked for GetHomeApps. Allow location in your browser or phone settings, then try again.");
+  if (code === 3) return T("Couldn't get a GPS fix in time. Move to open sky, away from walls, and try again.");
+  if (code === null) return T("This device can't share its location. Use a phone with GPS.");
+  return T("Your location isn't available right now. Try again in a moment.");
 }
 
 /** One fresh, high-accuracy reading of where the phone is. Never a cached one. */

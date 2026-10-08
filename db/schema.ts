@@ -13,6 +13,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  real,
   serial,
   text,
   timestamp,
@@ -114,6 +115,8 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "role_rejected",
   // The crew checked in an hour or more after a visit's start time.
   "crew_arrived_late",
+  // A project manager asked someone to share their location.
+  "location_request",
 ]);
 
 /**
@@ -251,6 +254,14 @@ export const users = pgTable(
     disableOn: date("disable_on"),
     enableOn: date("enable_on"),
     disabledReason: varchar("disabled_reason", { length: 12 }),
+
+    /**
+     * Whether they share their location with project managers (migration
+     * 0026). Only the person can change it; turning it off deletes their
+     * last known location (userLocations).
+     */
+    shareLocation: boolean("share_location").notNull().default(false),
+    shareLocationChangedAt: timestamp("share_location_changed_at", { withTimezone: true }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -950,6 +961,29 @@ export const pushSubscriptions = pgTable(
     failures: integer("failures").notNull().default(0),
   },
   (table) => [index("push_subscriptions_uid_idx").on(table.uid)]
+);
+
+/**
+ * Someone's last known position while they share their location (one row
+ * per person), sent by their phone while the app is open. Only they write
+ * it; project managers read it. Not audited: it changes every few minutes.
+ */
+export const userLocations = pgTable(
+  "user_locations",
+  {
+    uid: integer("uid")
+      .primaryKey()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    lat: doublePrecision("lat").notNull(),
+    lng: doublePrecision("lng").notNull(),
+    accuracyM: real("accuracy_m"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("user_locations_lat", sql`${table.lat} BETWEEN -90 AND 90`),
+    check("user_locations_lng", sql`${table.lng} BETWEEN -180 AND 180`),
+    check("user_locations_accuracy", sql`${table.accuracyM} IS NULL OR ${table.accuracyM} >= 0`),
+  ]
 );
 
 /**

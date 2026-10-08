@@ -14,17 +14,15 @@ import Chip from "@mui/material/Chip";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { RoleAvatar } from "@/components/m";
-import { useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
-import { EdgeCard, GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
+import { EdgeCard, GRID, SearchBox, SegTabs, TopBar } from "@/components/topbar";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
-import { byProject, type FileTab, fileSize, filterFiles, type MyFile, tabCounts } from "@/lib/client/files";
+import { type FileTab, fileSize, filterFiles, type MyFile, tabCounts } from "@/lib/client/files";
 import { locale, T, TR } from "@/lib/client/i18n";
 
 type Scope = "mine" | "all";
@@ -65,7 +63,7 @@ function FileCard({ f }: { f: MyFile | Everyone }) {
           {f.name}
         </Typography>
         <Typography variant="body2" noWrap sx={{ color: "text.secondary" }}>
-          {TR(f.categoryLabel)}
+          {f.projectName} · {TR(f.categoryLabel)}
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
           {f.removed
@@ -145,7 +143,6 @@ function useEveryone(q: string, tab: FileTab, on: boolean) {
  */
 export default function FilesPage() {
   const me = useMe();
-  const href = useProjectHref();
   const pm = me?.role === "project_manager";
   const [scope, setScope] = useState<Scope>("mine");
   const [q, setQ] = useState("");
@@ -162,7 +159,6 @@ export default function FilesPage() {
   const counts = everyone
     ? { all: (all.counts.image ?? 0) + (all.counts.document ?? 0), photo: all.counts.image ?? 0, document: all.counts.document ?? 0, removed: 0 }
     : tabCounts(myFiles);
-  const groups = byProject(shown as MyFile[]);
   const TABS: Array<[FileTab, string]> = [
     ["all", "All"],
     ["photo", "Photos"],
@@ -224,24 +220,14 @@ export default function FilesPage() {
               </Typography>
             </Card>
           )}
-          {groups.map((g) => (
-            <Box key={g.projectId} data-testid="files-group">
-              <Heading
-                title={g.projectName}
-                count={g.files.length}
-                action={
-                  <Typography component={Link} href={href(g.projectId)} variant="body2" sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}>
-                    {T("Open project")}
-                  </Typography>
-                }
-              />
-              <Box sx={GRID}>
-                {g.files.map((f) => (
-                  <FileCard key={`${f.id}-${f.removed ? "r" : "o"}`} f={f} />
-                ))}
-              </Box>
+          {/* One list, newest first; each card says which project it's on. Photos and documents are the tabs. */}
+          {shown.length > 0 && (
+            <Box sx={{ ...GRID, mt: 2 }} data-testid="files-list">
+              {shown.map((f) => (
+                <FileCard key={`${f.id}-${f.removed ? "r" : "o"}`} f={f} />
+              ))}
             </Box>
-          ))}
+          )}
           {everyone && all.more && (
             <Stack sx={{ alignItems: "center", mt: 2.5 }}>
               <Button onClick={() => void all.older()}>{T("Show more")}</Button>

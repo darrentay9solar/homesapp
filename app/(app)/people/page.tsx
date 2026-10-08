@@ -37,6 +37,7 @@ import ListItem from "@mui/material/ListItem";
 import ListItemAvatar from "@mui/material/ListItemAvatar";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
+import ListSubheader from "@mui/material/ListSubheader";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Skeleton from "@mui/material/Skeleton";
@@ -52,15 +53,18 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { AvatarEditor } from "@/components/avatar";
 import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, SettingRow, WaveHeader } from "@/components/m";
+import { LocationRow, PeopleMap } from "@/components/people-map";
 import { splitPhone } from "@/components/phone-input";
 import { Page } from "@/components/shell";
-import { EdgeCard, GRID, HERO_BG, Heading, SearchBox, SegTabs, TopBar, roleColor } from "@/components/topbar";
+import { EdgeCard, GRID, HERO_BG, SearchBox, SegTabs, TopBar, roleColor } from "@/components/topbar";
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
 import { type Status, filterPeople, statusOf } from "@/lib/client/people-search";
+import { useTab } from "@/lib/client/tabs";
+
 
 type Person = {
   uid: number;
@@ -142,7 +146,9 @@ type Data = { me: number; users: Person[]; groups: Group[]; requests: Request[];
 
 const ROLES = Object.keys(ROLE_NAME) as Role[];
 const CREW: Role[] = ["contractor", "epc_team"];
-const TABS: Array<[Role | "all", string]> = [
+type Section = "people" | "groups" | "requests" | "map";
+const SECTIONS: Section[] = ["people", "groups", "requests", "map"];
+const ROLE_FILTERS: Array<[Role | "all", string]> = [
   ["all", "All"],
   ["homeowner", "Homeowners"],
   ["contractor", "Contractors"],
@@ -187,6 +193,7 @@ export default function PeoplePage() {
   const router = useRouter();
   const { data, error, reload } = useApi<Data>(me?.role === "project_manager" ? "/people" : null);
   const [dialog, setDialog] = useState<DialogState>(null);
+  const [section, setSection] = useTab<Section>(SECTIONS, "people");
   const [role, setRole] = useState<Role | "all">("all");
   const [status, setStatus] = useState<Status | "all">("all");
   const [q, setQ] = useState("");
@@ -207,8 +214,13 @@ export default function PeoplePage() {
   const shown = filterPeople(searchable, { query: q, role, status });
   const count = (r: Role | "all") => searchable.filter((u) => r === "all" || u.role === r).length;
   const filtering = q.trim() !== "" || role !== "all" || status !== "all";
-  const tabLabel = TABS.find(([v]) => v === role)?.[1] ?? "All";
+  const waiting = data ? data.requests.length + data.roleRequests.length : 0;
   const close = () => setDialog(null);
+  const clear = () => {
+    setQ("");
+    setRole("all");
+    setStatus("all");
+  };
 
   return (
     <>
@@ -230,12 +242,26 @@ export default function PeoplePage() {
           </Button>
         }
         search={
-          <Stack direction="row" sx={{ gap: 1 }}>
-            <SearchBox value={q} onChange={setQ} placeholder={T("Search people")} testId="people-search" />
-            <StatusMenu value={status} onChange={setStatus} />
-          </Stack>
+          section === "people" ? (
+            <Stack direction="row" sx={{ gap: 1 }}>
+              <SearchBox value={q} onChange={setQ} placeholder={T("Search people")} testId="people-search" />
+              <FilterMenu role={role} status={status} onRole={setRole} onStatus={setStatus} count={count} />
+            </Stack>
+          ) : undefined
         }
-        tabs={<SegTabs label={T("Filter by role")} value={role} onChange={setRole} options={TABS.map(([v, l]) => ({ value: v, label: l, count: count(v) }))} />}
+        tabs={
+          <SegTabs
+            label={T("People")}
+            value={section}
+            onChange={setSection}
+            options={[
+              { value: "people", label: "People", count: data ? searchable.length : undefined },
+              { value: "groups", label: "Groups", count: data?.groups.length },
+              { value: "requests", label: "Requests", count: data ? waiting : undefined },
+              { value: "map", label: "Map" },
+            ]}
+          />
+        }
       />
 
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
@@ -247,42 +273,20 @@ export default function PeoplePage() {
           )}
           {!data && !error && <Loading />}
 
-          {data && (
+          {data && section === "people" && (
             <>
-              {data.requests.length + data.roleRequests.length > 0 && !filtering && (
-                <>
-                  <Heading title={T("Waiting for approval")} count={data.requests.length + data.roleRequests.length} />
-                  <Box sx={GRID}>
-                    {data.requests.map((r) => (
-                      <RequestCard key={r.id} r={r} onReview={() => setDialog({ kind: "review", id: r.id })} />
-                    ))}
-                    {data.roleRequests.map((r) => (
-                      <RoleRequestCard key={`role-${r.id}`} r={r} onReview={() => setDialog({ kind: "role", id: r.id })} />
-                    ))}
-                  </Box>
-                </>
+              {filtering && (
+                <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 1.5 }}>
+                  <Typography variant="body2" sx={{ color: "text.secondary", flex: 1 }}>
+                    {T("{n} of {total} people", { n: shown.length, total: searchable.length })}
+                  </Typography>
+                  <Button size="small" onClick={clear}>
+                    {T("Clear filters")}
+                  </Button>
+                </Stack>
               )}
-
-              <Heading
-                title={role === "all" ? T("All people") : tabLabel}
-                count={shown.length}
-                action={
-                  filtering && (
-                    <Button
-                      size="small"
-                      onClick={() => {
-                        setQ("");
-                        setRole("all");
-                        setStatus("all");
-                      }}
-                    >
-                      {T("Clear filters")}
-                    </Button>
-                  )
-                }
-              />
               {shown.length === 0 ? (
-                <Card sx={{ p: 4, textAlign: "center" }} data-testid="people-empty">
+                <Card sx={{ p: 4, mt: 2, textAlign: "center" }} data-testid="people-empty">
                   <SearchRoundedIcon sx={{ fontSize: 36, color: "text.disabled" }} />
                   <Typography sx={{ fontWeight: 600, mt: 1 }}>{T("Nobody matches")}</Typography>
                   <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
@@ -290,37 +294,57 @@ export default function PeoplePage() {
                   </Typography>
                 </Card>
               ) : (
-                <Box sx={GRID} data-testid="people-grid">
+                <Box sx={{ ...GRID, mt: 2 }} data-testid="people-grid">
                   {shown.map((u) => (
                     <PersonCard key={u.uid} person={u} groupNames={u.groupNames} onOpen={() => setDialog({ kind: "person", uid: u.uid })} />
                   ))}
                 </Box>
               )}
+            </>
+          )}
 
-              {!filtering && (
-                <>
-                  <Heading
-                    title={T("Contractor groups")}
-                    count={data.groups.length}
-                    action={
-                      <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDialog({ kind: "newgroup" })}>
-                        {T("New group")}
-                      </Button>
-                    }
-                  />
-                  {data.groups.length === 0 ? (
-                    <Card sx={{ p: 4, textAlign: "center", color: "text.secondary" }}>{T("No groups yet.")}</Card>
-                  ) : (
-                    <Box sx={GRID}>
-                      {data.groups.map((g) => (
-                        <GroupCard key={g.id} group={g} byId={byId} reload={reload} onAdd={() => setDialog({ kind: "addmember", id: g.id })} />
-                      ))}
-                    </Box>
-                  )}
-                </>
+          {data && section === "groups" && (
+            <>
+              <Stack direction="row" sx={{ alignItems: "center", mt: 1.5 }}>
+                <Typography variant="body2" sx={{ color: "text.secondary", flex: 1 }}>
+                  {T("Contractor admins and EPC crew. A person can be in more than one group.")}
+                </Typography>
+                <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDialog({ kind: "newgroup" })} sx={{ flex: "0 0 auto" }}>
+                  {T("New group")}
+                </Button>
+              </Stack>
+              {data.groups.length === 0 ? (
+                <Card sx={{ p: 4, mt: 2, textAlign: "center", color: "text.secondary" }}>{T("No groups yet.")}</Card>
+              ) : (
+                <Box sx={{ ...GRID, mt: 2 }}>
+                  {data.groups.map((g) => (
+                    <GroupCard key={g.id} group={g} byId={byId} reload={reload} onAdd={() => setDialog({ kind: "addmember", id: g.id })} />
+                  ))}
+                </Box>
               )}
             </>
           )}
+
+          {data && section === "requests" &&
+            (waiting === 0 ? (
+              <Card sx={{ p: 4, mt: 2, textAlign: "center" }} data-testid="requests-empty">
+                <Typography sx={{ fontWeight: 600 }}>{T("None for now")}</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+                  {T("New accounts and role changes waiting for a project manager appear here.")}
+                </Typography>
+              </Card>
+            ) : (
+              <Box sx={{ ...GRID, mt: 2 }} data-testid="requests-grid">
+                {data.requests.map((r) => (
+                  <RequestCard key={r.id} r={r} onReview={() => setDialog({ kind: "review", id: r.id })} />
+                ))}
+                {data.roleRequests.map((r) => (
+                  <RoleRequestCard key={`role-${r.id}`} r={r} onReview={() => setDialog({ kind: "role", id: r.id })} />
+                ))}
+              </Box>
+            ))}
+
+          {data && section === "map" && <PeopleMap onOpen={(uid) => setDialog({ kind: "person", uid })} />}
         </Page>
       </Box>
 
@@ -344,15 +368,29 @@ export default function PeoplePage() {
 
 // ---------------------------------------------------------- top bar
 
-/** Status filter: a 40px icon button, labelled on desktop. */
-function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: Status | "all") => void }) {
+/** Role and status filters in one 40px button, labelled on desktop. */
+function FilterMenu({
+  role,
+  status,
+  onRole,
+  onStatus,
+  count,
+}: {
+  role: Role | "all";
+  status: Status | "all";
+  onRole: (v: Role | "all") => void;
+  onStatus: (v: Status | "all") => void;
+  count: (r: Role | "all") => number;
+}) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const label = T(value === "all" ? "Any status" : STATUS_LABEL[value]);
+  const parts = [role !== "all" ? T(ROLE_FILTERS.find(([v]) => v === role)![1]) : null, status !== "all" ? T(STATUS_LABEL[status]) : null].filter(Boolean);
+  const label = parts.length ? parts.join(" · ") : T("Filter");
   return (
     <>
       <Button
         onClick={(e) => setAnchor(e.currentTarget)}
-        aria-label={T("Status filter: {label}", { label: T(label) })}
+        aria-label={T("Filter: {label}", { label })}
+        data-testid="people-filter"
         sx={{
           height: 40,
           minWidth: 40,
@@ -362,7 +400,7 @@ function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: 
           color: "#fff",
           borderRadius: "12px",
           border: "1px solid rgba(255,255,255,0.2)",
-          bgcolor: value === "all" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.28)",
+          bgcolor: parts.length ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.08)",
         }}
       >
         <FilterListRoundedIcon sx={{ fontSize: 20 }} />
@@ -371,16 +409,17 @@ function StatusMenu({ value, onChange }: { value: Status | "all"; onChange: (v: 
         </Box>
       </Button>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-        {(["all", "active", "invited", "disabled"] as const).map((s) => (
-          <MenuItem
-            key={s}
-            selected={value === s}
-            onClick={() => {
-              onChange(s);
-              setAnchor(null);
-            }}
-          >
-            {s === "all" ? T("Any status") : STATUS_LABEL[s]}
+        <ListSubheader>{T("Role")}</ListSubheader>
+        {ROLE_FILTERS.map(([v, l]) => (
+          <MenuItem key={v} selected={role === v} onClick={() => onRole(v)} data-testid={`role-${v}`}>
+            <Box sx={{ flex: 1 }}>{T(l)}</Box>
+            <Chip size="small" label={count(v)} sx={{ height: 20, fontSize: 11, ml: 2 }} />
+          </MenuItem>
+        ))}
+        <ListSubheader>{T("Status")}</ListSubheader>
+        {(["all", "active", "invited", "disabled"] as const).map((x) => (
+          <MenuItem key={x} selected={status === x} onClick={() => onStatus(x)}>
+            {x === "all" ? T("Any status") : T(STATUS_LABEL[x])}
           </MenuItem>
         ))}
       </Menu>
@@ -1105,6 +1144,7 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
               )}
             </SettingRow>
 
+            <LocationRow uid={u.uid} isMe={isMe} />
             {!isMe && <AccountSchedule person={u} busy={busy} run={run} />}
           </Stack>
         </Box>

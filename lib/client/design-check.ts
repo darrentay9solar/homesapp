@@ -71,6 +71,9 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
     for (const h2 of all("main h2, [data-layout=column] h2").filter((e) => !e.closest(".MuiDialog-root, .MuiCard-root"))) {
       if (!near(px(cs(h2).fontSize), st)) fail("Section title size", `${label(h2)} is ${px(cs(h2).fontSize)}px, should be ${st}px`);
     }
+    // Categories go across tabs, never stacked down the page: one section title at most.
+    const titles = all("main h2, [data-layout=column] h2").filter((e) => !e.closest(".MuiDialog-root, .MuiCard-root"));
+    if (titles.length > 1) fail("Categories in tabs", `${titles.length} section titles stacked: ${titles.map(label).join(", ")}`);
     for (const o of all(".MuiTypography-overline").filter((e) => !e.closest(".MuiCard-root, .MuiDialog-root"))) {
       fail("Capital labels only inside cards", `${label(o)} is used as a section title`);
     }

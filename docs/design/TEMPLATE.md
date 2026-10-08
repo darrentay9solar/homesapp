@@ -99,8 +99,16 @@ Every app screen is built the same way, top to bottom:
    - **Search box** (optional): translucent, 40px tall.
    - **Pill tabs** (optional): white pill on a dark track, each with a
      count. They slide sideways on phones.
-2. **Section title** (`Heading`) with an optional count chip, and an action
-   on the right (a button, or a status chip).
+2. **Categories are tabs, never stacked.** A screen with more than one kind
+   of thing (People: people, groups, requests, map; Account: profile,
+   security, settings, access; a project: milestones, details, site visits)
+   shows them as **pill tabs in the header**, one at a time. Never stack
+   sections down the page under their own titles. The open tab is in the
+   address (`?tab=groups`), so Back, refresh and alert links land on it
+   (`useTab` in `lib/client/tabs.ts`). Filters within a tab (role, status)
+   go in the header's filter button. At most one section title (`Heading`)
+   shows at a time; the design check fails a screen with two. Dates in a
+   timeline (Alerts' "Today", "Yesterday") are small labels, not titles.
 3. **Cards in a grid** (`GRID`): one per row on phones, two on desktop. A
    list card has a coloured left edge (`EdgeCard`): the role colour for
    people, red for anything needing attention, otherwise the status colour.
@@ -127,10 +135,18 @@ card, such as "Status" or "Days running", never as a section title.
 - **Settings row** (`SettingRow`): tinted icon tile, label, sub-line, and
   an optional control on the right or below. Used in Account and in a
   person's Profile.
-- **Account → Settings** groups Language (an English / 简体中文 toggle),
-  Appearance (Light / Black) and Notifications (a row whose sub-line says
-  what's happening now, e.g. "Quiet from 22:00 to 07:00", opening the
-  Notifications dialog).
+- **Account** has four tabs: Profile, Security, Settings and Access.
+  Settings holds Language and Appearance, each a **round swap button** on
+  the right of its row (one tap swaps English ⇄ 简体中文, Light ⇄ Black; the
+  same buttons sit in the account screens' header). It also has
+  Notifications, Share my location, and, for project managers only, File
+  storage, which answers just "File storage online" or "offline". Access
+  lists what the role can and can't do, as points (`lib/client/access.ts`).
+- **Maps** (`components/map.tsx`): OneMap's Night style in Black and Default
+  in Light, in a card with 18px corners. Sites are green dots that glow when
+  picked; people are their avatar in their role colour; the phone itself is
+  a blue dot with its accuracy ring. A map is never the only way to act:
+  each pin has a card under the map (swipe the cards and the map follows).
 - **Timeline** (Audit):
   - a date rail on the left
   - a card per place per day: tinted shell, white card inside

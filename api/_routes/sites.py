@@ -176,8 +176,8 @@ def sites(acct: Account = Depends(active)) -> dict[str, Any]:
                 "postalCode": r["postal_code"],
                 "located": r["located"],
                 "radius": r["check_in_radius_m"],
-                # Only for the development "use the site's location" option; the server decides regardless.
-                "site": {"lat": r["site_lat"], "lng": r["site_lng"]} if act_as_allowed() else None,
+                # Where the site is, for the map. The server still decides whether a check-in is close enough.
+                "site": {"lat": r["site_lat"], "lng": r["site_lng"]} if r["site_lat"] is not None else None,
                 "today": [{"id": v["visit_id"], "time": v["scheduled_time"], "note": v["works_note"]} for v in today_v],
                 "next": {
                     "date": nxt["scheduled_date"].isoformat(),

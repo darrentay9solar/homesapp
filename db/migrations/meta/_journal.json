@@ -183,6 +183,13 @@
       "when": 1791353920774,
       "tag": "0025_settings_photos_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791364827170,
+      "tag": "0026_location_sharing",
+      "breakpoints": true
     }
   ]
 }

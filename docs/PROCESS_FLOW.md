@@ -267,6 +267,36 @@ opens what it's about (the project, its site visits, People or Account). See
 - **TC-33:** Account → Settings → Notifications → quiet hours **22:00 to 07:00** → Save. The row reads "Quiet from 22:00 to 07:00". *Act as* Ravi and schedule a visit for him at 23:00 tomorrow from your side: the alert is on his Alerts screen, and the delivery log shows the phone push as skipped "during their quiet hours". A **Running late** alert still gets through while "Crews running late always get through" is on.
 - **TC-34:** Account → tap your picture → **Change picture**, choose a photo. It shows on Account, in the menu, and on your People card. *Act as* Priya: her Profile has no Change button on your picture. As yourself, open Priya in People → change her picture, then **Remove picture**: both are in the audit log.
 
+### Sites: the map, and checking in
+
+**Sites** (EPC crew and contractor admins) is a map of every site they can
+work at, with a card for each floating over it: swipe the cards or tap a
+pin. Tabs filter All, Due today and On site. **Show my location** puts the
+phone on the map and each card says how far away the site is ("140 m away",
+or "You're at this site" inside its check-in radius). **Check In** takes a
+fresh GPS reading from the phone at that moment and sends it with the crew
+count; the server refuses it if the phone is outside the site's radius or
+the reading is rougher than 50 m. **Check Out** works the same way.
+
+- **TC-40:** *Act as* Ravi on a phone → Sites. Tap Jalan Kayu's pin: its card comes to the front. Away from the house, Check In is refused with how far away you are; at the house, it records the time and crew.
+
+### Where people are: sharing your location
+
+Anyone can turn on **Account → Settings → Share my location**. Only they can:
+a project manager can't switch it on for them, even directly in the
+database. While it's on and GetHomeApps is open on their phone, the phone
+sends its position every 2 minutes, or after moving 100 m. Only the latest
+position is kept, never a trail. Turning it off, or the account being
+disabled, deletes it.
+
+Project managers see it in **People → Map**: everyone sharing, with how long
+ago they were seen (positions over 30 minutes old are faded). Everyone not
+sharing has an **Ask** button, which sends them an alert that opens their
+Settings. A person's Profile shows the same, with a small map.
+
+- **TC-41:** *Act as* Ravi → Account → Settings → **Share my location** on (allow location when asked). As yourself, People → Map shows Ravi, "Seen just now". Turn it off as Ravi: he disappears from the map.
+- **TC-42:** People → Map → **Ask** beside Priya. Priya's Alerts shows "Please share your location"; tapping it opens her Settings. Asking again straight away is refused for 10 minutes.
+
 ### People: expiry and disabling
 
 Every new account is given an **expiry date**, or **No expiry** is ticked;
@@ -341,7 +371,7 @@ Profile pictures are under `profiles/{person}/images/`.
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 2,861 tests (including the settings, pictures, account-expiry and translation tests). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
+- **Python:** `npm run test:py`, 2,889 tests (including settings, pictures, account expiry, translation and location sharing). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
   - **The whole flow, in order:** `tests_py/test_full_flow.py` takes one project from creation to Ready for handover in 18 steps, with every role doing their part (see [TEST_CASES.md](TEST_CASES.md)). It runs twice: with files on the laptop, and with files in the real R2 dev bucket.
   - **R2 requests only when asked for:** a normal run uses no R2. `npm run test:r2` runs just the 39 tests that use the real dev bucket. That's about 85 requests with tiny files, all deleted afterwards, and the bucket is left empty.
   - `tests_py/test_project_work.py` covers the same flow in smaller pieces:
@@ -350,4 +380,4 @@ Profile pictures are under `profiles/{person}/images/`.
   - uploads (and refused uploads)
   - the IC rule, linking a homeowner, the database's rules, and act-as
 - **Front end:** `npm run test:web`, including `tests/i18n.test.ts`: the dictionary is complete for every `T("…")` key, patterns translate server messages, notification settings, and Chinese search words.
-- **Design:** `/dev-preview/design-check`, 336 checks: 28 screens and dialogs across phone, tablet and desktop, in Black and Light, in English and Chinese. Every date and time field on them is tapped to make sure its picker opens.
+- **Design:** `/dev-preview/design-check`, 456 checks: 38 screens, tabs and dialogs across phone, tablet and desktop, in Black and Light, in English and Chinese. Every date and time field on them is tapped to make sure its picker opens, and no screen may stack two section titles (categories are tabs).

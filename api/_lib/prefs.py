@@ -35,6 +35,7 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
         "role_approved",
         "role_rejected",
         "audit_restore",
+        "location_request",
     ),
 }
 CATEGORY_OF = {kind: cat for cat, kinds in CATEGORIES.items() for kind in kinds}

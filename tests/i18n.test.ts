@@ -203,3 +203,17 @@ describe("search works in Chinese too", () => {
   it("文件 finds documents", () => assert.deepEqual(fileNames("文件"), ["bill.pdf"]));
   it("水电账单 finds the utility bill by its Chinese slot name", () => assert.deepEqual(fileNames("水电账单"), ["bill.pdf"]));
 });
+
+describe("Account → Access points", () => {
+  it("every point has Chinese", async () => {
+    const { ACCESS } = await import("../lib/client/access");
+    const points = Object.values(ACCESS).flatMap((a) => [...a.yes, ...a.no]);
+    assert.ok(points.length > 15);
+    assert.deepEqual(points.filter((p) => !DICT[p]), []);
+  });
+  it("project managers have nothing they can't do; everyone else has at least one limit", async () => {
+    const { ACCESS } = await import("../lib/client/access");
+    assert.equal(ACCESS.project_manager.no.length, 0);
+    for (const r of ["homeowner", "contractor", "epc_team"] as const) assert.ok(ACCESS[r].no.length > 0, r);
+  });
+});
