@@ -107,7 +107,11 @@ change with nobody set is visible only to a superadmin, who can hand it to a
 manager with **Edit → Project manager**. Production has none, so this only
 matters later.
 
-## 4. Phone notifications on the live site (VAPID keys)
+## 4. Phone notifications on the live site (VAPID keys) — ✅ done 8 Oct 2026
+
+A production pair is in Vercel (homesapp, Production; the private key is
+marked Sensitive) and the live site was redeployed with it. Nothing more to
+do. What follows is only for reference, e.g. a future second environment.
 
 Without these, nobody gets phone notifications from the live site (alerts
 still show inside the app).
@@ -126,7 +130,11 @@ To do it yourself:
 Keep the pair. Replacing it later switches notifications off on every phone
 until people turn them on again.
 
-## 5. The 15-minute job (reminders, "running late", expiry dates)
+## 5. The 15-minute job (reminders, "running late", expiry dates) — ✅ done 8 Oct 2026
+
+`CRON_SECRET` is in Vercel and GitHub, and `APP_URL` in GitHub. The first run
+reached the live site and succeeded; it now runs every 15 minutes. What
+follows is only for reference.
 
 This sends "site visit in 1 hour" and "running late" alerts. It also
 disables accounts on their expiry date even when nobody signs in.
