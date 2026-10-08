@@ -6,8 +6,9 @@ then carries ``X-Demo-As: <uid>`` instead of a Clerk session.
 
 Two locks, both needed, so production can never become a demo:
   1. the deployment says so: ``DEMO_MODE=1`` (set only on the demo project);
-  2. the database says so: ``app.environment = 'demo'``, a database setting
-     that only scripts/reset_and_seed.py --target dev puts on the dev database.
+  2. the database says so: its comment is ``gethomeapps:demo``. Only the
+     database's owner can set that, and only scripts/reset_and_seed.py
+     --target dev does, on the dev database.
 And only sample people (``users.is_demo``, which only the database owner can
 set) can be picked.
 
@@ -23,6 +24,9 @@ import time
 
 from _lib.db import fetch_one
 
+# The dev database's comment (COMMENT ON DATABASE), which marks it as the demo's.
+MARKER = "gethomeapps:demo"
+
 _cache: tuple[float, bool] | None = None
 
 
@@ -36,8 +40,10 @@ def database_is_demo() -> bool:
     if _cache and time.monotonic() - _cache[0] < 60:
         return _cache[1]
     try:
-        row = fetch_one("select current_setting('app.environment', true) as env")
-        ok = bool(row and row["env"] == "demo")
+        row = fetch_one(
+            "select shobj_description(oid, 'pg_database') as note from pg_database where datname = current_database()"
+        )
+        ok = bool(row and row["note"] == MARKER)
     except Exception:
         ok = False
     _cache = (time.monotonic(), ok)

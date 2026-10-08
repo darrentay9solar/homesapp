@@ -194,3 +194,22 @@ def test_only_the_database_owner_marks_sample_people(fx, sample) -> None:
         transaction(sample["pm"]["uid"]) as cur,
     ):
         cur.execute("update users set is_demo = true where uid = %s", (real["uid"],))
+
+
+# ------------------------------------------------------------------ the database's marker
+
+
+def test_the_app_login_cant_mark_a_database_as_the_demo() -> None:
+    with pytest.raises(psycopg.Error), transaction(None) as cur:
+        cur.execute("comment on database neondb is 'gethomeapps:demo'")
+
+
+def test_the_marker_is_the_databases_comment(fx, monkeypatch) -> None:
+    fx.conn.execute("comment on database neondb is 'gethomeapps:demo'")
+    try:
+        monkeypatch.setattr(demo, "_cache", None)
+        assert demo.database_is_demo() is True
+    finally:
+        fx.conn.execute("comment on database neondb is null")
+        monkeypatch.setattr(demo, "_cache", None)
+    assert demo.database_is_demo() is False

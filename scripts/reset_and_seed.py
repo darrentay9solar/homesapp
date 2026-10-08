@@ -670,9 +670,9 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
 
 
 def mark_demo_database(c: psycopg.Connection) -> None:
-    """The database's own "this is the demo" marker (api/_lib/demo.py). Never on production."""
+    """The database's own "this is the demo" marker (api/_lib/demo.py): its comment, which only its owner can set."""
     db = c.execute("select current_database() as d").fetchone()["d"]
-    c.execute(psql.SQL("alter database {} set app.environment = 'demo'").format(psql.Identifier(db)))
+    c.execute(psql.SQL("comment on database {} is 'gethomeapps:demo'").format(psql.Identifier(db)))
 
 
 # ---------------------------------------------------------------------- main
@@ -723,7 +723,7 @@ def main() -> None:
             seed(c, keep, bucket, a.target)
             if a.target == "dev":
                 mark_demo_database(c)
-                print("  marked as the demo database (app.environment = demo)")
+                print("  marked as the demo database (its comment: gethomeapps:demo)")
             n = c.execute(
                 "select (select count(*) from projects) p, (select count(*) from users) u, (select count(*) from project_files) f"
             ).fetchone()
