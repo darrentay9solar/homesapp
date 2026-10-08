@@ -18,7 +18,7 @@ import { useState } from "react";
 import { PushSetup } from "@/components/alerts";
 import { Field, MDialog } from "@/components/m";
 import { ApiError, useFetcher } from "@/lib/client/api";
-import { useApp, useMe } from "@/lib/client/app-state";
+import { isAdmin, useApp, useMe } from "@/lib/client/app-state";
 import { locale, useT } from "@/lib/client/i18n";
 import { CATEGORIES, DEFAULT_PREFS, isPaused, type PauseChoice, pauseUntil, type Prefs } from "@/lib/client/prefs";
 
@@ -115,7 +115,7 @@ export function NotificationsDialog({ onClose }: { onClose: () => void }) {
 
       <Typography sx={{ fontWeight: 600, mt: 2.5, mb: 1 }}>{t("What to be told about")}</Typography>
       <Card sx={{ px: 2, py: 0.5 }}>
-        {CATEGORIES.filter((c) => !c.pm || me?.role === "project_manager").map((c, i) => (
+        {CATEGORIES.filter((c) => !c.pm || isAdmin(me?.role)).map((c, i) => (
           <Box key={c.key}>
             {i > 0 && <Divider />}
             <Row

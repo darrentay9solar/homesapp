@@ -1,6 +1,6 @@
 """Your settings and profile pictures.
 
-  PATCH  /me/settings                       {language?, notificationPrefs?, shareLocation?}
+  PATCH  /me/settings                       {language?, notificationPrefs?}
   POST   /me/avatar/upload-link             a link to upload your picture
   POST   /me/avatar                         {key}: use what was uploaded
   DELETE /me/avatar                         remove your picture
@@ -23,10 +23,11 @@ from fastapi.responses import RedirectResponse, Response
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from _lib import demo, prefs, storage
+from _lib import prefs, storage
 from _lib.account import Account
 from _lib.db import fetch_one, transaction
 from _lib.i18n import LANGS
+from _lib.rights import is_admin, may_manage
 from _lib.web import active
 
 router = APIRouter()
@@ -38,7 +39,6 @@ router = APIRouter()
 class SettingsIn(BaseModel):
     language: str | None = None
     notificationPrefs: dict[str, Any] | None = None
-    shareLocation: bool | None = None
 
 
 @router.patch("/me/settings")
@@ -53,33 +53,17 @@ def save_settings(body: SettingsIn, acct: Account = Depends(active)) -> dict[str
             sets["notification_prefs"] = prefs.normalise(body.notificationPrefs)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-    if body.shareLocation is not None:
-        if acct.demo:
-            raise HTTPException(403, demo.OFF["location"])
-        if acct.acting_pm:
-            raise HTTPException(403, "Not while testing as someone else: this phone is yours, not theirs.")
-        sets["share_location"] = body.shareLocation
     if not sets:
         raise HTTPException(400, "Nothing to save.")
     vals = {k: (Jsonb(v) if k == "notification_prefs" else v) for k, v in sets.items()}
     cols = ", ".join(f"{k} = %({k})s" for k in vals)
     with transaction(acct.uid) as cur:
-        extra = ", share_location_changed_at = now()" if "share_location" in sets else ""
-        cur.execute(
-            f"update users set {cols}{extra}, updated_at = now() where uid = %(uid)s", {**vals, "uid": acct.uid}
-        )
+        cur.execute(f"update users set {cols}, updated_at = now() where uid = %(uid)s", {**vals, "uid": acct.uid})
     out: dict[str, Any] = {"message": "Settings saved."}
     if "notification_prefs" in sets:
         out["notificationPrefs"] = sets["notification_prefs"]
     if "language" in sets:
         out["language"] = sets["language"]
-    if "share_location" in sets:
-        out["shareLocation"] = sets["share_location"]
-        out["message"] = (
-            "Sharing your location with project managers while the app is open."
-            if sets["share_location"]
-            else "Stopped sharing your location. Your last location was deleted."
-        )
     return out
 
 
@@ -96,12 +80,14 @@ class KeyIn(BaseModel):
 
 
 def _target(uid: int, acct: Account) -> dict[str, Any]:
-    """Whose picture: your own, or anyone's if you're a project manager."""
-    if uid != acct.uid and acct.role != "project_manager":
+    """Whose picture: your own; anyone's a project manager may manage (rights.may_manage)."""
+    if uid != acct.uid and not is_admin(acct):
         raise HTTPException(403, "Only a project manager can change someone else's picture.")
-    u = fetch_one("select uid, full_name, avatar_key from users where uid = %s", (uid,))
+    u = fetch_one("select uid, full_name, avatar_key, user_type from users where uid = %s", (uid,))
     if not u:
         raise HTTPException(404, "No such account.")
+    if uid != acct.uid:
+        may_manage(acct, u["user_type"])
     return u
 
 

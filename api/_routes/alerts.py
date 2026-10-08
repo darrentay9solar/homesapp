@@ -47,7 +47,6 @@ KIND_LABEL = {
     "role_request": "People",
     "role_approved": "Account",
     "role_rejected": "Account",
-    "location_request": "Location",
 }
 
 

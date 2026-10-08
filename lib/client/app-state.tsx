@@ -15,7 +15,25 @@ import { currentLang, type Lang, T, translate, useLang } from "./i18n";
 import type { Prefs } from "./prefs";
 import { registration, setBadge } from "./push";
 
-export type Role = "homeowner" | "project_manager" | "contractor" | "epc_team";
+export type Role = "homeowner" | "project_manager" | "contractor" | "epc_team" | "superadmin";
+
+/** Project managers and the superadmin: People, Audit, Everyone's files, creating projects. */
+export function isAdmin(role: Role | null | undefined): boolean {
+  return role === "project_manager" || role === "superadmin";
+}
+
+/** The roles an account can be given in the app: a superadmin gives any; a project manager every one but project manager. Superadmin is never given in the app. */
+export function grantableRoles(by: Role | null | undefined): Role[] {
+  const all: Role[] = ["homeowner", "contractor", "epc_team", "project_manager"];
+  return by === "superadmin" ? all : all.filter((r) => r !== "project_manager");
+}
+
+/** Whether `by` may change an account that has role `target` (People → Profile). */
+export function canManage(by: Role | null | undefined, target: Role): boolean {
+  if (target === "superadmin") return false;
+  if (target === "project_manager") return by === "superadmin";
+  return isAdmin(by);
+}
 
 export type Me = {
   state: "active" | "deactivated" | "pending" | "rejected" | "no_account";

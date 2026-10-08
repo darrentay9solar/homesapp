@@ -128,7 +128,11 @@ def all_files(
     """Every project's files, newest first, for project managers. Every word of q must match the
     file name, project, address, uploader, slot or type ("jalan panels", "priya pdf")."""
     where = ["(%(before)s::int is null or f.file_id < %(before)s)"]
-    params: dict[str, Any] = {"before": before, "limit": limit + 1}
+    params: dict[str, Any] = {"before": before, "limit": limit + 1, "me": acct.uid}
+    # A superadmin sees every project's files; a project manager the projects they run.
+    mine = "" if acct.role == "superadmin" else "p.project_manager_id = %(me)s"
+    if mine:
+        where.append(mine)
     if kind in ("image", "document"):
         where.append("f.kind = %(kind)s")
         params["kind"] = kind
@@ -154,7 +158,11 @@ def all_files(
         f"where {' and '.join(where)} order by f.file_id desc limit %(limit)s",
         params,
     )
-    counts = fetch_all("select kind, count(*)::int as n from project_files group by kind")
+    counts = fetch_all(
+        "select f.kind, count(*)::int as n from project_files f join projects p on p.project_id = f.project_id "
+        f"where {mine or 'true'} group by f.kind",
+        {"me": acct.uid},
+    )
     from _routes.people import avatar_url
 
     return {

@@ -54,6 +54,8 @@ export type Options = {
   homeowners: Array<{ uid: number; name: string; email: string; contactNo: string | null }>;
   crew: Array<{ uid: number; name: string; role: Role; roleLabel: string }>;
   groups: Array<{ id: number; name: string; members: number[] }>;
+  /** Superadmins only: who can run a project. Empty for a project manager, whose projects are their own. */
+  managers?: Array<{ uid: number; name: string; role: Role }>;
 };
 
 // ------------------------------------------------------------- statuses

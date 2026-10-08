@@ -20,6 +20,7 @@ type Sample = { uid: number; name: string; role: Role; roleLabel: string; avatar
 
 const ICON: Record<Role, ReactNode> = {
   project_manager: <ShieldOutlinedIcon />,
+  superadmin: <ShieldOutlinedIcon />,
   contractor: <WorkOutlineRoundedIcon />,
   epc_team: <EngineeringRoundedIcon />,
   homeowner: <HomeOutlinedIcon />,

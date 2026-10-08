@@ -12,8 +12,8 @@ And only sample people (``users.is_demo``, which only the database owner can
 set) can be picked.
 
 What stays off in the demo, because everyone shares the same sample people:
-sign-in changes (email, password), phone notifications, location sharing,
-and anything leaving the app (email, WhatsApp, SMS, Clerk invitations).
+sign-in changes (email, password), phone notifications, and anything
+leaving the app (email, WhatsApp, SMS, Clerk invitations).
 """
 
 from __future__ import annotations
@@ -52,9 +52,5 @@ OFF = {
     "sign_in": "Not in the demo: everyone here shares the same sample people, so their sign-in can't be changed.",
     "push": (
         "Phone notifications are off in the demo, so they don't reach other visitors' phones. Alerts still appear here."
-    ),
-    "location": (
-        "Location sharing is off in the demo: everyone here shares the same sample people. "
-        "People → Map shows sample locations."
     ),
 }

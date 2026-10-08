@@ -65,9 +65,20 @@ def _project(pid: int) -> dict[str, Any]:
     return p
 
 
+def _run(pid: int, acct: Account) -> dict[str, Any]:
+    """The project, if this project manager runs it (a superadmin runs every one)."""
+    p = _project(pid)
+    if relation(acct, p) != "pm":
+        raise HTTPException(404, "No such project, or it isn't one of yours.")
+    return p
+
+
 def relation(acct: Account, p: dict[str, Any]) -> Relation | None:
-    if acct.role == "project_manager":
+    # Runs the project: a superadmin always, a project manager when it's theirs.
+    if acct.role == "superadmin" or (acct.role == "project_manager" and p["project_manager_id"] == acct.uid):
         return "pm"
+    if acct.role == "project_manager":
+        return None
     if acct.role == "homeowner":
         return "homeowner" if p["homeowner_id"] == acct.uid else None
     on = fetch_one(
@@ -524,7 +535,8 @@ class ReasonIn(BaseModel):
 def _pms(p: dict[str, Any]) -> set[int]:
     if p["project_manager_id"]:
         return {p["project_manager_id"]}
-    return {r["uid"] for r in fetch_all("select uid from users where user_type = 'project_manager' and active")}
+    admins = fetch_all("select uid from users where user_type in ('project_manager', 'superadmin') and active")
+    return {r["uid"] for r in admins}
 
 
 @router.post("/projects/{pid}/approve")
@@ -566,7 +578,7 @@ def decline(pid: int, body: ReasonIn, acct: Account = Depends(active)) -> dict[s
 
 @router.post("/projects/{pid}/remind")
 def remind(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
-    p = _project(pid)
+    p = _run(pid, acct)
     if p["status"] not in ("awaiting_homeowner", "homeowner_declined") or not p["homeowner_id"]:
         raise HTTPException(409, "The project isn't waiting on the homeowner.")
     with transaction(acct.uid) as cur:
@@ -582,8 +594,9 @@ def remind(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
 @router.patch("/projects/{pid}")
 def edit_details(pid: int, body: proj.ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     """A project manager changes the project's details or dates. Every change is in the audit log."""
-    p = _project(pid)
+    p = _run(pid, acct)
     v = proj._validate(body)
+    manager = proj.manager_for(body, acct, current=p["project_manager_id"])
     geo: dict[str, Any] = {}
     note = ""
     if v["postal"] != p["postal_code"]:
@@ -610,6 +623,7 @@ def edit_details(pid: int, body: proj.ProjectIn, acct: Account = Depends(pm_only
             "homeowner_name": v["homeowner_name"], "homeowner_contact_no": v["contact"],
             "contractor_group_id": v["group_id"], "contractor_text": v["contractor_text"],
             "installation_start_date": v["start"], "target_end_date": v["end"], "status": status, **geo,
+            "project_manager_id": manager,
         }  # fmt: skip
         cols = ", ".join(f"{k} = %({k})s" for k in sets)
         cur.execute(f"update projects set {cols}, updated_at = now() where project_id = %(pid)s", {**sets, "pid": pid})
@@ -640,7 +654,7 @@ def reopen(pid: int, n: int, acct: Account = Depends(pm_only)) -> dict[str, Any]
     """Reopens a completed milestone (and any after it) so its fields can change again."""
     if n not in (1, 2, 3):
         raise HTTPException(400, "There are three milestones.")
-    _project(pid)
+    _run(pid, acct)
     with transaction(acct.uid) as cur:
         cur.execute(
             "delete from project_milestones where project_id = %s and milestone_no >= %s returning milestone_no",

@@ -17,6 +17,7 @@ from _lib import clerk, notify
 from _lib.account import ROLE_LABEL, SG, Account, apply_schedule
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.profile import ROLES, ProfileIn, clean_email, clean_profile
+from _lib.rights import may_manage
 from _lib.web import role
 
 router = APIRouter()
@@ -187,6 +188,7 @@ def expiry_from(expires_on: str | None, no_expiry: bool) -> date | None:
 def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     email = clean_email(body.email)
     p = clean_profile(body, require_mobile=True)
+    may_manage(acct, p["user_type"])
     expires = expiry_from(body.expiresOn, body.noExpiry)
     if fetch_one("select 1 from users where lower(email) = %s", (email,)):
         raise HTTPException(409, "An account with that email already exists.")
@@ -264,6 +266,8 @@ def update_user(uid: int, body: UserPatch, acct: Account = Depends(pm_only)) -> 
         raise HTTPException(404, "No such account.")
     if body.role is not None and body.role not in ROLES:
         raise HTTPException(400, "Choose a role.")
+    if uid != acct.uid:
+        may_manage(acct, user["user_type"], body.role)
     sent = body.model_fields_set
     today = sg_today()
     disable_on = parse_day(body.disableOn, "expiry date") if "disableOn" in sent else user["disable_on"]
@@ -337,6 +341,7 @@ class DecisionIn(BaseModel):
 def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     if body.role not in ROLES:
         raise HTTPException(400, "Choose a role to grant.")
+    may_manage(acct, body.role)
     req = fetch_one("select email, status from account_requests where request_id = %s", (request_id,))
     if not req:
         raise HTTPException(404, "No such request.")

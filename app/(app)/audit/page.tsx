@@ -78,7 +78,7 @@ import {
 } from "@/lib/client/audit";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { DESIGN } from "@/lib/client/design";
-import { type Role, useApp, useMe } from "@/lib/client/app-state";
+import { isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
 import { T, TR } from "@/lib/client/i18n";
@@ -103,7 +103,7 @@ function mergeRefs(a: Refs, b: Refs): Refs {
 export default function AuditPage() {
   const me = useMe();
   const router = useRouter();
-  const pm = me?.role === "project_manager";
+  const pm = isAdmin(me?.role);
   const [view, setView] = useState<View>("timeline");
   const [filter, setFilter] = useState<Filter>("all");
   const [q, setQ] = useState("");

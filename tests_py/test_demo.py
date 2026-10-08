@@ -2,7 +2,7 @@
 
 locks       the deployment AND the database must both say "demo"; only sample people
 as          a visitor gets that person's view, and /me says it's the demo
-off         sign-in changes, phone notifications and location sharing are refused
+off         sign-in changes and phone notifications are refused
 nothing     no email, WhatsApp, SMS or Clerk invitation ever leaves the demo
 list        /demo/people lists the sample people, only on the demo site
 database    only the database owner can mark a sample person
@@ -118,16 +118,6 @@ def test_phone_notifications_are_off(client, on, sample) -> None:
     sub = {"endpoint": "https://push.example.com/x", "keys": {"p256dh": "a", "auth": "b"}}
     r = client.post("/api/py/push/subscriptions", headers=as_(sample["epc"]), json=sub)
     assert r.status_code == 403 and "off in the demo" in r.json()["error"]
-
-
-def test_location_sharing_is_off(client, on, sample) -> None:
-    assert (
-        client.patch("/api/py/me/settings", headers=as_(sample["epc"]), json={"shareLocation": True}).status_code == 403
-    )
-    assert (
-        client.put("/api/py/me/location", headers=as_(sample["epc"]), json={"lat": 1.35, "lng": 103.8}).status_code
-        == 403
-    )
 
 
 def test_other_settings_still_work(client, on, sample) -> None:

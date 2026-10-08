@@ -9,10 +9,11 @@ Step by step, with where to click: **[YOUR_STEPS.md](YOUR_STEPS.md)**. In short:
 
 1. Fix the dev database login (Neon), so the demo site has its data.
 2. Let the demo site upload photos (the dev bucket's CORS, Cloudflare).
-3. Phone notification keys for the live site (or ask me to set them).
-4. The 15-minute reminder job (or ask me to set it up).
-5. Email (Resend), 6. WhatsApp (Meta), 7. SMS (Twilio).
-8. Clerk production keys before real customers, 9. your own domain.
+3. Make yourself the superadmin (one line in Neon's SQL editor).
+4. Phone notification keys for the live site (or ask me to set them).
+5. The 15-minute reminder job (or ask me to set it up).
+6. Email (Resend), 7. WhatsApp (Meta), 8. SMS (Twilio).
+9. Clerk production keys before real customers, 10. your own domain.
 
 Production no longer needs a wipe or its R2 keys in `.env.local`. It
 already holds only your login, and sample data now lives on the demo site

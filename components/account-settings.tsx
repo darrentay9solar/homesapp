@@ -362,7 +362,7 @@ export function RoleDialog({ current, onClose }: { current: Role; onClose: () =>
   const fetcher = useFetcher();
   const { reloadMe, toast } = useApp();
   const { busy, error, step } = useStep();
-  const options = (Object.keys(ROLE_NAME) as Role[]).filter((r) => r !== current && r !== "project_manager");
+  const options = (Object.keys(ROLE_NAME) as Role[]).filter((r) => r !== current && r !== "project_manager" && r !== "superadmin");
   const [role, setRole] = useState<Role>(options[0]);
   const [reason, setReason] = useState("");
   return (

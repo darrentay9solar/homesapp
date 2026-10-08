@@ -31,12 +31,11 @@ import { Logo } from "./icons";
 import { RoleAvatar } from "./m";
 
 import { T, TR } from "@/lib/client/i18n";
-import { LocationSharer } from "./location-sharer";
 import { leaveDemo } from "@/lib/client/demo";
 /** phone: false keeps a tab off the phone's bottom bar (at most five fit); it stays in the desktop drawer. */
 type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
 
-/** Tabs per role, from the prototype. Audit is project managers only. */
+/** Tabs per role, from the prototype. Audit is project managers' and the superadmin's only. */
 const TABS: Record<Role, Tab[]> = {
   homeowner: [
     { href: "/", label: "My Project", icon: <HomeRoundedIcon /> },
@@ -44,6 +43,15 @@ const TABS: Record<Role, Tab[]> = {
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
   ],
   project_manager: [
+    { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
+    { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
+    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
+    { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon /> },
+    { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
+    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
+  ],
+  // Everything a project manager has, over every project.
+  superadmin: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
@@ -167,7 +175,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         {state?.actingAs && <ActingBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} by={state.actingAs.byName} />}
         {state?.demo && <DemoBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} />}
-        <LocationSharer />
         {children}
       </Box>
 

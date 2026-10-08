@@ -58,7 +58,7 @@ def request_account(body: RequestIn, acct: Account = Depends(account)) -> dict[s
     m = notify.msg_account_requested(
         p["full_name"], cu.primary_email, ROLE_LABEL[p["user_type"]], f"{notify.app_url()}/people"
     )
-    for pm in fetch_all("select uid, email from users where user_type = 'project_manager' and active"):
+    for pm in fetch_all("select uid, email from users where user_type in ('project_manager', 'superadmin') and active"):
         try:
             notify.notify(pm["uid"], "account_request", m["title"], m["body"], email=(pm["email"], *m["email"]))
         except Exception as exc:  # one PM's failure must not lose the request

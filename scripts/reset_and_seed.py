@@ -79,6 +79,8 @@ WIPE = [
 
 PEOPLE = [
     # key, name, role, mobile, groups
+    # The superadmin: only ever put in by the database owner, which this script is.
+    ("sam", "Sam Tan", "superadmin", "+65 9001 2200", []),
     ("charlotte", "Charlotte Sim", "project_manager", "+65 9001 2201", []),
     ("priya", "Priya Nair", "contractor", "+65 9001 2202", ["apex", "kim"]),
     ("ravi", "Ravi Kumar", "epc_team", "+65 9001 2203", ["apex"]),
@@ -665,28 +667,6 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             (uid, pid, kind, title, body, link, mins, read),
         )
     c.execute("select set_config('app.actor_uid', '', false)")
-    share_sample_locations(c, u)
-
-
-def share_sample_locations(c: psycopg.Connection, u: dict[str, int]) -> None:
-    """People → Map on the demo: a few crew sharing their location, one of them on site, one out of date."""
-    sites = c.execute(
-        "select site_lat, site_lng from projects where site_lat is not null order by project_id"
-    ).fetchall()
-    if not sites:
-        return
-    where = [
-        ("ravi", sites[0]["site_lat"] + 0.0003, sites[0]["site_lng"] - 0.0002, 9, 3),
-        ("hafiz", sites[-1]["site_lat"] - 0.004, sites[-1]["site_lng"] + 0.006, 22, 12),
-        ("priya", 1.3329, 103.7436, 30, 95),
-    ]
-    for key, lat, lng, acc, mins in where:
-        c.execute("update users set share_location = true, share_location_changed_at = now() where uid = %s", (u[key],))
-        c.execute(
-            "insert into user_locations (uid, lat, lng, accuracy_m, recorded_at) "
-            "values (%s, %s, %s, %s, now() - make_interval(mins => %s))",
-            (u[key], lat, lng, acc, mins),
-        )
 
 
 def mark_demo_database(c: psycopg.Connection) -> None:

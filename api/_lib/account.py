@@ -24,6 +24,7 @@ ROLE_LABEL = {
     "project_manager": "Project Manager",
     "contractor": "Contractor Admin",
     "epc_team": "EPC Team",
+    "superadmin": "Superadmin",
 }
 
 

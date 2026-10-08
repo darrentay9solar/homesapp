@@ -200,15 +200,12 @@ def send_mobile(raw_number: str | None, template: str, params: list[str], sms_te
 SITE_KINDS = {"visit_assigned", "visit_reminder", "visit_missed", "crew_arrived_late"}
 ACCOUNT_KINDS = {"account_created", "account_approved", "account_rejected", "role_approved", "role_rejected"}
 REVIEW_KINDS = {"account_request", "role_request"}
-SETTINGS_KINDS = {"location_request"}
 
 
 def default_link(kind: str, project_id: int | None) -> str:
     """Where an alert takes you: the thing it's about."""
     if kind in REVIEW_KINDS:
         return "/people?tab=requests"
-    if kind in SETTINGS_KINDS:
-        return "/account?tab=settings"
     if kind in ACCOUNT_KINDS:
         return "/account"
     if project_id:

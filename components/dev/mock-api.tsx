@@ -38,7 +38,6 @@ const FIXTURES: Record<string, unknown> = {
       passwordChangedAt: iso(60 * 24 * 40),
       roleRequest: null,
       language: "en",
-      shareLocation: false,
       notificationPrefs: { pausedUntil: null, quiet: { on: true, from: "22:00", to: "07:00" }, urgent: true, mute: [], channels: { push: true, email: true, mobile: true } },
     },
   },
@@ -68,6 +67,7 @@ const FIXTURES: Record<string, unknown> = {
       },
     ],
     users: [
+      { uid: 11, fullName: "Sam Tan", email: "sam@example.com", role: "superadmin", roleLabel: "Superadmin", contactNo: "+65 9001 2200", active: true, linked: true, invitedAt: null, groups: [] },
       { uid: 1, fullName: "Wei Ming Tan", email: "weiming@example.com", role: "project_manager", roleLabel: "Project Manager", contactNo: "+65 9123 4567", active: true, linked: true, invitedAt: null, groups: [] },
       { uid: 2, fullName: "Charlotte Sim", email: "charlotte@example.com", role: "project_manager", roleLabel: "Project Manager", contactNo: "+65 9001 2201", active: true, linked: true, invitedAt: null, groups: [] },
       { uid: 3, fullName: "Priya Nair", email: "priya@example.com", role: "contractor", roleLabel: "Contractor Admin", contactNo: "+65 9001 2202", active: true, linked: true, invitedAt: null, groups: [1, 2] },
@@ -148,14 +148,10 @@ const DEMO_PEOPLE = {
 // ------------------------------------------------------------ locations
 
 const LOCATIONS = {
-  me: 1,
   people: [
-    { uid: 4, name: "Ravi Kumar", role: "epc_team", roleLabel: "EPC Team", avatar: null, sharing: true, location: { lat: 1.3962, lng: 103.8734, accuracy: 11, at: iso(3) } },
-    { uid: 3, name: "Priya Nair", role: "contractor", roleLabel: "Contractor Admin", avatar: null, sharing: true, location: { lat: 1.3329, lng: 103.7436, accuracy: 25, at: iso(95) } },
-    { uid: 2, name: "Charlotte Sim", role: "project_manager", roleLabel: "Project Manager", avatar: null, sharing: false, location: null },
-    { uid: 5, name: "Jasmine Lee", role: "homeowner", roleLabel: "Homeowner", avatar: null, sharing: false, location: null },
-    { uid: 6, name: "Daniel Ong", role: "homeowner", roleLabel: "Homeowner", avatar: null, sharing: false, location: null },
-    { uid: 7, name: "Farah Ismail", role: "homeowner", roleLabel: "Homeowner", avatar: null, sharing: false, location: null },
+    { uid: 4, name: "Ravi Kumar", role: "epc_team", roleLabel: "EPC Team", avatar: null, location: { lat: 1.3962, lng: 103.8734, accuracy: 11, at: iso(48), kind: "in", projectId: 101, project: "Jalan Kayu Residence" } },
+    { uid: 9, name: "Hafiz Rahman", role: "epc_team", roleLabel: "EPC Team", avatar: null, location: { lat: 1.3524, lng: 103.8201, accuracy: 18, at: iso(60 * 26), kind: "out", projectId: 102, project: "Sunbird Circle" } },
+    { uid: 10, name: "Kelvin Lim", role: "epc_team", roleLabel: "EPC Team", avatar: null, location: null },
   ],
 };
 

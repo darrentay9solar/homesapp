@@ -87,10 +87,11 @@ class World:
     ) -> int:
         pid = self.owner.execute(
             "insert into projects (name, address, postal_code, site_lat, site_lng, check_in_radius_m, homeowner_id, "
-            "homeowner_contact_no, contractor_group_id, installation_start_date, target_end_date, status) values "
-            "(%s, 'GPS Road', '569933', %s, %s, %s, %s, '+65 9000 0000', %s, current_date, current_date + 21, %s) "
+            "homeowner_contact_no, contractor_group_id, installation_start_date, target_end_date, status, "
+            "project_manager_id) values "
+            "(%s, 'GPS Road', '569933', %s, %s, %s, %s, '+65 9000 0000', %s, current_date, current_date + 21, %s, %s) "
             "returning project_id",
-            (f"pytest gps {name}", lat, lng, radius, self.u["ho"], self.group, status),
+            (f"pytest gps {name}", lat, lng, radius, self.u["ho"], self.group, status, self.u["pm"]),
         ).fetchone()["project_id"]
         self.ids.append(pid)
         return pid

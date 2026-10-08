@@ -2,7 +2,7 @@
 
 What only you can do, because it needs your logins to Neon, Cloudflare,
 Meta, Twilio, Resend or Clerk. In order of importance. Steps 1 and 2 get the
-demo site working; the rest are for the live site.
+demo site working; step 3 makes you the superadmin; the rest are for the live site.
 
 The two sites:
 
@@ -63,7 +63,51 @@ The dev bucket only accepts uploads from your laptop. Add the demo site:
    ]
    ```
 
-## 3. Phone notifications on the live site (VAPID keys)
+## 3. Make yourself the superadmin (live site)
+
+A superadmin can't be created in the app, on purpose: their details go
+straight into the database. The superadmin sees and edits every project,
+manages every account (project managers included) and reads the whole audit
+log. Project managers now see only the projects they run.
+
+1. <https://console.neon.tech> → the GetHomeApps project → **SQL Editor**.
+   At the top, choose **Branch: production** (and database `neondb`).
+2. **To make your own account the superadmin** (you already sign in with
+   it), paste this with your sign-in email, then **Run**:
+
+   ```sql
+   update users set user_type = 'superadmin', disable_on = null, enable_on = null
+    where lower(email) = lower('darrentay1993@gmail.com');
+   ```
+
+   It should say `UPDATE 1`. Sign out and in again (or refresh) and Account →
+   Access reads "As Superadmin you can: …".
+3. **To add someone new as a superadmin**, insert them, then send them to
+   <https://homesapp-alpha.vercel.app/sign-up> to make their login with the
+   same email. The account links itself by email on their first sign-in:
+
+   ```sql
+   insert into users (full_name, email, contact_no, user_type)
+   values ('Their Name', 'their@email.com', '+65 9123 4567', 'superadmin');
+   ```
+
+4. **To turn a superadmin back into a project manager** (or switch one off):
+
+   ```sql
+   update users set user_type = 'project_manager' where lower(email) = lower('their@email.com');
+   update users set active = false where lower(email) = lower('their@email.com');
+   ```
+
+These run as the database owner, so the app's own rules don't block them, and
+each is still recorded in the audit log (as "Outside the app"). Keep at least
+one superadmin: only a superadmin can create or change project managers.
+
+Your existing projects keep their project manager. A project made before this
+change with nobody set is visible only to a superadmin, who can hand it to a
+manager with **Edit → Project manager**. Production has none, so this only
+matters later.
+
+## 4. Phone notifications on the live site (VAPID keys)
 
 Without these, nobody gets phone notifications from the live site (alerts
 still show inside the app).
@@ -82,7 +126,7 @@ To do it yourself:
 Keep the pair. Replacing it later switches notifications off on every phone
 until people turn them on again.
 
-## 4. The 15-minute job (reminders, "running late", expiry dates)
+## 5. The 15-minute job (reminders, "running late", expiry dates)
 
 This sends "site visit in 1 hour" and "running late" alerts. It also
 disables accounts on their expiry date even when nobody signs in.
@@ -103,7 +147,7 @@ To do it yourself:
 4. **Actions** → **Visit reminders** → **Run workflow** to try it. It should
    finish green.
 
-## 5. Email (Resend)
+## 6. Email (Resend)
 
 Used for invitations, approvals and decisions.
 
@@ -118,7 +162,7 @@ Used for invitations, approvals and decisions.
      the verified domain)
 5. Redeploy.
 
-## 6. WhatsApp (Meta)
+## 7. WhatsApp (Meta)
 
 Used for codes and messages. The full walk-through is in
 [whatsapp.md](whatsapp.md). In short:
@@ -136,7 +180,7 @@ Used for codes and messages. The full walk-through is in
 6. Vercel (Production): `WHATSAPP_TOKEN` (Sensitive) and
    `WHATSAPP_PHONE_NUMBER_ID`. Redeploy.
 
-## 7. SMS fallback (Twilio)
+## 8. SMS fallback (Twilio)
 
 Used when WhatsApp can't deliver.
 
@@ -147,14 +191,14 @@ Used when WhatsApp can't deliver.
 3. Vercel (Production): `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
    (Sensitive), and `SMS_FROM` (the number or sender ID). Redeploy.
 
-## 8. Clerk production keys (before real customers sign up)
+## 9. Clerk production keys (before real customers sign up)
 
 The live site still uses Clerk's development keys. These show a "Development
 mode" badge and have sign-up limits.
 
 1. <https://dashboard.clerk.com> → your application → **Create production
    instance** (top bar).
-2. It needs your own domain (step 9). Add the DNS records Clerk lists.
+2. It needs your own domain (step 10). Add the DNS records Clerk lists.
 3. Under **Configure**, copy the settings from development: email + password
    sign-in, username off, and the same sign-in and sign-up URLs.
 4. **API keys** → copy the production `pk_live_…` and `sk_live_…`.
@@ -166,11 +210,11 @@ mode" badge and have sign-up limits.
 
 The demo keeps the development keys; that's what they're for.
 
-## 9. Your own address (optional, but needed for step 8)
+## 10. Your own address (optional, but needed for step 9)
 
 1. Vercel → **homesapp** → **Settings** → **Domains** → add e.g.
    `app.9solarhome.com`, and add the DNS record it shows.
-2. Then update `APP_URL` (step 4, in GitHub too) and `VAPID_SUBJECT` (step 3)
+2. Then update `APP_URL` (step 5, in GitHub too) and `VAPID_SUBJECT` (step 4)
    to it.
 3. Optional: the same for the demo, e.g. `demo.9solarhome.com` on the
    **gethomeapps-demo** project. Tell me, and I'll add it to step 2's

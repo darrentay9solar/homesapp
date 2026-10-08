@@ -1,5 +1,6 @@
 "use client";
 
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import EngineeringRoundedIcon from "@mui/icons-material/EngineeringRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
@@ -196,6 +197,8 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
     end: p?.endDate ?? "",
     ctrText: p?.contractor.type === "text" ? p.contractor.label : "",
     groupId: p?.contractor.groupId ? String(p.contractor.groupId) : "",
+    // Superadmins only: who runs it. Empty means "me" (or, editing, unchanged).
+    manager: p?.pm.uid ? String(p.pm.uid) : "",
   }));
   const [homeowner, setHomeowner] = useState<Homeowner | string | null>(() =>
     !p ? null : p.homeowner.linked ? { uid: p.homeowner.uid!, name: p.homeowner.name ?? "", email: "", contactNo: p.contactNo } : (p.homeowner.name ?? "")
@@ -261,6 +264,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           contractor: { type: ctr, groupId: f.groupId ? Number(f.groupId) : null, userIds: crew.map((c) => c.uid), text: f.ctrText },
           startDate: f.start || null,
           endDate: f.end || null,
+          ...(opts?.managers?.length && f.manager ? { projectManagerId: Number(f.manager) } : {}),
         },
       });
       toast(res.message);
@@ -425,6 +429,25 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
               helperText={T("A typed name has no accounts to notify.")} />
           )}
         </Box>
+
+        {Boolean(opts?.managers?.length) && (
+          <Field
+            select
+            label={T("Project manager")}
+            icon={<ShieldOutlinedIcon />}
+            value={f.manager}
+            onChange={set("manager")}
+            helperText={T("Who runs this project. Only a superadmin chooses; they see it in their projects and audit log.")}
+            slotProps={{ htmlInput: { "data-testid": "project-manager" } }}
+          >
+            <MenuItem value="">{T("Me")}</MenuItem>
+            {opts!.managers!.map((m) => (
+              <MenuItem key={m.uid} value={String(m.uid)}>
+                {m.name} · {TR(ROLE_NAME[m.role])}
+              </MenuItem>
+            ))}
+          </Field>
+        )}
 
         <Box>
           <Stack direction="row" sx={{ gap: 1.5 }}>

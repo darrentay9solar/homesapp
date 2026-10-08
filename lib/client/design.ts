@@ -81,5 +81,6 @@ export const DESIGN = {
     contractor: { light: "#B45309", dark: "#FBBF24" },
     epc_team: { light: "#7C3AED", dark: "#A78BFA" },
     project_manager: { light: "#0A9A63", dark: "#3DDC97" },
+    superadmin: { light: "#BE123C", dark: "#FB7185" },
   },
 } as const;

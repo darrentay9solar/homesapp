@@ -29,6 +29,7 @@ from _lib import clerk, demo, notify
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.profile import clean_phone
+from _lib.rights import may_manage
 from _lib.web import act_as_allowed, active, role
 
 router = APIRouter()
@@ -223,13 +224,15 @@ class DecisionIn(BaseModel):
 
 
 def _pms() -> list[dict[str, Any]]:
-    return fetch_all("select uid, email from users where user_type = 'project_manager' and active")
+    return fetch_all("select uid, email from users where user_type in ('project_manager', 'superadmin') and active")
 
 
 @router.post("/me/role-request")
 def request_role(body: RoleIn, acct: Account = Depends(active)) -> dict[str, Any]:
+    if acct.user["user_type"] == "superadmin":
+        raise HTTPException(400, "Superadmin accounts are managed directly in the database.")
     if acct.user["user_type"] == "project_manager":
-        raise HTTPException(400, "Project managers change roles on the People page.")
+        raise HTTPException(400, "Ask a superadmin to change a project manager's role.")
     if body.role not in ROLES:
         raise HTTPException(400, "Choose the role you need.")
     if body.role == acct.user["user_type"]:
@@ -300,6 +303,7 @@ def approve_role(request_id: int, body: DecisionIn, acct: Account = Depends(pm_o
     grant = body.role or r["requested_type"]
     if grant not in ROLES:
         raise HTTPException(400, "Choose a role to grant.")
+    may_manage(acct, r["from_type"], r["requested_type"], grant)
     if not r["active"]:
         raise HTTPException(409, "This account is disabled. Re-enable it first.")
     note = (body.note or "").strip()[:500] or None
@@ -325,6 +329,7 @@ def approve_role(request_id: int, body: DecisionIn, acct: Account = Depends(pm_o
 @router.post("/role-requests/{request_id}/reject")
 def reject_role(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     r = _pending(request_id)
+    may_manage(acct, r["from_type"], r["requested_type"])
     note = (body.note or "").strip()[:500] or None
     with transaction(acct.uid) as cur:
         cur.execute(

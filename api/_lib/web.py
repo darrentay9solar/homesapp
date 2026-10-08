@@ -70,7 +70,8 @@ def account(request: Request) -> Account:
     ident = identity(request)
     acct = resolve(ident)
     target = request.headers.get("x-act-as", "").strip()
-    if target.isdigit() and acct.state == "active" and acct.role == "project_manager" and act_as_allowed():
+    admin = acct.role in ("project_manager", "superadmin")
+    if target.isdigit() and acct.state == "active" and admin and act_as_allowed():
         user = fetch_one("select * from users where uid = %s and active", (int(target),))
         if user and user["uid"] != acct.uid:
             return Account("active", ident, user=user, acting_pm=acct.user)
@@ -84,10 +85,11 @@ def active(acct: Account = Depends(account)) -> Account:
 
 
 def role(*roles: str) -> Callable[[Account], Account]:
-    """Dependency: an active account with one of ``roles``."""
+    """Dependency: an active account with one of ``roles``. A superadmin can do whatever a project manager can."""
+    allowed = set(roles) | ({"superadmin"} if "project_manager" in roles else set())
 
     def check(acct: Account = Depends(active)) -> Account:
-        if acct.role not in roles:
+        if acct.role not in allowed:
             raise HTTPException(403, "Your role can't do that.")
         return acct
 

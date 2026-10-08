@@ -59,7 +59,7 @@ import { Page } from "@/components/shell";
 import { EdgeCard, GRID, HERO_BG, SearchBox, SegTabs, TopBar, roleColor } from "@/components/topbar";
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
-import { type Role, useApp, useMe } from "@/lib/client/app-state";
+import { canManage, grantableRoles, isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
 import { type Status, filterPeople, statusOf } from "@/lib/client/people-search";
@@ -144,7 +144,6 @@ type RoleRequest = {
 };
 type Data = { me: number; users: Person[]; groups: Group[]; requests: Request[]; roleRequests: RoleRequest[] };
 
-const ROLES = Object.keys(ROLE_NAME) as Role[];
 const CREW: Role[] = ["contractor", "epc_team"];
 type Section = "people" | "groups" | "requests" | "map";
 const SECTIONS: Section[] = ["people", "groups", "requests", "map"];
@@ -154,6 +153,7 @@ const ROLE_FILTERS: Array<[Role | "all", string]> = [
   ["contractor", "Contractors"],
   ["epc_team", "EPC"],
   ["project_manager", "PMs"],
+  ["superadmin", "Superadmins"],
 ];
 const STATUS_LABEL: Record<Status, string> = { active: "Active", invited: "Invited", disabled: "Disabled" };
 
@@ -191,7 +191,7 @@ function useAction(reload: () => Promise<void>) {
 export default function PeoplePage() {
   const me = useMe();
   const router = useRouter();
-  const { data, error, reload } = useApi<Data>(me?.role === "project_manager" ? "/people" : null);
+  const { data, error, reload } = useApi<Data>(isAdmin(me?.role) ? "/people" : null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [section, setSection] = useTab<Section>(SECTIONS, "people");
   const [role, setRole] = useState<Role | "all">("all");
@@ -199,7 +199,7 @@ export default function PeoplePage() {
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    if (me && me.role !== "project_manager") router.replace("/");
+    if (me && !isAdmin(me.role)) router.replace("/");
   }, [me, router]);
 
   const byId = useMemo(() => new Map((data?.users ?? []).map((u) => [u.uid, u])), [data]);
@@ -209,7 +209,7 @@ export default function PeoplePage() {
     [data, groupById]
   );
 
-  if (!me || me.role !== "project_manager") return null;
+  if (!me || !isAdmin(me.role)) return null;
 
   const shown = filterPeople(searchable, { query: q, role, status });
   const count = (r: Role | "all") => searchable.filter((u) => r === "all" || u.role === r).length;
@@ -675,7 +675,9 @@ function Detail({ k, v }: { k: string; v: string }) {
 }
 
 function ReviewDialog({ request: r, groups, reload, onClose }: { request: Request; groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
-  const [grant, setGrant] = useState<Role>(r.role);
+  const me = useMe();
+  const can = grantableRoles(me?.role);
+  const [grant, setGrant] = useState<Role>(can.includes(r.role) ? r.role : can[0]);
   const [expiry, setExpiry] = useState({ expiresOn: "", noExpiry: false });
   const [groupId, setGroupId] = useState("");
   const [declining, setDeclining] = useState(false);
@@ -740,8 +742,15 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
         <Detail k="Note" v={r.note ? `“${r.note}”` : "—"} />
       </Card>
       <Stack sx={{ gap: 2.5 }}>
-        <Field select label={T("Grant role")} icon={<BadgeRoundedIcon />} value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText={T("You can grant a different role from the one they asked for.")}>
-          {ROLES.map((k) => (
+        <Field
+          select
+          label={T("Grant role")}
+          icon={<BadgeRoundedIcon />}
+          value={grant}
+          onChange={(e) => setGrant(e.target.value as Role)}
+          helperText={can.includes(r.role) ? T("You can grant a different role from the one they asked for.") : T("Only a superadmin can make someone a project manager. You can grant another role, or decline.")}
+        >
+          {can.map((k) => (
             <MenuItem key={k} value={k}>
               {TR(ROLE_NAME[k])}
               {k === r.role ? " (requested)" : ""}
@@ -781,7 +790,10 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
 }
 
 function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: RoleRequest; groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
-  const [grant, setGrant] = useState<Role>(r.role);
+  const me = useMe();
+  const can = grantableRoles(me?.role);
+  const superOnly = (r.role === "project_manager" || r.from === "project_manager") && me?.role !== "superadmin";
+  const [grant, setGrant] = useState<Role>(can.includes(r.role) ? r.role : can[0]);
   const [groupId, setGroupId] = useState("");
   const [declining, setDeclining] = useState(false);
   const [note, setNote] = useState("");
@@ -836,7 +848,7 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
       </Card>
       <Stack sx={{ gap: 2.5 }}>
         <Field select label={T("Grant role")} icon={<BadgeRoundedIcon />} value={grant} onChange={(e) => setGrant(e.target.value as Role)} helperText={T("You can grant a different role from the one they asked for. The change is in the audit log and can be reverted there.")}>
-          {ROLES.filter((k) => k !== r.from).map((k) => (
+          {can.filter((k) => k !== r.from).map((k) => (
             <MenuItem key={k} value={k}>
               {TR(ROLE_NAME[k])}
               {k === r.role ? " (requested)" : ""}
@@ -854,11 +866,16 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
           </Field>
         )}
       </Stack>
+      {superOnly && (
+        <Alert severity="info" sx={{ mt: 2.5 }} data-testid="superadmin-only">
+          {T("Only a superadmin can decide a request to become, or stop being, a project manager.")}
+        </Alert>
+      )}
       <Stack sx={{ gap: 1, mt: 3 }}>
         <Button
           size="large"
           variant="contained"
-          disabled={busy}
+          disabled={busy || superOnly}
           onClick={async () => {
             const json = { role: grant, groupId: groupId ? Number(groupId) : null };
             if (await run(`/role-requests/${r.id}/approve`, { method: "POST", json })) onClose();
@@ -866,7 +883,7 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
         >
           {busy ? T("Approving…") : T("Make {name} {role}", { name: first, role: ROLE_NAME[grant] })}
         </Button>
-        <Button size="large" variant="outlined" color="error" disabled={busy} onClick={() => setDeclining(true)}>
+        <Button size="large" variant="outlined" color="error" disabled={busy || superOnly} onClick={() => setDeclining(true)}>
           {T("Decline")}
         </Button>
       </Stack>
@@ -876,6 +893,7 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
 
 function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
   const { run, busy } = useAction(reload);
+  const me = useMe();
   const [f, setF] = useState({ fullName: "", email: "", role: "homeowner" as Role, contactNo: "", groupId: "", postalCode: "", address: "", icLast4: "" });
   const [expiry, setExpiry] = useState({ expiresOn: "", noExpiry: false });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
@@ -895,7 +913,7 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
         <Field label={T("Email")} required type="email" icon={<MailOutlineRoundedIcon />} placeholder={T("name@example.com")} value={f.email} onChange={set("email")} autoComplete="off" />
         <PhoneField required value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} helperText={T("For WhatsApp, or SMS if WhatsApp can't deliver")} />
         <Field select label={T("Role")} required icon={<BadgeRoundedIcon />} value={f.role} onChange={set("role")}>
-          {ROLES.map((k) => (
+          {grantableRoles(me?.role).map((k) => (
             <MenuItem key={k} value={k}>
               {TR(ROLE_NAME[k])}
             </MenuItem>
@@ -1052,6 +1070,10 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
   const phone = useMediaQuery((t: Theme) => t.breakpoints.down("sm"));
   const { data: projects } = useApi<Array<{ id: number; name: string; status: string }>>(`/people/${u.uid}/projects`);
   const status = statusOf(u);
+  const me = useMe();
+  // Project managers manage everyone but project managers; only a superadmin manages those.
+  const manageable = isMe || canManage(me?.role, u.role);
+  const roleOptions = Array.from(new Set<Role>([u.role, ...grantableRoles(me?.role)]));
 
   return (
     <Dialog open onClose={onClose} fullScreen={phone} fullWidth maxWidth="sm" slotProps={{ paper: { sx: { bgcolor: "background.default", overflowX: "hidden" } } }}>
@@ -1061,7 +1083,11 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
         <Card sx={{ mx: 2.5, mt: -4, pt: 6.5, pb: 2.5, px: 2, textAlign: "center", overflow: "visible", position: "relative" }}>
           <Box sx={{ position: "absolute", left: "50%", top: -40, transform: "translateX(-50%)", borderRadius: "50%", p: 0.5, bgcolor: "background.paper" }}>
             {/* Project managers can replace or remove anyone's picture. */}
-            <AvatarEditor name={u.fullName ?? u.email} role={u.role} src={u.avatar} base={isMe ? "/me" : `/people/${u.uid}`} size={76} onChanged={reload} />
+            {manageable ? (
+              <AvatarEditor name={u.fullName ?? u.email} role={u.role} src={u.avatar} base={isMe ? "/me" : `/people/${u.uid}`} size={76} onChanged={reload} />
+            ) : (
+              <RoleAvatar name={u.fullName ?? u.email} role={u.role} src={u.avatar} size={76} />
+            )}
           </Box>
           <Typography variant="h6">{u.fullName ?? u.email}</Typography>
           <Typography sx={{ color: "text.secondary", mt: 0.25 }}>{u.contactNo ?? T("No mobile on file")}</Typography>
@@ -1078,6 +1104,11 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
         </Card>
 
         <Box sx={{ px: 2.5 }}>
+          {!manageable && (
+            <Alert severity="info" sx={{ mt: 2.5 }} data-testid="read-only-account">
+              {u.role === "superadmin" ? T("Superadmin accounts are managed directly in the database.") : T("Only a superadmin can change project manager accounts.")}
+            </Alert>
+          )}
           <Typography sx={{ fontWeight: 600, fontSize: 17, mt: 3, mb: 1.5 }}>{T("General")}</Typography>
           <Stack sx={{ gap: 1.25 }}>
             <SettingRow icon={<BadgeRoundedIcon />} tint="#2563EB" label={T("Role")} sub={T("Controls what they can see and edit")}>
@@ -1085,7 +1116,7 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
                 select
                 size="small"
                 value={u.role}
-                disabled={busy}
+                disabled={busy || !manageable || isMe}
                 onChange={(e) => {
                   const next = e.target.value as Role;
                   const leaving = CREW.includes(u.role) && !CREW.includes(next) && u.groups.length > 0;
@@ -1093,8 +1124,8 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
                   void run(`/people/${u.uid}`, { method: "PATCH", json: { role: next } });
                 }}
               >
-                {ROLES.map((k) => (
-                  <MenuItem key={k} value={k}>
+                {roleOptions.map((k) => (
+                  <MenuItem key={k} value={k} disabled={!grantableRoles(me?.role).includes(k)}>
                     {TR(ROLE_NAME[k])}
                   </MenuItem>
                 ))}
@@ -1144,8 +1175,8 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
               )}
             </SettingRow>
 
-            <LocationRow uid={u.uid} isMe={isMe} />
-            {!isMe && <AccountSchedule person={u} busy={busy} run={run} />}
+            {u.role === "epc_team" && <LocationRow uid={u.uid} />}
+            {!isMe && manageable && <AccountSchedule person={u} busy={busy} run={run} />}
           </Stack>
         </Box>
       </Box>

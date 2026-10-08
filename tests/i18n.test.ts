@@ -211,9 +211,11 @@ describe("Account → Access points", () => {
     assert.ok(points.length > 15);
     assert.deepEqual(points.filter((p) => !DICT[p]), []);
   });
-  it("project managers have nothing they can't do; everyone else has at least one limit", async () => {
+  it("every role lists what it can and can't do", async () => {
     const { ACCESS } = await import("../lib/client/access");
-    assert.equal(ACCESS.project_manager.no.length, 0);
-    for (const r of ["homeowner", "contractor", "epc_team"] as const) assert.ok(ACCESS[r].no.length > 0, r);
+    for (const r of ["homeowner", "contractor", "epc_team", "project_manager", "superadmin"] as const) {
+      assert.ok(ACCESS[r].yes.length > 0, r);
+      assert.ok(ACCESS[r].no.length > 0, r);
+    }
   });
 });

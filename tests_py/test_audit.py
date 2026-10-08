@@ -30,12 +30,13 @@ def group(fx):
 
 
 @pytest.fixture
-def project(fx):
+def project(fx, pm):
+    # Run by the audit PM: a project manager reads and changes only the projects they run.
     p = fx.conn.execute(
         "insert into projects (name, address, homeowner_name, homeowner_contact_no, installation_start_date, "
-        "target_end_date) values (%s, '1 Test Road', 'Test Homeowner', '+65 9000 0000', current_date, "
-        "current_date + 21) returning project_id",
-        (f"pytest project {uuid.uuid4().hex[:6]}",),
+        "target_end_date, project_manager_id) values (%s, '1 Test Road', 'Test Homeowner', '+65 9000 0000', "
+        "current_date, current_date + 21, %s) returning project_id",
+        (f"pytest project {uuid.uuid4().hex[:6]}", pm["uid"]),
     ).fetchone()["project_id"]
     yield p
     fx.conn.execute("delete from projects where project_id = %s", (p,))

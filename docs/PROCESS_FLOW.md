@@ -12,11 +12,12 @@ remaining steps are marked *(next build steps)*.
 
 | Role | Sees | Can do |
 |---|---|---|
-| **Project Manager (PM)** | Every project | Create projects and edit their details and dates. Approve projects (after the homeowner). Fill in or correct any milestone field. Reopen a completed milestone. Manage people. Read and restore the audit log. |
+| **Superadmin** | Every project | Everything, everywhere: edit any project and choose who runs it, manage every account including project managers, read and restore the whole audit log. Superadmin accounts are only ever put straight into the database (see [YOUR_STEPS.md](YOUR_STEPS.md)); the app can't create or change one. |
+| **Project Manager (PM)** | The projects they run | Create projects (which they then run) and edit their details and dates. Approve their projects (after the homeowner). Fill in or correct any milestone field. Reopen a completed milestone. Manage every account except project managers' (create, approve, change roles, expiry, disabling, pictures). Read and restore the audit log for their projects, people changes, and their own actions. |
 | **Contractor Admin** and **EPC Team** (the "crew") | Projects their contractor group is on, or that name them | Fill in every milestone field and upload its files, once the project is approved and that milestone is open. Schedule site visits. EPC also checks in and out with GPS (Sites). |
 | **Homeowner** | Their own project | Approve or decline it. See its progress and a checklist of what's done. E-sign the handover certificate *(next build step)*. |
 
-The database enforces the same rules (migrations 0018, 0019 and 0020), so nobody can get around them by calling the API directly. For GPS check-in, only the project's EPC crew can check in, as themselves, while the project is approved or in progress. Their phone's fix must be accurate to 50 m and within the site's radius (100 m unless set otherwise).
+Only a superadmin can make someone a project manager: creating the account, approving a request for it, or changing a role to or from it. The database enforces the same rules (migrations 0018, 0019, 0020 and 0028), so nobody can get around them by calling the API directly. For GPS check-in, only the project's EPC crew can check in, as themselves, while the project is approved or in progress. Their phone's fix must be accurate to 50 m and within the site's radius (100 m unless set otherwise).
 
 ---
 
@@ -280,22 +281,27 @@ the reading is rougher than 50 m. **Check Out** works the same way.
 
 - **TC-40:** *Act as* Ravi on a phone → Sites. Tap Jalan Kayu's pin: its card comes to the front. Away from the house, Check In is refused with how far away you are; at the house, it records the time and crew.
 
-### Where people are: sharing your location
+### Where the crew are: their check-ins
 
-Anyone can turn on **Account → Settings → Share my location**. Only they can:
-a project manager can't switch it on for them, even directly in the
-database. While it's on and GetHomeApps is open on their phone, the phone
-sends its position every 2 minutes, or after moving 100 m. Only the latest
-position is kept, never a trail. Turning it off, or the account being
-disabled, deletes it.
+A crew member's location is taken only when they press **Check In** or
+**Check Out**: the phone's GPS proves they're at the house, and that fix is
+recorded with the check-in. Nothing tracks anyone in between, and there's no
+setting to share a location.
 
-Project managers see it in **People → Map**: everyone sharing, with how long
-ago they were seen (positions over 30 minutes old are faded). Everyone not
-sharing has an **Ask** button, which sends them an alert that opens their
-Settings. A person's Profile shows the same, with a small map.
+Project managers see it in **People → Map**: each EPC crew member at their
+last check-in or check-out ("Checked in at Jalan Kayu · 5 min ago"), on the
+projects that manager runs; a superadmin sees every one. An EPC crew member's
+Profile shows the same, with a small map.
 
-- **TC-41:** *Act as* Ravi → Account → Settings → **Share my location** on (allow location when asked). As yourself, People → Map shows Ravi, "Seen just now". Turn it off as Ravi: he disappears from the map.
-- **TC-42:** People → Map → **Ask** beside Priya. Priya's Alerts shows "Please share your location"; tapping it opens her Settings. Asking again straight away is refused for 10 minutes.
+- **TC-41:** *Act as* Ravi → Sites → check in at Jalan Kayu. As yourself, People → Map shows Ravi at Jalan Kayu, "Checked in … just now". After he checks out it says "Checked out of Jalan Kayu".
+- **TC-42:** As a second project manager who doesn't run Jalan Kayu, People → Map shows Ravi with "No check-ins yet"; as the superadmin, it shows his check-in.
+
+### Superadmin and project managers
+
+- **TC-44:** As a project manager, the projects list shows only the projects you run; another manager's project can't be opened, even by its link. As the superadmin, every project is listed.
+- **TC-45:** As the superadmin, Edit a project → **Project manager** → choose another manager → Save. It moves to their list.
+- **TC-46:** As a project manager, People → New account: the role list has no Project Manager. Open another manager's Profile: it's read-only. As the superadmin, both work.
+- **TC-47:** As a project manager, Audit shows changes on your projects and people changes, but not another manager's projects or account. As the superadmin, it shows everything.
 
 ### People: expiry and disabling
 
@@ -355,9 +361,8 @@ these are, with **Switch person**.
 Everything works as on the live site, with these differences:
 
 - Visitors share the same sample people, so the demo turns off whatever
-  would reach someone else: changing a sign-in email or password, phone
-  notifications, and sharing your own location. People → Map shows sample
-  locations instead.
+  would reach someone else: changing a sign-in email or password, and phone
+  notifications. People → Map shows the sample crew's check-ins.
 - Nothing leaves the demo: no emails, WhatsApps, texts or sign-up
   invitations, even to an address a visitor types in.
 - Visitors aren't at the houses, so Check In has **Demo: pretend I'm at the
@@ -398,7 +403,7 @@ dev database has. Sample people can only be made by that script.
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 2,915 tests (including settings, pictures, account expiry, translation, location sharing and the demo site). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
+- **Python:** `npm run test:py`, 2,932 tests (including settings, pictures, account expiry, translation, check-in locations, superadmin rules and the demo site). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
   - **The whole flow, in order:** `tests_py/test_full_flow.py` takes one project from creation to Ready for handover in 18 steps, with every role doing their part (see [TEST_CASES.md](TEST_CASES.md)). It runs twice: with files on the laptop, and with files in the real R2 dev bucket.
   - **R2 requests only when asked for:** a normal run uses no R2. `npm run test:r2` runs just the 39 tests that use the real dev bucket. That's about 85 requests with tiny files, all deleted afterwards, and the bucket is left empty.
   - `tests_py/test_project_work.py` covers the same flow in smaller pieces:

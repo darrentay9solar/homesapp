@@ -191,7 +191,6 @@ def test_sending_reports_what_the_push_service_said(keys, monkeypatch, status, w
         ("audit_restore", 7, "/projects/7"),
         ("account_request", None, "/people?tab=requests"),
         ("role_request", None, "/people?tab=requests"),
-        ("location_request", None, "/account?tab=settings"),
         ("role_approved", None, "/account"),
         ("account_approved", None, "/account"),
         ("audit_restore", None, "/alerts"),

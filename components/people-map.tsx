@@ -13,63 +13,46 @@ import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import { useTheme as useMuiTheme } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { RoleAvatar, SettingRow } from "@/components/m";
 import { MapView, type Pin } from "@/components/map";
 import { GRID, roleColor } from "@/components/topbar";
 import { initials } from "@/components/ui";
-import { ApiError, useApi, useFetcher } from "@/lib/client/api";
-import { type Role, useApp } from "@/lib/client/app-state";
+import { useApi } from "@/lib/client/api";
+import type { Role } from "@/lib/client/app-state";
 import { T, TR } from "@/lib/client/i18n";
 import { seenAgo } from "@/lib/client/location";
 
-export type LocPerson = {
+export type CrewFix = {
   uid: number;
   name: string;
   role: Role;
   roleLabel: string;
   avatar: string | null;
-  sharing: boolean;
-  location: { lat: number; lng: number; accuracy: number | null; at: string } | null;
+  /** Their latest check-in or check-out: the phone's GPS when they pressed the button. */
+  location: { lat: number; lng: number; accuracy: number | null; at: string; kind: "in" | "out"; projectId: number; project: string } | null;
 };
-type Data = { me: number; people: LocPerson[] };
+type Data = { people: CrewFix[] };
 
-function useAsk() {
-  const fetcher = useFetcher();
-  const { toast } = useApp();
-  const [busy, setBusy] = useState<number | null>(null);
-  const ask = async (uid: number) => {
-    setBusy(uid);
-    try {
-      const r = await fetcher<{ message: string }>(`/people/${uid}/ask-location`, { method: "POST" });
-      toast(r.message);
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : T("Something went wrong."), "bad");
-    } finally {
-      setBusy(null);
-    }
-  };
-  return { ask, busy };
+/** "Checked in at Jalan Kayu · 5 min ago". */
+function fixText(f: NonNullable<CrewFix["location"]>): string {
+  const when = seenAgo(f.at).text;
+  return f.kind === "in" ? T("Checked in at {project} · {when}", { project: f.project, when }) : T("Checked out of {project} · {when}", { project: f.project, when });
 }
 
 /**
- * People → Map (project managers): where everyone who shares their location
- * was last seen, and everyone who doesn't, with a button to ask them. Sharing
- * is each person's own choice; positions refresh every minute while open.
+ * People → Map (project managers and superadmins): where each EPC crew member
+ * last checked in or out. A location is only ever taken when they press the
+ * button, so this is never live tracking. Project managers see check-ins on
+ * the projects they run; a superadmin sees every one.
  */
 export function PeopleMap({ onOpen }: { onOpen: (uid: number) => void }) {
   const { data, error, reload } = useApi<Data>("/people/locations");
   const [picked, setPicked] = useState<number | null>(null);
   const theme = useMuiTheme();
-  const { ask, busy } = useAsk();
 
-  useEffect(() => {
-    const t = window.setInterval(() => void reload(), 60_000);
-    return () => window.clearInterval(t);
-  }, [reload]);
-
-  const people = useMemo(() => (data?.people ?? []).filter((p) => p.uid !== data?.me), [data]);
+  const people = useMemo(() => data?.people ?? [], [data]);
   const located = people.filter((p) => p.location);
   const pins: Pin[] = useMemo(
     () =>
@@ -94,16 +77,16 @@ export function PeopleMap({ onOpen }: { onOpen: (uid: number) => void }) {
     <Box sx={{ mt: 1.5 }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, mb: 1.5 }}>
         <Typography variant="body2" sx={{ color: "text.secondary", flex: 1 }}>
-          {T("{n} of {total} sharing their location", { n: people.filter((p) => p.sharing).length, total: people.length })}
+          {T("Where the EPC crew last checked in or out. Taken only when they press the button.")}
         </Typography>
-        <Button size="small" startIcon={<RefreshRoundedIcon />} onClick={() => void reload()}>
+        <Button size="small" startIcon={<RefreshRoundedIcon />} onClick={() => void reload()} sx={{ flex: "0 0 auto" }}>
           {T("Refresh")}
         </Button>
       </Stack>
       <MapView pins={pins} picked={picked ? String(picked) : null} onPick={(id) => setPicked(Number(id))} height={{ xs: 340, lg: 460 }} testId="people-map" />
       {located.length === 0 && (
         <Alert severity="info" sx={{ mt: 1.5 }}>
-          {T("Nobody is sharing their location right now. Ask someone below; they choose whether to turn it on.")}
+          {T("No check-ins yet. Each EPC crew member appears here once they check in at a site.")}
         </Alert>
       )}
       <Box sx={{ ...GRID, mt: 2 }} data-testid="people-locations">
@@ -121,20 +104,19 @@ export function PeopleMap({ onOpen }: { onOpen: (uid: number) => void }) {
                     {p.name}
                   </Typography>
                   <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }} noWrap>
-                    {TR(p.roleLabel)}
-                    {" · "}
-                    {seen ? T("Seen {when}", { when: seen.text }) : p.sharing ? T("Sharing, no position yet") : T("Not sharing")}
+                    {p.location ? fixText(p.location) : `${TR(p.roleLabel)} · ${T("No check-ins yet")}`}
                   </Typography>
                 </Box>
-                {seen && <Chip size="small" icon={<MyLocationRoundedIcon />} label={seen.stale ? T("Old") : T("Live")} color={seen.stale ? "default" : "success"} variant="outlined" />}
+                {seen && (
+                  <Chip
+                    size="small"
+                    icon={<MyLocationRoundedIcon />}
+                    label={p.location!.kind === "in" ? T("On site") : T("Left")}
+                    color={p.location!.kind === "in" && !seen.stale ? "success" : "default"}
+                    variant="outlined"
+                  />
+                )}
               </CardActionArea>
-              {!p.sharing && (
-                <Box sx={{ display: "flex", alignItems: "center", pr: 1.5 }}>
-                  <Button size="small" variant="outlined" disabled={busy === p.uid} onClick={() => void ask(p.uid)} data-testid="ask-location">
-                    {T("Ask")}
-                  </Button>
-                </Box>
-              )}
             </Card>
           );
         })}
@@ -143,36 +125,17 @@ export function PeopleMap({ onOpen }: { onOpen: (uid: number) => void }) {
   );
 }
 
-/** In a person's Profile (People): where they were last seen, or a button to ask them to share. */
-export function LocationRow({ uid, isMe }: { uid: number; isMe: boolean }) {
+/** In an EPC crew member's Profile (People): where they last checked in or out, on a small map. */
+export function LocationRow({ uid }: { uid: number }) {
   const { data } = useApi<Data>("/people/locations");
-  const { ask, busy } = useAsk();
   const p = data?.people.find((x) => x.uid === uid);
-  const seen = p?.location ? seenAgo(p.location.at) : null;
   const pins: Pin[] = p?.location ? [{ id: String(uid), lat: p.location.lat, lng: p.location.lng, kind: "person", label: p.name, initials: initials(p.name), avatar: p.avatar }] : [];
   return (
     <SettingRow
-      icon={p?.sharing ? <MyLocationRoundedIcon /> : <LocationOffRoundedIcon />}
+      icon={p?.location ? <MyLocationRoundedIcon /> : <LocationOffRoundedIcon />}
       tint="#2563EB"
-      label={T("Location")}
-      sub={
-        !data
-          ? "…"
-          : !p?.sharing
-            ? isMe
-              ? T("You're not sharing. Turn it on in Account → Settings.")
-              : T("Not sharing their location.")
-            : seen
-              ? T("Seen {when}", { when: seen.text }) + (p.location?.accuracy ? ` · ±${Math.round(p.location.accuracy)} m` : "")
-              : T("Sharing, no position yet")
-      }
-      right={
-        p && !p.sharing && !isMe ? (
-          <Button size="small" variant="outlined" disabled={busy === uid} onClick={() => void ask(uid)}>
-            {T("Ask to share")}
-          </Button>
-        ) : undefined
-      }
+      label={T("Last check-in location")}
+      sub={!data ? "…" : p?.location ? fixText(p.location) + (p.location.accuracy ? ` · ±${Math.round(p.location.accuracy)} m` : "") : T("No check-ins yet")}
     >
       {pins.length > 0 && <MapView pins={pins} picked={String(uid)} height={180} testId="person-map" />}
     </SettingRow>

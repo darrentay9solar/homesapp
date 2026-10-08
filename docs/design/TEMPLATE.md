@@ -139,7 +139,7 @@ card, such as "Status" or "Days running", never as a section title.
   Settings holds Language and Appearance, each a **round swap button** on
   the right of its row (one tap swaps English ⇄ 简体中文, Light ⇄ Black; the
   same buttons sit in the account screens' header). It also has
-  Notifications, Share my location, and, for project managers only, File
+  Notifications and, for project managers and the superadmin only, File
   storage, which answers just "File storage online" or "offline". Access
   lists what the role can and can't do, as points (`lib/client/access.ts`).
 - **Maps** (`components/map.tsx`): OneMap's Night style in Black and Default

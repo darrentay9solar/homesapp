@@ -56,8 +56,11 @@ def today() -> date:
 
 
 def _visible_clause(acct: Account) -> tuple[str, dict[str, Any]]:
-    if acct.role == "project_manager":
+    # A superadmin sees every project; a project manager the ones they run.
+    if acct.role == "superadmin":
         return "true", {}
+    if acct.role == "project_manager":
+        return "p.project_manager_id = %(me)s", {"me": acct.uid}
     if acct.role == "homeowner":
         return "p.homeowner_id = %(me)s", {"me": acct.uid}
     return (
@@ -213,12 +216,13 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
 
 @router.get("/projects")
 def projects(acct: Account = Depends(active)) -> dict[str, Any]:
-    return {"projects": _load(acct), "canCreate": acct.role == "project_manager", "today": today().isoformat()}
+    can_create = acct.role in ("project_manager", "superadmin")
+    return {"projects": _load(acct), "canCreate": can_create, "today": today().isoformat()}
 
 
 @router.get("/projects/options")
-def options(_acct: Account = Depends(pm_only)) -> dict[str, Any]:
-    """What Create Project offers: homeowner accounts, contractor groups, crews."""
+def options(acct: Account = Depends(pm_only)) -> dict[str, Any]:
+    """What Create Project offers: homeowner accounts, contractor groups, crews (and, to a superadmin, managers)."""
     users = fetch_all(
         "select uid, full_name, email, contact_no, user_type from users where active "
         "and user_type in ('homeowner', 'contractor', 'epc_team') order by full_name nulls last, email"
@@ -247,6 +251,16 @@ def options(_acct: Account = Depends(pm_only)) -> dict[str, Any]:
         "groups": [
             {"id": g["group_id"], "name": g["name"], "members": by_group.get(g["group_id"], [])} for g in groups
         ],
+        # Only a superadmin chooses who runs a project.
+        "managers": [
+            {"uid": u["uid"], "name": u["full_name"] or u["email"], "role": u["user_type"]}
+            for u in fetch_all(
+                "select uid, full_name, email, user_type from users where active "
+                "and user_type in ('project_manager', 'superadmin') order by user_type, full_name nulls last"
+            )
+        ]
+        if acct.role == "superadmin"
+        else [],
     }
 
 
@@ -288,6 +302,23 @@ class ProjectIn(BaseModel):
     contractor: ContractorIn = ContractorIn()
     startDate: date | None = None
     endDate: date | None = None
+    # Superadmins only: who runs the project. A project manager's projects are their own.
+    projectManagerId: int | None = None
+
+
+def manager_for(body: ProjectIn, acct: Account, current: int | None = None) -> int:
+    """Who runs the project: a project manager's own projects are theirs; a superadmin chooses."""
+    want = body.projectManagerId
+    if acct.role != "superadmin":
+        if want is not None and want != (current or acct.uid):
+            raise HTTPException(403, "Only a superadmin can hand a project to another project manager.")
+        return current or acct.uid
+    if want is None:
+        return current or acct.uid
+    runs = "select 1 from users where uid = %s and active and user_type in ('project_manager', 'superadmin')"
+    if not fetch_one(runs, (want,)):
+        raise HTTPException(400, "Choose an active project manager to run the project.")
+    return want
 
 
 def plan_dates(start: date | None, end: date | None) -> tuple[date, date]:
@@ -379,7 +410,7 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
                                   installation_start_date, target_end_date, status)
             values (%(name)s, %(address)s, %(postal)s, %(lat)s, %(lng)s, %(geo_addr)s, %(geo_src)s,
                     case when %(located)s then now() end, %(homeowner_id)s, %(homeowner_name)s, %(contact)s,
-                    %(group_id)s, %(contractor_text)s, %(me)s, %(me)s, %(start)s, %(end)s, %(status)s)
+                    %(group_id)s, %(contractor_text)s, %(manager)s, %(me)s, %(start)s, %(end)s, %(status)s)
             returning project_id
             """,
             {
@@ -390,6 +421,7 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
                 "geo_addr": v["address"] if located else None,
                 "geo_src": "onemap" if located else None,
                 "me": acct.uid,
+                "manager": manager_for(body, acct),
                 "status": status,
             },  # fmt: skip
         )

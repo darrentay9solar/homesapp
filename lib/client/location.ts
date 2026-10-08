@@ -1,7 +1,4 @@
-/**
- * Places on the map: distances, how a distance or a last-seen time reads, and
- * when a sharing phone should send its position again.
- */
+/** Places on the map: distances, and how a distance or a last-seen time reads. */
 
 import { T } from "./i18n";
 
@@ -31,29 +28,7 @@ export function awayText(m: number, radius: number): string {
   return m <= radius ? T("You're at this site") : T("{distance} away", { distance: formatDistance(m) });
 }
 
-// ------------------------------------------------------------ sharing
-
-/** Send again after this long even when standing still, so "last seen" stays fresh. */
-export const SEND_EVERY_MS = 2 * 60_000;
-/** ...or sooner, once they've moved this far. */
-export const SEND_AFTER_MOVING_M = 100;
-/** Never more often than this, however much the GPS jitters. */
-export const MIN_GAP_MS = 20_000;
-/** A fix this rough isn't worth sending. */
-export const MAX_SHARE_ACCURACY_M = 1000;
-
-export type Sent = { at: number; pos: LatLng } | null;
-
-/** Whether a new fix should go to the server, given what was sent last. */
-export function shouldSend(last: Sent, fix: LatLng & { accuracy?: number | null }, now: number): boolean {
-  if (fix.accuracy != null && fix.accuracy > MAX_SHARE_ACCURACY_M) return false;
-  if (!last) return true;
-  const gap = now - last.at;
-  if (gap < MIN_GAP_MS) return false;
-  return gap >= SEND_EVERY_MS || distanceM(last.pos, fix) >= SEND_AFTER_MOVING_M;
-}
-
-/** How old a shared position is: "Just now", "5 min ago", "2 h ago", "3 d ago". Old ones are flagged stale. */
+/** How old a check-in position is: "Just now", "5 min ago", "2 h ago", "3 d ago". Over half an hour is stale. */
 export function seenAgo(iso: string, now = Date.now()): { text: string; stale: boolean } {
   const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
   const stale = mins > 30;

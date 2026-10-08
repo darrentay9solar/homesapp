@@ -10,7 +10,6 @@ import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
-import MyLocationRoundedIcon from "@mui/icons-material/MyLocationRounded";
 import NotificationsActiveRoundedIcon from "@mui/icons-material/NotificationsActiveRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
@@ -23,27 +22,23 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { useState } from "react";
 
 import { EmailDialog, MobileDialog, NameDialog, PasswordDialog, PasswordIcon, RoleDialog, VerifiedNote } from "@/components/account-settings";
 import { AvatarEditor } from "@/components/avatar";
-import { lastShared } from "@/components/location-sharer";
 import { Field, ROLE_NAME, RoleChip, SettingRow } from "@/components/m";
 import { NotificationsDialog } from "@/components/notification-settings";
 import { Page } from "@/components/shell";
 import { LangButton, ThemeButton } from "@/components/theme-button";
 import { SegTabs, TopBar } from "@/components/topbar";
-import { ago } from "@/components/ui";
 import { ACCESS } from "@/lib/client/access";
 import { ACT_AS_KEY, useApi, useFetcher } from "@/lib/client/api";
-import { type Role, useApp, useMe } from "@/lib/client/app-state";
+import { isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
 import { leaveDemo } from "@/lib/client/demo";
 import { type Lang, locale, T, TR, useLang } from "@/lib/client/i18n";
 import { DEFAULT_PREFS, summary } from "@/lib/client/prefs";
-import { getFix } from "@/lib/client/sites";
 import { useTab } from "@/lib/client/tabs";
 import { useTheme } from "@/lib/client/theme";
 
@@ -214,51 +209,9 @@ function SettingsTab({ change }: { change: Change }) {
         right={<ThemeButton />}
       />
       <SettingRow icon={<NotificationsActiveRoundedIcon />} tint="#B45309" label={T("Notifications")} sub={quietLine} right={change("notifications", "Change")} />
-      <ShareLocation />
-      {me.role === "project_manager" && <StorageCheck />}
-      {me.role === "project_manager" && <ActAs />}
+      {isAdmin(me.role) && <StorageCheck />}
+      {isAdmin(me.role) && <ActAs />}
     </>
-  );
-}
-
-/**
- * Share my location: the person's own choice. Turning it on asks the phone
- * for permission first, so it's never on without the phone agreeing.
- */
-function ShareLocation() {
-  const { me: state, reloadMe, toast } = useApp();
-  const fetcher = useFetcher();
-  const [busy, setBusy] = useState(false);
-  const on = Boolean(state?.settings?.shareLocation);
-  if (state?.demo) {
-    return <SettingRow icon={<MyLocationRoundedIcon />} tint="#2563EB" label={T("Share my location")} sub={T("Off in the demo: everyone here shares the same sample people. People → Map shows sample locations.")} />;
-  }
-  const sent = lastShared();
-  const set = async (next: boolean) => {
-    setBusy(true);
-    try {
-      if (next) await getFix(15_000);
-      const r = await fetcher<{ message: string }>("/me/settings", { method: "PATCH", json: { shareLocation: next } });
-      toast(r.message);
-      await reloadMe();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : T("Couldn't save your settings."), "bad");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <SettingRow
-      icon={<MyLocationRoundedIcon />}
-      tint="#2563EB"
-      label={T("Share my location")}
-      sub={
-        on
-          ? `${T("Project managers can see where you are while GetHomeApps is open on this phone.")}${sent ? ` ${T("Last sent {when}.", { when: ago(new Date(sent).toISOString()) })}` : ""}`
-          : T("Off. Project managers can't see where you are.")
-      }
-      right={<Switch checked={on} disabled={busy} onChange={(e) => void set(e.target.checked)} slotProps={{ input: { "aria-label": T("Share my location") } }} data-testid="share-location" />}
-    />
   );
 }
 
@@ -306,7 +259,7 @@ function AccessTab({ change }: { change: Change }) {
           </>
         )}
       </Card>
-      {me.role !== "project_manager" &&
+      {!isAdmin(me.role) &&
         (s?.roleRequest ? (
           <SettingRow
             icon={<BadgeOutlinedIcon />}

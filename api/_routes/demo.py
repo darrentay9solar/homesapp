@@ -19,7 +19,7 @@ from .people import avatar_url
 
 router = APIRouter()
 
-ORDER = {"project_manager": 0, "contractor": 1, "epc_team": 2, "homeowner": 3}
+ORDER = {"superadmin": 0, "project_manager": 1, "contractor": 2, "epc_team": 3, "homeowner": 4}
 
 
 @router.get("/demo/people")

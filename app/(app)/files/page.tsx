@@ -20,7 +20,7 @@ import { RoleAvatar } from "@/components/m";
 import { Page } from "@/components/shell";
 import { EdgeCard, GRID, SearchBox, SegTabs, TopBar } from "@/components/topbar";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
-import { type Role, useMe } from "@/lib/client/app-state";
+import { isAdmin, type Role, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { type FileTab, fileSize, filterFiles, type MyFile, tabCounts } from "@/lib/client/files";
 import { locale, T, TR } from "@/lib/client/i18n";
@@ -143,7 +143,7 @@ function useEveryone(q: string, tab: FileTab, on: boolean) {
  */
 export default function FilesPage() {
   const me = useMe();
-  const pm = me?.role === "project_manager";
+  const pm = isAdmin(me?.role);
   const [scope, setScope] = useState<Scope>("mine");
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<FileTab>("all");

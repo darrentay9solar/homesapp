@@ -32,6 +32,7 @@ export const ROLE_LABEL: Record<UserType, string> = {
   project_manager: "Project Manager",
   contractor: "Contractor Admin",
   epc_team: "EPC Team",
+  superadmin: "Superadmin",
 };
 
 /** Snake-case rows from the driver, into the camelCase shape of the schema. */

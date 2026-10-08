@@ -33,6 +33,7 @@ export const ROLE_NAME: Record<Role, string> = {
   contractor: "Contractor Admin",
   epc_team: "EPC Team",
   project_manager: "Project Manager",
+  superadmin: "Superadmin",
 };
 
 /** Tonal colour for a role: a soft tint behind, the strong colour in front. */

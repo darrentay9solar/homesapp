@@ -4,7 +4,8 @@ import { sql } from "@/lib/db";
 /**
  * Who may see and change a project.
  *
- *   project manager  every project
+ *   superadmin       every project
+ *   project manager  the projects they run (projects.project_manager_id)
  *   homeowner        their own project
  *   contractor/EPC   projects they are named on, directly or through any of
  *                    their contractor groups
@@ -16,14 +17,15 @@ import { sql } from "@/lib/db";
  */
 export async function canAccessProject(user: User, projectId: number): Promise<boolean> {
   if (!user.active) return false;
-  if (user.userType === "project_manager") return true;
+  if (user.userType === "superadmin") return true;
 
   const [row] = (await sql()`
     select exists (
       select 1 from projects p
        where p.project_id = ${projectId}
          and (
-           p.homeowner_id = ${user.uid}
+           (${user.userType} = 'project_manager' and p.project_manager_id = ${user.uid})
+           or p.homeowner_id = ${user.uid}
            or exists (select 1 from project_assignments a
                        where a.project_id = p.project_id and a.user_id = ${user.uid})
            or exists (select 1 from contractor_group_members m
