@@ -100,12 +100,13 @@ export function bucketLabel(key: string): string {
   return new Date(`${key}T00:00:00+08:00`).toLocaleDateString(locale(), { day: "numeric", month: "short", timeZone: "Asia/Singapore" });
 }
 
-/** "+12% vs the previous 90 days": up is good for these figures. */
-export function deltaText(d: number | null | undefined, period: Period): { text: string; up: boolean } | null {
+/** "+12% vs the previous 90 days": up is good for these figures; up null means no change. */
+export function deltaText(d: number | null | undefined, period: Period): { text: string; up: boolean | null } | null {
   if (d === null || d === undefined || period === "all") return null;
   const label = { "30d": "the previous 30 days", "90d": "the previous 90 days", "12m": "the previous 12 months" }[period];
   const n = Math.round(d * 100);
-  return { text: T("{change} vs {period}", { change: `${n > 0 ? "+" : ""}${n}%`, period: T(label) }), up: n >= 0 };
+  if (n === 0) return { text: T("Same as {period}", { period: T(label) }), up: null };
+  return { text: T("{change} vs {period}", { change: `${n > 0 ? "+" : ""}${n}%`, period: T(label) }), up: n > 0 };
 }
 
 /** Nice round axis ticks from 0 to at least max: 0, 5, 10, 15. */

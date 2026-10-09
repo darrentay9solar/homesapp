@@ -50,7 +50,7 @@ describe("numbers", () => {
 describe("change against the previous period", () => {
   it("up", () => assert.deepEqual(deltaText(0.18, "90d"), { text: "+18% vs the previous 90 days", up: true }));
   it("down", () => assert.deepEqual(deltaText(-0.5, "30d"), { text: "-50% vs the previous 30 days", up: false }));
-  it("flat counts as up", () => assert.equal(deltaText(0, "12m")?.up, true));
+  it("no change says so, in neither colour", () => assert.deepEqual(deltaText(0, "12m"), { text: "Same as the previous 12 months", up: null }));
   it("nothing for all time", () => assert.equal(deltaText(0.4, "all"), null));
   it("nothing to compare", () => assert.equal(deltaText(null, "90d"), null));
 });

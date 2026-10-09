@@ -163,7 +163,7 @@ export function StatTile({
   sub?: string;
   icon: ReactNode;
   tone?: Tone;
-  delta?: { text: string; up: boolean } | null;
+  delta?: { text: string; up: boolean | null } | null;
   open?: boolean;
   onClick?: () => void;
   testId?: string;
@@ -184,8 +184,8 @@ export function StatTile({
         {TR(label)}
       </Typography>
       {(delta || sub) && (
-        <Typography variant="caption" component="p" sx={{ mt: 0.5, color: delta ? (delta.up ? "success.main" : "error.main") : "text.secondary", fontWeight: delta ? 600 : 400 }}>
-          {delta ? `${delta.up ? "↗" : "↘"} ${delta.text}` : sub}
+        <Typography variant="caption" component="p" sx={{ mt: 0.5, color: delta && delta.up !== null ? (delta.up ? "success.main" : "error.main") : "text.secondary", fontWeight: delta ? 600 : 400 }}>
+          {delta ? `${delta.up === null ? "→" : delta.up ? "↗" : "↘"} ${delta.text}` : sub}
         </Typography>
       )}
     </Box>
