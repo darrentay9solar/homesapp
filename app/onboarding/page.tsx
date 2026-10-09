@@ -125,7 +125,10 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
         />
         <AuthField id="ob-addr" label="Address (optional)" icon={<HomeOutlinedIcon />} placeholder="Filled in from your postal code" value={form.address} onChange={set("address")} slotProps={{ htmlInput: { autoComplete: "street-address" } }} />
         {role === "homeowner" && (
-          <AuthField id="ob-ic" label="NRIC last 4 (optional)" icon={<BadgeOutlinedIcon />} placeholder="e.g. 567D" value={form.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4, autoComplete: "off" } }} />
+          <>
+            <AuthField id="ob-ic" label="NRIC last 4 (optional)" icon={<BadgeOutlinedIcon />} placeholder="e.g. 567D" value={form.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4, autoComplete: "off" } }} />
+            <AuthRules rules={[{ text: T("We never ask for your full NRIC.") }]} />
+          </>
         )}
         <AuthField
           id="ob-note"
@@ -138,7 +141,6 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
         />
         <AuthError>{err}</AuthError>
         <AuthButton disabled={!ready || busy}>{busy ? T("Sending…") : T("Request Access")}</AuthButton>
-        <AuthRules center rules={[{ text: ready ? T("We never ask for your full NRIC.") : T("Choose a role and enter your name and mobile.") }]} />
       </form>
     </>
   );
