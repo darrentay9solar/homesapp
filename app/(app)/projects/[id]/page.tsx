@@ -23,6 +23,7 @@ import Typography from "@mui/material/Typography";
 import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 
+import { atHandover, HandoverPanel } from "@/components/handover";
 import { Field, MDialog, RoleChip } from "@/components/m";
 import { SectionPanel } from "@/components/project-fields";
 import { SiteSchedule } from "@/components/site-visits";
@@ -121,6 +122,7 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
           </Alert>
         )}
         <ActionBanner p={p} fields={fields} reload={reload} />
+        {atHandover(p) && <HandoverPanel p={p} reload={reload} />}
         <Summary p={p} />
       </Stack>
       <Box sx={{ minWidth: 0 }} data-testid={`project-${tab}`}>
@@ -240,13 +242,6 @@ function ActionBanner({ p, fields, reload }: { p: ProjectRow; fields: ProjectFie
             {declined ? T("Ask again") : T("Send a reminder")}
           </Button>
         )}
-      </Alert>
-    );
-  } else if (p.milestone === 3 && !homeowner) {
-    banner = (
-      <Alert severity="success" data-testid="approval-banner">
-        <AlertTitle sx={{ fontWeight: 600 }}>{T("Ready for handover")}</AlertTitle>
-        {T("Every milestone is complete. Next comes the handover certificate for the homeowner to e-sign (the next build step).")}
       </Alert>
     );
   }

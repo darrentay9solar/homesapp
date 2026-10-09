@@ -362,6 +362,8 @@ export const accountRequests = pgTable(
     postalCode: varchar("postal_code", { length: 6 }),
     /** Free text from the requester — "I'm with ABC Electrical", say. */
     note: text("note"),
+    /** The language they signed up in: the decision reaches them in it, and their account starts in it. */
+    language: varchar("language", { length: 5 }).notNull().default("en"),
 
     status: accountRequestStatusEnum("status").notNull().default("pending"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -551,6 +553,10 @@ export const projects = pgTable("projects", {
    * large landed property can be widened without a deployment.
    */
   checkInRadiusM: integer("check_in_radius_m").notNull().default(100),
+
+  /** When a project manager closed the project after the homeowner signed (migration 0029). */
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  closedBy: integer("closed_by").references(() => users.uid, { onDelete: "set null" }),
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -903,12 +909,37 @@ export const projectSignatures = pgTable(
     /** Weak evidence on its own, but worth having if a signature is disputed. */
     signedIp: varchar("signed_ip", { length: 45 }),
     signedUserAgent: text("signed_user_agent"),
+
+    /** The name the homeowner typed under their signature. */
+    signerName: text("signer_name"),
+    /** Exactly what they were shown and signed; certificateHash is its SHA-256. */
+    certificate: jsonb("certificate"),
   },
   (table) => [
     // One signature per project. Re-signing means voiding and reissuing, which
     // should be a deliberate act rather than a silent second row.
     uniqueIndex("project_signatures_project_idx").on(table.projectId),
   ]
+);
+
+// ---------------------------------------------------------- upload intents
+
+/**
+ * An upload link handed out and not yet used. The link's file is registered
+ * (project_files, users.avatar_key) when the upload finishes, and the row goes.
+ * A row older than a day is an abandoned upload: the scheduled job deletes
+ * whatever reached storage under its key, so storage only holds files the
+ * app knows about. Removed files are untouched; they were registered once and
+ * stay restorable from the audit log.
+ */
+export const uploadIntents = pgTable(
+  "upload_intents",
+  {
+    key: text("key").primaryKey(),
+    uid: integer("uid").references(() => users.uid, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("upload_intents_created_idx").on(table.createdAt)]
 );
 
 // ----------------------------------------------------------- notifications

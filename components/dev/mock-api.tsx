@@ -268,7 +268,58 @@ const PROJECTS = [
     endDate: day(33),
     daysElapsed: 0,
   }),
+  ...(
+    [
+      [105, "Seletar Hills Home", "21 Seletar Hills Drive, Singapore 807000", "807000", "awaiting_signature", "Awaiting E-Sign"],
+      [106, "Upper Thomson Corner", "5 Thomson Hills Road, Singapore 574000", "574000", "signed", "Signed — PM to Close"],
+      [107, "Siglap Garden House", "40 Siglap Hill, Singapore 456000", "456000", "closed", "Closed"],
+    ] as const
+  ).map(([id, name, address, postalCode, status, statusLabel]) =>
+    proj(id, {
+      name, address, postalCode, status, statusLabel,
+      startDate: day(-30), endDate: day(-9), daysElapsed: 30, progress: 100, milestone: 3, currentMilestone: 3,
+      groups: { pre1: G(8, 8), pre1b: G(11, 11), m1: G(5, 5), m2: G(4, 4), m3: G(4, 4), post: G(5, 5) },
+    })
+  ),
 ];
+
+/** The handover for the three projects at the end of the flow (105 signing, 106 signed, 107 closed). */
+function handoverFor(pid: number) {
+  const p = PROJECTS.find((x) => x.id === pid) ?? PROJECTS[0];
+  const status = p.status as string;
+  const signed = status === "signed" || status === "closed";
+  return {
+    status,
+    milestone3: true,
+    certificate: {
+      title: "Installation Certificate",
+      issuer: "9 Solar Home",
+      number: `GHA-000${pid}`,
+      rows: [
+        ["Project", p.name],
+        ["Site", `${p.address}`],
+        ["Homeowner", "Jasmine Lee"],
+        ["Solar panels", "20 × 610 W"],
+        ["System size", "12.20 kWp"],
+        ["Inverter", "Huawei SUN2000-10KTL-M1"],
+        ["Inverter serial number", "HW2K-10KTL-8843921"],
+        ["Installation completed", "02 Oct 2026"],
+        ["Grid connection", "Connected"],
+        ["SP turn-on inspection", "06 Oct 2026"],
+        ["Electricity retailer", "SP Group"],
+        ["Installed by", "Apex Solar Contractors"],
+        ["Project manager", "Wei Ming Tan"],
+      ],
+      statement:
+        "I confirm that the solar PV system described above has been installed at my property, that I have received the handover documents, and that I accept the installation as complete.",
+    },
+    fingerprint: "4facd021db86c89bad882d7620be54456b7c113a0f01d2e7cacd05236d64f996",
+    signature: signed ? { name: "Jasmine Lee", at: iso(1500) } : null,
+    pdf: signed ? "/dev-preview/projects" : null,
+    closed: status === "closed" ? { at: iso(200), by: "Wei Ming Tan" } : null,
+    actions: { sign: status === "awaiting_signature", request: false, remind: false, close: status === "signed" },
+  };
+}
 
 const PROJECT_OPTIONS = {
   homeowners: [
@@ -327,7 +378,9 @@ function projectFields(pid: number) {
     const n = SECTION_MS[key];
     const lockedReason = !approved
       ? "Opens once the homeowner and a project manager have approved the project."
-      : n === 2 && reached < 1
+      : ["awaiting_signature", "signed", "closed"].includes(p.status as string)
+        ? "The project is at handover; its fields are now the signed record."
+        : n === 2 && reached < 1
         ? "Opens once Milestone 1 is complete."
         : n === 3 && reached < 2
           ? "Opens once Milestone 2 is complete."
@@ -620,6 +673,8 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   const visitsFor = path.match(/^\/projects\/(\d+)\/visits$/);
   if (method === "GET" && visitsFor) return projectVisits(Number(visitsFor[1]));
   if (method !== "GET" && path.startsWith("/check-ins/")) return { message: "Preview only — nothing was saved." };
+  const handoverPid = path.match(/^\/projects\/(\d+)\/handover$/);
+  if (method === "GET" && handoverPid) return handoverFor(Number(handoverPid[1]));
   const fieldsFor = path.match(/^\/projects\/(\d+)\/fields$/);
   if (method === "GET" && fieldsFor) return projectFields(Number(fieldsFor[1]));
   if (method !== "GET" && path.startsWith("/projects/")) return { message: "Preview only — nothing was saved." };

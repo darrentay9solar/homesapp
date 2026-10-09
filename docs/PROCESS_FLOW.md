@@ -3,8 +3,8 @@
 How a solar installation moves through GetHomeApps, from Create Project to
 handover: who does each step, what they see, who is told, and what the app
 won't let happen. Each step ends with the test cases that check it using the
-sample data. Built so far: everything up to **Ready for handover**, including site visits and GPS check-in. The
-remaining steps are marked *(next build steps)*.
+sample data. Everything here is built, from Create Project through the
+homeowner's e-signature to the PM closing the project.
 
 ---
 
@@ -15,7 +15,7 @@ remaining steps are marked *(next build steps)*.
 | **Superadmin** | Every project | Everything, everywhere: edit any project and choose who runs it, manage every account including project managers, read and restore the whole audit log. Superadmin accounts are only ever put straight into the database (see [YOUR_STEPS.md](YOUR_STEPS.md)); the app can't create or change one. |
 | **Project Manager (PM)** | The projects they run | Create projects (which they then run) and edit their details and dates. Approve their projects (after the homeowner). Fill in or correct any milestone field. Reopen a completed milestone. Manage every account except project managers' (create, approve, change roles, expiry, disabling, pictures). Read and restore the audit log for their projects, people changes, and their own actions. |
 | **Contractor Admin** and **EPC Team** (the "crew") | Projects their contractor group is on, or that name them | Fill in every milestone field and upload its files, once the project is approved and that milestone is open. Schedule site visits. EPC also checks in and out with GPS (Sites). |
-| **Homeowner** | Their own project | Approve or decline it. See its progress and a checklist of what's done. E-sign the handover certificate *(next build step)*. |
+| **Homeowner** | Their own project | Approve or decline it. See its progress and a checklist of what's done. E-sign the handover certificate on their phone. |
 
 Only a superadmin can make someone a project manager: creating the account, approving a request for it, or changing a role to or from it. The database enforces the same rules (migrations 0018, 0019, 0020 and 0028), so nobody can get around them by calling the API directly. For GPS check-in, only the project's EPC crew can check in, as themselves, while the project is approved or in progress. Their phone's fix must be accurate to 50 m and within the site's radius (100 m unless set otherwise).
 
@@ -35,9 +35,10 @@ stateDiagram-v2
     HomeownerApproved --> PMApproved: A PM approves
     PMApproved --> InProgress: First milestone field filled
     InProgress --> InProgress: Milestones 1 → 2 → 3
-    InProgress --> AwaitingSignature: PM sends the certificate (next)
-    AwaitingSignature --> Signed: Homeowner e-signs (next)
-    Signed --> Closed: A PM checks and closes (next)
+    InProgress --> AwaitingSignature: Milestone 3 complete
+    AwaitingSignature --> InProgress: A PM reopens a milestone
+    AwaitingSignature --> Signed: Homeowner e-signs
+    Signed --> Closed: A PM checks and closes
 ```
 
 | Status | Means | Next step, and who takes it |
@@ -48,7 +49,9 @@ stateDiagram-v2
 | **Homeowner Approved** | Waiting for 9 Solar Home | PM: Approve & Start Project |
 | **PM Approved** | Milestone 1's fields are open | Crew: start filling in |
 | **In Progress** | Work under way | Crew: complete Milestones 1, 2, 3 |
-| Awaiting E-Sign / Signed / Closed | Handover *(next build steps)* | PM sends the certificate; the homeowner signs; a PM closes |
+| **Awaiting E-Sign** | Every milestone done; fields are fixed as the record | Homeowner: Review & sign (PM can remind) |
+| **Signed — PM to Close** | The homeowner signed the certificate | PM: check the signed PDF, then Close project |
+| **Closed** | Finished | Nobody: everything is a record, and the signed certificate stays in the app |
 
 ---
 
@@ -146,7 +149,7 @@ When every required field in a milestone's sections is filled, the app:
 - records the milestone (who and when)
 - opens the next milestone's fields
 - tells everyone on the project ("Milestone 1 complete")
-- after Milestone 3, announces **Ready for handover** to the PM, the crew and the homeowner
+- after Milestone 3, asks the homeowner to sign the handover certificate, and tells the PM and the crew "Ready for handover"
 
 A completed milestone's fields are then **fixed for the crew**:
 - **Correct a value:** a PM can, but can't empty a required one.
@@ -156,15 +159,15 @@ A completed milestone's fields are then **fixed for the crew**:
 - **TC-10:** Finish Milestone 1 on Jalan Kayu (TC-07). Milestone 2 opens, and Jasmine and the PM get "Milestone 1 complete".
 - **TC-11:** *Act as* Priya on Seletar Hills and try to change Sales. It shows a lock: "Milestone 1 is complete. A project manager can correct it or reopen the milestone."
 - **TC-12:** As yourself, Reopen Milestone 1 on Seletar Hills. Priya can edit Sales again.
-- **TC-13:** Punggol Waterway Terrace shows 100%, all milestones Done, and the banner Ready for handover.
+- **TC-13:** Punggol Waterway Terrace shows 100%, all milestones Done, and the status Awaiting E-Sign.
 
 ### Step 6. Red projects
 
-A project turns **red**, and is listed first under **Attention**, when either:
+A project turns **red** (the whole card, with its reasons in bold), and is listed first under **Attention**, when either:
 - it's past its target end date and unfinished, or
 - an EPC visit had no check-in by the end of its day (or an hour after its start time, on the day).
 
-Otherwise it never turns red.
+Otherwise it never turns red. The homeowner isn't shown EPC no-shows: on their screens a visit nobody checked in for just reads **Past**.
 
 **Tests:**
 - **TC-14:** Seletar Hills Home is red with two reasons: "Target end date passed 9 days ago", and "No check-in for the EPC visit on … (Inverter commissioning)".
@@ -195,7 +198,10 @@ Each reminder is sent once. Reminders run every 15 minutes (`.github/workflows/v
 - the phone is within the site's radius (**100 m** unless set otherwise)
 - it's an EPC crew member on the project, checking in as themselves, while the project is approved or in progress
 
-The time comes from the server. **Check Out** works the same way, with the number of crew still on site. Every refusal reads the same to the crew: *"You're currently not receiving GPS signal, please move to a spot where you can."* The real reason is kept for the PM.
+The time comes from the server. **Check Out** works the same way, with the number of crew still on site. A refusal says what's wrong:
+- not at the house: *"You're not at the check-in location (about 1.2 km away). Please head to the site to check in."*
+- a weak fix (worse than 50 m): *"You're currently not receiving GPS signal, please move to a spot where you can."*
+- no location from the phone at all: *"We couldn't get your phone's location. Allow location for GetHomeApps, then try again."*
 
 On the project page, each visit shows **Upcoming**, **Today**, **Attended** (who checked in and out, when, with how many, and how far from the site) or **No check-in**. A check-in on a day with no visit appears under "Check-ins on other days". A visit can be cancelled until someone checks in for it. After that, it's a record.
 
@@ -211,16 +217,57 @@ On the project page, each visit shows **Upcoming**, **Today**, **Attended** (who
 **Tests:**
 - **TC-17:** As yourself, open Jalan Kayu → Schedule visit for tomorrow 09:00, "Inverter commissioning". It appears as Upcoming, and Priya and Ravi each get "Site visit assigned".
 - **TC-18:** *Act as* Ravi (EPC) → Sites. Jalan Kayu shows under Due today. Check In with 4 crew using **Use the site's location (development only)**. It moves to On site now: "Checked in 09:41 with 4 crew".
-- **TC-19:** As Ravi, Check In on a phone outdoors at a place that isn't the site. You get the GPS message, and nothing is recorded.
+- **TC-19:** As Ravi, Check In on a phone outdoors at a place that isn't the site. You get "You're not at the check-in location (about … away)", and nothing is recorded.
 - **TC-20:** As Ravi, Check Out with 3 crew. On the project page the visit shows Attended: "Ravi Kumar in 09:41 (4 crew, 0 m) · out 16:30 (3 still on site)".
 - **TC-21:** *Act as* Priya (Contractor Admin). Sites isn't in her menu, and on the project page she can schedule but has no Check In button.
 - **TC-22:** Try to cancel the visit Ravi checked in for. It's refused: "The crew has checked in for this visit, so it stays as a record."
 
-### Step 8. Handover *(next build steps)*
+### Step 8. Handover: the homeowner signs, a PM closes
 
-1. The PM sends the handover certificate for e-signature (status Awaiting E-Sign).
-2. The homeowner signs on any device (status Signed).
-3. A PM checks the closing pack and closes the project.
+**When Milestone 3 completes**, the project moves to **Awaiting E-Sign** on its
+own. The homeowner gets an alert and an email (in their language): "Please
+sign your handover certificate". Its fields and files are now fixed for the
+crew: they're what the homeowner signs.
+
+**The homeowner** opens the project and taps **Review & sign**. They see the
+Installation Certificate, filled from the project: the site, the panels and
+system size, the inverter and its serial number, the installation, grid and
+SP turn-on dates, the retailer, who installed it and the project manager.
+Under it they:
+1. draw their signature with a finger (a tap doesn't count),
+2. type their full name,
+3. tick "I've read the certificate and accept the installation as complete",
+4. tap **Sign certificate**.
+
+The app keeps the certificate exactly as it was shown, with its
+fingerprint (SHA-256), the time, and the device they signed on, and stores a
+one-page PDF with the signature in R2. If anything on the certificate
+changed while they were reading (a PM edited the project, say), signing is
+refused with "The certificate changed while you were reading it" and they see
+the new version.
+
+**The project manager** gets "Handover signed". They open the **Signed
+certificate (PDF)**, check it, and tap **Close project**. Everyone on the
+project, the superadmins (the admin team) and the homeowner are told it's
+closed; the homeowner by email too.
+
+**Corrections:** while it's waiting for the signature, a PM can **Reopen** a
+milestone. That withdraws the request (the homeowner is told) and the
+project goes back to In Progress; it's sent again when Milestone 3 is
+complete again. Once signed, nothing can be reopened. A project that finished
+Milestone 3 before e-signing existed shows **Ask for signature** to its PM.
+
+**Can't happen:** anyone but the project's homeowner signing; signing twice;
+signing something other than what was shown; closing before the signature;
+the crew changing anything at handover; changing or deleting a signature.
+The database refuses each of these on its own (migration 0029).
+
+**Tests:**
+- **TC-23:** Sign in to the demo as Kumar Raj (homeowner, Punggol Waterway Terrace). Review & sign: the certificate shows 20 × 610 W, 12.20 kWp. Draw, type the name, tick, sign. The status becomes Signed — PM to Close.
+- **TC-24:** As Charlotte (PM), Punggol shows "Handover certificate signed". Open the PDF: one page with the signature and fingerprint. Close project. Kumar, Priya and Hafiz get "Project closed".
+- **TC-25:** As Charlotte, open Upper Thomson Corner (already signed by Lina Wong) and close it.
+- **TC-26:** As Marcus Lim (the second PM), Projects shows only Tampines Grove and Pasir Ris Garden; Charlotte's projects aren't there.
+- **TC-27:** Siglap Garden House is Closed: the banner says who closed it and when, and the signed PDF opens.
 
 ### Throughout: the audit log
 
@@ -360,11 +407,14 @@ these are, with **Switch person**.
 
 Everything works as on the live site, with these differences:
 
-- Visitors share the same sample people, so the demo turns off whatever
-  would reach someone else: changing a sign-in email or password, and phone
-  notifications. People → Map shows the sample crew's check-ins.
+- Visitors share the same sample people, so changing a sign-in email or
+  password is off. People → Map shows the sample crew's check-ins.
+- Phone notifications work (the demo has its own keys): a phone that turns
+  them on gets the alerts of the sample person it's on. Resetting the demo
+  forgets every phone.
 - Nothing leaves the demo: no emails, WhatsApps, texts or sign-up
-  invitations, even to an address a visitor types in.
+  invitations, even to an address a visitor types in. Changing a mobile
+  number shows the code on screen instead.
 - Visitors aren't at the houses, so Check In has **Demo: pretend I'm at the
   house**.
 - Reset it whenever it gets messy: `node scripts/py.mjs
@@ -388,12 +438,18 @@ dev database has. Sample people can only be made by that script.
    |---|---|---|---|
    | Bedok Ria Terrace | Draft (name only) | "Marcus Teo" (typed) | Northline Roofing (typed) |
    | Hillcrest Villa | Awaiting homeowner | Farah Ismail | Kim Seng M&E |
+   | Tampines Grove | Declined (run by Marcus Lim) | Benjamin Koh | Apex Solar |
    | Sunbird Circle | PM to approve | Daniel Ong | Apex Solar |
    | Jalan Kayu Residence | In progress, Milestone 1 | Jasmine Lee | Apex Solar |
    | Seletar Hills Home | Late, with an EPC no-show | Aisha Rahman | Apex Solar |
-   | Punggol Waterway Terrace | Ready for handover | Kumar Raj | Kim Seng M&E |
+   | Pasir Ris Garden | Milestone 3 under way (run by Marcus Lim) | Grace Tan | Kim Seng M&E |
+   | Punggol Waterway Terrace | Awaiting E-Sign | Kumar Raj | Kim Seng M&E |
+   | Upper Thomson Corner | Signed — PM to close | Lina Wong | Apex Solar |
+   | Siglap Garden House | Closed | Ethan Chua | Apex Solar |
 
-   Apex Solar is Priya Nair (Contractor Admin) and Ravi Kumar (EPC). Kim Seng is Priya.
+   Charlotte Sim runs every project except Marcus Lim's two, so each PM sees only their own; Sam Tan
+   (superadmin) sees all ten. Apex Solar is Priya Nair (Contractor Admin) and Ravi Kumar (EPC). Kim Seng
+   is Priya and Hafiz Rahman (EPC).
 2. **Run the app:** `npm run dev`, and `npm run dev:api` in a second terminal. Sign in as yourself (a PM).
 3. **Act as someone else:** the demo people have no logins. To play the homeowner or crew, open **Account → Test as another account**, choose a person, and press **Start**.
    - An amber banner shows whose screens you're on. **Stop** returns you to yourself.
@@ -403,13 +459,14 @@ dev database has. Sample people can only be made by that script.
 
 ### Automated checks
 
-- **Python:** `npm run test:py`, 2,932 tests (including settings, pictures, account expiry, translation, check-in locations, superadmin rules and the demo site). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
-  - **The whole flow, in order:** `tests_py/test_full_flow.py` takes one project from creation to Ready for handover in 18 steps, with every role doing their part (see [TEST_CASES.md](TEST_CASES.md)). It runs twice: with files on the laptop, and with files in the real R2 dev bucket.
+- **Python:** `npm run test:py`, 2,948 tests (including settings, pictures, account expiry, translation, check-in locations, superadmin rules and the demo site). That includes 1,081 cases for uploads and GPS location, and 1,470 for the Cloudflare R2 setup, listed in [TEST_CASES.md](TEST_CASES.md).
+  - **The whole flow, in order:** `tests_py/test_full_flow.py` takes one project from creation to closed in 22 steps (through the homeowner's signature and the signed PDF), with every role doing their part (see [TEST_CASES.md](TEST_CASES.md)). It runs twice: with files on the laptop, and with files in the real R2 dev bucket.
   - **R2 requests only when asked for:** a normal run uses no R2. `npm run test:r2` runs just the 39 tests that use the real dev bucket. That's about 85 requests with tiny files, all deleted afterwards, and the bucket is left empty.
   - `tests_py/test_project_work.py` covers the same flow in smaller pieces:
   - create, approve, Milestone 1 and reopening
   - conditional fields, decline and ask again
   - uploads (and refused uploads)
   - the IC rule, linking a homeowner, the database's rules, and act-as
+- **User acceptance (UAT):** `npm run test:uat`, 16,550 tests in `tests_py/uat/`. Eleven people (every role, another PM, outsiders, a switched-off account) against a project at each of eleven stages, checked against the brief's rules written down in `tests_py/uat/spec.py`: who sees what, every field's lock and every save, every upload slot, every button, every status change straight in the database, the whole flow end to end in five ways, emails and texts in English and Chinese, the certificate and its PDF, and clearing abandoned uploads. See [TEST_CASES.md](TEST_CASES.md).
 - **Front end:** `npm run test:web`, including `tests/i18n.test.ts`: the dictionary is complete for every `T("…")` key, patterns translate server messages, notification settings, and Chinese search words.
-- **Design:** `/dev-preview/design-check`, 468 checks: 39 screens, tabs and dialogs across phone, tablet and desktop, in Black and Light, in English and Chinese. Every date and time field on them is tapped to make sure its picker opens, and no screen may stack two section titles (categories are tabs).
+- **Design:** `/dev-preview/design-check`, 528 checks: 44 screens, tabs and dialogs across phone, tablet and desktop, in Black and Light, in English and Chinese. Every date and time field on them is tapped to make sure its picker opens, and no screen may stack two section titles (categories are tabs).

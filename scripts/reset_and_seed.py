@@ -17,7 +17,9 @@ What it does, in one go:
      for that one statement and back on straight after.
   2. Empties that environment's R2 bucket of project files.
   3. Adds the demo people (example.com addresses, so nobody real is ever
-     messaged), two contractor groups, a project at each stage of the flow with
+     messaged; two project managers, each running their own projects), two
+     contractor groups, a project at each stage of the flow (through signed
+     and closed, with signed certificates) with
      sample photos and PDFs in R2, site visits and check-ins, a pending account
      request and role request, and alerts. Changes are recorded in the audit log
      as the person who'd have made them.
@@ -31,6 +33,7 @@ for the dev bucket only). Without them it stops before changing anything.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
 import re
@@ -38,6 +41,7 @@ import struct
 import sys
 import zlib
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "api"))
 
@@ -46,7 +50,7 @@ import psycopg
 from psycopg import sql as psql
 from psycopg.rows import dict_row
 
-from _lib import storage
+from _lib import certificate, storage
 from _lib.db import _from_env_file
 
 SG = timezone(timedelta(hours=8))
@@ -67,6 +71,7 @@ WIPE = [
     "site_check_ins",
     "site_visits",
     "project_signatures",
+    "upload_intents",
     "project_milestones",
     "project_files",
     "project_assignments",
@@ -82,6 +87,8 @@ PEOPLE = [
     # The superadmin: only ever put in by the database owner, which this script is.
     ("sam", "Sam Tan", "superadmin", "+65 9001 2200", []),
     ("charlotte", "Charlotte Sim", "project_manager", "+65 9001 2201", []),
+    # A second project manager, running two projects of their own: each PM sees only theirs.
+    ("marcus", "Marcus Lim", "project_manager", "+65 9001 2205", []),
     ("priya", "Priya Nair", "contractor", "+65 9001 2202", ["apex", "kim"]),
     ("ravi", "Ravi Kumar", "epc_team", "+65 9001 2203", ["apex"]),
     ("hafiz", "Hafiz Rahman", "epc_team", "+65 9001 2204", ["kim"]),
@@ -92,8 +99,13 @@ PEOPLE = [
     ("kumar", "Kumar Raj", "homeowner", "+65 8765 4321", []),
     ("grace", "Grace Tan", "homeowner", "+65 9668 2031", []),
     ("benjamin", "Benjamin Koh", "homeowner", "+65 9772 1150", []),
+    ("lina", "Lina Wong", "homeowner", "+65 9345 6612", []),
+    ("ethan", "Ethan Chua", "homeowner", "+65 9456 2290", []),
 ]
 GROUPS = {"apex": "Apex Solar Contractors", "kim": "Kim Seng M&E Services"}
+NAMES = {p[0]: p[1] for p in PEOPLE}
+# The sample homeowners' signature on the signed and closed projects' certificates.
+SIGNATURE = (Path(__file__).resolve().parents[1] / "tests_py" / "fixtures" / "signature.jpg").read_bytes()
 
 M1_DETAILS = {
     "sp_application_status": 2,
@@ -282,7 +294,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
         )["uid"]
         for g in groups:
             c.execute("insert into contractor_group_members (group_id, user_id) values (%s, %s)", (gid[g], u[key]))
-    for h in ("jasmine", "daniel", "farah", "aisha", "kumar", "grace", "benjamin"):
+    for h in ("jasmine", "daniel", "farah", "aisha", "kumar", "grace", "benjamin", "lina", "ethan"):
         c.execute("update users set ic_last4 = %s where uid = %s", (f"{100 + u[h] % 900:03d}D", u[h]))
     # On dev (the demo site) the sample PM runs the projects, so a visitor trying
     # the app as Charlotte sees their alerts and approvals.
@@ -290,9 +302,14 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     sp = one("select retailer_id from electricity_retailers where name = 'SP Group'")["retailer_id"]
     alerts: list[tuple] = []
 
-    def project(name: str, **cols) -> int:
-        act(pm)
-        cols = {"name": name, "project_manager_id": pm, "created_by": pm, "check_in_radius_m": 100, **cols}
+    # On the demo, Marcus runs two projects; on a laptop's own database the one real PM runs all.
+    marcus = u["marcus"] if target == "dev" or not keep else pm
+    manager: dict[int, int] = {}
+
+    def project(name: str, run_by: int | None = None, **cols) -> int:
+        who = run_by or pm
+        act(who)
+        cols = {"name": name, "project_manager_id": who, "created_by": who, "check_in_radius_m": 100, **cols}
         if cols.get("homeowner_id"):
             cols.setdefault("homeowner_contact_no", next(p[3] for p in PEOPLE if u[p[0]] == cols["homeowner_id"]))
         keys = ", ".join(cols)
@@ -301,6 +318,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             "project_id"
         ]
         print(f"  + {name}")
+        manager[pid] = who
         return pid
 
     def status(pid: int, who: int, value: str) -> None:
@@ -349,14 +367,14 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             )
 
     def visit(pid: int, day: date, time: str | None, note: str) -> int:
-        act(pm)
+        act(manager[pid])
         return one(
             "insert into site_visits (project_id, scheduled_date, scheduled_time, works_note, created_by) values (%s, %s, %s, %s, %s) returning visit_id",
             pid,
             day,
             time,
             note,
-            pm,
+            manager[pid],
         )["visit_id"]
 
     def attended(
@@ -422,6 +440,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     # 3. The homeowner declined, with a reason; the PM can ask again.
     tam = project(
         "Tampines Grove",
+        run_by=marcus,
         address="12 Tampines Grove, Singapore 528600",
         postal_code="528600",
         site_lat=1.3550,
@@ -434,7 +453,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     )
     status(tam, u["benjamin"], "homeowner_declined")
     alert(
-        pm,
+        marcus,
         "approval_declined",
         "Benjamin Koh declined Tampines Grove",
         "Reason: “The start date clashes with our renovation. Can we start in December?”",
@@ -562,6 +581,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     pr_site = (1.3720, 103.9500)
     pr = project(
         "Pasir Ris Garden",
+        run_by=marcus,
         address="40 Pasir Ris Drive 3, Singapore 518180",
         postal_code="518180",
         site_lat=pr_site[0],
@@ -573,7 +593,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
         status="awaiting_homeowner",
     )
     status(pr, u["grace"], "homeowner_approved")
-    status(pr, pm, "pm_approved")
+    status(pr, marcus, "pm_approved")
     fill(pr, u["priya"], {"electricity_retailer_id": sp, **M1_DETAILS})
     status(pr, u["priya"], "in_progress")
     files(pr, u["priya"], FILES_PRE1)
@@ -588,7 +608,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     attended(pr, v, u["hafiz"], pr_site, D(-12), "10:40", "15:10", 3)
     visit(pr, D(1), "10:00", "SP turn-on inspection")
     alert(
-        pm,
+        marcus,
         "milestone_complete",
         "Milestone 2 complete · Pasir Ris Garden",
         "The inverter is commissioned and the grid connection is in hand.",
@@ -625,17 +645,99 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     fill(pg, u["priya"], M3)
     files(pg, u["priya"], FILES_M3)
     milestones(pg, u["priya"], 3)
-    for who in (pm, u["kumar"], u["priya"]):
+    status(pg, u["priya"], "awaiting_signature")
+    for who in (pm, u["priya"]):
         alert(
             who,
             "milestone_complete",
             "Ready for handover · Punggol Waterway Terrace",
-            "Every milestone is complete. Next: the handover certificate for e-signature.",
+            "Every milestone is complete. The homeowner has been asked to sign the handover certificate.",
             pg,
             f"/projects/{pg}",
             60 * 3,
             who != pm,
         )
+    alert(
+        u["kumar"],
+        "signature_request",
+        "Sign your handover certificate · Punggol Waterway Terrace",
+        "Your solar installation at 5 Punggol Walk, Singapore 828768 is complete. Check the installation certificate and sign it on your phone.",
+        pg,
+        f"/projects/{pg}",
+        60 * 3,
+    )
+
+    def finished(name: str, homeowner: str, address: str, postal: str, site: tuple[float, float], start: int) -> int:
+        """A project with every milestone done and the homeowner's signature on its certificate."""
+        pid = project(
+            name,
+            address=address,
+            postal_code=postal,
+            site_lat=site[0],
+            site_lng=site[1],
+            homeowner_id=u[homeowner],
+            contractor_group_id=gid["apex"],
+            installation_start_date=D(start),
+            target_end_date=D(start + 21),
+            status="awaiting_homeowner",
+        )
+        status(pid, u[homeowner], "homeowner_approved")
+        status(pid, pm, "pm_approved")
+        fill(pid, u["priya"], {"electricity_retailer_id": sp, **M1_DETAILS})
+        status(pid, u["priya"], "in_progress")
+        files(pid, u["priya"], FILES_PRE1)
+        fill(pid, u["ravi"], {**M1_DONE, **M2, **M3})
+        files(pid, u["ravi"], FILES_PRE1B + FILES_M1 + FILES_M2 + FILES_M3)
+        milestones(pid, u["ravi"], 3)
+        status(pid, u["ravi"], "awaiting_signature")
+        row = one(
+            "select p.*, h.full_name as h_name, r.name as retailer_name from projects p join users h on h.uid = p.homeowner_id "
+            "left join electricity_retailers r on r.retailer_id = p.electricity_retailer_id where p.project_id = %s",
+            pid,
+        )
+        pm_name = one("select full_name from users where uid = %s", pm)["full_name"]
+        cert = certificate.build(row, contractor=GROUPS["apex"], manager=pm_name)
+        fp = certificate.fingerprint(cert)
+        pdf_key, sig_key = storage.handover_keys(pid)
+        signer = NAMES[homeowner]
+        act(u[homeowner])
+        signed_at = one(
+            "insert into project_signatures (project_id, signed_by, signature_url, certificate_hash, certificate_url, signer_name, certificate) "
+            "values (%s, %s, %s, %s, %s, %s, %s) returning signed_at",
+            pid,
+            u[homeowner],
+            sig_key,
+            fp,
+            pdf_key,
+            signer,
+            json.dumps(cert, ensure_ascii=False),
+        )["signed_at"]
+        document = certificate.pdf(cert, signature=SIGNATURE, signer=signer, signed_at=signed_at, fingerprint_hex=fp)
+        for key, data, ctype in ((sig_key, SIGNATURE, "image/jpeg"), (pdf_key, document, "application/pdf")):
+            if bucket:
+                bucket.put(key, data, ctype)
+            else:
+                path = storage.LOCAL_DIR / key
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                path.with_suffix(path.suffix + ".type").write_text(ctype)
+        status(pid, u[homeowner], "signed")
+        return pid
+
+    # 9. Signed by the homeowner: the PM checks the certificate and closes the project.
+    ut = finished("Upper Thomson Corner", "lina", "5 Thomson Hills Road, Singapore 574000", "574000", (1.3540, 103.8330), -35)
+    alert(pm, "signed", "Handover signed · Upper Thomson Corner", "Lina Wong signed the installation certificate. Check it and close the project.", ut, f"/projects/{ut}", 40)
+
+    # 10. Closed: signed, checked and closed, and everyone told.
+    sg = finished("Siglap Garden House", "ethan", "40 Siglap Hill, Singapore 456000", "456000", (1.3130, 103.9260), -50)
+    status(sg, pm, "closed")
+    for who in (u["ethan"], u["priya"], u["ravi"]):
+        text = (
+            "Siglap Garden House is complete and closed. Thank you for choosing 9 Solar Home."
+            if who == u["ethan"]
+            else "The homeowner signed the handover certificate and the project is closed."
+        )
+        alert(who, "project_closed", "Project closed · Siglap Garden House", text, sg, f"/projects/{sg}", 60 * 26, True)
 
     # People waiting for a PM: a new account, and a role change.
     act(None)
@@ -711,7 +813,8 @@ def main() -> None:
         keep = wipe(c, a.target)
         print("  kept: " + (", ".join(f"{k['full_name']} (PM)" for k in keep) or "no accounts"))
         if bucket:
-            gone = bucket.keys("projects/")
+            # Project files, and the pictures of the people just removed.
+            gone = bucket.keys("projects/") + bucket.keys("profiles/")
             for key in gone:
                 bucket.delete(key)
             print(f"  {bucket.cfg.bucket}: removed {len(gone)} stored files")

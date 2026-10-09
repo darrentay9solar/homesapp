@@ -70,6 +70,12 @@ def avatar_key(uid: int, content_type: str) -> str:
     return f"profiles/{uid}/images/{uuid.uuid4()}.{AVATAR_TYPES[content_type]}"
 
 
+def handover_keys(pid: int) -> tuple[str, str]:
+    """Where a signed handover certificate (PDF) and its signature (JPEG) are stored."""
+    u = uuid.uuid4()
+    return f"projects/{pid}/documents/handover_certificate/{u}.pdf", f"projects/{pid}/images/handover_signature/{u}.jpg"
+
+
 LINK_SECONDS = 300
 
 LOCAL_DIR = Path(__file__).resolve().parents[2] / ".uploads"
@@ -313,6 +319,23 @@ def check() -> dict[str, object]:
     except (urllib.error.URLError, TimeoutError) as exc:
         out["problem"] = f"Couldn't reach R2 ({exc}). Check R2_ACCOUNT_ID."
     return out
+
+
+def put(key: str, data: bytes, content_type: str) -> None:
+    """Stores a file the server made itself (a signed certificate), not one a browser uploads."""
+    m = mode()
+    if m == "local":
+        p = local_path(key)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+        p.with_suffix(p.suffix + ".type").write_text(content_type)
+        return
+    cfg = _r2()
+    if not cfg:
+        raise StorageNotConfiguredError
+    url = _sign(cfg, "PUT", key, 60, {"content-type": content_type}, {})
+    req = urllib.request.Request(url, method="PUT", data=data, headers={"Content-Type": content_type})
+    urllib.request.urlopen(req, timeout=20).close()
 
 
 def delete(key: str) -> None:

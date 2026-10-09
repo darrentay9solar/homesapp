@@ -142,6 +142,9 @@ def _load(acct: Account, project_id: int | None = None) -> list[dict[str, Any]]:
             f"No check-in for the EPC visit on {when}" + (f" ({v['works_note']})" if v["works_note"] else "")
         )
 
+    # An EPC no-show is the crew's and 9 Solar Home's business, not something to alarm the homeowner with.
+    if acct.role == "homeowner":
+        missed = {}
     return [_row(r, files.get(r["project_id"], {}), people.get(r["project_id"], []), missed.get(r["project_id"], []))
             for r in rows]  # fmt: skip
 
@@ -156,7 +159,9 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
 
     start, end = r["installation_start_date"], r["target_end_date"]
     t = today()
-    elapsed = max(0, ((r["closed_at"] if r.get("closed_at") else t) - start).days) if start else 0
+    # Days running stop counting on the day the project was closed.
+    until = r["closed_at"].astimezone(SG).date() if r.get("closed_at") else t
+    elapsed = max(0, (until - start).days) if start else 0
     flags: list[dict[str, str]] = []
     if end and r["status"] != "closed" and t > end and pct < 100:
         flags.append({"kind": "overdue", "text": f"Target end date passed {(t - end).days} days ago"})
@@ -443,17 +448,13 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
 def _announce(pid: int, v: dict[str, Any], acct: Account) -> None:
     """The homeowner is asked to approve; the crews are told they're on it."""
     if v["homeowner_id"]:
-        h = fetch_one("select full_name, email from users where uid = %s", (v["homeowner_id"],))
+        h = fetch_one("select full_name, email, language from users where uid = %s", (v["homeowner_id"],))
         assert h is not None
         url = f"{notify.app_url()}/projects/{pid}"
-        title = "Approve your solar installation project"
-        text = f"9 Solar Home has created “{v['name']}”. Review the details and approve to begin scheduling."
-        html_body, plain = notify.email_shell(
-            title, [f"Hi {h['full_name'] or 'there'},", text, v["address"]], ("Review and approve", url)
-        )
+        m = notify.msg_approve_project(h["full_name"], v["name"], v["address"], url, h["language"])
         notify.notify(
-            v["homeowner_id"], "approval_request", title, text, project_id=pid,
-            email=(h["email"], f"9 Solar Home: approve {v['name']}", html_body, plain),
+            v["homeowner_id"], "approval_request", m["title"], m["body"], project_id=pid,
+            email=(h["email"], *m["email"]),
         )  # fmt: skip
 
     crew = set(v["user_ids"])

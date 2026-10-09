@@ -5,7 +5,8 @@
 | `tests_py/test_upload_cases.py` | 450 | Uploading pictures and documents |
 | `tests_py/test_gps_cases.py` | 631 | GPS location |
 | `tests_py/test_r2_setup.py` | 1,470 | Cloudflare R2, development and production |
-| `tests_py/test_full_flow.py` | 36 | One project from creation to Ready for handover, twice |
+| `tests_py/test_full_flow.py` | 44 | One project from creation to closed, through the signed certificate, twice |
+| `tests_py/uat/` | 16,550 | User acceptance: every role at every stage against the brief (below) |
 | `tests_py/test_account_settings.py` | 29 | Name, email, mobile codes, password, role requests, My Files |
 | `tests_py/test_alerts.py` | 46 | Alerts, phone notifications (Web Push), crews running late |
 | `tests/search.test.ts` | 146 | Every search in the app (projects, people, audit, My Files, form pickers) |
@@ -15,11 +16,46 @@ Each case is one pytest test, run against the real API and the real database
 rules on the Neon **test** branch. Nothing touches dev or production data.
 
 ```bash
-npm run test:py    # everything except the requests to R2 (those are skipped)
+npm run test:py    # everything except the requests to R2 (those are skipped) and the UAT suite
+npm run test:uat   # the user acceptance tests (about 15 minutes)
 npm run test:r2    # only the 39 tests that use the real R2 dev bucket (~85 requests)
 ```
 
-**Last run: 2,932 Python tests passed** (39 of them against the real R2 dev bucket) **and 353 front-end tests.**
+**Last run (9 Oct 2026): 2,905 Python tests passed (43 skipped: the ones that use real R2), all 16,550 UAT tests passed, and 366 front-end tests.**
+
+---
+
+## User acceptance: `tests_py/uat/` (16,550)
+
+The brief's rules are written down once, in plain terms, in
+`tests_py/uat/spec.py`. Every test asks the real API (or the database
+directly) and compares the answer with that file, so a disagreement means
+either the app or the written rule is wrong.
+
+**The world** (`uat/world.py`): eleven people and a project at each of eleven
+stages, with real files in laptop storage and a real signed certificate.
+
+| People | Stages |
+|---|---|
+| a superadmin; the PM running the projects; another PM; a contractor admin and an EPC member of the project's group; an EPC member assigned by name; a contractor admin and an EPC member of another group; the homeowner; another homeowner; an EPC member whose account is off | Draft, Awaiting Homeowner, Declined, Homeowner Approved, PM Approved, In Progress (nothing done / Milestone 1 / Milestone 2), Awaiting E-Sign, Signed, Closed |
+
+| File | Cases | What's checked |
+|---|---|---|
+| `test_uat_access.py` | 803 | 11 people × 11 stages: the project page, its fields, site visits, handover and signed PDF; whether it's in their list; whether its files open; who gets the Create button. |
+| `test_uat_fields.py` | 7,757 | Every field (45) for everyone who can see the project at every stage: its lock and the exact reason, each section's lock, what's filled, the milestone reached, and which buttons show. Then 3,751 real saves: 11 people × 11 stages × 31 fields, each refused or accepted as the brief says, and the first save on an approved project starting it. |
+| `test_uat_uploads.py` | 1,767 | Every upload slot (14) × 11 people × 11 stages; the server picks where a file goes and writes the link down. Disallowed types and sizes, made-up slots, keys from another project or slot, and a file that never arrived. |
+| `test_uat_actions.py` | 1,587 | Approve, decline, remind, reopen 1/2/3, ask for signature, remind to sign, sign (with a stale certificate), close and edit details, for 11 people at 11 stages. A press that should work runs on a fresh project and the test checks where it ends up; a refused one changes nothing. Scheduling and cancelling visits, checking in and out, one open check-in each, and check-ins 150 m to 20 km away refused. |
+| `test_uat_database.py` | 1,749 | The database on its own, through the app's login: 11 people × 11 stages × 9 statuses for every status change; who may sign, change or delete a signature; adding files and changing fields at handover; closing stamps who and when; who may ask for the signature. |
+| `test_uat_flows.py` | 39 | Whole stories through the API: start to finish five ways (different people doing each milestone), decline and ask again, a typed homeowner linked later, milestones opening in order, fixed milestones and reopening, a conditional date cleared, signing only what was seen (a rename mid-signature is caught), nine ways a signature can be incomplete, reopening withdraws the request, the crew locked out at handover, the signed PDF, closing only after signing, a superadmin closing, older projects sent for signature, reminders, another PM seeing nothing, a superadmin handing a project to another PM, who creates projects, Chinese and English emails, and who hears what. |
+| `test_uat_language.py` | 2,629 | Every phrase in the dictionary (1,500+) translates, and every pattern keeps its filled-in parts; long phrases are really Chinese. Every email and text (11 kinds × 3 names × 4 roles) in Chinese with no English sentence left, and in English. Verification codes; WhatsApp template languages; falling back to English only when Meta has no Chinese version. |
+| `test_uat_certificate.py` | 105 | The certificate reads like the project; panels and system size; grid connection; missing values; any change on it changes the fingerprint and nothing else does; the PDF (6 names, including Chinese and punctuation, × 7 signature images) is valid, one page, with the signature, time and fingerprint; which signature images are accepted, and broken ones refused. |
+| `test_uat_people.py` | 98 | Who creates which accounts (11 people × 5 roles); a new account greeted in the chosen language, and unknown languages falling back to English; who may check file storage and read the audit log; another PM reads nothing of a project they don't run. |
+| `test_uat_sweep.py` | 16 | Uploads abandoned for over a day are deleted, recent ones left; registered files, signed certificates and files taken off a project are never touched; the 15-minute job runs the sweep and needs its secret. |
+
+The UAT run found and fixed three bugs in the app: a closed project's page
+failed while counting its days; a PM couldn't clear a conditional date that
+no longer applied in a completed milestone; and declining an account request
+on the demo site would still have sent a real email.
 
 ---
 
@@ -95,14 +131,14 @@ live site confirms it with one request (see [r2.md](r2.md)).
 
 ## The whole flow: `tests_py/test_full_flow.py` (18 steps × 2 = 36)
 
-One project goes from creation to Ready for handover, step by step, in the
+One project goes from creation to closed, step by step, in the
 order of [PROCESS_FLOW.md](PROCESS_FLOW.md). Every role plays its part
 through the real API, and each step checks what must be refused as well as
 what must work. It runs twice:
 - **laptop:** files in `web/.uploads/`. Part of every `npm run test:py`.
 - **r2:** files in the real R2 dev bucket, with `npm run test:r2`. It uploads
-  15 files of about 70 bytes, about 55 requests in all, and leaves the bucket
-  empty.
+  15 files of about 70 bytes and the signed certificate, about 60 requests in
+  all, and leaves the bucket empty.
 
 | # | Step | Checked |
 |---|---|---|
@@ -120,10 +156,14 @@ what must work. It runs twice:
 | 12 | Milestone 1 locked | The crew can't change a field or add a photo. The crew can't reopen it; a PM can, and then the crew can edit again. |
 | 13 | Milestone 2 | Milestone 3 uploads are refused until Milestone 2 is done. Commissioning, the breaker answer, the PVL date and the PVL letter complete it. |
 | 14 | Milestone 3 and closing documents | Inspection dates, the appointment letter, the As Built PV Layout, the final submission and handover documents, and FusionSolar access. Not complete until the signed completion form arrives, then *Ready for handover*. |
-| 15 | Ready for handover | All three milestones are recorded and no required field is empty. The homeowner's project list shows 100%. |
+| 15 | Awaiting E-Sign | All three milestones are recorded and no required field is empty. The homeowner's project list shows 100%, and only the homeowner is asked to sign. |
 | 16 | Every file | All 15 files are on the project. The homeowner gets identical bytes back. Outsiders get no link to any of them. |
 | 17 | The audit log | The PM, homeowner, admin and EPC each appear. All 15 uploads and the restore are recorded. The crew can't read the log. |
-| 18 | Storage | Storage holds exactly the project's 15 files, nothing extra and nothing missing. Afterwards it's empty. |
+| 18 | The certificate | The homeowner reads it: 20 × 610 W, 12.20 kWp, the inverter serial and their name, with its fingerprint. The crew can no longer save a field or upload. Outsiders can't see it. |
+| 19 | Signing | The PM and crew can't sign. A stale fingerprint and an unticked box are refused. The homeowner signs; the PM is alerted; signing twice is refused; the signature row records who and what. |
+| 20 | The signed PDF | Opens for the homeowner, PM and crew, not outsiders. It carries the signature image, the signer and the fingerprint. |
+| 21 | Closing | The homeowner and crew can't close; nothing can be reopened once signed. The PM closes; the homeowner and crew are told; closing twice is refused. |
+| 22 | Storage | Storage holds exactly the project's 15 files and the signed certificate (PDF and signature), nothing extra and nothing missing. Afterwards it's empty. |
 
 **Last run: 36 passed** (18 laptop, 18 R2). The dev bucket was empty afterwards.
 

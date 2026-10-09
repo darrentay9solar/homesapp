@@ -30,7 +30,8 @@
     "db:status": "tsx scripts/migration-status.ts",
     "db:bootstrap-pm": "tsx scripts/bootstrap-pm.ts",
     "dev:api": "node scripts/py.mjs -m uvicorn index:app --app-dir api --port 8000",
-    "test:py": "node scripts/py.mjs -m pytest -q",
+    "test:py": "node scripts/py.mjs -m pytest -q --ignore=tests_py/uat",
+    "test:uat": "node scripts/py.mjs -m pytest -q -p no:cacheprovider tests_py/uat",
     "vapid-keys": "node scripts/py.mjs scripts/vapid-keys.py",
     "test:r2": "node scripts/py.mjs -m pytest -q --r2-live -m r2_live",
     "test:web": "tsx --test tests/people-search.test.ts tests/audit.test.ts tests/projects.test.ts tests/sites.test.ts tests/search.test.ts tests/alerts.test.ts tests/i18n.test.ts tests/location.test.ts tests/demo.test.ts"

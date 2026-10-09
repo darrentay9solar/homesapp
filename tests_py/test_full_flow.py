@@ -1,27 +1,32 @@
-"""One project, from creation to Ready for handover, the way docs/PROCESS_FLOW.md describes it.
+# ruff: noqa: RUF001  (the multiplication sign is meant)
+"""One project, from creation to closing, the way docs/PROCESS_FLOW.md describes it.
 
 Every step is one test, run in order, twice:
   laptop   files in web/.uploads/ (free; part of every run)
   r2       files in the real Cloudflare R2 dev bucket (marked r2_live)
 
-The r2 run uploads 15 files of about 70 bytes and deletes them at the end:
-roughly 55 R2 requests in all, against a free allowance of millions a month.
+The r2 run uploads 15 files of about 70 bytes, plus the signed certificate
+(a PDF and the signature, about 20 KB), and deletes them at the end: roughly
+60 R2 requests in all, against a free allowance of millions a month.
 Everything else (approvals, fields, milestones, check-ins, the audit log)
 runs against the real API and database rules on the Neon test branch.
 """
 
 from __future__ import annotations
 
+import base64
 import re
 import shutil
 import uuid
+import zlib
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from _lib import onemap, storage
+from _lib import certificate, onemap, storage
 from _routes import projects as projects_mod
 from _routes.projects import SG
 from conftest import bearer, owner_conn
@@ -33,6 +38,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 60
 PDF = b"%PDF-1.4\n" + b"0" * 60
 JPEG = b"\xff\xd8\xff\xe0" + b"0" * 60
 REASON = "Restoring a photo removed by mistake during testing"
+SIGNATURE = (Path(__file__).parent / "fixtures" / "signature.jpg").read_bytes()
 
 BACKENDS = [pytest.param("laptop", id="laptop"), pytest.param("r2", id="r2", marks=pytest.mark.r2_live)]
 need_r2 = storage._r2() is not None
@@ -308,7 +314,7 @@ def test_07_epc_checks_in_and_out_at_the_house(client, team, s, backend) -> None
     far = client.post(
         f"/api/py/projects/{pid}/check-ins", headers=h(team, "epc"), json={**gps, "lat": SITE.lat + 0.01, "crew": 4}
     )
-    assert far.status_code >= 400 and "GPS signal" in far.json()["error"]
+    assert far.status_code == 400 and far.json()["error"].startswith("You're not at the check-in location")
     r = client.post(f"/api/py/projects/{pid}/check-ins", headers=h(team, "epc"), json={**gps, "crew": 4})
     assert r.status_code == 200, r.text
     v = client.get(f"/api/py/projects/{pid}/visits", headers=h(team, "pm")).json()
@@ -472,7 +478,8 @@ def test_14_milestone_3_inspection_and_closing_documents(client, team, s, backen
     assert upload(client, team, s, "epc", "fusion_solar_access", PNG, "image/png").status_code == 200
     assert fields(client, team, "pm", pid)["milestoneReached"] == 2, "the signed completion form is still missing"
     r = upload(client, team, s, "admin", "completion_form_signed")
-    assert r.status_code == 200 and "Ready for handover" in r.json()["message"]
+    assert r.status_code == 200 and "Milestone 3 complete" in r.json()["message"]
+    assert status(team, pid) == "awaiting_signature", "the homeowner is asked to sign straight away"
 
 
 def test_15_ready_for_handover(client, team, s, backend) -> None:
@@ -488,7 +495,8 @@ def test_15_ready_for_handover(client, team, s, backend) -> None:
     assert missing == [], missing
     listed = next(p for p in client.get("/api/py/projects", headers=h(team, "ho")).json()["projects"] if p["id"] == pid)
     assert listed["progress"] == 100
-    assert team["ho"]["uid"] in told(team, pid, "milestone_complete")
+    assert told(team, pid, "signature_request") == {team["ho"]["uid"]}
+    assert {team["pm"]["uid"], team["admin"]["uid"]} <= told(team, pid, "milestone_complete")
 
 
 # ------------------------------------------------------------ 5. the record
@@ -521,7 +529,87 @@ def test_17_the_audit_log_names_who_did_each_step(client, team, s, backend) -> N
     assert client.get("/api/py/audit", headers=h(team, "epc")).status_code == 403
 
 
-def test_18_storage_holds_exactly_the_project_files_then_is_cleaned_up(client, team, s, backend) -> None:
+# ------------------------------------------------------------ 6. handover
+
+
+def test_18_the_homeowner_reads_the_certificate_and_the_crew_can_no_longer_change_anything(
+    client, team, s, backend
+) -> None:
+    pid = s["pid"]
+    d = client.get(f"/api/py/projects/{pid}/handover", headers=h(team, "ho")).json()
+    rows = dict(d["certificate"]["rows"])
+    assert d["actions"]["sign"] and not d["actions"]["close"]
+    assert rows["Solar panels"] == "20 × 610 W" and rows["System size"] == "12.20 kWp"
+    assert rows["Inverter serial number"] == "HW-10KTL-1" and rows["Homeowner"] == "Flow Homeowner"
+    assert d["fingerprint"] == certificate.fingerprint(d["certificate"])
+    s["fingerprint"] = d["fingerprint"]
+    assert save(client, team, "epc", pid, "sales", "Changed after").status_code == 403
+    assert upload(client, team, s, "epc", "handover_docs").status_code == 403
+    assert client.get(f"/api/py/projects/{pid}/handover", headers=h(team, "outsider")).status_code == 404
+
+
+def test_19_only_the_homeowner_signs_and_only_what_they_saw(client, team, s, backend) -> None:
+    pid = s["pid"]
+    body = {
+        "fingerprint": s["fingerprint"],
+        "signerName": "Flow Homeowner",
+        "signature": "data:image/jpeg;base64," + base64.b64encode(SIGNATURE).decode(),
+        "agree": True,
+    }
+    for who in ("pm", "admin", "epc"):
+        r = client.post(f"/api/py/projects/{pid}/handover/sign", headers=h(team, who), json=body)
+        assert r.status_code == 403, (who, r.text)
+    stale = client.post(
+        f"/api/py/projects/{pid}/handover/sign", headers=h(team, "ho"), json={**body, "fingerprint": "0" * 64}
+    )
+    assert stale.status_code == 409 and "changed" in stale.json()["error"]
+    unagreed = client.post(
+        f"/api/py/projects/{pid}/handover/sign", headers=h(team, "ho"), json={**body, "agree": False}
+    )
+    assert unagreed.status_code == 400
+    r = client.post(f"/api/py/projects/{pid}/handover/sign", headers=h(team, "ho"), json=body)
+    assert r.status_code == 200, r.text
+    assert status(team, pid) == "signed"
+    assert told(team, pid, "signed") == {team["pm"]["uid"]}, "the project manager is alerted"
+    again = client.post(f"/api/py/projects/{pid}/handover/sign", headers=h(team, "ho"), json=body)
+    assert again.status_code == 409, "a signature is given once"
+    row = team["conn"].execute("select * from project_signatures where project_id = %s", (pid,)).fetchone()
+    assert row["signed_by"] == team["ho"]["uid"] and row["certificate_hash"] == s["fingerprint"]
+    s.setdefault("keys", []).extend([row["certificate_url"], row["signature_url"]])
+
+
+def test_20_the_signed_certificate_opens_for_everyone_on_the_project(client, team, s, backend) -> None:
+    pid = s["pid"]
+    for who in ("ho", "pm", "admin", "epc"):
+        r = client.get(f"/api/py/projects/{pid}/handover/certificate.pdf", headers=h(team, who), follow_redirects=False)
+        assert r.status_code == 302, (who, r.text)
+    url = r.headers["location"]
+    pdf = (client.r2 if url.startswith("https://") else client).get(url)
+    assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF-1.4") and SIGNATURE in pdf.content
+    page = zlib.decompress(pdf.content.split(b"/FlateDecode >>\nstream\n", 1)[1].split(b"\nendstream", 1)[0])
+    assert s["fingerprint"].encode() in page and rb"(Flow Homeowner \(homeowner\)) Tj" in page
+    r = client.get(f"/api/py/projects/{pid}/handover/certificate.pdf", headers=h(team, "outsider"))
+    assert r.status_code == 404
+
+
+def test_21_a_project_manager_closes_it_and_everyone_is_told(client, team, s, backend) -> None:
+    pid = s["pid"]
+    assert client.post(f"/api/py/projects/{pid}/close", headers=h(team, "ho")).status_code == 403
+    assert client.post(f"/api/py/projects/{pid}/close", headers=h(team, "admin")).status_code == 403
+    assert client.post(f"/api/py/projects/{pid}/milestones/3/reopen", headers=h(team, "pm")).status_code == 409
+    r = client.post(f"/api/py/projects/{pid}/close", headers=h(team, "pm"))
+    assert r.status_code == 200, r.text
+    assert status(team, pid) == "closed"
+    assert {team["ho"]["uid"], team["admin"]["uid"], team["epc"]["uid"]} <= told(team, pid, "project_closed")
+    d = client.get(f"/api/py/projects/{pid}/handover", headers=h(team, "ho")).json()
+    assert d["closed"]["by"] == "Flow PM" and d["signature"]["name"] == "Flow Homeowner"
+    assert client.post(f"/api/py/projects/{pid}/close", headers=h(team, "pm")).status_code == 409
+
+
+# ------------------------------------------------------------ 7. storage
+
+
+def test_22_storage_holds_exactly_the_project_files_then_is_cleaned_up(client, team, s, backend) -> None:
     pid = s["pid"]
     prefix = f"projects/{pid}/"
     if backend == "laptop":
@@ -532,7 +620,7 @@ def test_18_storage_holds_exactly_the_project_files_then_is_cleaned_up(client, t
         }
     else:
         stored = {k.removeprefix("pytest/") for k in bucket_keys(client, f"pytest/{prefix}")}
-    assert stored == set(s["keys"]), "nothing extra, nothing missing"
+    assert stored == set(s["keys"]), "the files and the signed certificate: nothing extra, nothing missing"
     for key in s["keys"]:
         storage.delete(key)
     left = (

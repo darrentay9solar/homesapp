@@ -19,7 +19,8 @@ export function distanceM(a: LatLng, b: LatLng): number {
 
 /** "40 m", "850 m", "1.2 km", "12 km". */
 export function formatDistance(m: number): string {
-  if (m < 1000) return T("{m} m", { m: Math.max(0, Math.round(m / 10) * 10) });
+  // Rounded first, so 999 m reads "1.0 km" (as the server writes it), not "1000 m".
+  if (Math.round(m / 10) * 10 < 1000) return T("{m} m", { m: Math.max(0, Math.round(m / 10) * 10) });
   return T("{km} km", { km: m < 10_000 ? (m / 1000).toFixed(1) : String(Math.round(m / 1000)) });
 }
 

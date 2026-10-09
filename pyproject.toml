@@ -53,6 +53,8 @@ known-first-party = ["_lib", "_routes", "index", "conftest"]
 # BaseHTTPRequestHandler dispatches to methods named do_GET, do_POST and so
 # on. Both naming rules are imposed from outside and cannot be satisfied.
 "api/*.py" = ["N801", "N802"]
+# The acceptance tests read best with each SQL statement and request on one line.
+"tests_py/uat/*.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests_py"]
@@ -60,4 +62,5 @@ pythonpath = ["api"]
 markers = [
     "real_r2: uses the real R2 settings from the environment instead of laptop storage",
     "r2_live: sends requests to the real Cloudflare R2 buckets (kept to a few dozen)",
+    "uat: user acceptance tests (tests_py/uat): every role at every stage, against uat/spec.py",
 ]

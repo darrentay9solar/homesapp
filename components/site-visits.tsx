@@ -41,7 +41,8 @@ type CheckTarget = { projectId: number; name: string; address: string; open: Che
 /**
  * Checking in or out: the crew count, then the phone's GPS. The location is
  * taken fresh when the button is pressed, and the server decides whether it
- * counts. Every refusal reads the same to the crew: move and try again.
+ * counts. A refusal says what's wrong: no location, a weak GPS signal, or not
+ * at the house (and how far away).
  */
 export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarget; onClose: () => void; onDone: () => Promise<void> }) {
   const fetcher = useFetcher();
@@ -190,7 +191,7 @@ function ScheduleDialog({ pid, onClose, onDone }: { pid: number; onClose: () => 
 
 // ------------------------------------------------------------ the schedule
 
-const STATE_COLOR = { upcoming: "default", today: "warning", attended: "success", missed: "error" } as const;
+const STATE_COLOR = { upcoming: "default", today: "warning", attended: "success", missed: "error", past: "default" } as const;
 
 /** The project page's site schedule: visits, who checked in, and the buttons for whoever acts next. */
 export function SiteSchedule({ pid, name, address, data, reload }: { pid: number; name: string; address: string; data: ProjectVisits; reload: () => Promise<void> }) {
@@ -267,7 +268,7 @@ export function SiteSchedule({ pid, name, address, data, reload }: { pid: number
                     </Typography>
                   )}
                 </Box>
-                {data.canSchedule && v.checkIns.length === 0 && v.state !== "missed" && (
+                {data.canSchedule && v.checkIns.length === 0 && v.state !== "missed" && v.state !== "past" && (
                   <Tooltip title={T("Cancel this visit")}>
                     <IconButton size="small" aria-label={T("Cancel the visit on {date}", { date: label })} onClick={() => void cancel(v.id, label)}>
                       <CloseRoundedIcon fontSize="small" />

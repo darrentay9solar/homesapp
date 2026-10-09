@@ -20,7 +20,7 @@ import { splitPhone } from "@/components/phone-input";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import type { Role } from "@/lib/client/app-state";
-import { T, TR } from "@/lib/client/i18n";
+import { currentLang, T, TR } from "@/lib/client/i18n";
 
 type MeState = {
   state: "active" | "deactivated" | "pending" | "rejected" | "no_account";
@@ -88,7 +88,7 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
     setBusy(true);
     setErr(null);
     try {
-      await fetcher("/account-requests", { method: "POST", json: { ...form, role } });
+      await fetcher("/account-requests", { method: "POST", json: { ...form, role, language: currentLang() } });
       await onDone();
     } catch (x) {
       setErr(x instanceof ApiError ? x.message : T("Something went wrong. Please try again."));

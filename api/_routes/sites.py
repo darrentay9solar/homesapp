@@ -25,7 +25,7 @@ import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from _lib import notify
+from _lib import notify, sweep
 from _lib.account import Account, apply_schedule
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
@@ -37,7 +37,6 @@ router = APIRouter()
 
 OPEN_FOR_WORK = ("pm_approved", "in_progress")
 TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
-GPS_MESSAGE = "You're currently not receiving GPS signal, please move to a spot where you can."
 
 
 def _crew(pid: int, group_id: int | None, *, epc_only: bool = False) -> list[dict[str, Any]]:
@@ -98,6 +97,8 @@ def visits(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
         linked |= {c["check_in_id"] for c in mine}
         d = v["scheduled_date"]
         state = "attended" if mine else "upcoming" if d > t else "today" if d == t else "missed"
+        if state == "missed" and rel == "homeowner":
+            state = "past"  # the homeowner isn't told the crew didn't check in
         out.append(
             {
                 "id": v["visit_id"],
@@ -429,5 +430,6 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
         raise HTTPException(503, "CRON_SECRET isn't set, so reminders can't run.")
     if not hmac.compare_digest(authorization, f"Bearer {secret}"):
         raise HTTPException(401, "Not allowed.")
-    # The same job applies account expiry and enable dates (migration 0025).
-    return {"sent": run_reminders(datetime.now(SG)), "accounts": apply_schedule()}
+    # The same job applies account expiry and enable dates (migration 0025)
+    # and clears out abandoned uploads (_lib/sweep).
+    return {"sent": run_reminders(datetime.now(SG)), "accounts": apply_schedule(), "uploads": sweep.sweep()}

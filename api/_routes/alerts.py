@@ -19,7 +19,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from _lib import demo, notify, push
+from _lib import notify, push
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.web import active
@@ -134,8 +134,6 @@ def push_key(acct: Account = Depends(active)) -> dict[str, Any]:
 
 @router.post("/push/subscriptions")
 def subscribe(body: SubIn, request: Request, acct: Account = Depends(active)) -> dict[str, Any]:
-    if acct.demo:
-        raise HTTPException(403, demo.OFF["push"])
     if acct.acting_pm:
         raise HTTPException(403, "Not while testing as someone else: this phone is yours, not theirs.")
     endpoint, p256dh, auth = body.endpoint.strip(), body.keys.get("p256dh", ""), body.keys.get("auth", "")

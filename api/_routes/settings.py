@@ -140,15 +140,20 @@ def send_mobile_code(body: MobileIn, acct: Account = Depends(active)) -> dict[st
         raise HTTPException(429, "Too many codes in the last hour. Please try again later.")
 
     code = f"{secrets.randbelow(10**6):06d}"
-    text = f"{code} is your GetHomeApps verification code. It expires in {CODE_MINUTES} minutes. Don't share it."
+    lang = acct.user.get("language") or "en"
+    text = notify.msg_verification_code(code, CODE_MINUTES, lang)
     results: dict[str, notify.SendResult] = {}
-    if body.channel != "sms":
-        results["whatsapp"] = notify.send_whatsapp(to, "verification_code", [code], copy_code=code)
-    if results.get("whatsapp") is None or results["whatsapp"].status != "sent":
-        results["sms"] = notify.send_sms(to, text)
-    sent_by = next((ch for ch, r in results.items() if r.status == "sent"), None)
+    dev_code, sent_by = None, None
+    if demo.enabled():
+        # Nothing leaves the demo, so the code is shown on screen instead.
+        sent_by, dev_code = "demo", code
+    else:
+        if body.channel != "sms":
+            results["whatsapp"] = notify.send_whatsapp(to, "verification_code", [code], copy_code=code, lang=lang)
+        if results.get("whatsapp") is None or results["whatsapp"].status != "sent":
+            results["sms"] = notify.send_sms(to, text)
+        sent_by = next((ch for ch, r in results.items() if r.status == "sent"), None)
 
-    dev_code = None
     if not sent_by:
         # On a laptop, against a database that isn't production, the code is
         # shown on screen so the flow can be tried before WhatsApp/SMS exist.
@@ -161,9 +166,20 @@ def send_mobile_code(body: MobileIn, acct: Account = Depends(active)) -> dict[st
         cur.execute(
             "insert into verification_codes (uid, purpose, target, code_hash, channel, expires_at) "
             "values (%s, 'mobile', %s, %s, %s, now() + make_interval(mins => %s))",
-            (acct.uid, number, _hash(code, secrets.token_hex(8)), sent_by, CODE_MINUTES),
+            (
+                acct.uid,
+                number,
+                _hash(code, secrets.token_hex(8)),
+                "dev" if sent_by == "demo" else sent_by,
+                CODE_MINUTES,
+            ),  # fmt: skip
         )
-    where = {"whatsapp": "by WhatsApp", "sms": "by SMS", "dev": "(shown here: messaging isn't set up)"}[sent_by]
+    where = {
+        "whatsapp": "by WhatsApp",
+        "sms": "by SMS",
+        "dev": "(shown here: messaging isn't set up)",
+        "demo": "(shown here: the demo sends no messages)",
+    }[sent_by]
     out: dict[str, Any] = {"sentBy": sent_by, "to": mask(number), "message": f"Code sent to {mask(number)} {where}."}
     if dev_code:
         out["devCode"] = dev_code
@@ -248,10 +264,11 @@ def request_role(body: RoleIn, acct: Account = Depends(active)) -> dict[str, Any
             (acct.uid, acct.user["user_type"], body.role, reason),
         )
     name = acct.user["full_name"] or acct.user["email"]
-    m = notify.msg_role_requested(
-        name, ROLE_LABEL[acct.user["user_type"]], ROLE_LABEL[body.role], reason, f"{notify.app_url()}/people"
-    )
     for pm in _pms():
+        m = notify.msg_role_requested(
+            name, ROLE_LABEL[acct.user["user_type"]], ROLE_LABEL[body.role], reason,
+            f"{notify.app_url()}/people?tab=requests", notify.lang_of(pm["uid"]),
+        )  # fmt: skip
         try:
             notify.notify(pm["uid"], "role_request", m["title"], m["body"], email=(pm["email"], *m["email"]))
         except Exception as exc:  # one PM's failure must not lose the request
@@ -285,7 +302,9 @@ def _pending(request_id: int) -> dict[str, Any]:
 
 
 def _tell(r: dict[str, Any], role_key: str, approved: bool, note: str | None) -> str:
-    m = notify.msg_role_decided(r["full_name"] or r["email"], ROLE_LABEL[role_key], approved, note, notify.app_url())
+    m = notify.msg_role_decided(
+        r["full_name"] or r["email"], ROLE_LABEL[role_key], approved, note, notify.app_url(), notify.lang_of(r["uid"])
+    )
     report = notify.notify(
         r["uid"],
         "role_approved" if approved else "role_rejected",

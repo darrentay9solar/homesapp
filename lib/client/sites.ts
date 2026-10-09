@@ -17,7 +17,7 @@ export type CheckIn = {
   outDistance: number | null;
 };
 
-export type VisitState = "upcoming" | "today" | "attended" | "missed";
+export type VisitState = "upcoming" | "today" | "attended" | "missed" | "past";
 export type Visit = { id: number; date: string; time: string | null; note: string | null; by: string | null; state: VisitState; checkIns: CheckIn[] };
 
 export type ProjectVisits = {
@@ -100,4 +100,4 @@ export function describeCheckIn(c: CheckIn): string {
     : T("{arrived} · still on site", { arrived });
 }
 
-export const STATE_LABEL: Record<VisitState, string> = { upcoming: "Upcoming", today: "Today", attended: "Attended", missed: "No check-in" };
+export const STATE_LABEL: Record<VisitState, string> = { upcoming: "Upcoming", today: "Today", attended: "Attended", missed: "No check-in", past: "Past" };

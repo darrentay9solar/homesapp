@@ -2,7 +2,7 @@
 
 locks       the deployment AND the database must both say "demo"; only sample people
 as          a visitor gets that person's view, and /me says it's the demo
-off         sign-in changes and phone notifications are refused
+off         sign-in changes are refused; phone notifications work
 nothing     no email, WhatsApp, SMS or Clerk invitation ever leaves the demo
 list        /demo/people lists the sample people, only on the demo site
 database    only the database owner can mark a sample person
@@ -10,6 +10,7 @@ database    only the database owner can mark a sample person
 
 from __future__ import annotations
 
+import base64
 import uuid
 
 import psycopg
@@ -89,6 +90,42 @@ def test_elsewhere_a_sign_in_ignores_the_demo_header(client, fx, sample, monkeyp
     assert me["user"]["uid"] == real["uid"] and "demo" not in me
 
 
+# ---------------------------------------------------------- plain links
+
+
+def test_pictures_and_files_open_with_the_pickers_cookie(client, fx, on, sample) -> None:
+    """An <img> or a link can't send X-Demo-As; on the demo the picker's cookie stands in."""
+    fx.conn.execute(
+        "update users set avatar_key = 'profiles/1/images/00000000-0000-0000-0000-000000000000.jpg' where uid = %s",
+        (sample["ho"]["uid"],),
+    )
+    client.cookies.set("gha-demo", str(sample["pm"]["uid"]))
+    try:
+        assert client.get("/api/py/me").json()["user"]["uid"] == sample["pm"]["uid"]
+        r = client.get(f"/api/py/avatars/{sample['ho']['uid']}", follow_redirects=False)
+        assert r.status_code == 302, r.text
+    finally:
+        client.cookies.clear()
+
+
+def test_the_cookie_means_nothing_off_the_demo(client, sample, monkeypatch) -> None:
+    monkeypatch.delenv("DEMO_MODE", raising=False)
+    client.cookies.set("gha-demo", str(sample["pm"]["uid"]))
+    try:
+        assert client.get("/api/py/me").status_code == 401
+    finally:
+        client.cookies.clear()
+
+
+@pytest.mark.parametrize("bad", ["abc", "999999999", "1 or 1=1"])
+def test_a_made_up_cookie_is_refused(client, on, bad) -> None:
+    client.cookies.set("gha-demo", bad)
+    try:
+        assert client.get("/api/py/me").status_code == 401
+    finally:
+        client.cookies.clear()
+
+
 # ------------------------------------------------------------------ as
 
 
@@ -114,10 +151,17 @@ def test_sign_in_changes_are_off(client, on, sample) -> None:
     assert r.status_code == 403 and "Not in the demo" in r.json()["error"]
 
 
-def test_phone_notifications_are_off(client, on, sample) -> None:
-    sub = {"endpoint": "https://push.example.com/x", "keys": {"p256dh": "a", "auth": "b"}}
+def test_phone_notifications_work_in_the_demo(client, fx, on, sample) -> None:
+    """A visitor can try alerts on their phone; the phone follows whoever they picked."""
+    key = base64.urlsafe_b64encode(b"" + b"" * 64).rstrip(b"=").decode()  # a 65-byte public key
+    sub = {"endpoint": f"https://push.example.com/{uuid.uuid4().hex}", "keys": {"p256dh": key, "auth": "A" * 22}}
     r = client.post("/api/py/push/subscriptions", headers=as_(sample["epc"]), json=sub)
-    assert r.status_code == 403 and "off in the demo" in r.json()["error"]
+    assert r.status_code == 200, r.text
+    r = client.post("/api/py/push/subscriptions", headers=as_(sample["pm"]), json=sub)
+    assert r.status_code == 200, r.text
+    owners = fx.conn.execute("select uid from push_subscriptions where endpoint = %s", (sub["endpoint"],)).fetchall()
+    assert [o["uid"] for o in owners] == [sample["pm"]["uid"]]
+    fx.conn.execute("delete from push_subscriptions where endpoint = %s", (sub["endpoint"],))
 
 
 def test_other_settings_still_work(client, on, sample) -> None:
@@ -213,3 +257,14 @@ def test_the_marker_is_the_databases_comment(fx, monkeypatch) -> None:
         fx.conn.execute("comment on database neondb is null")
         monkeypatch.setattr(demo, "_cache", None)
     assert demo.database_is_demo() is False
+
+
+def test_a_mobile_code_is_shown_on_screen_not_sent(client, on, sample, monkeypatch) -> None:
+    sent: list[str] = []
+    monkeypatch.setattr(notify, "send_whatsapp", lambda *a, **k: sent.append("whatsapp"))
+    monkeypatch.setattr(notify, "send_sms", lambda *a, **k: sent.append("sms"))
+    r = client.post("/api/py/me/mobile/send", headers=as_(sample["epc"]), json={"number": "+65 9876 5432"})
+    assert r.status_code == 200, r.text
+    assert r.json()["sentBy"] == "demo" and len(r.json()["devCode"]) == 6 and sent == []
+    ok = client.post("/api/py/me/mobile/verify", headers=as_(sample["epc"]), json={"code": r.json()["devCode"]})
+    assert ok.status_code == 200, ok.text

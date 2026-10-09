@@ -192,10 +192,17 @@ def test_check_in_and_out_at_the_site(client, fx, t) -> None:
     assert again.status_code == 409
 
 
-@pytest.mark.parametrize(("at", "acc"), [(north(150), 10), (north(20), 80), (north(20), None), ((None, None), 10)])
-def test_gps_refusals_read_the_same_to_the_crew(client, t, at, acc) -> None:
+NOT_HERE = "You're not at the check-in location (about 150 m away). Please head to the site to check in."
+NO_FIX = "We couldn't get your phone's location. Allow location for GetHomeApps, then try again."
+
+
+@pytest.mark.parametrize(
+    ("at", "acc", "message"),
+    [(north(150), 10, NOT_HERE), (north(20), 80, GPS), (north(20), None, GPS), ((None, None), 10, NO_FIX)],
+)
+def test_each_refusal_says_what_is_wrong(client, t, at, acc, message) -> None:
     r = check_in(client, t, "epc", t["pid"], at, acc)
-    assert r.status_code == 400 and r.json()["error"] == GPS
+    assert r.status_code == 400 and r.json()["error"] == message
 
 
 def test_far_check_out_is_refused(client, t) -> None:
@@ -206,7 +213,8 @@ def test_far_check_out_is_refused(client, t) -> None:
         headers=H(t, "epc"),
         json={"lat": north(500)[0], "lng": SITE[1], "accuracy": 10, "crew": 2},
     )
-    assert r.status_code == 400 and r.json()["error"] == GPS
+    assert r.status_code == 400
+    assert r.json()["error"] == "You're not at the site (about 500 m away). Please check out at the site."
 
 
 @pytest.mark.parametrize(("who", "code"), [("admin", 403), ("pm", 403), ("ho", 403), ("outsider", 404)])

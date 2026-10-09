@@ -23,7 +23,7 @@ from fastapi.responses import RedirectResponse, Response
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
-from _lib import prefs, storage
+from _lib import prefs, storage, sweep
 from _lib.account import Account
 from _lib.db import fetch_one, transaction
 from _lib.i18n import LANGS
@@ -102,6 +102,7 @@ def _link(uid: int, body: LinkIn, acct: Account) -> dict[str, Any]:
         url = storage.upload_link(key, body.contentType, body.size)
     except storage.StorageNotConfiguredError as exc:
         raise HTTPException(503, str(exc)) from exc
+    sweep.record(key, acct.uid)
     return {"key": key, "uploadUrl": url, "headers": {"Content-Type": body.contentType}}
 
 
@@ -116,6 +117,7 @@ def _use(uid: int, body: KeyIn, acct: Account) -> dict[str, Any]:
     size, ctype = got
     if size > storage.AVATAR_MAX_BYTES or ctype not in storage.AVATAR_TYPES:
         storage.delete(body.key)
+        sweep.done(body.key, acct.uid)
         raise HTTPException(400, "That picture is too large or not an allowed type.")
     with transaction(acct.uid) as cur:
         cur.execute(
@@ -124,6 +126,7 @@ def _use(uid: int, body: KeyIn, acct: Account) -> dict[str, Any]:
             (body.key, acct.uid, uid),
         )
         at = cur.fetchone()["avatar_updated_at"]
+    sweep.done(body.key, acct.uid)
     whose = "Your" if uid == acct.uid else f"{u['full_name'] or 'Their'}'s"
     return {"message": f"{whose} picture is updated.", "avatar": f"/api/py/avatars/{uid}?v={int(at.timestamp())}"}
 

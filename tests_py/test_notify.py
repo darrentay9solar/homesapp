@@ -22,7 +22,7 @@ def calls(monkeypatch: pytest.MonkeyPatch):
 
 def test_whatsapp_delivered_means_no_sms(calls) -> None:
     log, wa, mp = calls
-    mp.setattr(notify, "send_whatsapp", lambda *a: wa(*a, outcome=SendResult("sent")))
+    mp.setattr(notify, "send_whatsapp", lambda *a, **_k: wa(*a, outcome=SendResult("sent")))
     out = notify.send_mobile("+65 9123 4567", "account_approved", ["A", "B", "C"], "text")
     assert [c for c, _ in log] == ["whatsapp"]
     assert set(out) == {"whatsapp"}
@@ -32,7 +32,7 @@ def test_whatsapp_delivered_means_no_sms(calls) -> None:
 @pytest.mark.parametrize("status", ["failed", "skipped"])
 def test_whatsapp_not_delivered_falls_back_to_sms(calls, status) -> None:
     log, wa, mp = calls
-    mp.setattr(notify, "send_whatsapp", lambda *a: wa(*a, outcome=SendResult(status, "x")))
+    mp.setattr(notify, "send_whatsapp", lambda *a, **_k: wa(*a, outcome=SendResult(status, "x")))
     out = notify.send_mobile("9123 4567", "account_approved", [], "Hi")
     assert [c for c, _ in log] == ["whatsapp", "sms"]
     assert out["sms"].status == "sent"

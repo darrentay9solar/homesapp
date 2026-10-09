@@ -154,7 +154,7 @@ def test_codes_are_rate_limited(client, people) -> None:
 def test_whatsapp_first_then_sms(client, people, monkeypatch, no_wait) -> None:
     sent: list[str] = []
 
-    def wa(to, template, params, copy_code=None):
+    def wa(to, template, params, copy_code=None, lang="en"):
         sent.append(f"wa:{template}:{copy_code == params[0]}")
         return notify.SendResult("failed", "template not approved")
 

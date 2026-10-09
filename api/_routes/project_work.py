@@ -4,7 +4,8 @@ The flow, from the brief:
 
   Draft ──link a homeowner account──▶ Awaiting Homeowner ──homeowner approves──▶
   Homeowner Approved ──a PM approves──▶ PM Approved ──first field filled──▶
-  In Progress ──Milestone 1, 2, 3 complete──▶ (handover: e-sign, then close)
+  In Progress ──Milestone 1, 2, 3 complete──▶ Awaiting E-Sign ──homeowner signs──▶
+  Signed ──a PM closes──▶ Closed                       (the handover: _routes/handover.py)
 
 Milestone fields open only once a PM has approved, and each milestone's
 fields only once the previous milestone is complete. When a milestone's
@@ -28,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
-from _lib import notify, onemap, project_fields, storage
+from _lib import notify, onemap, project_fields, storage, sweep
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.project_fields import FIELDS, GROUPS, MILESTONES, Field
@@ -242,7 +243,7 @@ def fields(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
             "decline": rel == "homeowner" and s == "awaiting_homeowner",
             "remind": rel == "pm" and s in ("awaiting_homeowner", "homeowner_declined"),
             "editDetails": rel == "pm",
-            "reopen": sorted(recorded) if rel == "pm" else [],
+            "reopen": sorted(recorded) if rel == "pm" and s not in ("signed", "closed") else [],
         },
     }
 
@@ -289,7 +290,7 @@ def save_field(pid: int, body: FieldIn, acct: Account = Depends(active)) -> dict
     f = next((x for x in FIELDS if x.key == body.key), None)
     if not f or f.kind in project_fields.FILE_KINDS:
         raise HTTPException(400, "Unknown field.")
-    _, _, reached, recorded = _state(p)
+    v, _, reached, recorded = _state(p)
     why = why_not_editable(rel, p, f, reached, recorded)
     if why:
         raise HTTPException(403, why)
@@ -303,7 +304,8 @@ def save_field(pid: int, body: FieldIn, acct: Account = Depends(active)) -> dict
         else:
             value = _retailer(cur, body.value) if f.kind == "retailer" else _coerce(f, body.value)
             n = SECTION_MILESTONE[f.group]
-            if value is None and f.required and n in recorded:
+            # Only a field the milestone needs right now: a conditional one that no longer applies can be cleared.
+            if value is None and project_fields.counted(f, v) and n in recorded:
                 raise HTTPException(400, f"Milestone {n} is complete, so {f.label} can't be emptied. Reopen it first.")
             cur.execute(
                 f"update projects set {f.key} = %s, updated_at = now() where project_id = %s",  # key from FIELDS only
@@ -352,7 +354,10 @@ def _audience(p: dict[str, Any]) -> set[int]:
 MILESTONE_NEWS = {
     1: ("Milestone 1 complete", "Panels installed and scaffolding removed. The SP application has been submitted."),
     2: ("Milestone 2 complete", "The inverter is commissioned and the grid connection is in hand."),
-    3: ("Ready for handover", "Every milestone is complete. Next: the handover certificate for e-signature."),
+    3: (
+        "Ready for handover",
+        "Every milestone is complete. The homeowner has been asked to sign the handover certificate.",
+    ),
 }
 
 
@@ -370,12 +375,37 @@ def _after_change(pid: int, acct: Account) -> str | None:
                 "on conflict do nothing",
                 (pid, n, acct.uid),
             )
+    asked = 3 in new and request_signature(pid, acct)
     for n in new:
         title, text = MILESTONE_NEWS[n]
-        for uid in _audience(p) - {acct.uid}:
+        # At Milestone 3 the homeowner's news is the request to sign, sent above.
+        skip = {acct.uid, p["homeowner_id"]} if n == 3 and asked else {acct.uid}
+        for uid in _audience(p) - skip:
             notify.notify(uid, "milestone_complete", f"{title} · {p['name']}", text, project_id=pid)
     last = max(new)
+    if asked:
+        return "Milestone 3 complete. The homeowner has been asked to sign the handover certificate."
     return f"{MILESTONE_NEWS[last][0]}. Everyone on the project has been told."
+
+
+def request_signature(pid: int, acct: Account) -> bool:
+    """Milestone 3 is complete: the project waits for the homeowner's signature, and they're asked for it."""
+    with transaction(acct.uid) as cur:
+        cur.execute("select request_handover_signature(%s) as ok", (pid,))
+        ok = bool(cur.fetchone()["ok"])
+    if ok:
+        ask_to_sign(_project(pid))
+    return ok
+
+
+def ask_to_sign(p: dict[str, Any]) -> None:
+    h = fetch_one("select full_name, email, language from users where uid = %s", (p["homeowner_id"],))
+    if not h:
+        return
+    m = notify.msg_sign_handover(h["full_name"], p["name"], p["address"],
+                                 f"{notify.app_url()}/projects/{p['project_id']}", h["language"])  # fmt: skip
+    notify.notify(p["homeowner_id"], "signature_request", m["title"], m["body"], project_id=p["project_id"],
+                  urgent=True, email=(h["email"], *m["email"]))  # fmt: skip
 
 
 # ------------------------------------------------------------------- files
@@ -422,6 +452,7 @@ def upload_link(pid: int, body: LinkIn, acct: Account = Depends(active)) -> dict
         url = storage.upload_link(key, body.contentType, body.size)
     except storage.StorageNotConfiguredError as exc:
         raise HTTPException(503, str(exc)) from exc
+    sweep.record(key, acct.uid)
     return {"key": key, "uploadUrl": url, "headers": {"Content-Type": body.contentType}}
 
 
@@ -444,6 +475,7 @@ def file_done(pid: int, body: FileIn, acct: Account = Depends(active)) -> dict[s
     size, ctype = got
     if size > storage.MAX_BYTES or ctype not in storage.ALLOWED_TYPES or f"/{storage.folder(ctype)}/" not in body.key:
         storage.delete(body.key)
+        sweep.done(body.key, acct.uid)
         raise HTTPException(400, "That file is too large or not an allowed type.")
     name = (body.fileName or "file").strip()[:200]
     with transaction(acct.uid) as cur:
@@ -454,6 +486,7 @@ def file_done(pid: int, body: FileIn, acct: Account = Depends(active)) -> dict[s
         )
         fid = cur.fetchone()["file_id"]
         _start(cur, p)
+    sweep.done(body.key, acct.uid)
     done = _after_change(pid, acct)
     return {"id": fid, "message": done or f"{name} added to {f.label}."}
 
@@ -654,13 +687,26 @@ def reopen(pid: int, n: int, acct: Account = Depends(pm_only)) -> dict[str, Any]
     """Reopens a completed milestone (and any after it) so its fields can change again."""
     if n not in (1, 2, 3):
         raise HTTPException(400, "There are three milestones.")
-    _run(pid, acct)
+    p = _run(pid, acct)
+    if p["status"] in ("signed", "closed"):
+        raise HTTPException(409, "The handover certificate is signed, so its milestones can't be reopened.")
     with transaction(acct.uid) as cur:
         cur.execute(
             "delete from project_milestones where project_id = %s and milestone_no >= %s returning milestone_no",
             (pid, n),
         )
         gone = cur.fetchall()
+        if gone and p["status"] == "awaiting_signature":
+            # Back to work: the request to sign is withdrawn until Milestone 3 is complete again.
+            cur.execute("update projects set status = 'in_progress', updated_at = now() where project_id = %s", (pid,))
     if not gone:
         raise HTTPException(409, f"Milestone {n} isn't recorded as complete.")
+    if p["status"] == "awaiting_signature" and p["homeowner_id"]:
+        notify.notify(p["homeowner_id"], "signature_request", f"Signature request withdrawn · {p['name']}",
+                      "9 Solar Home is correcting something on your project and will ask you to sign again.",
+                      project_id=pid)  # fmt: skip
+        return {
+            "message": f"Milestone {n} reopened and the signature request withdrawn. The crew can change "
+            "its fields again; the homeowner is asked to sign once Milestone 3 is complete again."
+        }
     return {"message": f"Milestone {n} reopened. The crew can change its fields again."}

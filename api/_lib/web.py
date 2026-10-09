@@ -61,6 +61,10 @@ def account(request: Request) -> Account:
     # they also have there. Anywhere else the header means nothing to a signed-in
     # person, and gets a plain "sign in" to anyone else.
     target = request.headers.get("x-demo-as", "").strip()
+    if not target and demo.enabled():
+        # Pictures, file thumbnails and PDFs are plain links (<img>, <a>): they
+        # can't send the header, but they do send the picker's cookie.
+        target = request.cookies.get("gha-demo", "").strip()
     if target:
         has_session = request.headers.get("authorization", "").lower().startswith("bearer ") or request.cookies.get(
             "__session"

@@ -39,6 +39,9 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Projects", path: "/dev-preview/projects", kind: "app" },
   { name: "Project page · fields", path: "/dev-preview/projects/101", kind: "app" },
   { name: "Project page · approval", path: "/dev-preview/projects/103", kind: "app" },
+  { name: "Project page · sign", path: "/dev-preview/projects/105", kind: "app" },
+  { name: "Project page · signed", path: "/dev-preview/projects/106", kind: "app" },
+  { name: "Project page · closed", path: "/dev-preview/projects/107", kind: "app" },
   { name: "Project page · details", path: "/dev-preview/projects/101?tab=details", kind: "app" },
   { name: "Project page · site visits", path: "/dev-preview/projects/101?tab=visits", kind: "app" },
   { name: "Edit Project dialog", path: "/dev-preview/projects/101?tab=details", kind: "app", click: "Edit" },
@@ -71,6 +74,8 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "New Account dialog", path: "/dev-preview/people", kind: "app", click: "New account" },
   { name: "Template · maps", path: "/dev-preview/template?tab=maps", kind: "app" },
   { name: "Dialog template", path: "/dev-preview/template?tab=dialog", kind: "app", click: "Open the dialog template" },
+  { name: "Sign Certificate dialog", path: "/dev-preview/projects/105", kind: "app", click: "Review & sign" },
+  { name: "Close Project dialog", path: "/dev-preview/projects/106", kind: "app", click: "Close project" },
 ];
 const SIZES: Array<[string, number, number]> = [
   ["Phone", 375, 812],
@@ -177,7 +182,10 @@ export default function DesignCheckPage() {
         } catch {
           /* storage blocked */
         }
-        const jobs = SCREENS.flatMap((s) => SIZES.map(([size, w, h]) => ({ s, size, w, h })));
+        // ?only=signed checks just the screens whose name contains "signed".
+        const only = new URLSearchParams(window.location.search).get("only")?.toLowerCase();
+        const screens = only ? SCREENS.filter((s) => s.name.toLowerCase().includes(only)) : SCREENS;
+        const jobs = screens.flatMap((s) => SIZES.map(([size, w, h]) => ({ s, size, w, h })));
         // A few at a time: fast, without starving the page of CPU.
         for (let i = 0; i < jobs.length; i += 4) {
           const batch = await Promise.all(

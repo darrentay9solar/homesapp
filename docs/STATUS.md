@@ -23,18 +23,20 @@ already holds only your login, and sample data now lives on the demo site
 
 | Brief item | State |
 |---|---|
-| Homeowner e-signs the handover (Installation Certificate) when the project completes | **Not built.** Next step: the certificate filled from the project, signed on the phone, stored as a PDF in R2. |
-| Project managers get an alert when it's signed; any PM checks and closes the project | **Not built** (goes with the e-sign). The statuses exist; the screens don't. |
-| "Upon completion of the project, a push notification to the PM, admin team and homeowner" | Partly: "Ready for handover" goes to everyone on the project when Milestone 3 completes. The final "closed" notice comes with the e-sign. |
+| Homeowner e-signs the handover (Installation Certificate) when the project completes | **Built.** At Milestone 3 the homeowner is asked to sign; the certificate is filled from the project, signed on the phone, and kept as a one-page PDF in R2 with its fingerprint. |
+| Project managers get an alert when it's signed; a PM checks and closes the project | **Built.** "Handover signed" to the project's PM; Close project after checking the PDF. |
+| "Upon completion of the project, a push notification to the PM, admin team and homeowner" | **Built.** "Project closed" to everyone on the project, the superadmins and the homeowner (by email too). |
 | Approve straight from the phone notification | Partly: tapping the notification opens the project with Approve and Decline on top. Buttons inside the notification itself aren't possible on iPhone, so not built. |
-| Clearing out abandoned uploads (an upload link taken but never finished) | Not built; harmless meanwhile. See [r2.md](r2.md). |
-| Emails and WhatsApp messages in Chinese | Not built: the screens and phone notifications follow the person's language; emails and WhatsApp are English. |
-| A native app in the App Store / Play Store | Not planned: GetHomeApps installs from the browser to the home screen (a web app). Location is only shared while it's open; a store app would be needed to share it in the background. |
+| Clearing out abandoned uploads (an upload link taken but never finished) | **Built.** Every link is written down; after a day the 15-minute job deletes what an unfinished upload left. See [r2.md](r2.md). |
+| Emails and WhatsApp messages in Chinese | **Built.** Every email, WhatsApp and text follows the reader's language. New accounts get a "Messages in" choice; sign-ups keep the language they signed up in. WhatsApp needs Chinese (zh_CN) versions of the templates approved in Meta; until then those go in English (see [YOUR_STEPS.md](YOUR_STEPS.md)). |
+| A native app in the App Store / Play Store | Not planned: GetHomeApps installs from the browser to the home screen (a web app). |
 
-Everything else in the brief is built: the four roles and what each can do,
-the projects list (late and no-shows in red), Create Project with
-homeowner and contractor as accounts or text, every milestone field with
-its conditions and uploads, milestones unlocking in order, homeowner then PM
-approval, scheduling EPC visits with reminders and no-show alerts, GPS
-check-in and check-out with crew counts, the audit log with revert and
-restore, and the login screens.
+Everything in the brief is built: the roles and what each can do, the
+projects list (late and no-shows in red), Create Project with homeowner and
+contractor as accounts or text, every milestone field with its conditions
+and uploads, milestones unlocking in order, homeowner then PM approval,
+scheduling EPC visits with reminders and no-show alerts, GPS check-in and
+check-out with crew counts, the handover e-signature and closing, the audit
+log with revert and restore, messages in English and Chinese, and the login
+screens. It's checked by 16,550 user acceptance tests (see
+[TEST_CASES.md](TEST_CASES.md)).

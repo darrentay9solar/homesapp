@@ -319,9 +319,11 @@ def test_milestone_fields_and_status_are_never_rewound_alone(client, pm, fx, pro
     s = entries(client, pm, location=f"project:{project}")[0]
     assert any("status" in b.lower() for b in preview(client, pm, kind="revert", auditId=s["id"])["blockers"])
 
-    # And once signed, the project's details are the signed record.
+    # And once signed, the project's details are the signed record. (Only the homeowner can sign,
+    # so the scene is set by the owner connection; the PM's correction after it is what's audited.)
+    fx.conn.execute("update projects set status = 'signed' where project_id = %s", (project,))
     with transaction(pm["uid"]) as cur:
-        cur.execute("update projects set sales = 'Ann', status = 'signed' where project_id = %s", (project,))
+        cur.execute("update projects set sales = 'Ann' where project_id = %s", (project,))
     x = entries(client, pm, location=f"project:{project}")[0]
     assert any(
         "signed record" in b for b in preview(client, pm, kind="revert", auditId=x["id"], fields=["sales"])["blockers"]

@@ -13,9 +13,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from _lib import clerk, notify
+from _lib import clerk, demo, notify
 from _lib.account import ROLE_LABEL, SG, Account, apply_schedule
 from _lib.db import fetch_all, fetch_one, transaction
+from _lib.i18n import LANGS
 from _lib.profile import ROLES, ProfileIn, clean_email, clean_profile
 from _lib.rights import may_manage
 from _lib.web import role
@@ -156,6 +157,8 @@ class NewUserIn(ProfileIn):
     # Asked when an account is made: when it expires, or that it doesn't.
     expiresOn: str | None = None
     noExpiry: bool = False
+    # The language their messages (and the app, until they change it) are in.
+    language: str = "en"
 
 
 def sg_today() -> date:
@@ -190,13 +193,15 @@ def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, 
     p = clean_profile(body, require_mobile=True)
     may_manage(acct, p["user_type"])
     expires = expiry_from(body.expiresOn, body.noExpiry)
+    lang = body.language if body.language in LANGS else "en"
     if fetch_one("select 1 from users where lower(email) = %s", (email,)):
         raise HTTPException(409, "An account with that email already exists.")
 
     with transaction(acct.uid) as cur:
         cur.execute(
             "insert into users (full_name, user_type, contact_no, ic_last4, email, address, postal_code, "
-            "invited_at, invited_by, disable_on) values (%s,%s,%s,%s,%s,%s,%s, now(), %s, %s) returning uid",
+            "invited_at, invited_by, disable_on, language) values (%s,%s,%s,%s,%s,%s,%s, now(), %s, %s, %s) "
+            "returning uid",
             (
                 p["full_name"],
                 p["user_type"],
@@ -207,6 +212,7 @@ def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, 
                 p["postal_code"],
                 acct.uid,
                 expires,
+                lang,
             ),
         )
         uid = cur.fetchone()["uid"]
@@ -230,7 +236,7 @@ def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, 
         print(f"[people] invitation not created for uid {uid}: {exc}")
 
     role_label = ROLE_LABEL[p["user_type"]]
-    m = notify.msg_account_created(p["full_name"], role_label, link)
+    m = notify.msg_account_created(p["full_name"], role_label, link, lang)
     report = notify.notify(
         uid,
         "account_created",
@@ -342,7 +348,7 @@ def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only))
     if body.role not in ROLES:
         raise HTTPException(400, "Choose a role to grant.")
     may_manage(acct, body.role)
-    req = fetch_one("select email, status from account_requests where request_id = %s", (request_id,))
+    req = fetch_one("select email, status, language from account_requests where request_id = %s", (request_id,))
     if not req:
         raise HTTPException(404, "No such request.")
     if req["status"] != "pending":
@@ -359,6 +365,8 @@ def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only))
             (request_id, body.role, (body.note or "").strip() or None),
         )
         uid = cur.fetchone()["uid"]
+        # Their account starts in the language they signed up in.
+        cur.execute("update users set language = %s where uid = %s", (req["language"], uid))
         if expires:
             cur.execute("update users set disable_on = %s where uid = %s", (expires, uid))
         if body.groupId and body.role in CREW_ROLES:
@@ -369,7 +377,7 @@ def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only))
     user = fetch_one("select full_name, email, contact_no from users where uid = %s", (uid,))
     assert user is not None
     role_label = ROLE_LABEL[body.role]
-    m = notify.msg_account_approved(user["full_name"], role_label, notify.app_url())
+    m = notify.msg_account_approved(user["full_name"], role_label, notify.app_url(), req["language"])
     report = notify.notify(
         uid,
         "account_approved",
@@ -387,16 +395,21 @@ def reject(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only)) 
     with transaction(acct.uid) as cur:
         cur.execute(
             "update account_requests set status = 'rejected', decision_note = %s "
-            "where request_id = %s and status = 'pending' returning full_name, email, contact_no",
+            "where request_id = %s and status = 'pending' returning full_name, email, contact_no, language",
             (note, request_id),
         )
         req = cur.fetchone()
     if not req:
         raise HTTPException(409, "That request has already been decided.")
     # No account exists, so no in-app notification — email and mobile only.
-    m = notify.msg_account_rejected(req["full_name"], note)
-    results = {"email": notify.send_email(req["email"], *m["email"])}
-    results.update(notify.send_mobile(req["contact_no"], *m["whatsapp"], m["sms"]))
+    m = notify.msg_account_rejected(req["full_name"], note, req["language"])
+    if demo.enabled():
+        # Nothing leaves the demo, even to an address a visitor typed.
+        skipped = notify.SendResult("skipped", "the demo sends no messages")
+        results = {"email": skipped, "whatsapp": skipped}
+    else:
+        results = {"email": notify.send_email(req["email"], *m["email"])}
+        results.update(notify.send_mobile(req["contact_no"], *m["whatsapp"], m["sms"], lang=req["language"]))
     return {"message": f"Declined {req['full_name']}. {notify.describe(results)}"}
 
 

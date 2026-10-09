@@ -13,8 +13,11 @@ And only sample people (``users.is_demo``, which only the database owner can
 set) can be picked.
 
 What stays off in the demo, because everyone shares the same sample people:
-sign-in changes (email, password), phone notifications, and anything
-leaving the app (email, WhatsApp, SMS, Clerk invitations).
+sign-in changes (email, password), and anything leaving the app by email,
+WhatsApp, SMS or Clerk invitation. Phone notifications work (the demo has its
+own VAPID keys): a phone that turns them on gets the alerts of the sample
+person it's on, until it turns them off or picks someone else; resetting the
+demo forgets every phone.
 """
 
 from __future__ import annotations
@@ -56,7 +59,4 @@ def enabled() -> bool:
 
 OFF = {
     "sign_in": "Not in the demo: everyone here shares the same sample people, so their sign-in can't be changed.",
-    "push": (
-        "Phone notifications are off in the demo, so they don't reach other visitors' phones. Alerts still appear here."
-    ),
 }

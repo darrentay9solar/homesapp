@@ -133,7 +133,6 @@ function AlertsScreen() {
     <>
       <TopBar
         title={T("Alerts")}
-        sub={unread ? T("{n} unread", { n: unread }) : "All caught up"}
         action={
           unread > 0 ? (
             <Button onClick={() => void markRead({ all: true })} startIcon={<DoneAllRoundedIcon />} sx={{ color: "#073f2b", bgcolor: "#fff", height: 36, "&:hover": { bgcolor: "#eafff4" } }} data-testid="mark-all-read">

@@ -187,7 +187,7 @@ export function EmailDialog({ current, onClose }: { current: string; onClose: ()
 
 // ------------------------------------------------------------------ mobile
 
-type Sent = { sentBy: "whatsapp" | "sms" | "dev"; to: string; message: string; devCode?: string };
+type Sent = { sentBy: "whatsapp" | "sms" | "dev" | "demo"; to: string; message: string; devCode?: string };
 
 /** A code by WhatsApp (SMS if WhatsApp can't deliver, or on request) to the new number. */
 export function MobileDialog({ current, onClose }: { current: string | null; onClose: () => void }) {
@@ -237,7 +237,7 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
       {!sent ? <PhoneField label={T("New mobile")} value={number} onChange={setNumber} /> : <CodeField value={code} onChange={setCode} />}
       {sent?.devCode && (
         <Alert severity="info" sx={{ mt: 2 }} data-testid="dev-code">
-          Development only: WhatsApp and SMS aren&apos;t set up, so here&apos;s the code: <b>{sent.devCode}</b>
+          {sent.sentBy === "demo" ? T("Demo: nothing is sent from the demo site, so here's the code:") : T("Development only: WhatsApp and SMS aren't set up, so here's the code:")} <b>{sent.devCode}</b>
         </Alert>
       )}
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}

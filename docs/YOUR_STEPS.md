@@ -193,6 +193,11 @@ Used for codes and messages. The full walk-through is in
    for approval (usually minutes to a day).
 6. Vercel (Production): `WHATSAPP_TOKEN` (Sensitive) and
    `WHATSAPP_PHONE_NUMBER_ID`. Redeploy.
+7. *(For Chinese readers.)* For each template, **Add language → Chinese
+   (CHN) `zh_CN`**, with the same name and the same `{{1}}`, `{{2}}`… in the
+   same order, written in Chinese. People whose language is 简体中文 then get
+   that version. Until Meta approves it they get the English one, so nothing
+   is lost in the meantime.
 
 ## 8. SMS fallback (Twilio)
 

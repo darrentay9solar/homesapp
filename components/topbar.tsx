@@ -12,7 +12,7 @@ import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
 import Stack from "@mui/material/Stack";
-import type { Theme } from "@mui/material/styles";
+import { alpha, type Theme } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { type ReactNode, useEffect, useRef } from "react";
@@ -265,15 +265,23 @@ export function SegTabs<T extends string>({
 }
 
 /** A card with a coloured edge on the left, like the reference's task cards. */
-export function EdgeCard({ color, children, dim }: { color: (t: Theme) => string; children: ReactNode; dim?: boolean }) {
+export function EdgeCard({ color, children, dim, alarm }: { color: (t: Theme) => string; children: ReactNode; dim?: boolean; alarm?: boolean }) {
   return (
     <Card
+      data-alarm={alarm || undefined}
       sx={(t) => ({
         position: "relative",
         height: "100%",
         display: "flex",
         flexDirection: "column",
         opacity: dim ? 0.6 : 1,
+        // Something's wrong (late, or a crew no-show): the whole card is red, impossible to miss.
+        ...(alarm && {
+          bgcolor: alpha(t.palette.error.main, 0.09),
+          border: `2px solid ${t.palette.error.main}`,
+          boxShadow: `0 0 0 3px ${alpha(t.palette.error.main, 0.15)}`,
+          ...t.applyStyles("dark", { bgcolor: alpha(t.palette.error.main, 0.22) }),
+        }),
         transition: "box-shadow .2s, transform .2s",
         "&:hover": { boxShadow: "0 18px 40px -26px rgba(0,0,0,0.45)" },
         "&::before": {

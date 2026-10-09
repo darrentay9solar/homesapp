@@ -1,5 +1,6 @@
 "use client";
 
+import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import BadgeRoundedIcon from "@mui/icons-material/BadgeRounded";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
@@ -61,7 +62,7 @@ import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { canManage, grantableRoles, isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
-import { T, TR } from "@/lib/client/i18n";
+import { currentLang, LANGS, T, TR } from "@/lib/client/i18n";
 import { type Status, filterPeople, statusOf } from "@/lib/client/people-search";
 import { useTab } from "@/lib/client/tabs";
 
@@ -894,7 +895,7 @@ function RoleReviewDialog({ request: r, groups, reload, onClose }: { request: Ro
 function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
   const { run, busy } = useAction(reload);
   const me = useMe();
-  const [f, setF] = useState({ fullName: "", email: "", role: "homeowner" as Role, contactNo: "", groupId: "", postalCode: "", address: "", icLast4: "" });
+  const [f, setF] = useState({ fullName: "", email: "", role: "homeowner" as Role, contactNo: "", groupId: "", postalCode: "", address: "", icLast4: "", language: currentLang() as string });
   const [expiry, setExpiry] = useState({ expiresOn: "", noExpiry: false });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const mobileOk = splitPhone(f.contactNo).local.replace(/\D/g, "").length >= 6;
@@ -936,6 +937,13 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
           )}
         </Stack>
         <Field label={T("Address")} icon={<HomeOutlinedIcon />} placeholder={T("Filled in from the postal code")} value={f.address} onChange={set("address")} />
+        <Field select label={T("Messages in")} icon={<TranslateRoundedIcon />} value={f.language} onChange={set("language")} helperText={T("Emails and WhatsApp messages reach them in this language.")} data-testid="new-user-language">
+          {LANGS.map((l) => (
+            <MenuItem key={l.value} value={l.value}>
+              {l.native}
+            </MenuItem>
+          ))}
+        </Field>
         <ExpiryFields value={expiry} onChange={setExpiry} />
       </Stack>
       <Button

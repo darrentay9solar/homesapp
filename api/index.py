@@ -23,6 +23,7 @@ from _routes import (
     audit,
     demo,
     files,
+    handover,
     location,
     me,
     onboarding,
@@ -50,6 +51,7 @@ app.include_router(people.router, prefix=PREFIX)
 app.include_router(audit.router, prefix=PREFIX)
 app.include_router(projects.router, prefix=PREFIX)
 app.include_router(project_work.router, prefix=PREFIX)
+app.include_router(handover.router, prefix=PREFIX)
 app.include_router(sites.router, prefix=PREFIX)
 app.include_router(settings.router, prefix=PREFIX)
 app.include_router(files.router, prefix=PREFIX)

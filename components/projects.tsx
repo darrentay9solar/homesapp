@@ -81,7 +81,7 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
   const href = useProjectHref();
   const overdue = p.flags.some((f) => f.kind === "overdue");
   return (
-    <EdgeCard color={edgeColor(p)}>
+    <EdgeCard color={edgeColor(p)} alarm={p.attention}>
       <CardActionArea
         onClick={() => router.push(href(p.id))}
         data-testid="project-card"
@@ -136,7 +136,7 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
               {p.flags.map((f) => (
                 <Stack key={f.text} direction="row" sx={{ gap: 0.75, alignItems: "flex-start", color: "error.main" }}>
                   <WarningAmberRoundedIcon sx={{ fontSize: 15, mt: "2px" }} />
-                  <Typography variant="caption" sx={{ lineHeight: 1.45 }}>
+                  <Typography variant="caption" sx={{ lineHeight: 1.45, fontWeight: 700 }}>
                     {TR(f.text)}
                   </Typography>
                 </Stack>

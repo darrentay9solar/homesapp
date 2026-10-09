@@ -103,8 +103,29 @@ def to_whatsapp_number(raw: str | None) -> str | None:
     return None
 
 
-def send_whatsapp(to: str | None, template: str, params: list[str], *, copy_code: str | None = None) -> SendResult:
-    """A template message. ``copy_code`` fills an authentication template's copy-code button."""
+# Meta approves each template per language. A Chinese reader gets the zh_CN
+# version; until that translation is approved, Meta answers 132001 ("template
+# doesn't exist in this language") and the English one goes instead.
+TEMPLATE_MISSING_IN_LANGUAGE = 132001
+
+
+def template_language(lang: str) -> str:
+    if lang == "zh":
+        return env("WHATSAPP_TEMPLATE_LANG_ZH") or "zh_CN"
+    return env("WHATSAPP_TEMPLATE_LANG") or "en"
+
+
+def send_whatsapp(
+    to: str | None, template: str, params: list[str], *, copy_code: str | None = None, lang: str = "en"
+) -> SendResult:
+    """A template message in the reader's language. ``copy_code`` fills an authentication template's button."""
+    result = _send_whatsapp(to, template, params, copy_code, template_language(lang))
+    if lang != "en" and result.status == "failed" and f"({TEMPLATE_MISSING_IN_LANGUAGE})" in (result.detail or ""):
+        return _send_whatsapp(to, template, params, copy_code, template_language("en"))
+    return result
+
+
+def _send_whatsapp(to: str | None, template: str, params: list[str], copy_code: str | None, code: str) -> SendResult:
     token, phone_id = env("WHATSAPP_TOKEN"), env("WHATSAPP_PHONE_NUMBER_ID")
     if not token or not phone_id:
         return SendResult("skipped", "WhatsApp not configured (WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID)")
@@ -121,7 +142,7 @@ def send_whatsapp(to: str | None, template: str, params: list[str], *, copy_code
                 "type": "template",
                 "template": {
                     "name": template,
-                    "language": {"code": env("WHATSAPP_TEMPLATE_LANG") or "en"},
+                    "language": {"code": code},
                     "components": [
                         {"type": "body", "parameters": [{"type": "text", "text": p} for p in params]},
                         *(
@@ -186,10 +207,12 @@ def send_sms(to: str | None, text: str) -> SendResult:
     return SendResult("sent", provider_id=body.get("sid"))
 
 
-def send_mobile(raw_number: str | None, template: str, params: list[str], sms_text: str) -> dict[str, SendResult]:
-    """WhatsApp first; SMS only if WhatsApp didn't go out. Never both."""
+def send_mobile(
+    raw_number: str | None, template: str, params: list[str], sms_text: str, lang: str = "en"
+) -> dict[str, SendResult]:
+    """WhatsApp first; SMS only if WhatsApp didn't go out. Never both. The texts arrive already in ``lang``."""
     to = to_whatsapp_number(raw_number)
-    results = {"whatsapp": send_whatsapp(to, template, params)}
+    results = {"whatsapp": send_whatsapp(to, template, params, lang=lang)}
     if results["whatsapp"].status != "sent":
         results["sms"] = send_sms(to, sms_text)
     return results
@@ -316,7 +339,7 @@ def notify(
         if why or not prefs_mod.channel_on(settings, "mobile"):
             results["whatsapp"] = off("WhatsApp and SMS")
         else:
-            results.update(send_mobile(*mobile))
+            results.update(send_mobile(*mobile, lang=lang))
     if results:
         with transaction(None) as cur:
             for channel, r in results.items():
@@ -336,29 +359,50 @@ def describe(results: dict[str, SendResult]) -> str:
 
 
 # --------------------------------------------------------------- wording
+# Every message is written in English and goes out in the recipient's
+# language: each line is looked up in the shared dictionary (_lib/i18n), so
+# a phrase missing there stays in English rather than disappearing.
 # WhatsApp template names and parameter order must match what Meta approved
 # (docs/whatsapp.md). Edit both together.
 
 
-def email_shell(heading: str, paragraphs: list[str], cta: tuple[str, str] | None = None) -> tuple[str, str]:
-    e = html.escape
+def lang_of(uid: int | None) -> str:
+    """The language a person reads their messages in ("en" or "zh")."""
+    if uid is None:
+        return "en"
+    row = fetch_one("select language from users where uid = %s", (uid,))
+    return (row or {}).get("language") or "en"
+
+
+def _l(lang: str) -> Any:
+    return lambda text: tr(text, lang) or text
+
+
+def email_shell(
+    heading: str, paragraphs: list[str], cta: tuple[str, str] | None = None, lang: str = "en"
+) -> tuple[str, str]:
+    e, t = html.escape, _l(lang)
+    heading, paragraphs = t(heading), [t(p) for p in paragraphs]
+    open_label = t("Or open:")
     rows = "".join(
         f'<tr><td style="font-size:15px;line-height:1.55;color:#c4cfc7;padding:6px 0">{e(p)}</td></tr>'
         for p in paragraphs
     )
     button = ""
     if cta:
+        cta = (t(cta[0]), cta[1])
         label, url = cta
         button = (
             f'<tr><td style="padding:20px 0 4px"><a href="{e(url)}" style="display:inline-block;'
             f"background:#16c47f;color:#06120a;font-weight:700;text-decoration:none;padding:12px 20px;"
             f'border-radius:10px">{e(label)}</a></td></tr>'
             f'<tr><td style="font-size:12px;color:#7d8a80;padding-top:10px;word-break:break-all">'
-            f"Or open: {e(url)}</td></tr>"
+            f"{e(open_label)} {e(url)}</td></tr>"
         )
     body = (
-        '<!doctype html><html><body style="margin:0;background:#000000;'
-        'font-family:-apple-system,Segoe UI,Roboto,sans-serif">'
+        f'<!doctype html><html lang="{"zh-Hans" if lang == "zh" else "en"}">'
+        '<body style="margin:0;background:#000000;'
+        'font-family:-apple-system,Segoe UI,Roboto,PingFang SC,Microsoft YaHei,sans-serif">'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">'
         '<tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
         'style="max-width:520px;background:#0e1011;border-radius:14px;padding:28px;color:#e8efe9">'
@@ -371,8 +415,9 @@ def email_shell(heading: str, paragraphs: list[str], cta: tuple[str, str] | None
     return body, text
 
 
-def msg_account_created(name: str, role: str, url: str) -> dict[str, Any]:
-    h, t = email_shell(
+def msg_account_created(name: str, role: str, url: str, lang: str = "en") -> dict[str, Any]:
+    t = _l(lang)
+    h, x = email_shell(
         "Your GetHomeApps account is ready",
         [
             f"Hi {name},",
@@ -381,46 +426,52 @@ def msg_account_created(name: str, role: str, url: str) -> dict[str, Any]:
             "please don't forward it.",
         ],
         ("Set up my account", url),
+        lang,
     )
     return {
-        "email": (f"{BRAND}: your GetHomeApps account ({role})", h, t),
-        "whatsapp": ("account_created", [name, role, url]),
-        "sms": f"{BRAND}: Hi {name}, your GetHomeApps account ({role}) is ready. Set it up: {url}",
+        "email": (t(f"{BRAND}: your GetHomeApps account ({role})"), h, x),
+        "whatsapp": ("account_created", [name, t(role), url]),
+        "sms": t(f"{BRAND}: Hi {name}, your GetHomeApps account ({role}) is ready. Set it up: {url}"),
         "title": "Welcome to GetHomeApps",
         "body": f"Your account was created as {role}.",
     }
 
 
-def msg_account_requested(requester: str, email: str, role: str, url: str) -> dict[str, Any]:
-    h, t = email_shell(
+def msg_account_requested(requester: str, email: str, role: str, url: str, lang: str = "en") -> dict[str, Any]:
+    t = _l(lang)
+    h, x = email_shell(
         "New account request",
         [f"{requester} ({email}) has asked for a GetHomeApps account as {role}.", "Review it to approve or decline."],
         ("Review request", url),
+        lang,
     )
     return {
-        "email": (f"{BRAND}: account request from {requester}", h, t),
+        "email": (t(f"{BRAND}: account request from {requester}"), h, x),
         "title": "New account request",
         "body": f"{requester} asked to join as {role}.",
     }
 
 
-def msg_account_approved(name: str, role: str, url: str) -> dict[str, Any]:
-    h, t = email_shell(
+def msg_account_approved(name: str, role: str, url: str, lang: str = "en") -> dict[str, Any]:
+    t = _l(lang)
+    h, x = email_shell(
         "Your account has been approved",
         [f"Hi {name},", f"Your GetHomeApps account request has been approved. You're set up as {role}."],
         ("Open GetHomeApps", url),
+        lang,
     )
     return {
-        "email": (f"{BRAND}: account approved", h, t),
-        "whatsapp": ("account_approved", [name, role, url]),
-        "sms": f"{BRAND}: Hi {name}, your GetHomeApps account is approved. You're set up as {role}. {url}",
+        "email": (t(f"{BRAND}: account approved"), h, x),
+        "whatsapp": ("account_approved", [name, t(role), url]),
+        "sms": t(f"{BRAND}: Hi {name}, your GetHomeApps account is approved. You're set up as {role}. {url}"),
         "title": "Account approved",
         "body": f"You're set up as {role}.",
     }
 
 
-def msg_account_rejected(name: str, note: str | None) -> dict[str, Any]:
-    h, t = email_shell(
+def msg_account_rejected(name: str, note: str | None, lang: str = "en") -> dict[str, Any]:
+    t = _l(lang)
+    h, x = email_shell(
         "About your account request",
         [
             f"Hi {name},",
@@ -428,18 +479,24 @@ def msg_account_rejected(name: str, note: str | None) -> dict[str, Any]:
             *([f"Note from {BRAND}: {note}"] if note else []),
             f"If you think this is a mistake, please contact your {BRAND} project manager.",
         ],
+        lang=lang,
     )
+    sms = t(f"{BRAND}: Hi {name}, your GetHomeApps account request wasn't approved.")
+    if note:
+        sms += " " + t(f"Note: {note}")
+    sms += " " + t("Please contact your project manager.")
     return {
-        "email": (f"{BRAND}: account request", h, t),
+        "email": (t(f"{BRAND}: account request"), h, x),
         "whatsapp": ("account_rejected", [name]),
-        "sms": f"{BRAND}: Hi {name}, your GetHomeApps account request wasn't approved."
-        + (f" Note: {note}" if note else "")
-        + " Please contact your project manager.",
+        "sms": sms,
     }
 
 
-def msg_role_requested(name: str, from_role: str, to_role: str, reason: str | None, url: str) -> dict[str, Any]:
-    h, t = email_shell(
+def msg_role_requested(
+    name: str, from_role: str, to_role: str, reason: str | None, url: str, lang: str = "en"
+) -> dict[str, Any]:
+    t = _l(lang)
+    h, x = email_shell(
         "Role change request",
         [
             f"{name} has asked to change their role from {from_role} to {to_role}.",
@@ -447,31 +504,83 @@ def msg_role_requested(name: str, from_role: str, to_role: str, reason: str | No
             "Review it to approve or decline.",
         ],
         ("Review request", url),
+        lang,
     )
     return {
-        "email": (f"{BRAND}: {name} asked to become {to_role}", h, t),
+        "email": (t(f"{BRAND}: {name} asked to become {to_role}"), h, x),
         "title": "Role change request",
         "body": f"{name} asked to change from {from_role} to {to_role}.",
     }
 
 
-def msg_role_decided(name: str, role: str, approved: bool, note: str | None, url: str) -> dict[str, Any]:
+def msg_role_decided(
+    name: str, role: str, approved: bool, note: str | None, url: str, lang: str = "en"
+) -> dict[str, Any]:
+    t = _l(lang)
     if approved:
         lines = [f"Hi {name},", f"Your role has been changed to {role}."]
-        title, sms = "Role changed", f"{BRAND}: Hi {name}, your GetHomeApps role is now {role}. {url}"
+        title, subject = "Role changed", f"{BRAND}: role changed"
+        sms = t(f"{BRAND}: Hi {name}, your GetHomeApps role is now {role}. {url}")
     else:
         lines = [
             f"Hi {name},",
             f"Your request to become {role} wasn't approved.",
             *([f"Note from {BRAND}: {note}"] if note else []),
         ]
-        title = "Role request declined"
-        sms = f"{BRAND}: Hi {name}, your request to become {role} wasn't approved." + (f" Note: {note}" if note else "")
-    h, t = email_shell(title, lines, ("Open GetHomeApps", url))
+        title, subject = "Role request declined", f"{BRAND}: role request declined"
+        sms = t(f"{BRAND}: Hi {name}, your request to become {role} wasn't approved.")
+        if note:
+            sms += " " + t(f"Note: {note}")
+    h, x = email_shell(title, lines, ("Open GetHomeApps", url), lang)
     return {
-        "email": (f"{BRAND}: {title.lower()}", h, t),
-        "whatsapp": ("role_changed" if approved else "role_declined", [name, role]),
+        "email": (t(subject), h, x),
+        "whatsapp": ("role_changed" if approved else "role_declined", [name, t(role)]),
         "sms": sms,
         "title": title,
         "body": f"You're now {role}." if approved else f"Your request to become {role} wasn't approved.",
     }
+
+
+def msg_approve_project(name: str | None, project: str, address: str, url: str, lang: str = "en") -> dict[str, Any]:
+    t = _l(lang)
+    title = "Approve your solar installation project"
+    text = f"{BRAND} has created “{project}”. Review the details and approve to begin scheduling."
+    hi = f"Hi {name}," if name else "Hi there,"
+    h, x = email_shell(title, [hi, text, address], ("Review and approve", url), lang)
+    return {"email": (t(f"{BRAND}: approve {project}"), h, x), "title": title, "body": text}
+
+
+def msg_sign_handover(name: str | None, project: str, address: str, url: str, lang: str = "en") -> dict[str, Any]:
+    t = _l(lang)
+    text = (
+        f"Your solar installation at {address} is complete. "
+        "Check the installation certificate and sign it on your phone."
+    )
+    hi = f"Hi {name}," if name else "Hi there,"
+    h, x = email_shell("Please sign your handover certificate", [hi, text], ("Review and sign", url), lang)
+    return {
+        "email": (t(f"{BRAND}: sign the handover certificate for {project}"), h, x),
+        "title": f"Sign your handover certificate · {project}",
+        "body": text,
+    }
+
+
+def msg_project_closed(name: str | None, project: str, url: str, lang: str = "en") -> dict[str, Any]:
+    t = _l(lang)
+    text = f"{project} is complete and closed. Thank you for choosing {BRAND}."
+    hi = f"Hi {name}," if name else "Hi there,"
+    h, x = email_shell(
+        "Your project is closed",
+        [hi, text, "Your signed installation certificate is in the app."],
+        ("Open GetHomeApps", url),
+        lang,
+    )
+    return {
+        "email": (t(f"{BRAND}: {project} is complete"), h, x),
+        "title": f"Project closed · {project}",
+        "body": text,
+    }
+
+
+def msg_verification_code(code: str, minutes: int, lang: str = "en") -> str:
+    return _l(lang)(f"{code} is your GetHomeApps verification code. It expires in {minutes} minutes. Don't share it.")

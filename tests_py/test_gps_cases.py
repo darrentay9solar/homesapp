@@ -37,6 +37,18 @@ from _lib import onemap
 R = 6_371_000.0
 SITE = (1.3521, 103.8198)  # central Singapore
 GPS_MESSAGE = "You're currently not receiving GPS signal, please move to a spot where you can."
+NO_FIX = "We couldn't get your phone's location. Allow location for GetHomeApps, then try again."
+NOT_HERE_IN = "You're not at the check-in location (about {away} away). Please head to the site to check in."
+NOT_HERE_OUT = "You're not at the site (about {away} away). Please check out at the site."
+
+
+def away(m: float) -> str:
+    """How far off, as the database and the app write it."""
+    if round(m / 10) * 10 < 1000:
+        return f"{int(round(m / 10) * 10)} m"
+    return f"{m / 1000:.1f} km" if m < 10000 else f"{round(m / 1000)} km"
+
+
 MAX_ACCURACY = 50.0
 
 
@@ -134,9 +146,16 @@ def check_in(pid: int, user: int, lat, lng, acc, crew=4, **extra):
     return go
 
 
-def refused_for_gps(result) -> bool:
+def refused_for_gps(result, message: str = GPS_MESSAGE) -> bool:
     kind, err = result
-    return kind == "err" and err.sqlstate == "P0002" and err.diag.message_primary == GPS_MESSAGE
+    return kind == "err" and err.sqlstate == "P0002" and err.diag.message_primary == message
+
+
+def why(acc, metres, phase: str = "in") -> str:
+    """The refusal a crew member should read: no fix, a weak fix, or not at the house."""
+    if acc is None or acc > MAX_ACCURACY:
+        return GPS_MESSAGE
+    return (NOT_HERE_IN if phase == "in" else NOT_HERE_OUT).format(away=away(metres))
 
 
 # ---------------------------------------------------------------- distance
@@ -168,9 +187,8 @@ def test_check_in_inside_the_fence_with_a_good_fix_only(w, metres, acc, bearing)
         assert result[0] == "ok", result
         assert result[1]["distance_m"] == pytest.approx(metres, abs=1e-3)
     else:
-        assert refused_for_gps(result), result
-        # The crew is never told how far off they are; the detail keeps it for the PM.
-        assert str(round(metres)) not in result[1].diag.message_primary
+        # A weak fix says so; a good fix in the wrong place says they're not at the site, and how far.
+        assert refused_for_gps(result, why(acc, metres)), result
 
 
 # ------------------------------------------------------------------ radius
@@ -219,7 +237,7 @@ def test_crew_count_must_be_at_least_one(w, crew) -> None:
 
 @pytest.mark.parametrize(("lat", "lng"), [(None, SITE[1]), (SITE[0], None), (None, None)])
 def test_missing_coordinates_are_refused(w, lat, lng) -> None:
-    assert refused_for_gps(w.run(w.u["epc"], check_in(w.main, w.u["epc"], lat, lng, 5)))
+    assert refused_for_gps(w.run(w.u["epc"], check_in(w.main, w.u["epc"], lat, lng, 5)), NO_FIX)
 
 
 @pytest.mark.parametrize(
@@ -378,7 +396,7 @@ def test_check_out_is_fenced_too(w, metres, acc) -> None:
     if ok:
         assert result[0] == "ok" and result[1]["checkout_distance_m"] == pytest.approx(metres, abs=1e-3)
     else:
-        assert refused_for_gps(result), result
+        assert refused_for_gps(result, why(acc, metres, "out")), result
 
 
 @pytest.mark.parametrize(("crew_out", "ok"), [(-1, False), (None, False), (0, True), (5, True)])
