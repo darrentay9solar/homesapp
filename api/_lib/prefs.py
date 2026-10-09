@@ -28,6 +28,8 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
     "late": ("visit_missed", "crew_arrived_late"),
     "milestones": ("milestone_complete", "signature_request", "signed", "project_closed"),
     "people": ("account_request", "role_request"),
+    "meetings": ("meeting_request", "meeting_response", "meeting_changed"),
+    "maintenance": ("maintenance_due",),
     "account": (
         "account_created",
         "account_approved",

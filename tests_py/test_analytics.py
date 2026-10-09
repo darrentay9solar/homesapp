@@ -70,7 +70,7 @@ def test_tiles_count_what_needs_a_decision() -> None:
         project(5, "homeowner_approved", created=date(2026, 10, 3)),
         project(6, "awaiting_signature", milestone=3, created=date(2026, 7, 1)),
         project(7, "signed", milestone=3, created=date(2026, 7, 2)),
-        project(8, "closed", milestone=3, created=date(2026, 6, 1), end=date(2026, 9, 30), closed=date(2026, 9, 20)),
+        project(8, "maintenance", milestone=3, created=date(2026, 6, 1), end=date(2026, 9, 30), closed=date(2026, 9, 20)),
     ])  # fmt: skip
     t = d["tiles"]
     assert {k: v["count"] for k, v in t.items()} == {
@@ -88,12 +88,12 @@ def test_the_pipeline_follows_the_flow() -> None:
         project(3, "in_progress", milestone=0, created=TODAY),
         project(4, "in_progress", milestone=1, created=TODAY),
         project(5, "in_progress", milestone=2, created=TODAY),
-        project(6, "closed", milestone=3, created=TODAY, closed=TODAY),
+        project(6, "maintenance", milestone=3, created=TODAY, closed=TODAY),
     ])  # fmt: skip
     counts = {p["key"]: p["count"] for p in d["pipeline"]}
     assert [p["key"] for p in d["pipeline"]] == [k for k, _ in an.PIPELINE]
     assert counts["draft"] == 1 and counts["m0"] == 1 and counts["m1"] == 1 and counts["m2"] == 1 and counts["m3"] == 1
-    assert counts["closed"] == 1 and sum(counts.values()) == 6
+    assert counts["maintenance"] == 1 and sum(counts.values()) == 6
 
 
 @pytest.mark.parametrize(
@@ -101,7 +101,7 @@ def test_the_pipeline_follows_the_flow() -> None:
     [([(5, 10)], 1.0), ([(12, 10)], 0.0), ([(5, 10), (12, 10)], 0.5), ([(10, 10)], 1.0), ([], None)],
 )
 def test_on_time_rate(closes, rate) -> None:
-    ps = [project(i, "closed", milestone=3, created=date(2026, 8, 1), closed=date(2026, 9, c), end=date(2026, 9, e))
+    ps = [project(i, "maintenance", milestone=3, created=date(2026, 8, 1), closed=date(2026, 9, c), end=date(2026, 9, e))
           for i, (c, e) in enumerate(closes, start=1)]  # fmt: skip
     assert build(ps)["onTime"]["rate"] == rate
 
@@ -109,7 +109,7 @@ def test_on_time_rate(closes, rate) -> None:
 def test_stage_durations_from_the_audit_log_milestones_signature_and_closing() -> None:
     created = date(2026, 8, 1)
     d = build(
-        [project(1, "closed", milestone=3, created=created, closed=date(2026, 9, 21), end=date(2026, 10, 1))],
+        [project(1, "maintenance", milestone=3, created=created, closed=date(2026, 9, 21), end=date(2026, 10, 1))],
         history=[
             {"project_id": 1, "occurred_at": at(date(2026, 8, 3)), "status": "homeowner_approved"},
             {"project_id": 1, "occurred_at": at(date(2026, 8, 4)), "status": "pm_approved"},
@@ -157,7 +157,7 @@ def test_site_work_attendance_late_arrivals_and_the_heatmap() -> None:
 
 def test_sales_capacity_approval_and_groupings() -> None:
     ps = [
-        project(1, "closed", milestone=3, created=date(2026, 9, 1), closed=date(2026, 10, 1), postal="828768",
+        project(1, "maintenance", milestone=3, created=date(2026, 9, 1), closed=date(2026, 10, 1), postal="828768",
                 retailer="Geneco", sales="Mei Ling · Q4"),
         project(2, "in_progress", created=date(2026, 9, 2), postal="469000", panels=10, watts=500, sales=""),
         project(3, "homeowner_declined", created=date(2026, 9, 3), postal="609000", retailer=None),
@@ -188,7 +188,7 @@ def test_signups_and_their_change() -> None:
 def test_a_superadmin_sees_each_project_manager() -> None:
     ps = [project(1, "in_progress", created=TODAY, pm=1, flags=[LATE], end=TODAY - timedelta(days=2)),
           project(2, "in_progress", created=TODAY, pm=2),
-          project(3, "closed", milestone=3, created=date(2026, 8, 1), closed=date(2026, 9, 1), end=date(2026, 9, 5),
+          project(3, "maintenance", milestone=3, created=date(2026, 8, 1), closed=date(2026, 9, 1), end=date(2026, 9, 5),
                   pm=2)]  # fmt: skip
     team = build(ps, managers=[{"uid": 1, "name": "A"}, {"uid": 2, "name": "B"}])["team"]
     assert team == [

@@ -87,6 +87,19 @@ def dashboard(period: str = "90d", pm: int | None = None, acct: Account = Depend
             managers = [m for m in managers if m["uid"] == pm]
 
     today = proj.today()
+    # Maintenance: the systems the reader looks after (a manager: theirs and unassigned ones).
+    if superadmin:
+        upkeep = fetch_all(
+            "select m.*, u.full_name as pm_name from maintenance_systems m left join users u on u.uid = m.run_by "
+            "where %(pm)s::int is null or m.run_by = %(pm)s",
+            {"pm": pm},
+        )
+    else:
+        upkeep = fetch_all(
+            "select m.*, u.full_name as pm_name from maintenance_systems m left join users u on u.uid = m.run_by "
+            "where m.run_by is null or m.run_by = %(me)s",
+            {"me": acct.uid},
+        )
     out = an.build(
         today=today,
         w=an.window(period, today),
@@ -100,6 +113,7 @@ def dashboard(period: str = "90d", pm: int | None = None, acct: Account = Depend
         requests=requests,
         managers=managers,
     )
+    out["maintenance"] = an.maintenance(upkeep, today)
     out["scope"] = {
         "superadmin": superadmin,
         "pm": pm,

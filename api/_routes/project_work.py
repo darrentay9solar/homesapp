@@ -121,7 +121,7 @@ def _state(p: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], int, set[
 def section_lock(p: dict[str, Any], section: str, reached: int) -> str | None:
     if p["status"] in BEFORE_APPROVAL:
         return "Opens once the homeowner and a project manager have approved the project."
-    if p["status"] in ("awaiting_signature", "signed", "closed"):
+    if p["status"] in ("awaiting_signature", "signed", "maintenance"):
         return "The project is at handover; its fields are now the signed record."
     n = SECTION_MILESTONE[section]
     if n == 2 and reached < 1:
@@ -243,7 +243,7 @@ def fields(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
             "decline": rel == "homeowner" and s == "awaiting_homeowner",
             "remind": rel == "pm" and s in ("awaiting_homeowner", "homeowner_declined"),
             "editDetails": rel == "pm",
-            "reopen": sorted(recorded) if rel == "pm" and s not in ("signed", "closed") else [],
+            "reopen": sorted(recorded) if rel == "pm" and s not in ("signed", "maintenance") else [],
         },
     }
 
@@ -688,7 +688,7 @@ def reopen(pid: int, n: int, acct: Account = Depends(pm_only)) -> dict[str, Any]
     if n not in (1, 2, 3):
         raise HTTPException(400, "There are three milestones.")
     p = _run(pid, acct)
-    if p["status"] in ("signed", "closed"):
+    if p["status"] in ("signed", "maintenance"):
         raise HTTPException(409, "The handover certificate is signed, so its milestones can't be reopened.")
     with transaction(acct.uid) as cur:
         cur.execute(

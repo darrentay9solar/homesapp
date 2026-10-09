@@ -310,7 +310,7 @@ def test_only_the_epc_crew_checks_in_and_only_as_themselves(w, actor, as_user, o
         ("pm_approved", True),
         ("in_progress", True),
         ("awaiting_signature", False),
-        ("closed", False),
+        ("maintenance", False),
     ],
 )
 def test_check_in_is_open_only_while_the_work_is(w, status, ok) -> None:

@@ -813,7 +813,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
 
     # 10. Closed: signed, checked and closed, and everyone told.
     sg = finished("Siglap Garden House", "ethan", "40 Siglap Hill, Singapore 456000", "456000", (1.3130, 103.9260), -50)
-    status(sg, pm, "closed")
+    status(sg, pm, "maintenance")
     for who in (u["ethan"], u["priya"], u["ravi"]):
         text = (
             "Siglap Garden House is complete and closed. Thank you for choosing 9 Solar Home."
@@ -864,7 +864,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
         # The target: three weeks after the start, plus the job's usual length; some finish after it.
         target = created_on.date() + timedelta(days=took - late_by)
         c.execute("update projects set target_end_date = %s where project_id = %s", (target, pid))
-        status(pid, u[pm_key], "closed")
+        status(pid, u[pm_key], "maintenance")
         approved = created_on + timedelta(days=2 + n % 3, hours=3)
         pm_ok = approved + timedelta(days=1, hours=2)
         m1 = created_on + timedelta(days=round(took * 0.35))
@@ -878,7 +878,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             "in_progress": pm_ok + timedelta(days=1),
             "awaiting_signature": m3,
             "signed": signed,
-            "closed": closed_on,
+            "maintenance": closed_on,
             "m1": m1,
             "m2": m2,
             "m3": m3,
@@ -1015,20 +1015,20 @@ def backdate(c: psycopg.Connection, history: list[tuple[int, dict[str, datetime]
     with c.transaction():
         c.execute("alter table audit_log disable trigger audit_log_no_update")
         for pid, when in history:
-            for state in when.keys() & {"awaiting_homeowner", "homeowner_approved", "homeowner_declined", "pm_approved", "in_progress", "awaiting_signature", "signed", "closed"}:
+            for state in when.keys() & {"awaiting_homeowner", "homeowner_approved", "homeowner_declined", "pm_approved", "in_progress", "awaiting_signature", "signed", "maintenance"}:
                 c.execute(
                     "update audit_log set occurred_at = %s where entity_table = 'projects' and project_id = %s "
                     "and changes->'status'->>'to' = %s",
                     (when[state], pid, state),
                 )
-            if "closed" in when:
+            if "maintenance" in when:
                 c.execute(
                     "update audit_log set occurred_at = %s where project_id = %s and occurred_at > %s and not (changes ? 'status')",
-                    (when["m1"], pid, when["closed"]),
+                    (when["m1"], pid, when["maintenance"]),
                 )
         c.execute("alter table audit_log enable trigger audit_log_no_update")
         for pid, when in history:
-            if "closed" not in when:
+            if "maintenance" not in when:
                 continue
             for n in (1, 2, 3):
                 c.execute(
@@ -1036,7 +1036,7 @@ def backdate(c: psycopg.Connection, history: list[tuple[int, dict[str, datetime]
                     (when[f"m{n}"], pid, n),
                 )
             c.execute("update project_signatures set signed_at = %s where project_id = %s", (when["signed"], pid))
-            c.execute("update projects set closed_at = %s where project_id = %s", (when["closed"], pid))
+            c.execute("update projects set closed_at = %s where project_id = %s", (when["maintenance"], pid))
 
 
 def mark_demo_database(c: psycopg.Connection) -> None:

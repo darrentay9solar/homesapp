@@ -35,7 +35,7 @@ PIPELINE = [
     ("m3", "Working on Milestone 3"),
     ("awaiting_signature", "Awaiting e-sign"),
     ("signed", "Completed, to hand over"),
-    ("closed", "Handed over"),
+    ("maintenance", "In maintenance"),
 ]
 ONGOING = {"pm_approved", "in_progress"}
 HANDOVER = {"awaiting_signature", "signed"}
@@ -350,9 +350,9 @@ def build(
     }
 
     # ---- sales and marketing
-    closed_all = [i for i in ids if raw[i]["status"] == "closed"]
+    closed_all = [i for i in ids if raw[i]["status"] == "maintenance"]
     installed = [i for i in closed_all if w.start is None or w.has(closed_on.get(i))]
-    pipeline_kwp = round(sum(kwp(raw[i]) for i in ids if raw[i]["status"] != "closed"), 2)
+    pipeline_kwp = round(sum(kwp(raw[i]) for i in ids if raw[i]["status"] != "maintenance"), 2)
     sized = [kwp(raw[i]) for i in ids if kwp(raw[i]) > 0]
     approved = [i for i in ids if "homeowner_approved" in reached_at.get(i, {})
                 and w.has(sg_day(reached_at[i]["homeowner_approved"]))]  # fmt: skip
@@ -368,7 +368,7 @@ def build(
             e = g.setdefault(k, {"label": k, "count": 0, "kwp": 0.0, "closed": 0})
             e["count"] += 1
             e["kwp"] = round(e["kwp"] + kwp(raw[i]), 2)
-            e["closed"] += raw[i]["status"] == "closed"
+            e["closed"] += raw[i]["status"] == "maintenance"
         return sorted(g.values(), key=lambda e: (-e["count"], -e["kwp"], e["label"]))
 
     new_trend = [{"label": label, "count": sum(1 for i in ids if created[i] and s <= created[i] <= e)}
@@ -458,4 +458,126 @@ def build(
         "sales": sales,
         "team": team,
         "projects": projects,
+    }
+
+
+# ------------------------------------------------------------------ maintenance
+
+MAINT_SOON = 30  # days: "due soon"
+
+
+def _plan_label(r: dict[str, Any]) -> str:
+    if not r["plan_years"]:
+        return "Not recorded"
+    n = r["plan_years"]
+    return f"{n} years excluding 1st year" if r["plan_excludes_first_year"] else f"Free for {n} years"
+
+
+def _ppa_label(r: dict[str, Any]) -> str:
+    if r["ppa_kind"] == "value_buy":
+        return "Value buy"
+    if r["ppa_kind"] == "ppa" and r["ppa_years"]:
+        return f"{r['ppa_years']}-year PPA"
+    return "Not recorded"
+
+
+def _phase_label(r: dict[str, Any]) -> str:
+    return {1: "Single-phase", 3: "3-phase"}.get(r["phase"], "Not recorded")
+
+
+def _month_key(d: date) -> str:
+    return f"{d.year:04d}-{d.month:02d}"
+
+
+def maintenance(rows: list[dict[str, Any]], today: date) -> dict[str, Any]:
+    """The Maintenance tab: what's looked after, what's coming up, and what the systems are.
+
+    rows: maintenance_systems (with pm_name), as the reader may see them.
+    """
+
+    def pending(r: dict[str, Any]) -> list[tuple[str, date]]:
+        return [(k, r[f"{k}_due"]) for k in ("six_month", "one_year") if r[f"{k}_due"] and not r[f"{k}_done_on"]]
+
+    ids = [r["system_id"] for r in rows]
+    due_soon = [r["system_id"] for r in rows if any(0 <= (d - today).days <= MAINT_SOON for _, d in pending(r))]
+    overdue = [r["system_id"] for r in rows if any(d < today for _, d in pending(r))]
+    urgent = [r["system_id"] for r in rows if r["urgent"]]
+    unassigned = [r["system_id"] for r in rows if r["run_by"] is None]
+    total_kwp = round(sum(float(r["kwp"] or 0) for r in rows), 2)
+
+    # Checks coming up over the next 12 months, by the month they fall due.
+    months = []
+    y, m = today.year, today.month
+    for _ in range(12):
+        months.append(f"{y:04d}-{m:02d}")
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    upcoming = {k: {"label": k, "six": 0, "year": 0} for k in months}
+    for r in rows:
+        for key, d in pending(r):
+            mk = _month_key(d)
+            if mk in upcoming and d >= today:
+                upcoming[mk]["six" if key == "six_month" else "year"] += 1
+
+    def group(label_of: Any) -> list[dict[str, Any]]:
+        g: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            k = label_of(r)
+            e = g.setdefault(k, {"label": k, "count": 0, "kwp": 0.0, "ids": []})
+            e["count"] += 1
+            e["kwp"] = round(e["kwp"] + float(r["kwp"] or 0), 2)
+            e["ids"].append(r["system_id"])
+        return sorted(g.values(), key=lambda e: (-e["count"], e["label"]))
+
+    inverters: dict[str, int] = defaultdict(int)
+    for r in rows:
+        for model in r["inverters"] or []:
+            inverters[model] += 1
+    inv = sorted(({"label": k, "count": v} for k, v in inverters.items()), key=lambda e: (-e["count"], e["label"]))
+    if len(inv) > 8:
+        inv = inv[:7] + [{"label": "Other", "count": sum(e["count"] for e in inv[7:])}]
+
+    # Systems turned on, month by month over the last 12 months.
+    on_months = []
+    y, m = today.year, today.month
+    for _ in range(12):
+        on_months.insert(0, f"{y:04d}-{m:02d}")
+        y, m = (y - 1, 12) if m == 1 else (y, m - 1)
+    turned = {k: {"label": k, "count": 0, "kwp": 0.0} for k in on_months}
+    for r in rows:
+        if r["turned_on_on"] and _month_key(r["turned_on_on"]) in turned:
+            t = turned[_month_key(r["turned_on_on"])]
+            t["count"] += 1
+            t["kwp"] = round(t["kwp"] + float(r["kwp"] or 0), 2)
+
+    def mini(r: dict[str, Any]) -> dict[str, Any]:
+        p = sorted(pending(r), key=lambda x: x[1])
+        nxt = p[0] if p else None
+        return {
+            "id": r["system_id"],
+            "address": r["address"],
+            "postalCode": r["postal_code"],
+            "pm": r.get("pm_name"),
+            "kwp": float(r["kwp"]) if r["kwp"] is not None else None,
+            "urgent": r["urgent"],
+            "next": {"key": nxt[0], "due": nxt[1].isoformat(), "overdue": nxt[1] < today} if nxt else None,
+        }
+
+    return {
+        "tiles": {
+            "systems": {"count": len(ids), "ids": ids},
+            "dueSoon": {"count": len(due_soon), "ids": due_soon},
+            "overdue": {"count": len(overdue), "ids": overdue},
+            "urgent": {"count": len(urgent), "ids": urgent},
+            "unassigned": {"count": len(unassigned), "ids": unassigned},
+        },
+        "kwp": total_kwp,
+        "avgKwp": round(total_kwp / len(ids), 2) if ids else None,
+        "upcoming": list(upcoming.values()),
+        "turnedOn": list(turned.values()),
+        "byPlan": group(_plan_label),
+        "byPpa": group(_ppa_label),
+        "byPhase": group(_phase_label),
+        "byRegion": group(lambda r: region(r["postal_code"])),
+        "inverters": inv,
+        "systems": {str(r["system_id"]): mini(r) for r in rows},
     }

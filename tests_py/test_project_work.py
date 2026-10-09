@@ -328,7 +328,7 @@ def test_the_database_enforces_who_does_what(client, fx, team) -> None:
     with pytest.raises(psycopg.Error, match="aren't on this project"), transaction(outsider) as cur:
         cur.execute("update projects set sales = 'x' where project_id = %s", (pid,))
     with pytest.raises(psycopg.Error, match="status"), transaction(epc) as cur:
-        cur.execute("update projects set status = 'closed' where project_id = %s", (pid,))
+        cur.execute("update projects set status = 'maintenance' where project_id = %s", (pid,))
     with pytest.raises(psycopg.Error, match="reopen"), transaction(epc) as cur:
         cur.execute("insert into project_milestones (project_id, milestone_no) values (%s, 1)", (pid,))
         cur.execute("delete from project_milestones where project_id = %s", (pid,))

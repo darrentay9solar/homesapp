@@ -599,7 +599,7 @@ def test_21_a_project_manager_closes_it_and_everyone_is_told(client, team, s, ba
     assert client.post(f"/api/py/projects/{pid}/milestones/3/reopen", headers=h(team, "pm")).status_code == 409
     r = client.post(f"/api/py/projects/{pid}/close", headers=h(team, "pm"))
     assert r.status_code == 200, r.text
-    assert status(team, pid) == "closed"
+    assert status(team, pid) == "maintenance"
     assert {team["ho"]["uid"], team["admin"]["uid"], team["epc"]["uid"]} <= told(team, pid, "project_closed")
     d = client.get(f"/api/py/projects/{pid}/handover", headers=h(team, "ho")).json()
     assert d["closed"]["by"] == "Flow PM" and d["signature"]["name"] == "Flow Homeowner"

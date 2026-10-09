@@ -78,10 +78,10 @@ def handover(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
         else None,
         "pdf": f"/api/py/projects/{pid}/handover/certificate.pdf" if sig and sig["certificate_url"] else None,
         "closed": {"at": p["closed_at"].isoformat(), "by": closer["full_name"] if closer else None}
-        if s == "closed" and p["closed_at"]
+        if s == "maintenance" and p["closed_at"]
         else None,
         # Handed over, the project lives on as a maintenance record (migration 0031).
-        "maintenance": _maintenance_id(pid) if s == "closed" and rel == "pm" else None,
+        "maintenance": _maintenance_id(pid) if s == "maintenance" and rel in ("pm", "homeowner") else None,
         "actions": {
             "sign": rel == "homeowner" and s == "awaiting_signature",
             "request": rel == "pm"
@@ -203,12 +203,12 @@ def certificate_pdf(pid: int, acct: Account = Depends(active)) -> Response:
 @router.post("/projects/{pid}/close")
 def close(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     p = _run(pid, acct)
-    if p["status"] == "closed":
-        raise HTTPException(409, "The project is already closed.")
+    if p["status"] == "maintenance":
+        raise HTTPException(409, "The project is already handed over.")
     if p["status"] != "signed":
         raise HTTPException(409, "A project closes once the homeowner has signed its handover certificate.")
     with transaction(acct.uid) as cur:
-        cur.execute("update projects set status = 'closed', updated_at = now() where project_id = %s", (pid,))
+        cur.execute("update projects set status = 'maintenance', updated_at = now() where project_id = %s", (pid,))
 
     # The brief: the PM, the admin team and the homeowner are told.
     admins = {r["uid"] for r in fetch_all("select uid from users where user_type = 'superadmin' and active")}

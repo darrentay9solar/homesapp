@@ -65,7 +65,7 @@ STATES = [
     ("in_progress_m2", "in_progress", 2),
     ("awaiting_signature", "awaiting_signature", 3),
     ("signed", "signed", 3),
-    ("closed", "closed", 3),
+    ("closed", "maintenance", 3),
 ]
 STATE_KEYS = [s[0] for s in STATES]
 STATUS = {k: st for k, st, _ in STATES}
@@ -79,10 +79,10 @@ STATUSES = [
     "in_progress",
     "awaiting_signature",
     "signed",
-    "closed",
+    "maintenance",
 ]
 BEFORE_APPROVAL = {"draft", "awaiting_homeowner", "homeowner_declined", "homeowner_approved"}
-AT_HANDOVER = {"awaiting_signature", "signed", "closed"}
+AT_HANDOVER = {"awaiting_signature", "signed", "maintenance"}
 WORKING = {"pm_approved", "in_progress"}
 
 
@@ -112,7 +112,7 @@ def listed(actor: str, state: str) -> bool:
     leaves the list for the Maintenance page. Its homeowner still has it as their project."""
     if sees(actor, state) != 200:
         return False
-    return STATUS[state] != "closed" or relation(actor, state) == "homeowner"
+    return STATUS[state] != "maintenance" or relation(actor, state) == "homeowner"
 
 
 # ------------------------------------------------------------------ maintenance
@@ -323,7 +323,7 @@ def reopen(actor: str, state: str, n: int) -> int:
     first = _pm_route(actor, state)
     if first:
         return first
-    if STATUS[state] in ("signed", "closed"):
+    if STATUS[state] in ("signed", "maintenance"):
         return 409
     return 200 if n <= RECORDED[state] else 409
 
@@ -402,7 +402,7 @@ def certificate_pdf(actor: str, state: str) -> int:
     code = sees(actor, state)
     if code != 200:
         return code
-    return 302 if STATUS[state] in ("signed", "closed") else 404
+    return 302 if STATUS[state] in ("signed", "maintenance") else 404
 
 
 def handover_actions(actor: str, state: str) -> dict[str, bool]:
@@ -428,9 +428,9 @@ def db_status_change(actor: str, state: str, to: str, *, homeowner_signed: bool)
             return True
         if to == "signed":
             return False
-        if to == "closed" and s != "signed":
+        if to == "maintenance" and s != "signed":
             return False
-        return not (s in ("signed", "closed") and not (s == "signed" and to == "closed"))
+        return not (s in ("signed", "maintenance") and not (s == "signed" and to == "maintenance"))
     if actor == "ho" and state != "draft":
         if s == to:
             return True

@@ -14,13 +14,13 @@ const NAMES = [
 ];
 const STATUS: Array<[string, string]> = [
   ["in_progress", "In Progress"], ["in_progress", "In Progress"], ["awaiting_homeowner", "Awaiting Homeowner"],
-  ["draft", "Draft"], ["in_progress", "In Progress"], ["signed", "Completed"], ["closed", "Handed Over"],
+  ["draft", "Draft"], ["in_progress", "In Progress"], ["signed", "Completed"], ["maintenance", "In Maintenance"],
   ["awaiting_signature", "Awaiting E-Sign"], ["in_progress", "In Progress"], ["homeowner_declined", "Homeowner Declined"],
-  ["homeowner_approved", "Homeowner Approved"], ["pm_approved", "PM Approved"], ["closed", "Handed Over"], ["in_progress", "In Progress"],
-  ["closed", "Handed Over"], ["in_progress", "In Progress"], ["closed", "Handed Over"], ["closed", "Handed Over"], ["in_progress", "In Progress"],
-  ["closed", "Handed Over"], ["closed", "Handed Over"], ["in_progress", "In Progress"], ["closed", "Handed Over"], ["closed", "Handed Over"],
-  ["in_progress", "In Progress"], ["closed", "Handed Over"], ["awaiting_homeowner", "Awaiting Homeowner"], ["closed", "Handed Over"],
-  ["closed", "Handed Over"], ["closed", "Handed Over"],
+  ["homeowner_approved", "Homeowner Approved"], ["pm_approved", "PM Approved"], ["maintenance", "In Maintenance"], ["in_progress", "In Progress"],
+  ["maintenance", "In Maintenance"], ["in_progress", "In Progress"], ["maintenance", "In Maintenance"], ["maintenance", "In Maintenance"], ["in_progress", "In Progress"],
+  ["maintenance", "In Maintenance"], ["maintenance", "In Maintenance"], ["in_progress", "In Progress"], ["maintenance", "In Maintenance"], ["maintenance", "In Maintenance"],
+  ["in_progress", "In Progress"], ["maintenance", "In Maintenance"], ["awaiting_homeowner", "Awaiting Homeowner"], ["maintenance", "In Maintenance"],
+  ["maintenance", "In Maintenance"], ["maintenance", "In Maintenance"],
 ];
 const LATE = new Set([205, 209, 214]);
 const NOSHOW = new Set([205]);
@@ -39,7 +39,7 @@ export function mockAnalytics(search: URLSearchParams) {
     const late = LATE.has(id);
     projects[id] = {
       id, name, status, statusLabel, pm: i % 3 === 2 ? "Marcus Lim" : "Charlotte Sim", homeowner: "Homeowner",
-      progress: status === "closed" ? 100 : 20 + ((i * 17) % 75), endDate: iso(late ? -((i * 7) % 40) - 2 : 3 + ((i * 5) % 40)),
+      progress: status === "maintenance" ? 100 : 20 + ((i * 17) % 75), endDate: iso(late ? -((i * 7) % 40) - 2 : 3 + ((i * 5) % 40)),
       daysLate: late ? ((i * 7) % 40) + 2 : 0, flags: late ? ["Target end date passed"] : [],
     };
   });
@@ -72,13 +72,13 @@ export function mockAnalytics(search: URLSearchParams) {
       awaitingHomeowner: tile(ids((s) => s === "awaiting_homeowner" || s === "homeowner_declined")),
       awaitingPm: tile(ids((s) => s === "homeowner_approved")),
       handover: tile(ids((s) => s === "awaiting_signature" || s === "signed")),
-      closed: tile(ids((s, id) => s === "closed" && id < 220), period === "all" ? null : 0.25),
+      closed: tile(ids((s, id) => s === "maintenance" && id < 220), period === "all" ? null : 0.25),
       new: tile(ids((_, id) => id < 214), period === "all" ? null : 0.18),
     },
     pipeline: [
       ["draft", "Draft"], ["awaiting_homeowner", "Awaiting homeowner"], ["homeowner_declined", "Declined"], ["homeowner_approved", "PM to approve"],
       ["m0", "Approved, not started"], ["m1", "Working on Milestone 1"], ["m2", "Working on Milestone 2"], ["m3", "Working on Milestone 3"],
-      ["awaiting_signature", "Awaiting e-sign"], ["signed", "Completed, to hand over"], ["closed", "Handed over"],
+      ["awaiting_signature", "Awaiting e-sign"], ["signed", "Completed, to hand over"], ["maintenance", "In maintenance"],
     ].map(([key, l], i) => {
       const list = key === "m1" ? [201, 202, 214] : key === "m2" ? [205, 209, 216] : key === "m3" ? [219, 222, 225] : key === "m0" ? [212] : ids((s) => s === key);
       return { key, label: l, count: list.length, ids: list, i };

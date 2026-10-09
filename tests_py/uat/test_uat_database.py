@@ -50,7 +50,7 @@ STATUS_GRID = [(a, s, to) for a in spec.ACTORS for s in spec.STATE_KEYS for to i
 def test_status_change(app_db, world, actor, state, to) -> None:
     pid = world.pid[state]
     got = attempt(app_db, world.uid(actor), "update projects set status = %s where project_id = %s", (to, pid))
-    signed = spec.STATUS[state] in ("signed", "closed")
+    signed = spec.STATUS[state] in ("signed", "maintenance")
     allowed = spec.db_status_change(actor, state, to, homeowner_signed=signed)
     assert (got is None) == allowed, got
     if not allowed:
@@ -133,17 +133,17 @@ def test_closing_stamps_who_and_when(app_db, world, actor, state) -> None:
     try:
         with app_db.transaction():
             app_db.execute("select set_config('app.actor_uid', %s, true)", (str(uid),))
-            app_db.execute("update projects set status = 'closed' where project_id = %s", (pid,))
+            app_db.execute("update projects set status = 'maintenance' where project_id = %s", (pid,))
             row = app_db.execute("select closed_at, closed_by from projects where project_id = %s", (pid,)).fetchone()
             raise _UndoError(row)
     except _UndoError as done:
         row = done.args[0]
-        allowed = spec.db_status_change(actor, state, "closed", homeowner_signed=True)
+        allowed = spec.db_status_change(actor, state, "maintenance", homeowner_signed=True)
         assert allowed
-        if spec.STATUS[state] != "closed":
+        if spec.STATUS[state] != "maintenance":
             assert row["closed_by"] == uid and row["closed_at"] is not None
     except psycopg.Error as exc:
-        assert not spec.db_status_change(actor, state, "closed", homeowner_signed=True), exc
+        assert not spec.db_status_change(actor, state, "maintenance", homeowner_signed=True), exc
         assert exc.sqlstate == "42501"
 
 

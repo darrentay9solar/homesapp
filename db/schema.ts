@@ -89,7 +89,8 @@ export const projectStatusEnum = pgEnum("project_status", [
   "in_progress",
   "awaiting_signature",
   "signed",
-  "closed",
+  // Handed over: the development phase is done and the system is in maintenance (was "closed"; migration 0032).
+  "maintenance",
 ]);
 
 export const notificationKindEnum = pgEnum("notification_kind", [
@@ -120,6 +121,12 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "crew_arrived_late",
   // A project manager asked someone to share their location.
   "location_request",
+  // Meetings (migration 0032): an invitation, an answer, a change or cancellation.
+  "meeting_request",
+  "meeting_response",
+  "meeting_changed",
+  // A maintenance check coming up, due today, or overdue.
+  "maintenance_due",
 ]);
 
 /**
@@ -1125,3 +1132,90 @@ export type AccountRequest = typeof accountRequests.$inferSelect;
 export type UserType = (typeof userTypeEnum.enumValues)[number];
 export type FileCategory = (typeof fileCategoryEnum.enumValues)[number];
 export type NewProjectFile = typeof projectFiles.$inferInsert;
+
+// ------------------------------------------------------------------ meetings
+
+/**
+ * A meeting, on 30-minute marks (migration 0032). A maintenance check is a
+ * meeting with system_id and check_key. Cancelled, not deleted, so it stays
+ * on record. Who may write is enforced in the migration.
+ */
+export const meetings = pgTable(
+  "meetings",
+  {
+    meetingId: serial("meeting_id").primaryKey(),
+    title: text("title").notNull(),
+    /** 'meeting' or 'maintenance_check'. */
+    kind: text("kind").notNull().default("meeting"),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    /** 'online' (a Teams or Google Meet link), 'site', 'office' or 'phone'. */
+    place: text("place").notNull().default("online"),
+    location: text("location"),
+    onlineLink: text("online_link"),
+    notes: text("notes"),
+    organiserId: integer("organiser_id")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    projectId: integer("project_id").references(() => projects.projectId, { onDelete: "set null" }),
+    systemId: integer("system_id").references(() => maintenanceSystems.systemId, { onDelete: "set null" }),
+    /** 'six_month' or 'one_year', for a maintenance check. */
+    checkKey: text("check_key"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    cancelledBy: integer("cancelled_by").references(() => users.uid, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("meetings_time_idx").on(table.startsAt, table.endsAt),
+    index("meetings_system_idx").on(table.systemId, table.checkKey),
+  ]
+);
+
+/** Who's invited, the organiser too (accepted). An accepted meeting blocks that time in their calendar. */
+export const meetingPeople = pgTable(
+  "meeting_people",
+  {
+    meetingId: integer("meeting_id")
+      .notNull()
+      .references(() => meetings.meetingId, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    /** 'pending', 'accepted' or 'declined'. */
+    response: text("response").notNull().default("pending"),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+  },
+  (table) => [primaryKey({ name: "meeting_people_pk", columns: [table.meetingId, table.userId] }), index("meeting_people_user_idx").on(table.userId)]
+);
+
+/** Time a person has blocked out in their own calendar: an afternoon, or whole days at once. */
+export const calendarBlocks = pgTable(
+  "calendar_blocks",
+  {
+    blockId: serial("block_id").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("calendar_blocks_user_idx").on(table.userId, table.startsAt)]
+);
+
+/** Which maintenance reminder (14 days before, on the day, overdue) went out for which check, so each goes once. */
+export const maintenanceReminders = pgTable(
+  "maintenance_reminders",
+  {
+    systemId: integer("system_id")
+      .notNull()
+      .references(() => maintenanceSystems.systemId, { onDelete: "cascade" }),
+    checkKey: text("check_key").notNull(),
+    due: date("due").notNull(),
+    stage: text("stage").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ name: "maintenance_reminders_pk", columns: [table.systemId, table.checkKey, table.due, table.stage] })]
+);

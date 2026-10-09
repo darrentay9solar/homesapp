@@ -71,7 +71,7 @@ def after(name: str, actor: str, state: str) -> str:
         "approve": "homeowner_approved" if rel == "homeowner" else "pm_approved",
         "decline": "homeowner_declined",
         "remind": "awaiting_homeowner",
-        "close": "closed",
+        "close": "maintenance",
         "reopen_1": "in_progress" if s == "awaiting_signature" else s,
         "reopen_2": "in_progress" if s == "awaiting_signature" else s,
         "reopen_3": "in_progress" if s == "awaiting_signature" else s,

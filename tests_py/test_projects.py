@@ -278,4 +278,4 @@ def test_progress_and_milestones_follow_the_brief() -> None:
     # An unanswered conditional (not collected, no date) reopens it.
     p["inverter_collected"], p["inverter_date"] = False, None
     assert project_fields.milestone_reached(project_fields.group_status(p, files)) == 0
-    assert project_fields.progress({"status": "closed"}, g) == 100
+    assert project_fields.progress({"status": "maintenance"}, g) == 100

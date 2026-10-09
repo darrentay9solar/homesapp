@@ -40,7 +40,7 @@ export type Handover = {
   actions: { sign: boolean; request: boolean; remind: boolean; close: boolean };
 };
 
-const SHOWN = new Set(["awaiting_signature", "signed", "closed"]);
+const SHOWN = new Set(["awaiting_signature", "signed", "maintenance"]);
 
 /** Whether the project page should load the handover at all. */
 export function atHandover(p: ProjectRow): boolean {
@@ -137,7 +137,7 @@ export function HandoverPanel({ p, reload }: { p: ProjectRow; reload: () => Prom
         </Stack>
       </Alert>
     );
-  } else if (h.status === "closed") {
+  } else if (h.status === "maintenance") {
     banner = (
       <Alert severity="success" icon={<TaskAltRoundedIcon />} data-testid="handover-banner" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
         <AlertTitle sx={{ fontWeight: 600 }}>{T("Handed over")}</AlertTitle>

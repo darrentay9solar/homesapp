@@ -25,7 +25,7 @@ import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from _lib import notify, sweep
+from _lib import maintenance_reminders, notify, sweep
 from _lib.account import Account, apply_schedule
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
@@ -430,6 +430,12 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
         raise HTTPException(503, "CRON_SECRET isn't set, so reminders can't run.")
     if not hmac.compare_digest(authorization, f"Bearer {secret}"):
         raise HTTPException(401, "Not allowed.")
-    # The same job applies account expiry and enable dates (migration 0025)
-    # and clears out abandoned uploads (_lib/sweep).
-    return {"sent": run_reminders(datetime.now(SG)), "accounts": apply_schedule(), "uploads": sweep.sweep()}
+    # The same job applies account expiry and enable dates (migration 0025),
+    # clears out abandoned uploads (_lib/sweep), and reminds people of
+    # maintenance checks coming up (_lib/maintenance_reminders).
+    return {
+        "sent": run_reminders(datetime.now(SG)),
+        "accounts": apply_schedule(),
+        "uploads": sweep.sweep(),
+        "maintenance": maintenance_reminders.run(datetime.now(SG)),
+    }

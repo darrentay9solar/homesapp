@@ -44,7 +44,7 @@ STATUS_LABEL = {
     "in_progress": "In Progress",
     "awaiting_signature": "Awaiting E-Sign",
     "signed": "Completed",
-    "closed": "Handed Over",
+    "maintenance": "In Maintenance",
 }
 
 
@@ -163,7 +163,7 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
     until = r["closed_at"].astimezone(SG).date() if r.get("closed_at") else t
     elapsed = max(0, (until - start).days) if start else 0
     flags: list[dict[str, str]] = []
-    if end and r["status"] != "closed" and t > end and pct < 100:
+    if end and r["status"] != "maintenance" and t > end and pct < 100:
         flags.append({"kind": "overdue", "text": f"Target end date passed {(t - end).days} days ago"})
     flags += [{"kind": "no_show", "text": m} for m in missed]
 
@@ -227,8 +227,8 @@ def projects(acct: Account = Depends(active)) -> dict[str, Any]:
     # record (the Maintenance page), not in the list. A homeowner still sees theirs.
     handed_over = 0
     if acct.role != "homeowner":
-        handed_over = sum(1 for r in rows if r["status"] == "closed")
-        rows = [r for r in rows if r["status"] != "closed"]
+        handed_over = sum(1 for r in rows if r["status"] == "maintenance")
+        rows = [r for r in rows if r["status"] != "maintenance"]
     return {"projects": rows, "canCreate": can_create, "handedOver": handed_over, "today": today().isoformat()}
 
 

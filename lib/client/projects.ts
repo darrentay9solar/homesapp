@@ -18,7 +18,7 @@ export type ProjectStatus =
   | "in_progress"
   | "awaiting_signature"
   | "signed"
-  | "closed";
+  | "maintenance";
 
 export type Flag = { kind: "overdue" | "no_show"; text: string };
 export type GroupState = { done: number; total: number; complete: boolean };
@@ -48,7 +48,7 @@ export type ProjectRow = {
   createdAt: string;
 };
 
-/** handedOver: closed projects, which live on the Maintenance page rather than in the list. */
+/** handedOver: handed-over projects (in maintenance), which live on the Maintenance page rather than in the list. */
 export type ProjectList = { projects: ProjectRow[]; canCreate: boolean; handedOver?: number; today: string };
 
 export type Options = {
@@ -71,7 +71,7 @@ export const STATUS_TONE: Record<ProjectStatus, Tone> = {
   in_progress: "success",
   awaiting_signature: "warning",
   signed: "info",
-  closed: "default",
+  maintenance: "success",
 };
 
 export type Tab = "all" | "attention" | "approval" | "active" | "handover" | "completed";
@@ -88,7 +88,7 @@ const APPROVAL: ProjectStatus[] = ["draft", "awaiting_homeowner", "homeowner_dec
 const ACTIVE: ProjectStatus[] = ["pm_approved", "in_progress"];
 const HANDOVER: ProjectStatus[] = ["awaiting_signature"];
 /** Signed by the homeowner: complete, waiting for a PM to hand it over to maintenance. */
-const COMPLETED: ProjectStatus[] = ["signed", "closed"];
+const COMPLETED: ProjectStatus[] = ["signed", "maintenance"];
 
 export function inTab(p: ProjectRow, tab: Tab): boolean {
   switch (tab) {

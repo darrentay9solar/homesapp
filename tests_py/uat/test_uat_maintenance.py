@@ -114,7 +114,7 @@ def test_the_handover_points_managers_to_maintenance(api, world, recs, actor) ->
     if r.status_code != 200:
         assert r.status_code == spec.sees(actor, "closed")
         return
-    assert r.json()["maintenance"] == (recs["converted"] if actor in ("sa", "pm") else None)
+    assert r.json()["maintenance"] == (recs["converted"] if actor in ("sa", "pm", "ho") else None)
 
 
 # --------------------------------------------------------------------- list
@@ -141,8 +141,8 @@ def test_the_status_reads_completed_then_handed_over(api, world, state) -> None:
     assert label == proj.STATUS_LABEL[spec.STATUS[state]]
     if spec.STATUS[state] == "signed":
         assert label == "Completed"
-    if spec.STATUS[state] == "closed":
-        assert label == "Handed Over"
+    if spec.STATUS[state] == "maintenance":
+        assert label == "In Maintenance"
 
 
 # ------------------------------------------------------------------- access

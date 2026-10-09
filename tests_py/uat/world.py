@@ -162,7 +162,7 @@ class World:
                 (pid, n, self.uid("crew_epc")),
             )
         c.execute("update projects set status = %s where project_id = %s", (status, pid))
-        if status in ("signed", "closed"):
+        if status in ("signed", "maintenance"):
             self._sign(pid)
         return pid
 

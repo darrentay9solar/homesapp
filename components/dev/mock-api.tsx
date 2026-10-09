@@ -274,7 +274,7 @@ const PROJECTS = [
     [
       [105, "Seletar Hills Home", "21 Seletar Hills Drive, Singapore 807000", "807000", "awaiting_signature", "Awaiting E-Sign"],
       [106, "Upper Thomson Corner", "5 Thomson Hills Road, Singapore 574000", "574000", "signed", "Completed"],
-      [107, "Siglap Garden House", "40 Siglap Hill, Singapore 456000", "456000", "closed", "Closed"],
+      [107, "Siglap Garden House", "40 Siglap Hill, Singapore 456000", "456000", "maintenance", "In Maintenance"],
     ] as const
   ).map(([id, name, address, postalCode, status, statusLabel]) =>
     proj(id, {
@@ -289,7 +289,7 @@ const PROJECTS = [
 function handoverFor(pid: number) {
   const p = PROJECTS.find((x) => x.id === pid) ?? PROJECTS[0];
   const status = p.status as string;
-  const signed = status === "signed" || status === "closed";
+  const signed = status === "signed" || status === "maintenance";
   return {
     status,
     milestone3: true,
@@ -318,8 +318,8 @@ function handoverFor(pid: number) {
     fingerprint: "4facd021db86c89bad882d7620be54456b7c113a0f01d2e7cacd05236d64f996",
     signature: signed ? { name: "Jasmine Lee", at: iso(1500) } : null,
     pdf: signed ? "/dev-preview/projects" : null,
-    closed: status === "closed" ? { at: iso(200), by: "Wei Ming Tan" } : null,
-    maintenance: status === "closed" ? 204 : null,
+    closed: status === "maintenance" ? { at: iso(200), by: "Wei Ming Tan" } : null,
+    maintenance: status === "maintenance" ? 204 : null,
     actions: { sign: status === "awaiting_signature", request: false, remind: false, close: status === "signed" },
   };
 }
@@ -381,7 +381,7 @@ function projectFields(pid: number) {
     const n = SECTION_MS[key];
     const lockedReason = !approved
       ? "Opens once the homeowner and a project manager have approved the project."
-      : ["awaiting_signature", "signed", "closed"].includes(p.status as string)
+      : ["awaiting_signature", "signed", "maintenance"].includes(p.status as string)
         ? "The project is at handover; its fields are now the signed record."
         : n === 2 && reached < 1
         ? "Opens once Milestone 1 is complete."
@@ -653,7 +653,7 @@ function auditHistory(id: number, field: string) {
 
 function answer(method: string, path: string, search: URLSearchParams = new URLSearchParams(), body?: unknown): unknown {
   const key = `${method} ${path}`;
-  if (key === "GET /projects") return { projects: PROJECTS.filter((p) => p.status !== "closed"), canCreate: true, handedOver: 3, today: day(0) };
+  if (key === "GET /projects") return { projects: PROJECTS.filter((p) => p.status !== "maintenance"), canCreate: true, handedOver: 3, today: day(0) };
   if (key === "GET /analytics") return mockAnalytics(search);
   if (key === "GET /maintenance") return mockMaintenance();
   const system = path.match(/^\/maintenance\/(\d+)/);

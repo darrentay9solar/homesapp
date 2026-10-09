@@ -195,7 +195,7 @@ def test_lab_change_against_the_period_before(lab_view, tile, period, change) ->
     assert lab_view[period]["tiles"][tile]["delta"] == change
 
 
-STAGE = {"A": "m2", "B": "m1", "C": "closed", "D": "closed", "E": "awaiting_homeowner", "F": "homeowner_declined",
+STAGE = {"A": "m2", "B": "m1", "C": "maintenance", "D": "maintenance", "E": "awaiting_homeowner", "F": "homeowner_declined",
          "G": "awaiting_signature", "H": "draft"}  # fmt: skip
 
 
@@ -424,7 +424,7 @@ WORLD_TILE = {
 WORLD_STAGE = {
     "draft": "draft", "awaiting_homeowner": "awaiting_homeowner", "homeowner_declined": "homeowner_declined",
     "homeowner_approved": "homeowner_approved", "pm_approved": "m0", "in_progress_m0": "m1", "in_progress_m1": "m2",
-    "in_progress_m2": "m3", "awaiting_signature": "awaiting_signature", "signed": "signed", "closed": "closed",
+    "in_progress_m2": "m3", "awaiting_signature": "awaiting_signature", "signed": "signed", "closed": "maintenance",
 }  # fmt: skip
 
 
@@ -502,9 +502,9 @@ def test_the_dashboard_matches_the_projects_list(api, world, views, actor, perio
     listed = {p["id"]: p for p in api.get("/api/py/projects", headers=world.h(actor)).json()["projects"]}
     d = views[(actor, period)]
     # The dashboard counts handed-over projects too; the list leaves them to Maintenance.
-    assert {int(k) for k, m in d["projects"].items() if m["status"] != "closed"} == set(listed)
+    assert {int(k) for k, m in d["projects"].items() if m["status"] != "maintenance"} == set(listed)
     for k, m in d["projects"].items():
-        if m["status"] == "closed":
+        if m["status"] == "maintenance":
             assert api.get(f"/api/py/projects/{k}", headers=world.h(actor)).status_code == 200
     late = {p for p, row in listed.items() if any(f["kind"] == "overdue" for f in row["flags"])}
     assert set(d["tiles"]["late"]["ids"]) == late, "late on the dashboard is late on the list"

@@ -82,7 +82,7 @@ def close_project(fx, pid: int, **fields) -> dict:
         fx.conn.execute(
             f"update projects set {', '.join(f'{k} = %s' for k in fields)} where project_id = %s", (*fields.values(), pid)
         )
-    fx.conn.execute("update projects set status = 'closed' where project_id = %s", (pid,))
+    fx.conn.execute("update projects set status = 'maintenance' where project_id = %s", (pid,))
     row = fx.conn.execute("select * from maintenance_systems where project_id = %s", (pid,)).fetchone()
     assert row is not None, "closing the project made a maintenance record"
     return row
@@ -129,7 +129,7 @@ def test_a_project_converts_once(client, fx, team, cleanup_converted) -> None:  
     pid = new_project(client, team)
     cleanup_converted.append(pid)
     close_project(fx, pid)
-    fx.conn.execute("update projects set status = 'closed', updated_at = now() where project_id = %s", (pid,))
+    fx.conn.execute("update projects set status = 'maintenance', updated_at = now() where project_id = %s", (pid,))
     assert fx.conn.execute("select count(*) as n from maintenance_systems where project_id = %s", (pid,)).fetchone()["n"] == 1
 
 
@@ -459,7 +459,7 @@ def test_the_projects_list_leaves_handed_over_projects_to_maintenance(client, fx
         assert done not in {p["id"] for p in client.get("/api/py/projects", headers=h(team[crew])).json()["projects"]}
     mine = client.get("/api/py/projects", headers=h(team["ho"])).json()
     assert done in {p["id"] for p in mine["projects"]}, "a homeowner still sees their project"
-    assert client.get(f"/api/py/projects/{done}", headers=h(team["pm"])).json()["statusLabel"] == "Handed Over"
+    assert client.get(f"/api/py/projects/{done}", headers=h(team["pm"])).json()["statusLabel"] == "In Maintenance"
 
 
 def test_a_signed_project_reads_completed(client, fx, team) -> None:  # noqa: F811
@@ -474,7 +474,8 @@ def test_the_handover_points_a_manager_at_the_maintenance_record(client, fx, tea
     cleanup_converted.append(pid)
     m = close_project(fx, pid)
     assert client.get(f"/api/py/projects/{pid}/handover", headers=h(team["pm"])).json()["maintenance"] == m["system_id"]
-    assert client.get(f"/api/py/projects/{pid}/handover", headers=h(team["ho"])).json()["maintenance"] is None
+    assert client.get(f"/api/py/projects/{pid}/handover", headers=h(team["ho"])).json()["maintenance"] == m["system_id"], "the homeowner sees their system"
+    assert client.get(f"/api/py/projects/{pid}/handover", headers=h(team["epc"])).json()["maintenance"] is None
 
 
 def test_the_dashboard_still_counts_handed_over_projects(client, fx, team, cleanup_converted) -> None:  # noqa: F811
@@ -482,8 +483,8 @@ def test_the_dashboard_still_counts_handed_over_projects(client, fx, team, clean
     cleanup_converted.append(pid)
     close_project(fx, pid)
     d = client.get("/api/py/analytics?period=all", headers=h(team["pm"])).json()
-    closed = next(s for s in d["pipeline"] if s["key"] == "closed")
-    assert pid in closed["ids"] and closed["label"] == "Handed over"
+    closed = next(s for s in d["pipeline"] if s["key"] == "maintenance")
+    assert pid in closed["ids"] and closed["label"] == "In maintenance"
 
 
 # ------------------------------------------------------------------- import

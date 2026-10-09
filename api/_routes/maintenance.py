@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
-from _lib.web import role
+from _lib.web import active, role
 from _routes import projects as proj
 
 router = APIRouter()
@@ -66,7 +66,27 @@ def check_state(due: date | None, done: date | None, today: date) -> str:
     return "scheduled"
 
 
-def row(r: dict[str, Any], today: date) -> dict[str, Any]:
+def bookings(sids: list[int]) -> dict[tuple[int, str], dict[str, Any]]:
+    """The next visit booked for each check (a maintenance-check meeting not cancelled or over)."""
+    out: dict[tuple[int, str], dict[str, Any]] = {}
+    for b in fetch_all(
+        "select distinct on (m.system_id, m.check_key) m.system_id, m.check_key, m.meeting_id, m.starts_at, m.ends_at, "
+        "bool_and(mp.response = 'accepted') over (partition by m.meeting_id) as agreed "
+        "from meetings m join meeting_people mp on mp.meeting_id = m.meeting_id "
+        "where m.system_id = any(%s) and m.kind = 'maintenance_check' and m.cancelled_at is null and m.ends_at > now() "
+        "order by m.system_id, m.check_key, m.starts_at",
+        (sids,),
+    ):
+        out[(b["system_id"], b["check_key"])] = {
+            "meetingId": b["meeting_id"],
+            "startsAt": b["starts_at"].astimezone(proj.SG).isoformat(),
+            "endsAt": b["ends_at"].astimezone(proj.SG).isoformat(),
+            "agreed": bool(b["agreed"]),
+        }
+    return out
+
+
+def row(r: dict[str, Any], today: date, booked: dict[tuple[int, str], dict[str, Any]] | None = None) -> dict[str, Any]:
     checks = []
     for key, label in CHECKS:
         due_col, done_col = COLUMN[key]
@@ -77,6 +97,7 @@ def row(r: dict[str, Any], today: date) -> dict[str, Any]:
             "due": due.isoformat() if due else None,
             "doneOn": done.isoformat() if done else None,
             "state": check_state(due, done, today),
+            "booked": None if done else (booked or {}).get((r["system_id"], key)),
         })  # fmt: skip
     pending = [c for c in checks if c["state"] not in ("done", "unscheduled")]
     overdue = any(c["state"] == "overdue" for c in checks)
@@ -141,8 +162,9 @@ def systems(acct: Account = Depends(pm_only)) -> dict[str, Any]:
     today = proj.today()
     rows = fetch_all(f"{SELECT} where {where} order by m.address", params)  # type: ignore[arg-type]
     superadmin = acct.role == "superadmin"
+    booked = bookings([r["system_id"] for r in rows])
     return {
-        "systems": [row(r, today) for r in rows],
+        "systems": [row(r, today, booked) for r in rows],
         "today": today.isoformat(),
         "canAssign": superadmin,
         "managers": _managers() if superadmin else [],
@@ -151,8 +173,26 @@ def systems(acct: Account = Depends(pm_only)) -> dict[str, Any]:
 
 @router.get("/maintenance/{sid}")
 def system(sid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
-    r = _one(acct, sid)
+    return detail(acct, _one(acct, sid))
+
+
+@router.get("/projects/{pid}/maintenance")
+def for_project(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
+    """A handed-over project's system, for its homeowner (to read, and to book a check) and its managers."""
+    r = fetch_one(f"{SELECT} where m.project_id = %(pid)s", {"pid": pid})  # type: ignore[arg-type]
+    p = fetch_one("select homeowner_id, project_manager_id from projects where project_id = %s", (pid,))
+    if not r or not p:
+        raise HTTPException(404, "This project isn't in maintenance yet.")
+    if acct.role in ("project_manager", "superadmin"):
+        return detail(acct, _one(acct, r["system_id"]))
+    if acct.uid not in (r["homeowner_id"], p["homeowner_id"]):
+        raise HTTPException(404, "This project isn't in maintenance yet.")
+    return detail(acct, r)
+
+
+def detail(acct: Account, r: dict[str, Any]) -> dict[str, Any]:
     superadmin = acct.role == "superadmin"
+    homeowner = acct.role == "homeowner"
     project = None
     if r["project_id"]:
         sig = fetch_one(
@@ -168,11 +208,20 @@ def system(sid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
             if sig and sig["certificate_url"]
             else None,
         }
+    system = row(r, proj.today(), bookings([r["system_id"]]))
+    if homeowner:
+        # The homeowner sees their system and its checks, not the office's notes.
+        system["notes"] = None
+    # Who a check is booked with: the manager looking after it, or the superadmins while there's none.
+    with_whom = [r["run_by"]] if r["run_by"] else [a["uid"] for a in fetch_all(
+        "select uid from users where user_type = 'superadmin' and active")]  # fmt: skip
     return {
-        "system": row(r, proj.today()),
+        "system": system,
         "project": project,
         "canEdit": can_edit(acct, r),
         "canAssign": superadmin,
+        "canBook": can_edit(acct, r) or (homeowner and r["homeowner_id"] == acct.uid),
+        "bookWith": [u for u in with_whom if u != acct.uid],
         "managers": _managers() if superadmin else [],
     }
 

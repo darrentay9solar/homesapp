@@ -191,8 +191,8 @@ def milestone_reached(groups: dict[str, dict[str, int | bool]]) -> int:
 
 
 def progress(p: dict[str, Any], groups: dict[str, dict[str, int | bool]]) -> int:
-    """Share of required fields filled, across every milestone section. 100 once closed."""
-    if p.get("status") == "closed":
+    """Share of required fields filled, across every milestone section. 100 once handed over."""
+    if p.get("status") == "maintenance":
         return 100
     total = sum(int(g["total"]) for g in groups.values())
     done = sum(int(g["done"]) for g in groups.values())

@@ -50,13 +50,13 @@ MILESTONE_OF: dict[str, int] = {
 # Moved only by the project's own workflow — approvals, milestones, sign-off.
 WORKFLOW_FIELDS = {"status", "current_stage", "confirmed_by_homeowner"}
 # Once a project reaches these, its data is the record the homeowner signed.
-FROZEN_STATUSES = {"awaiting_signature", "signed", "closed"}
+FROZEN_STATUSES = {"awaiting_signature", "signed", "maintenance"}
 CREW_ROLES = ("contractor", "epc_team")
 
 STATUS_LABEL = {
     "awaiting_signature": "awaiting the homeowner's signature",
     "signed": "signed",
-    "closed": "closed",
+    "maintenance": "handed over and in maintenance",
 }
 
 

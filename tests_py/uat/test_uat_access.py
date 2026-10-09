@@ -46,10 +46,10 @@ def test_handover(cached, actor, state) -> None:
     if code == 200:
         assert body["status"] == spec.STATUS[state]
         assert body["actions"] == spec.handover_actions(actor, state)
-        signed = spec.STATUS[state] in ("signed", "closed")
+        signed = spec.STATUS[state] in ("signed", "maintenance")
         assert (body["signature"] is not None) == signed
         assert (body["pdf"] is not None) == signed
-        assert (body["closed"] is not None) == (spec.STATUS[state] == "closed")
+        assert (body["closed"] is not None) == (spec.STATUS[state] == "maintenance")
 
 
 @pytest.mark.parametrize(("actor", "state"), GRID, ids=IDS)

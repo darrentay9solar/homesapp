@@ -63,13 +63,13 @@ def test_start_to_finish(flow, world, m1, m2, m3) -> None:
     assert flow.status() == "signed"
     assert flow.told("signed") == {world.uid("pm")}
     assert flow.post("pm", "/close").status_code == 200
-    assert flow.status() == "closed"
+    assert flow.status() == "maintenance"
     told = flow.told("project_closed")
     assert {world.uid("ho"), world.uid("crew_admin"), world.uid("crew_epc"), world.uid("assigned_epc")} <= told
     assert world.uid("sa") in told, "the admin team (superadmins) hear a project closed"
 
     listed = flow.get("ho").json()
-    assert listed["status"] == "closed" and listed["progress"] == 100
+    assert listed["status"] == "maintenance" and listed["progress"] == 100
 
 
 def test_the_homeowner_declines_then_approves_when_asked_again(flow, world) -> None:
