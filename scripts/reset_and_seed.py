@@ -910,6 +910,13 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             (uid, pid, kind, title, body, link, mins, read),
         )
     c.execute("select set_config('app.actor_uid', '', false)")
+    # The projects still under way: approvals a few days after they were set up, not today.
+    done = {pid for pid, _ in history}
+    for r in c.execute("select project_id, created_at from projects").fetchall():
+        if r["project_id"] not in done:
+            t0 = r["created_at"]
+            history.append((r["project_id"], {"homeowner_approved": t0 + timedelta(days=2, hours=4), "homeowner_declined": t0 + timedelta(days=3),
+                                              "pm_approved": t0 + timedelta(days=3, hours=1), "in_progress": t0 + timedelta(days=4)}))
     backdate(c, history)
 
 
@@ -923,18 +930,21 @@ def backdate(c: psycopg.Connection, history: list[tuple[int, dict[str, datetime]
     with c.transaction():
         c.execute("alter table audit_log disable trigger audit_log_no_update")
         for pid, when in history:
-            for state in ("awaiting_homeowner", "homeowner_approved", "pm_approved", "in_progress", "awaiting_signature", "signed", "closed"):
+            for state in when.keys() & {"awaiting_homeowner", "homeowner_approved", "homeowner_declined", "pm_approved", "in_progress", "awaiting_signature", "signed", "closed"}:
                 c.execute(
                     "update audit_log set occurred_at = %s where entity_table = 'projects' and project_id = %s "
                     "and changes->'status'->>'to' = %s",
                     (when[state], pid, state),
                 )
-            c.execute(
-                "update audit_log set occurred_at = %s where project_id = %s and occurred_at > %s and not (changes ? 'status')",
-                (when["m1"], pid, when["closed"]),
-            )
+            if "closed" in when:
+                c.execute(
+                    "update audit_log set occurred_at = %s where project_id = %s and occurred_at > %s and not (changes ? 'status')",
+                    (when["m1"], pid, when["closed"]),
+                )
         c.execute("alter table audit_log enable trigger audit_log_no_update")
         for pid, when in history:
+            if "closed" not in when:
+                continue
             for n in (1, 2, 3):
                 c.execute(
                     "update project_milestones set completed_at = %s where project_id = %s and milestone_no = %s",

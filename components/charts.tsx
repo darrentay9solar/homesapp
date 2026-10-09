@@ -391,8 +391,8 @@ export function BarList({
             <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", minWidth: 36, textAlign: "right" }}>
               {format(r.value)}
               {r.note && (
-                <Box component="span" sx={{ color: "text.secondary", fontWeight: 400, ml: 0.75, display: { xs: "none", sm: "inline" } }}>
-                  {r.note}
+                <Box component="span" sx={{ color: "text.secondary", fontWeight: 400, display: { xs: "none", sm: "inline" } }}>
+                  {` · ${r.note}`}
                 </Box>
               )}
             </Typography>
