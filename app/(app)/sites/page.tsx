@@ -101,7 +101,7 @@ export default function SitesPage() {
           {data && all.length > 0 && (
             <Box sx={{ mt: 1, position: "relative" }}>
               <Box sx={{ position: "relative" }}>
-                <MapView pins={pins} picked={current ? String(current.id) : null} onPick={(id) => setPicked(Number(id))} me={where.pos} height={{ xs: "52vh", lg: "60vh" }} testId="sites-map" />
+                <MapView pins={pins} picked={current ? String(current.id) : null} onPick={(id) => setPicked(Number(id))} me={where.pos} height={{ xs: "52vh", lg: "60vh" }} testId="sites-map" bottomInset={{ xs: 76, lg: 84 }} />
                 <Button
                   size="small"
                   variant="contained"

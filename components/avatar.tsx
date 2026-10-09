@@ -87,6 +87,8 @@ export function AvatarEditor({
         size="small"
         aria-label={t("Change picture")}
         disabled={busy}
+        // Sits on the picture's corner on purpose (the design check allows it).
+        data-allow-overlap
         onClick={(e) => (src ? setMenu(e.currentTarget) : input.current?.click())}
         sx={{ position: "absolute", right: -4, bottom: -4, bgcolor: "primary.main", color: "primary.contrastText", border: 2, borderColor: "background.paper", "&:hover": { bgcolor: "primary.dark" }, width: 30, height: 30 }}
       >

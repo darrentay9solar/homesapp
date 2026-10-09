@@ -164,6 +164,9 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
     if (!near(px(cs(f).borderRadius), DESIGN.radius.field)) fail("Field corners", `${cs(f).borderRadius}`);
   }
 
+  // ---- nothing written over anything else
+  for (const [a, b] of overlaps(win)) fail("No overlapping text", `${a} overlaps ${b}`);
+
   // One finding per rule and detail.
   const seen = new Set<string>();
   return out.filter((f) => {
@@ -172,6 +175,103 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
     seen.add(k);
     return true;
   });
+}
+
+type Box = { r: { l: number; t: number; rr: number; b: number }; el: Element; name: string; control: boolean };
+
+/**
+ * Pairs of things drawn on top of each other: a line of text over another,
+ * text over a button, chip or field it isn't part of, or two buttons over
+ * each other. Text is measured line by line and clipped to whatever hides
+ * its overflow (an ellipsis), so a long name cut short doesn't count. With a
+ * dialog open only the dialog counts; the fixed bars (bottom tabs, sticky
+ * headers) are left out, since the page scrolls under them by design, as are
+ * badges and stacked avatars, which overlap on purpose.
+ */
+function overlaps(win: Window): Array<[string, string]> {
+  const doc = win.document;
+  const cs = (e: Element) => win.getComputedStyle(e);
+  const dialog = [...doc.querySelectorAll(".MuiDialog-root")].find(visible);
+  const root: Element = dialog ?? doc.body;
+  const SKIP = ".MuiBadge-badge, .MuiAvatarGroup-root, .MuiTooltip-popper, .MuiSkeleton-root, [data-allow-overlap], .sky-copy, .sky-clock, nextjs-portal";
+
+  const pinned = new Map<Element, boolean>();
+  const isPinned = (el: Element): boolean => {
+    if (pinned.has(el)) return pinned.get(el)!;
+    const pos = cs(el).position;
+    const v = pos === "fixed" || pos === "sticky" ? true : el.parentElement && el.parentElement !== root ? isPinned(el.parentElement) : false;
+    pinned.set(el, v);
+    return v;
+  };
+  // What's left of a rectangle once every ancestor that hides overflow has cut it.
+  const clip = (el: Element, r: DOMRect): Box["r"] | null => {
+    let l = r.left, t = r.top, rr = r.right, b = r.bottom;
+    for (let p: Element | null = el; p && p !== doc.documentElement; p = p.parentElement) {
+      const s = cs(p);
+      if (s.overflowX !== "visible" || s.overflowY !== "visible") {
+        const c = p.getBoundingClientRect();
+        if (s.overflowX !== "visible") {
+          l = Math.max(l, c.left);
+          rr = Math.min(rr, c.right);
+        }
+        if (s.overflowY !== "visible") {
+          t = Math.max(t, c.top);
+          b = Math.min(b, c.bottom);
+        }
+      }
+    }
+    return rr - l > 1 && b - t > 1 ? { l, t, rr, b } : null;
+  };
+  const shown = (el: Element) => {
+    for (let p: Element | null = el; p && p !== doc.body; p = p.parentElement) {
+      const s = cs(p);
+      if (s.display === "none" || s.visibility === "hidden" || parseFloat(s.opacity) === 0) return false;
+    }
+    return true;
+  };
+
+  const boxes: Box[] = [];
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const text = (n.textContent ?? "").trim();
+    const el = n.parentElement;
+    if (!text || !el || el.closest(SKIP) || el.closest("script, style, noscript, title") || isPinned(el) || !shown(el)) continue;
+    const name = `"${text.replace(/\s+/g, " ").slice(0, 28)}"`;
+    const rects = el.closest("svg") ? [el.getBoundingClientRect()] : (() => {
+      const range = doc.createRange();
+      range.selectNodeContents(n);
+      return [...range.getClientRects()];
+    })();
+    for (const r of rects) {
+      const c = clip(el, r);
+      if (c) boxes.push({ r: c, el, name, control: false });
+    }
+  }
+  for (const el of root.querySelectorAll(".MuiButton-root, .MuiIconButton-root, .MuiChip-root, .MuiInputBase-root, .MuiToggleButton-root")) {
+    if (el.closest(SKIP) || isPinned(el) || !shown(el) || !visible(el)) continue;
+    const c = clip(el, el.getBoundingClientRect());
+    if (c) boxes.push({ r: c, el, name: label(el), control: true });
+  }
+
+  const out: Array<[string, string]> = [];
+  const MIN = 3; // px of real overlap both ways, not a shared edge or a descender
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      if (!a.control && !b.control && a.el === b.el) continue; // lines of one paragraph
+      if (a.el.contains(b.el) || b.el.contains(a.el)) continue; // a button and its own words
+      const x = Math.min(a.r.rr, b.r.rr) - Math.max(a.r.l, b.r.l);
+      const y = Math.min(a.r.b, b.r.b) - Math.max(a.r.t, b.r.t);
+      if (x <= MIN || y <= MIN) continue;
+      // A field's floating label sits on the field's border by design.
+      const fa = a.el.closest(".MuiFormControl-root, .MuiAutocomplete-root");
+      if (fa && fa === b.el.closest(".MuiFormControl-root, .MuiAutocomplete-root")) continue;
+      // Two controls: only buttons drawn over each other, not a button inside a field.
+      if (a.control && b.control && (a.el.closest(".MuiInputBase-root") || b.el.closest(".MuiInputBase-root"))) continue;
+      out.push([a.name, b.name]);
+    }
+  }
+  return out;
 }
 
 /**

@@ -44,6 +44,8 @@ type Props = {
   me?: (LatLng & { accuracy?: number | null }) | null;
   height?: number | string | Record<string, number | string>;
   testId?: string;
+  /** Something laid over the map's bottom edge (the Sites cards): the credit and zoom buttons sit above it. */
+  bottomInset?: number | Partial<Record<"xs" | "sm" | "md" | "lg" | "xl", number>>;
 };
 
 const TILES = {
@@ -75,7 +77,7 @@ function pinHtml(p: Pin, picked: boolean, green: string): string {
   return `<div class="gha-pin gha-person${picked ? " on" : ""}${p.dim ? " dim" : ""}" style="--c:${p.color ?? green}">${face}</div>`;
 }
 
-export function MapView({ pins, picked = null, onPick, me = null, height = 360, testId = "map" }: Props) {
+export function MapView({ pins, picked = null, onPick, me = null, height = 360, testId = "map", bottomInset = 0 }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMap | null>(null);
   const tiles = useRef<TileLayer | null>(null);
@@ -214,6 +216,8 @@ export function MapView({ pins, picked = null, onPick, me = null, height = 360, 
         "& .leaflet-container *, & .leaflet-bar a": { fontFamily: "inherit" },
         "& .leaflet-control-attribution": { fontSize: 9, bgcolor: t.palette.mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.75)", color: "text.secondary" },
         "& .leaflet-control-attribution a": { color: "inherit" },
+        // The credit must stay readable (OneMap's terms), so it moves above anything covering the map's foot.
+        "& .leaflet-bottom": { bottom: bottomInset },
         "& .leaflet-bar a": { bgcolor: "background.paper", color: "text.primary", borderColor: "divider" },
         // Pins
         "& .gha-pin": { borderRadius: "50%", display: "grid", placeItems: "center", cursor: "pointer", transition: "transform 150ms" },
