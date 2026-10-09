@@ -14,9 +14,10 @@ What it does, in one go:
      and the maintenance records handed-over projects became), group, request,
      alert and phone subscription, and every account except the real
      project-manager logins (people who've signed in, not demo or test
-     accounts). Systems imported from the project listing
+     accounts). On production, systems imported from the project listing
      (scripts/import_maintenance.py) are kept: they're 9 Solar Home's
-     customers, not sample data. Then empties the audit log, with its
+     customers, not sample data. Anywhere else they're deleted: a dev branch
+     made from production carries them, and the demo is public. Then empties the audit log, with its
      protection switched off for that one statement and back on straight after.
   2. Empties that environment's R2 bucket of project files.
   3. Adds the demo people (example.com addresses, so nobody real is ever
@@ -285,8 +286,13 @@ def wipe(c: psycopg.Connection, target: str) -> list[dict]:
         c.execute("select set_config('app.actor_uid', '', true)")
         # First, so deleting accounts doesn't try to blank their names in old entries (which the log forbids).
         empty_audit_log()
-        # Imported systems outlive the wipe, without links to the projects and people going.
-        c.execute("create temp table keep_systems on commit drop as select * from maintenance_systems where import_ref is not null")
+        # On production, imported systems outlive the wipe, without links to the projects and
+        # people going. Never on dev or test: real customers' addresses don't belong on the demo.
+        c.execute(
+            "create temp table keep_systems on commit drop as select * from maintenance_systems "
+            "where import_ref is not null and %s",
+            (target == "prod",),
+        )
         c.execute(f"truncate {', '.join(WIPE)} restart identity cascade")
         c.execute("update users set invited_by = null where invited_by is not null")
         c.execute("delete from users where uid <> all(%s)", ([k["uid"] for k in keep],))
