@@ -38,7 +38,7 @@ import { BarList, ChartCard, ColumnChart, DataTable, Gauge, Heatmap, StatTile, T
 import { Field, ROLE_NAME } from "@/components/m";
 import { StatusChip, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
-import { GRID, SegTabs, TopBar } from "@/components/topbar";
+import { alarmSx, GRID, SegTabs, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { type Analytics, bucketLabel, days, deltaText, kwp, type MiniProject, num, type Period, PERIODS, pct } from "@/lib/client/analytics";
 import { useApi } from "@/lib/client/api";
@@ -301,7 +301,23 @@ function ProjectRows({ list, empty }: { list: MiniProject[]; empty: string }) {
   return (
     <Stack sx={{ gap: 0.25 }}>
       {list.map((p) => (
-        <ButtonBase key={p.id} onClick={() => router.push(href(p.id))} sx={(th) => ({ display: "flex", gap: 1.25, alignItems: "center", textAlign: "left", px: 1, py: 1, borderRadius: `${DESIGN.radius.listItem}px`, "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) } })}>
+        <ButtonBase
+          key={p.id}
+          onClick={() => router.push(href(p.id))}
+          data-alarm={p.daysLate > 0 || p.flags.length > 0 || undefined}
+          sx={(th) => ({
+            display: "flex",
+            gap: 1.25,
+            alignItems: "center",
+            textAlign: "left",
+            px: 1,
+            py: 1,
+            borderRadius: `${DESIGN.radius.listItem}px`,
+            "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) },
+            // A project with an issue is red here too, as on the Projects list.
+            ...((p.daysLate > 0 || p.flags.length > 0) && { ...alarmSx(th), boxShadow: "none", mb: 0.5, "&:hover": { filter: "brightness(0.97)" } }),
+          })}
+        >
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
               {p.name}

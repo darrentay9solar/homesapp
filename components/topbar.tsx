@@ -265,6 +265,17 @@ export function SegTabs<T extends string>({
 }
 
 /** A card with a coloured edge on the left, like the reference's task cards. */
+/** The red of a project with an issue: a red card, red border, a soft red glow. */
+export function alarmSx(t: Theme) {
+  const a = DESIGN.alarm;
+  return {
+    bgcolor: a.light.bg,
+    border: `2px solid ${a.light.border}`,
+    boxShadow: `0 0 0 3px ${alpha(a.light.border, 0.18)}`,
+    ...t.applyStyles("dark", { bgcolor: a.dark.bg, borderColor: a.dark.border, boxShadow: `0 0 0 3px ${alpha(a.dark.border, 0.2)}` }),
+  };
+}
+
 export function EdgeCard({ color, children, dim, alarm }: { color: (t: Theme) => string; children: ReactNode; dim?: boolean; alarm?: boolean }) {
   return (
     <Card
@@ -276,12 +287,7 @@ export function EdgeCard({ color, children, dim, alarm }: { color: (t: Theme) =>
         flexDirection: "column",
         opacity: dim ? 0.6 : 1,
         // Something's wrong (late, or a crew no-show): the whole card is red, impossible to miss.
-        ...(alarm && {
-          bgcolor: alpha(t.palette.error.main, 0.09),
-          border: `2px solid ${t.palette.error.main}`,
-          boxShadow: `0 0 0 3px ${alpha(t.palette.error.main, 0.15)}`,
-          ...t.applyStyles("dark", { bgcolor: alpha(t.palette.error.main, 0.22) }),
-        }),
+        ...(alarm && alarmSx(t)),
         transition: "box-shadow .2s, transform .2s",
         "&:hover": { boxShadow: "0 18px 40px -26px rgba(0,0,0,0.45)" },
         "&::before": {

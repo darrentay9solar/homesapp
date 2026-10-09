@@ -88,6 +88,15 @@ export const DESIGN = {
     ],
   },
 
+  /**
+   * A project with an issue (late, a crew no-show): the whole card turns red,
+   * not just its border, so it can't be missed in a list.
+   */
+  alarm: {
+    light: { bg: "#FADADA", border: "#CE2E33" },
+    dark: { bg: "#4A1A1C", border: "#F0736F" },
+  },
+
   /** A colour per role, so lists of people read at a glance. */
   role: {
     homeowner: { light: "#2563EB", dark: "#60A5FA" },

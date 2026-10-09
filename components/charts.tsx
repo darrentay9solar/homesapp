@@ -28,6 +28,7 @@ import Typography from "@mui/material/Typography";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { num, ticks } from "@/lib/client/analytics";
+import { alarmSx } from "@/components/topbar";
 import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
 
@@ -197,7 +198,7 @@ export function StatTile({
       sx={(t) => ({
         display: "flex",
         minWidth: 0,
-        ...(tone === "bad" && { bgcolor: alpha(t.palette.error.main, 0.09), borderColor: t.palette.error.main, ...t.applyStyles("dark", { bgcolor: alpha(t.palette.error.main, 0.2) }) }),
+        ...(tone === "bad" && alarmSx(t)),
         ...(open && { borderColor: t.palette.primary.main, boxShadow: `0 0 0 2px ${alpha(t.palette.primary.main, 0.35)}` }),
       })}
     >
