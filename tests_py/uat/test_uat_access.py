@@ -89,3 +89,36 @@ def test_create_project_button(api, world, actor) -> None:
         assert r.status_code == 403
     else:
         assert r.json()["canCreate"] == (spec.ROLE[actor] in ("project_manager", "superadmin"))
+
+
+# ------------------------------------------------------------------ the dashboard
+
+
+def dashboard(actor: str) -> int:
+    if actor == "inactive":
+        return 403
+    return 200 if spec.ROLE[actor] in ("project_manager", "superadmin") else 403
+
+
+@pytest.mark.parametrize("period", ["30d", "90d", "12m", "all"])
+@pytest.mark.parametrize("actor", spec.ACTORS)
+def test_dashboard(api, world, actor, period) -> None:
+    r = api.get(f"/api/py/analytics?period={period}", headers=world.h(actor))
+    assert r.status_code == dashboard(actor), r.text
+    if r.status_code != 200:
+        return
+    seen = set(r.json()["projects"])
+    for state in spec.STATE_KEYS:
+        # Exactly the projects they'd see in the Projects list.
+        assert (str(world.pid[state]) in seen) == (spec.sees(actor, state) == 200)
+
+
+@pytest.mark.parametrize("actor", spec.ACTORS)
+def test_only_a_superadmin_narrows_the_dashboard_to_one_pm(api, world, actor) -> None:
+    r = api.get(f"/api/py/analytics?pm={world.uid('pm')}", headers=world.h(actor))
+    expect = dashboard(actor)
+    if expect == 200 and actor != "sa":
+        expect = 403
+    assert r.status_code == expect, r.text
+    if expect == 200:
+        assert {str(world.pid[s]) for s in spec.STATE_KEYS} <= set(r.json()["projects"])

@@ -6,6 +6,7 @@ import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
 import Badge from "@mui/material/Badge";
@@ -44,18 +45,22 @@ const TABS: Record<Role, Tab[]> = {
   ],
   project_manager: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
+    { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
-    { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon /> },
+    // On a phone, the audit log opens from the dashboard's header instead.
+    { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
   ],
   // Everything a project manager has, over every project.
   superadmin: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
+    { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
-    { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon /> },
+    // On a phone, the audit log opens from the dashboard's header instead.
+    { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
   ],

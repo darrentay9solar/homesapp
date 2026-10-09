@@ -396,6 +396,28 @@ Profile pictures are under `profiles/{person}/images/`.
 
 ---
 
+## The dashboard (project managers and superadmins)
+
+**Dashboard** in the menu (second on a phone; Audit opens from its header
+there). A project manager sees the projects they run; a superadmin sees
+every project and can pick one project manager. A **Period** filter (last 30
+or 90 days, 12 months, all time) above everything scopes every figure, and
+the change arrows compare with the period before.
+
+| Tab | What's on it |
+|---|---|
+| **Overview** | Tiles: ongoing, **late** (red), **crew no-shows** (red), waiting for PM approval, waiting on the homeowner, at handover, new projects, projects closed. **Tap a tile** and the projects behind it drop down, each opening its page. Started and finished per week or month; on-time delivery (closed by the target date); where every project is in the flow (tap a stage for its projects); and, for a superadmin, each project manager's ongoing, late, closed and on-time figures (tap one to see only theirs). |
+| **Delivery** | Average project length, late now, due in the next 14 days, closed on time; average days per step (homeowner approval, PM approval, each milestone, signing, closing); late projects by how late (tap a band); the lists of what's due soon and what's late, latest first. |
+| **Site work** | Site visits, attendance, missed visits, late arrivals (an hour or more after the start), average crew, the next 7 days' visits; when crews check in (day × hour); each contractor's projects, visits, attendance and late arrivals. |
+| **Sales** | New projects (and the trend), capacity installed and in the pipeline (kWp: panels × panel watts), average system size, homeowner approval rate and days to approve, account sign-ups; new projects by region (from the postal code), by electricity retailer, by salesperson (the first part of the Sales field), and sign-ups by role. |
+
+Every chart has a table view (the grid button), and every number agrees with
+the Projects list: "late" and "no-show" are the same red flags.
+
+- **TC-48:** On the demo, as Sam Tan (superadmin) → Dashboard. Tap **Late projects**: the list drops down with Seletar Hills Home first. Set **Project manager** to Marcus Lim: only his 8 projects count.
+- **TC-49:** As Charlotte Sim → Dashboard → **Sales**, period **Last 12 months**: about 230 kWp installed across five regions; Delivery shows each step's average days.
+- **TC-50:** As Priya Nair (contractor) there's no Dashboard, and `/dashboard` sends her to Projects.
+
 ## The demo site
 
 <https://gethomeapps-demo.vercel.app> runs the same code as the live site,
@@ -446,6 +468,7 @@ dev database has. Sample people can only be made by that script.
    | Punggol Waterway Terrace | Awaiting E-Sign | Kumar Raj | Kim Seng M&E |
    | Upper Thomson Corner | Signed — PM to close | Lina Wong | Apex Solar |
    | Siglap Garden House | Closed | Ethan Chua | Apex Solar |
+   | 18 more, from Serangoon Gardens Home to Bishan Loft | Closed over the past 12 months, some late | their own homeowners | Apex or Kim Seng |
 
    Charlotte Sim runs every project except Marcus Lim's two, so each PM sees only their own; Sam Tan
    (superadmin) sees all ten. Apex Solar is Priya Nair (Contractor Admin) and Ravi Kumar (EPC). Kim Seng

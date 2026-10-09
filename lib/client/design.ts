@@ -75,6 +75,19 @@ export const DESIGN = {
     gutter: { phone: 16, tablet: 24, desktop: 40 },
   },
 
+  /**
+   * Chart marks (the dashboard). Series 1 is the brand green, series 2 blue;
+   * checked together for colour-blind separation and contrast against each
+   * theme's card (dataviz validator, 9 Oct 2026). The dark green is a step
+   * deeper than the dark accent, which is too bright for large marks.
+   */
+  chart: {
+    series: [
+      { light: "#0A9A63", dark: "#12A86C" },
+      { light: "#2A78D6", dark: "#3987E5" },
+    ],
+  },
+
   /** A colour per role, so lists of people read at a glance. */
   role: {
     homeowner: { light: "#2563EB", dark: "#60A5FA" },

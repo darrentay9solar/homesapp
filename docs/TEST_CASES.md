@@ -6,6 +6,8 @@
 | `tests_py/test_gps_cases.py` | 631 | GPS location |
 | `tests_py/test_r2_setup.py` | 1,470 | Cloudflare R2, development and production |
 | `tests_py/test_full_flow.py` | 44 | One project from creation to closed, through the signed certificate, twice |
+| `tests_py/test_analytics.py` | 69 | The dashboard's figures from hand-made projects; periods; regions, salespeople, kWp; who may see it |
+| `tests/analytics.test.ts` | 33 | Axis steps, percentages, kWp, days, change arrows, column names |
 | `tests_py/uat/` | 16,550 | User acceptance: every role at every stage against the brief (below) |
 | `tests_py/test_account_settings.py` | 29 | Name, email, mobile codes, password, role requests, My Files |
 | `tests_py/test_alerts.py` | 46 | Alerts, phone notifications (Web Push), crews running late |

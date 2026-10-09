@@ -104,6 +104,34 @@ PEOPLE = [
 ]
 GROUPS = {"apex": "Apex Solar Contractors", "kim": "Kim Seng M&E Services"}
 NAMES = {p[0]: p[1] for p in PEOPLE}
+
+# name, address, postal, site, retailer, salesperson, closed (months ago), days created→closed, days over target, PM, crew, (panels, W)
+PAST = [
+    ("Serangoon Gardens Home", "18 Kensington Park Road, Singapore 557000", "557000", (1.3640, 103.8670), "SP Group", "K. Chandra", 11, 48, 0, "charlotte", "apex", (18, 610)),
+    ("Bukit Timah Hillside", "7 Binjai Park, Singapore 589000", "589000", (1.3370, 103.7900), "Geneco", "Mei Ling Goh", 11, 55, 6, "charlotte", "kim", (24, 610)),
+    ("Clementi Park House", "25 Clementi Park, Singapore 129000", "129000", (1.3150, 103.7650), "SP Group", "Jason Lim", 10, 44, 0, "marcus", "apex", (16, 580)),
+    ("Yishun Riverside", "3 Lorong Bistari, Singapore 768000", "768000", (1.4290, 103.8350), "Keppel Electric", "K. Chandra", 9, 51, 0, "charlotte", "kim", (20, 610)),
+    ("Sembawang Hills", "41 Jalan Leban, Singapore 577000", "577000", (1.3740, 103.8320), "SP Group", "Mei Ling Goh", 9, 60, 9, "marcus", "apex", (22, 610)),
+    ("Holland Grove Villa", "12 Holland Grove Road, Singapore 278000", "278000", (1.3120, 103.7930), "Senoko Energy", "Jason Lim", 8, 46, 0, "charlotte", "apex", (26, 610)),
+    ("Katong Shophouse", "88 Joo Chiat Place, Singapore 427000", "427000", (1.3110, 103.9030), "SP Group", "K. Chandra", 7, 42, 0, "charlotte", "kim", (14, 580)),
+    ("Woodlands Crescent", "6 Woodlands Crescent, Singapore 738000", "738000", (1.4410, 103.7910), "Geneco", "Mei Ling Goh", 7, 53, 4, "marcus", "apex", (20, 610)),
+    ("Kovan Terrace", "15 Kovan Road, Singapore 548000", "548000", (1.3600, 103.8850), "SP Group", "Jason Lim", 6, 47, 0, "charlotte", "apex", (18, 610)),
+    ("Changi Heights", "9 Changi Heights, Singapore 498000", "498000", (1.3610, 103.9690), "Tuas Power Supply", "K. Chandra", 5, 50, 0, "charlotte", "kim", (24, 610)),
+    ("Jurong Lakeside", "21 Jalan Pinang, Singapore 618000", "618000", (1.3420, 103.7210), "SP Group", "Mei Ling Goh", 5, 58, 11, "marcus", "apex", (20, 580)),
+    ("Marine Parade House", "33 Wilkinson Road, Singapore 436000", "436000", (1.3040, 103.9070), "Keppel Electric", "Jason Lim", 4, 45, 0, "charlotte", "apex", (16, 610)),
+    ("Novena Mews", "5 Jalan Kemaman, Singapore 307000", "307000", (1.3200, 103.8390), "SP Group", "K. Chandra", 3, 49, 0, "charlotte", "kim", (22, 610)),
+    ("Hougang Avenue Home", "62 Hougang Avenue 2, Singapore 538000", "538000", (1.3610, 103.8890), "Geneco", "Mei Ling Goh", 3, 52, 3, "marcus", "apex", (20, 610)),
+    ("Lorong Chuan Villa", "10 Lorong Chuan, Singapore 556000", "556000", (1.3510, 103.8640), "SP Group", "K. Chandra", 2, 44, 0, "charlotte", "apex", (18, 610)),
+    ("Teachers' Estate House", "14 Jalan Leban, Singapore 577600", "577600", (1.3755, 103.8335), "Senoko Energy", "Jason Lim", 2, 47, 0, "charlotte", "kim", (20, 580)),
+    ("Opera Estate House", "27 Jalan Tari Piring, Singapore 456500", "456500", (1.3175, 103.9265), "SP Group", "Mei Ling Goh", 1, 43, 0, "marcus", "apex", (24, 610)),
+    ("Bishan Loft", "8 Jalan Pemimpin, Singapore 577200", "577200", (1.3560, 103.8370), "Keppel Electric", "K. Chandra", 1, 50, 2, "charlotte", "apex", (16, 610)),
+]
+# name, role asked for, decision, days ago
+PAST_REQUESTS = [
+    ("Wei Jie Tan", "homeowner", "approved", 300), ("Nur Aisyah", "homeowner", "approved", 240), ("Daniel Koh", "epc_team", "approved", 200),
+    ("Siti Rahmah", "homeowner", "rejected", 170), ("Arjun Pillai", "contractor", "approved", 120), ("Grace Ong", "homeowner", "approved", 75),
+    ("Benedict Lee", "homeowner", "approved", 40), ("Faizal Ismail", "epc_team", "approved", 20), ("Cheryl Tan", "homeowner", "pending", 6),
+]
 # The sample homeowners' signature on the signed and closed projects' certificates.
 SIGNATURE = (Path(__file__).resolve().parents[1] / "tests_py" / "fixtures" / "signature.jpg").read_bytes()
 
@@ -278,6 +306,8 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     def act(uid: int | None) -> None:
         c.execute("select set_config('app.actor_uid', %s, false)", (str(uid) if uid else "",))
 
+    # Through Neon's pooler a session can outlive a failed run, keeping its actor: start clean.
+    act(None)
     gid = {
         k: one("insert into contractor_groups (name) values (%s) returning group_id", name)["group_id"]
         for k, name in GROUPS.items()
@@ -310,8 +340,13 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
         who = run_by or pm
         act(who)
         cols = {"name": name, "project_manager_id": who, "created_by": who, "check_in_radius_m": 100, **cols}
+        if "created_at" not in cols:
+            # Set up about ten days before its start (never in the future), as a PM would.
+            start = cols.get("installation_start_date") or TODAY
+            cols["created_at"] = datetime.combine(min(start - timedelta(days=10), TODAY - timedelta(days=1)), datetime.min.time(), SG) + timedelta(hours=10)
         if cols.get("homeowner_id"):
-            cols.setdefault("homeowner_contact_no", next(p[3] for p in PEOPLE if u[p[0]] == cols["homeowner_id"]))
+            known = next((p[3] for p in PEOPLE if u[p[0]] == cols["homeowner_id"]), None)
+            cols.setdefault("homeowner_contact_no", known or one("select contact_no from users where uid = %s", cols["homeowner_id"])["contact_no"])
         keys = ", ".join(cols)
         vals = ", ".join(f"%({k})s" for k in cols)
         pid = c.execute(f"insert into projects ({keys}) values ({vals}) returning project_id", cols).fetchone()[
@@ -667,23 +702,49 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
         60 * 3,
     )
 
-    def finished(name: str, homeowner: str, address: str, postal: str, site: tuple[float, float], start: int) -> int:
+    def finished(
+        name: str,
+        homeowner: str,
+        address: str,
+        postal: str,
+        site: tuple[float, float],
+        start: int,
+        *,
+        run_by: int | None = None,
+        group: str = "apex",
+        retailer: int | None = None,
+        sales: str | None = None,
+        panels: tuple[int, int] | None = None,
+        homeowner_uid: int | None = None,
+        signer_name: str | None = None,
+        created: datetime | None = None,
+    ) -> int:
         """A project with every milestone done and the homeowner's signature on its certificate."""
+        ho = homeowner_uid or u[homeowner]
+        boss = run_by or pm
+        extra = {"created_at": created} if created else {}
         pid = project(
             name,
+            run_by=boss,
+            **extra,
             address=address,
             postal_code=postal,
             site_lat=site[0],
             site_lng=site[1],
-            homeowner_id=u[homeowner],
-            contractor_group_id=gid["apex"],
+            homeowner_id=ho,
+            contractor_group_id=gid[group],
             installation_start_date=D(start),
             target_end_date=D(start + 21),
             status="awaiting_homeowner",
         )
-        status(pid, u[homeowner], "homeowner_approved")
-        status(pid, pm, "pm_approved")
-        fill(pid, u["priya"], {"electricity_retailer_id": sp, **M1_DETAILS})
+        status(pid, ho, "homeowner_approved")
+        status(pid, boss, "pm_approved")
+        details = {**M1_DETAILS, "electricity_retailer_id": retailer or sp}
+        if sales:
+            details["sales"] = sales
+        if panels:
+            details["panel_quantity_estimate"], details["panel_capacity"] = panels
+        fill(pid, u["priya"], details)
         status(pid, u["priya"], "in_progress")
         files(pid, u["priya"], FILES_PRE1)
         fill(pid, u["ravi"], {**M1_DONE, **M2, **M3})
@@ -695,17 +756,17 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             "left join electricity_retailers r on r.retailer_id = p.electricity_retailer_id where p.project_id = %s",
             pid,
         )
-        pm_name = one("select full_name from users where uid = %s", pm)["full_name"]
-        cert = certificate.build(row, contractor=GROUPS["apex"], manager=pm_name)
+        pm_name = one("select full_name from users where uid = %s", boss)["full_name"]
+        cert = certificate.build(row, contractor=GROUPS[group], manager=pm_name)
         fp = certificate.fingerprint(cert)
         pdf_key, sig_key = storage.handover_keys(pid)
-        signer = NAMES[homeowner]
-        act(u[homeowner])
+        signer = signer_name or NAMES[homeowner]
+        act(ho)
         signed_at = one(
             "insert into project_signatures (project_id, signed_by, signature_url, certificate_hash, certificate_url, signer_name, certificate) "
             "values (%s, %s, %s, %s, %s, %s, %s) returning signed_at",
             pid,
-            u[homeowner],
+            ho,
             sig_key,
             fp,
             pdf_key,
@@ -721,7 +782,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(data)
                 path.with_suffix(path.suffix + ".type").write_text(ctype)
-        status(pid, u[homeowner], "signed")
+        status(pid, ho, "signed")
         return pid
 
     # 9. Signed by the homeowner: the PM checks the certificate and closes the project.
@@ -738,6 +799,86 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             else "The homeowner signed the handover certificate and the project is closed."
         )
         alert(who, "project_closed", "Project closed · Siglap Garden House", text, sg, f"/projects/{sg}", 60 * 26, True)
+
+    # 11. A year of finished projects, so the dashboard has trends to show: when each
+    # was created, approved, worked through, signed and closed, some on time and some
+    # late, across Singapore's regions, retailers, salespeople and both PMs. Their
+    # homeowners aren't sample people visitors can pick.
+    retailer_ids = {
+        name: one(
+            "insert into electricity_retailers (name) values (%s) on conflict (name) do update set name = excluded.name "
+            "returning retailer_id",
+            name,
+        )["retailer_id"]
+        for name in ("SP Group", "Geneco", "Keppel Electric", "Senoko Energy", "Tuas Power Supply")
+    }
+    history: list[tuple[int, dict[str, datetime]]] = []
+    for n, (name, street, postal, site, retailer, seller, months_ago, took, late_by, pm_key, group, kit) in enumerate(PAST):
+        closed_on = NOW - timedelta(days=30 * months_ago + (n % 4) * 3)
+        created_on = closed_on - timedelta(days=took)
+        ho = one(
+            "insert into users (full_name, user_type, email, contact_no) values (%s, 'homeowner', %s, %s) returning uid",
+            f"{name.split()[0]} Homeowner",
+            f"past{n}.demo@example.com",
+            f"+65 9{n:03d} 7{n:03d}",
+        )["uid"]
+        start = (created_on.date() - TODAY).days + 4
+        pid = finished(
+            name,
+            "",
+            street,
+            postal,
+            site,
+            start,
+            run_by=u[pm_key],
+            group=group,
+            retailer=retailer_ids[retailer],
+            sales=f"{seller} · {created_on:%y%m}-{n:02d}",
+            panels=kit,
+            homeowner_uid=ho,
+            signer_name=f"{name.split()[0]} Homeowner",
+            created=created_on,
+        )
+        # The target: three weeks after the start, plus the job's usual length; some finish after it.
+        target = created_on.date() + timedelta(days=took - late_by)
+        c.execute("update projects set target_end_date = %s where project_id = %s", (target, pid))
+        status(pid, u[pm_key], "closed")
+        approved = created_on + timedelta(days=2 + n % 3, hours=3)
+        pm_ok = approved + timedelta(days=1, hours=2)
+        m1 = created_on + timedelta(days=round(took * 0.35))
+        m2 = created_on + timedelta(days=round(took * 0.55))
+        m3 = created_on + timedelta(days=round(took * 0.8))
+        signed = m3 + timedelta(days=1 + n % 3, hours=5)
+        when = {
+            "awaiting_homeowner": created_on,
+            "homeowner_approved": approved,
+            "pm_approved": pm_ok,
+            "in_progress": pm_ok + timedelta(days=1),
+            "awaiting_signature": m3,
+            "signed": signed,
+            "closed": closed_on,
+            "m1": m1,
+            "m2": m2,
+            "m3": m3,
+        }
+        history.append((pid, when))
+        # Two or three site visits each, attended at varied hours (some an hour or more late).
+        for k in range(2 + n % 2):
+            day = (pm_ok + timedelta(days=4 + k * 6)).date()
+            planned = ["08:00", "09:00", "13:30"][(n + k) % 3]
+            arrive = (datetime.strptime(planned, "%H:%M") + timedelta(minutes=[-10, 5, 25, 75][(n + k) % 4])).strftime("%H:%M")
+            v = visit(pid, day, planned, ["Scaffolding erected", "Panel mounting", "Inverter commissioning"][k % 3])
+            attended(pid, v, u["ravi" if group == "apex" else "hafiz"], site, day, arrive, "16:45", 3 + (n + k) % 3)
+
+    # Account requests over the year, for the sign-up figures.
+    act(None)
+    for n, (who, role_key, state, days_ago) in enumerate(PAST_REQUESTS):
+        c.execute(
+            "insert into account_requests (clerk_user_id, email, full_name, requested_type, contact_no, status, created_at, decided_at) "
+            "values (%s, %s, %s, %s, '+65 8000 0000', %s, now() - make_interval(days => %s), "
+            "case when %s <> 'pending' then now() - make_interval(days => %s) end)",
+            (f"user_past_{n}", f"request{n}.demo@example.com", who, role_key, state, days_ago, state, max(days_ago - 1, 0)),
+        )
 
     # People waiting for a PM: a new account, and a role change.
     act(None)
@@ -769,6 +910,38 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             (uid, pid, kind, title, body, link, mins, read),
         )
     c.execute("select set_config('app.actor_uid', '', false)")
+    backdate(c, history)
+
+
+def backdate(c: psycopg.Connection, history: list[tuple[int, dict[str, datetime]]]) -> None:
+    """Sample history only: the audit log, milestones, signature and closing moved to when they happened.
+
+    The audit log refuses edits by design; this one statement, on the demo
+    database, by its owner, is the exception, and its protection is back on
+    straight after (as for the empty log in wipe()).
+    """
+    with c.transaction():
+        c.execute("alter table audit_log disable trigger audit_log_no_update")
+        for pid, when in history:
+            for state in ("awaiting_homeowner", "homeowner_approved", "pm_approved", "in_progress", "awaiting_signature", "signed", "closed"):
+                c.execute(
+                    "update audit_log set occurred_at = %s where entity_table = 'projects' and project_id = %s "
+                    "and changes->'status'->>'to' = %s",
+                    (when[state], pid, state),
+                )
+            c.execute(
+                "update audit_log set occurred_at = %s where project_id = %s and occurred_at > %s and not (changes ? 'status')",
+                (when["m1"], pid, when["closed"]),
+            )
+        c.execute("alter table audit_log enable trigger audit_log_no_update")
+        for pid, when in history:
+            for n in (1, 2, 3):
+                c.execute(
+                    "update project_milestones set completed_at = %s where project_id = %s and milestone_no = %s",
+                    (when[f"m{n}"], pid, n),
+                )
+            c.execute("update project_signatures set signed_at = %s where project_id = %s", (when["signed"], pid))
+            c.execute("update projects set closed_at = %s where project_id = %s", (when["closed"], pid))
 
 
 def mark_demo_database(c: psycopg.Connection) -> None:

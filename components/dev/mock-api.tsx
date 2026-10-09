@@ -1,5 +1,6 @@
 "use client";
 
+import { mockAnalytics } from "./mock-analytics";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
@@ -651,6 +652,7 @@ function auditHistory(id: number, field: string) {
 function answer(method: string, path: string, search: URLSearchParams = new URLSearchParams(), body?: unknown): unknown {
   const key = `${method} ${path}`;
   if (key === "GET /projects") return { projects: PROJECTS, canCreate: true, today: day(0) };
+  if (key === "GET /analytics") return mockAnalytics(search);
   if (key === "GET /projects/options") return PROJECT_OPTIONS;
   if (key === "GET /projects/geocode") {
     const postal = search.get("postal") ?? "";
