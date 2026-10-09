@@ -7,8 +7,8 @@ your accounts or keys), and what's still to build from the original brief.
 
 Step by step, with where to click: **[YOUR_STEPS.md](YOUR_STEPS.md)**. In short:
 
-1. **Fix the dev database login again**: since 9 Oct the dev database (the
-   demo's) refuses its passwords; the demo is down until it's fixed.
+1. ~~Fix the dev database login~~ done again 9 Oct (new dev branch,
+   `ep-square-wind`; keep its auto-delete off).
 2. ~~Let the demo site upload photos~~ done.
 3. ~~Make yourself the superadmin~~ done.
 4. ~~Phone notification keys for the live site~~ done.

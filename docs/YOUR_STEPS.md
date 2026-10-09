@@ -15,7 +15,11 @@ Both run the same code: every update goes to both at once.
 
 ---
 
-## 1. Fix the dev database login (needed for the demo) — ⚠️ needed again, 9 Oct 2026
+## 1. Fix the dev database login (needed for the demo) — ✅ done again 9 Oct 2026
+
+The dev branch is now `ep-square-wind`: migrated, reseeded (no customer data),
+and the demo's `DATABASE_URL` points at it. If it ever disappears again, check
+the branch's auto-delete (expiry) setting first, then follow the steps below.
 
 It was fixed on 8 Oct with a new dev branch (endpoint `ep-dry-cloud`). On
 9 Oct the dev database started refusing the passwords in `web/.env.local`
