@@ -15,18 +15,18 @@ Both run the same code: every update goes to both at once.
 
 ---
 
-## 1. Fix the dev database login (needed for the demo) — ✅ done 8 Oct 2026
+## 1. Fix the dev database login (needed for the demo) — ⚠️ needed again, 9 Oct 2026
 
-A new dev branch (endpoint `ep-dry-cloud`) replaced the deleted one; the demo
-site runs on it with the sample data. Kept for reference.
-
-The dev database is refusing the passwords in `web/.env.local` (both the
-owner login and the app login). The test and production databases are fine.
-Most likely the dev branch's passwords were reset or the branch was recreated.
+It was fixed on 8 Oct with a new dev branch (endpoint `ep-dry-cloud`). On
+9 Oct the dev database started refusing the passwords in `web/.env.local`
+again (both the owner login and the app login), and the demo site can't reach
+it either, so the demo shows no sample people. The test and production
+databases are fine. Most likely the dev branch's passwords were reset or the
+branch was recreated.
 
 1. Go to <https://console.neon.tech> and open the GetHomeApps project.
 2. Click **Branches** and open the **dev** branch (its endpoint starts with
-   `ep-damp-fog`).
+   `ep-dry-cloud`, unless it was recreated).
 3. Click **Roles** (left menu, under the branch).
    - Beside **neondb_owner**, click **⋯ → Reset password**, confirm, and copy
      the new password.
@@ -40,8 +40,11 @@ Most likely the dev branch's passwords were reset or the branch was recreated.
    `DATABASE_URL=` in `web/.env.local`.
 7. Save the file and tell me "dev database fixed".
 
+8. Vercel → **gethomeapps-demo** → Settings → Environment Variables: replace
+   `DATABASE_URL` with the same app-login string as step 6, then Redeploy.
+
 Then I'll do the rest for the demo:
-- apply the latest database changes;
+- apply the latest database changes (migration 0031, Maintenance);
 - fill it with the sample people and projects;
 - give the demo site its database address;
 - check every role works on <https://gethomeapps-demo.vercel.app>.

@@ -43,8 +43,8 @@ STATUS_LABEL = {
     "pm_approved": "PM Approved",
     "in_progress": "In Progress",
     "awaiting_signature": "Awaiting E-Sign",
-    "signed": "Signed — PM to Close",
-    "closed": "Closed",
+    "signed": "Completed",
+    "closed": "Handed Over",
 }
 
 
@@ -222,7 +222,14 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
 @router.get("/projects")
 def projects(acct: Account = Depends(active)) -> dict[str, Any]:
     can_create = acct.role in ("project_manager", "superadmin")
-    return {"projects": _load(acct), "canCreate": can_create, "today": today().isoformat()}
+    rows = _load(acct)
+    # Handed over, a project's development is done: it's kept as a maintenance
+    # record (the Maintenance page), not in the list. A homeowner still sees theirs.
+    handed_over = 0
+    if acct.role != "homeowner":
+        handed_over = sum(1 for r in rows if r["status"] == "closed")
+        rows = [r for r in rows if r["status"] != "closed"]
+    return {"projects": rows, "canCreate": can_create, "handedOver": handed_over, "today": today().isoformat()}
 
 
 @router.get("/projects/options")

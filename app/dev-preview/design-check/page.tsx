@@ -39,6 +39,7 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Projects", path: "/dev-preview/projects", kind: "app" },
   { name: "Dashboard", path: "/dev-preview/dashboard", kind: "app" },
   { name: "Dashboard · late list", path: "/dev-preview/dashboard", kind: "app", click: "[data-testid=tile-late]", opens: false },
+  { name: "Dashboard · new list", path: "/dev-preview/dashboard", kind: "app", click: "[data-testid=tile-new]", opens: false },
   { name: "Dashboard · delivery", path: "/dev-preview/dashboard?tab=delivery", kind: "app" },
   { name: "Dashboard · site work", path: "/dev-preview/dashboard?tab=site", kind: "app" },
   { name: "Dashboard · sales", path: "/dev-preview/dashboard?tab=sales", kind: "app" },
@@ -81,6 +82,13 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Dialog template", path: "/dev-preview/template?tab=dialog", kind: "app", click: "Open the dialog template" },
   { name: "Sign Certificate dialog", path: "/dev-preview/projects/105", kind: "app", click: "Review & sign" },
   { name: "Close Project dialog", path: "/dev-preview/projects/106", kind: "app", click: "Close project" },
+  { name: "Maintenance", path: "/dev-preview/maintenance", kind: "app" },
+  { name: "Maintenance · attention", path: "/dev-preview/maintenance", kind: "app", click: "[data-testid=mtile-attention]", opens: false },
+  { name: "Maintenance · urgent system", path: "/dev-preview/maintenance/201", kind: "app" },
+  { name: "Maintenance · handed-over project", path: "/dev-preview/maintenance/204", kind: "app" },
+  { name: "Maintenance · checks done", path: "/dev-preview/maintenance/207", kind: "app" },
+  { name: "Edit System dialog", path: "/dev-preview/maintenance/201", kind: "app", click: "[data-testid=edit-system]" },
+  { name: "Maintenance Check dialog", path: "/dev-preview/maintenance/202", kind: "app", click: "[data-testid=done-six_month]" },
 ];
 const SIZES: Array<[string, number, number]> = [
   ["Phone", 375, 812],

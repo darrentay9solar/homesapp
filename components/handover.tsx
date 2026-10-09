@@ -1,6 +1,7 @@
 "use client";
 
 import DrawRoundedIcon from "@mui/icons-material/DrawRounded";
+import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
 import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import ReplayRoundedIcon from "@mui/icons-material/ReplayRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
@@ -14,9 +15,11 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import Link from "next/link";
 import { type PointerEvent, type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import { Field, MDialog } from "@/components/m";
+import { useMaintenanceHref } from "@/components/maintenance";
 import { dt2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp, useMe } from "@/lib/client/app-state";
@@ -32,6 +35,8 @@ export type Handover = {
   signature: { name: string; at: string } | null;
   pdf: string | null;
   closed: { at: string; by: string | null } | null;
+  /** Handed over: its maintenance record, for a project manager. */
+  maintenance?: number | null;
   actions: { sign: boolean; request: boolean; remind: boolean; close: boolean };
 };
 
@@ -54,6 +59,7 @@ export function HandoverPanel({ p, reload }: { p: ProjectRow; reload: () => Prom
   const { toast } = useApp();
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<"sign" | "view" | "close" | null>(null);
+  const maintenanceHref = useMaintenanceHref();
   // Reload when the status moves (a crew member's last field asks for the signature).
   useEffect(() => {
     void reloadHandover();
@@ -134,9 +140,19 @@ export function HandoverPanel({ p, reload }: { p: ProjectRow; reload: () => Prom
   } else if (h.status === "closed") {
     banner = (
       <Alert severity="success" icon={<TaskAltRoundedIcon />} data-testid="handover-banner" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
-        <AlertTitle sx={{ fontWeight: 600 }}>{T("Project closed")}</AlertTitle>
-        {h.closed && (h.closed.by ? T("Closed on {date} by {name}.", { date: dt2s(h.closed.at), name: h.closed.by }) : T("Closed on {date}.", { date: dt2s(h.closed.at) }))} {signed}
-        {pdf && <Box sx={{ mt: 1.5 }}>{pdf}</Box>}
+        <AlertTitle sx={{ fontWeight: 600 }}>{T("Handed over")}</AlertTitle>
+        {h.closed && (h.closed.by ? T("Closed on {date} by {name}.", { date: dt2s(h.closed.at), name: h.closed.by }) : T("Closed on {date}.", { date: dt2s(h.closed.at) }))} {signed}{" "}
+        {h.maintenance ? T("The project is done; its system is now looked after on the Maintenance page.") : null}
+        {(pdf || h.maintenance) && (
+          <Stack direction="row" sx={{ gap: 1, mt: 1.5, flexWrap: "wrap" }}>
+            {pdf}
+            {h.maintenance ? (
+              <Button variant="contained" component={Link} href={maintenanceHref(h.maintenance)} startIcon={<HandymanRoundedIcon />} data-testid="open-maintenance">
+                {T("Open in Maintenance")}
+              </Button>
+            ) : null}
+          </Stack>
+        )}
       </Alert>
     );
   } else if (h.milestone3) {
@@ -178,7 +194,7 @@ export function HandoverPanel({ p, reload }: { p: ProjectRow; reload: () => Prom
         />
       )}
       {dialog === "close" && (
-        <MDialog title={T("Close Project")} heading={T("Close {name}?", { name: p.name })} subtitle={T("Everyone on the project, the admin team and the homeowner are told it's closed. This can't be undone.")} onClose={() => setDialog(null)} maxWidth="xs">
+        <MDialog title={T("Close Project")} heading={T("Close {name}?", { name: p.name })} subtitle={T("Its development is done: it moves to the Maintenance page, where its system and checks are tracked. Everyone on the project, the admin team and the homeowner are told. This can't be undone.")} onClose={() => setDialog(null)} maxWidth="xs">
           <Stack sx={{ gap: 1, mt: 1 }}>
             <Button
               size="large"

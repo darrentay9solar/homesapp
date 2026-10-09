@@ -8,7 +8,9 @@
 | `tests_py/test_full_flow.py` | 44 | One project from creation to closed, through the signed certificate, twice |
 | `tests_py/test_analytics.py` | 69 | The dashboard's figures from hand-made projects; periods; regions, salespeople, kWp; who may see it |
 | `tests/analytics.test.ts` | 33 | Axis steps, percentages, kWp, days, change arrows, column names |
-| `tests_py/uat/` | 17,263 | User acceptance: every role at every stage against the brief (below) |
+| `tests_py/test_maintenance.py` | 102 | Maintenance: a handed-over project converting (once, audited), who sees and changes what, every field's checks, the database's guard and value rules, the Projects list leaving handed-over projects out, and the listing import read strictly |
+| `tests/maintenance.test.ts` | 42 | How a system reads (PPA, plan, panels, inverters) in English and Chinese, the tabs, search, order, months added as the listing does |
+| `tests_py/uat/` | 19,621 | User acceptance: every role at every stage against the brief (below) |
 | `tests_py/test_account_settings.py` | 29 | Name, email, mobile codes, password, role requests, My Files |
 | `tests_py/test_alerts.py` | 46 | Alerts, phone notifications (Web Push), crews running late |
 | `tests/search.test.ts` | 146 | Every search in the app (projects, people, audit, My Files, form pickers) |
@@ -23,11 +25,11 @@ npm run test:uat   # the user acceptance tests (about 15 minutes)
 npm run test:r2    # only the 39 tests that use the real R2 dev bucket (~85 requests)
 ```
 
-**Last run (9 Oct 2026): 2,905 Python tests passed (43 skipped: the ones that use real R2), all 17,263 UAT tests passed, and 366 front-end tests.**
+**Last run (9 Oct 2026): 3,076 Python tests passed (43 skipped: the ones that use real R2), all 19,621 UAT tests passed, and 442 front-end tests.**
 
 ---
 
-## User acceptance: `tests_py/uat/` (17,263)
+## User acceptance: `tests_py/uat/` (19,621)
 
 The brief's rules are written down once, in plain terms, in
 `tests_py/uat/spec.py`. Every test asks the real API (or the database
@@ -53,6 +55,7 @@ stages, with real files in laptop storage and a real signed certificate.
 | `test_uat_certificate.py` | 105 | The certificate reads like the project; panels and system size; grid connection; missing values; any change on it changes the fingerprint and nothing else does; the PDF (6 names, including Chinese and punctuation, × 7 signature images) is valid, one page, with the signature, time and fingerprint; which signature images are accepted, and broken ones refused. |
 | `test_uat_people.py` | 98 | Who creates which accounts (11 people × 5 roles); a new account greeted in the chosen language, and unknown languages falling back to English; who may check file storage and read the audit log; another PM reads nothing of a project they don't run. |
 | `test_uat_dashboard.py` | 450 | **Lab:** eight projects with known histories over 400 days, run by their own PM; every figure checked against a hand-worked answer for each period (tiles and their drop-down lists, change arrows, pipeline, on-time, days per stage, project length, how late, due soon, site work, heatmap, scorecard, capacity, approval rate, regions, retailers, salespeople, trend columns, sign-ups, the PM row). **World:** for every PM and superadmin at every period, each project in the right tile and stage, never a project the reader can't see, every number adding up, and the same late and no-show flags as the Projects list. |
+| `test_uat_maintenance.py` | 2,358 | **Maintenance.** The world's handed-over project became a record with its people and system, and nothing else did; the list's handed-over count; Completed and Handed Over. 11 people × 4 kinds of record (a PM's, another PM's, unassigned, a converted project) × open, change, reopen a check and assign. 28 good and 24 bad changes by a superadmin, a PM and another PM, each kept or refused with nothing moved, and audited. 80 due/done combinations, marking done on 7 dates; 216 listing rows (PPA × plan × phase × panels) and 13 wrong values that stop the import; every turn-on day of 2027–2028 plus 6 and 12 months. |
 | `test_uat_sweep.py` | 16 | Uploads abandoned for over a day are deleted, recent ones left; registered files, signed certificates and files taken off a project are never touched; the 15-minute job runs the sweep and needs its secret. |
 
 The UAT run found and fixed three bugs in the app: a closed project's page

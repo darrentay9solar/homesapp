@@ -377,7 +377,8 @@ def test_lab_drop_down_lists_read_like_the_projects_list(api, world, lab, lab_vi
     listed = {p["id"]: p for p in api.get("/api/py/projects", headers=world.h("sa")).json()["projects"]}
     for key, p in lab["pid"].items():
         mini = lab_view[period]["projects"][str(p)]
-        row = listed[p]
+        # Handed over, a project is on the Maintenance page rather than the list: read it directly.
+        row = listed.get(p) or api.get(f"/api/py/projects/{p}", headers=world.h("sa")).json()
         assert (mini["name"], mini["status"], mini["statusLabel"], mini["progress"], mini["pm"]) == (
             row["name"], row["status"], row["statusLabel"], row["progress"], row["pm"]["name"]), key  # fmt: skip
         assert mini["flags"] == [f["text"] for f in row["flags"]]
@@ -500,7 +501,11 @@ def test_every_number_adds_up(views, actor, period) -> None:
 def test_the_dashboard_matches_the_projects_list(api, world, views, actor, period) -> None:
     listed = {p["id"]: p for p in api.get("/api/py/projects", headers=world.h(actor)).json()["projects"]}
     d = views[(actor, period)]
-    assert {int(k) for k in d["projects"]} == set(listed)
+    # The dashboard counts handed-over projects too; the list leaves them to Maintenance.
+    assert {int(k) for k, m in d["projects"].items() if m["status"] != "closed"} == set(listed)
+    for k, m in d["projects"].items():
+        if m["status"] == "closed":
+            assert api.get(f"/api/py/projects/{k}", headers=world.h(actor)).status_code == 200
     late = {p for p, row in listed.items() if any(f["kind"] == "overdue" for f in row["flags"])}
     assert set(d["tiles"]["late"]["ids"]) == late, "late on the dashboard is late on the list"
     noshow = {p for p, row in listed.items() if any(f["kind"] == "no_show" for f in row["flags"])}

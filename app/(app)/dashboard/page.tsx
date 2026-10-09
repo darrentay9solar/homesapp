@@ -28,11 +28,12 @@ import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
-import { alpha } from "@mui/material/styles";
+import { alpha, type Theme } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { BarList, ChartCard, ColumnChart, DataTable, Gauge, Heatmap, StatTile, TILE_GRID, seriesColor } from "@/components/charts";
 import { Field, ROLE_NAME } from "@/components/m";
@@ -174,26 +175,39 @@ function Overview({ d, open, toggle, onPm }: Props & { onPm: (uid: number) => vo
     { key: "new", label: "New projects", icon: <AddCircleOutlineRoundedIcon />, delta: deltaText(t.new.delta, p), sub: TR(d.period.label) },
     { key: "closed", label: "Projects closed", icon: <TaskAltRoundedIcon />, delta: deltaText(t.closed.delta, p), sub: TR(d.period.label) },
   ];
-  const tileOpen = open && tiles.some((x) => `tile-${x.key}` === open.key);
+  // The projects behind a tile open right where it was tapped. On a phone the
+  // tile itself grows into a full-width card holding them; wider, the list
+  // opens under the tile's row, pointing up at it.
+  const wide = useMediaQuery((th: Theme) => th.breakpoints.up("md"));
+  const cols = wide ? 4 : 2;
+  const at = open ? tiles.findIndex((x) => open.key === `tile-${x.key}`) : -1;
+  const rowEnd = at < 0 ? -1 : Math.min(tiles.length, Math.ceil((at + 1) / cols) * cols) - 1;
   return (
     <Stack sx={{ gap: { xs: 1.5, lg: 2 } }}>
-      <Box sx={TILE_GRID}>
-        {tiles.map((x) => (
-          <StatTile
-            key={x.key}
-            testId={`tile-${x.key}`}
-            label={x.label}
-            value={num(t[x.key].count)}
-            icon={x.icon}
-            tone={x.tone}
-            sub={x.sub}
-            delta={x.delta}
-            open={open?.key === `tile-${x.key}`}
-            onClick={() => toggle(`tile-${x.key}`, x.label, t[x.key].ids)}
-          />
-        ))}
+      <Box sx={{ ...TILE_GRID, gridAutoFlow: "row dense" }}>
+        {tiles.map((x, i) => {
+          const picked = i === at && open !== null;
+          return (
+            <Fragment key={x.key}>
+              <StatTile
+                testId={`tile-${x.key}`}
+                label={x.label}
+                value={num(t[x.key].count)}
+                icon={x.icon}
+                tone={x.tone}
+                sub={x.sub}
+                delta={x.delta}
+                open={picked}
+                expanded={!wide}
+                onClick={() => toggle(`tile-${x.key}`, x.label, t[x.key].ids)}
+              >
+                {picked && <DropBody d={d} open={open} />}
+              </StatTile>
+              {wide && i === rowEnd && open && <ProjectDrop d={d} open={open} onClose={() => toggle(open.key, "", [])} caret={{ col: at % cols, cols, bad: tiles[at].tone === "bad" }} />}
+            </Fragment>
+          );
+        })}
       </Box>
-      {tileOpen && <ProjectDrop d={d} open={open} onClose={() => toggle(open.key, "", [])} />}
 
       <Box sx={GRID}>
         <ChartCard
@@ -264,8 +278,31 @@ function Figure({ n, text, label, bad }: { n?: number; text?: string; label: str
 
 // ------------------------------------------------------------------ the list behind a number
 
-function ProjectDrop({ d, open, onClose, flat }: { d: Analytics; open: NonNullable<Open>; onClose: () => void; flat?: boolean }) {
+/** The list inside a grown phone tile: the tile above it is its title, and tapping it closes. */
+function DropBody({ d, open }: { d: Analytics; open: NonNullable<Open> }) {
   const list = open.ids.map((i) => d.projects[String(i)]).filter(Boolean);
+  return (
+    <Box data-testid="project-drop">
+      <Typography component="h3" variant="caption" sx={{ display: "block", fontWeight: 600, color: "text.secondary", px: 1, mb: 0.5 }}>
+        {T(list.length === 1 ? "{n} project" : "{n} projects", { n: list.length })}
+      </Typography>
+      <ProjectRows list={list} empty="No projects here right now." />
+    </Box>
+  );
+}
+
+/**
+ * The projects behind a number. Under a tile's row (caret: which column it
+ * points up at) or inside a chart card (flat). It scrolls into view as it
+ * opens, so what was tapped is followed straight away by what's behind it.
+ */
+function ProjectDrop({ d, open, onClose, flat, caret }: { d: Analytics; open: NonNullable<Open>; onClose: () => void; flat?: boolean; caret?: { col: number; cols: number; bad?: boolean } }) {
+  const list = open.ids.map((i) => d.projects[String(i)]).filter(Boolean);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    ref.current?.scrollIntoView?.({ block: "nearest", behavior: still ? "auto" : "smooth" });
+  }, [open.key]);
   const body = (
     <>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, mb: 0.5 }}>
@@ -280,9 +317,46 @@ function ProjectDrop({ d, open, onClose, flat }: { d: Analytics; open: NonNullab
     </>
   );
   return flat ? (
-    <Box data-testid="project-drop">{body}</Box>
+    <Box ref={ref} data-testid="project-drop" sx={{ scrollMarginBottom: 80 }}>
+      {body}
+    </Box>
   ) : (
-    <Card sx={{ p: { xs: 1.75, sm: 2.25 } }} data-testid="project-drop">
+    <Card
+      ref={ref}
+      data-testid="project-drop"
+      sx={(th) => {
+        const c = caret?.bad ? th.palette.error.main : th.palette.primary.main;
+        return {
+          p: { xs: 1.75, sm: 2.25 },
+          gridColumn: "1 / -1",
+          scrollMarginBottom: 24,
+          ...(caret && {
+            position: "relative",
+            overflow: "visible",
+            mt: 0.75,
+            borderColor: c,
+            boxShadow: `0 0 0 1px ${c}`,
+            animation: "gha-drop-open .2s ease-out",
+            "@keyframes gha-drop-open": { from: { opacity: 0, transform: "translateY(-6px)" }, to: { opacity: 1, transform: "none" } },
+            "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+            // Points up at the tile it belongs to.
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              top: -9,
+              left: `calc(${((caret.col + 0.5) / caret.cols) * 100}% - 8px)`,
+              width: 16,
+              height: 16,
+              bgcolor: "background.paper",
+              borderLeft: `2px solid ${c}`,
+              borderTop: `2px solid ${c}`,
+              transform: "rotate(45deg)",
+              borderTopLeftRadius: 3,
+            },
+          }),
+        };
+      }}
+    >
       {body}
     </Card>
   );

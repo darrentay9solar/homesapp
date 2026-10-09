@@ -10,11 +10,14 @@ as the demo one, so visitors to the demo site can try the app as them.
 Production can only be emptied, never seeded.
 
 What it does, in one go:
-  1. Deletes every project (with its files, visits, check-ins, milestones),
-     group, request, alert and phone subscription, and every account except
-     the real project-manager logins (people who've signed in, not demo or test
-     accounts). Then empties the audit log, with its protection switched off
-     for that one statement and back on straight after.
+  1. Deletes every project (with its files, visits, check-ins, milestones,
+     and the maintenance records handed-over projects became), group, request,
+     alert and phone subscription, and every account except the real
+     project-manager logins (people who've signed in, not demo or test
+     accounts). Systems imported from the project listing
+     (scripts/import_maintenance.py) are kept: they're 9 Solar Home's
+     customers, not sample data. Then empties the audit log, with its
+     protection switched off for that one statement and back on straight after.
   2. Empties that environment's R2 bucket of project files.
   3. Adds the demo people (example.com addresses, so nobody real is ever
      messaged; two project managers, each running their own projects), two
@@ -75,6 +78,7 @@ WIPE = [
     "project_milestones",
     "project_files",
     "project_assignments",
+    "maintenance_systems",
     "projects",
     "role_change_requests",
     "account_requests",
@@ -281,9 +285,21 @@ def wipe(c: psycopg.Connection, target: str) -> list[dict]:
         c.execute("select set_config('app.actor_uid', '', true)")
         # First, so deleting accounts doesn't try to blank their names in old entries (which the log forbids).
         empty_audit_log()
+        # Imported systems outlive the wipe, without links to the projects and people going.
+        c.execute("create temp table keep_systems on commit drop as select * from maintenance_systems where import_ref is not null")
         c.execute(f"truncate {', '.join(WIPE)} restart identity cascade")
         c.execute("update users set invited_by = null where invited_by is not null")
         c.execute("delete from users where uid <> all(%s)", ([k["uid"] for k in keep],))
+        c.execute(
+            "update keep_systems set project_id = null, homeowner_id = null, "
+            "run_by = case when run_by = any(%s) then run_by end",
+            ([k["uid"] for k in keep],),
+        )
+        c.execute("insert into maintenance_systems select * from keep_systems")
+        c.execute(
+            "select setval(pg_get_serial_sequence('maintenance_systems', 'system_id'), "
+            "coalesce((select max(system_id) from maintenance_systems), 0) + 1, false)"
+        )
         empty_audit_log()  # and the entries those deletions just wrote
     return keep
 
@@ -919,6 +935,68 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             at = lambda d, h=0, t0=t0: min(t0 + timedelta(days=d, hours=h), NOW - timedelta(minutes=30))  # noqa: E731
             history.append((r["project_id"], {"homeowner_approved": at(2, 4), "homeowner_declined": at(3), "pm_approved": at(3, 1), "in_progress": at(4)}))
     backdate(c, history)
+    maintenance(c, u)
+
+
+# Sample systems from before the app, as the project listing import brings them in:
+# address, postal, PPA years (None: value buy), plan years, plan excludes the 1st year,
+# panels [(count, Wp)], phase, inverters, months since turn-on, urgent note, manager.
+LISTING = [
+    ("12 Sample Rise", "579001", 5, 5, False, [(22, 620)], 1, ["SUN2000-5KTL-L1", "SUN2000-5KTL-L1"], 4, None, "charlotte"),
+    ("7 Example Avenue", "466001", 7, 7, True, [(23, 635), (3, 620)], 1, ["SUN2000-10K-LC0"], 7, "Poor generation: need to check", "charlotte"),
+    ("30 Demo Crescent", "558001", None, 3, False, [(38, 620)], 3, ["SUN2000-25KTL-M5"], 5, None, None),
+    ("88 Showcase Road", "288001", 8, 8, True, [(62, 620)], 3, ["SUN2000-17KTL-MB0", "SUN2000-17KTL-MB0"], 12, None, "marcus"),
+    ("3 Trial Lane", "809001", 5, 5, True, [(18, 640)], 1, ["SUN2000-12K-MB0"], 2, None, None),
+    ("41 Preview Walk", "486001", 5, 5, False, [(20, 620)], 1, ["SUN2000-10KTL-MAP0"], 9, None, "charlotte"),
+]
+
+
+def maintenance(c: psycopg.Connection, u: dict[str, int]) -> None:
+    """Maintenance as it would look: the handed-over projects' contracts filled in, and sample imported systems."""
+    c.execute("select set_config('app.actor_uid', '', false)")
+    # The handed-over projects became maintenance records as they closed (today, before the
+    # history was backdated): count their checks from when they really closed.
+    for i, m in enumerate(c.execute(
+        "select m.system_id, p.closed_at, p.panel_capacity from maintenance_systems m join projects p using (project_id) order by m.system_id"
+    ).fetchall()):  # fmt: skip
+        on = m["closed_at"].astimezone(SG).date()
+        six, year = add_months(on, 6), add_months(on, 12)
+        c.execute(
+            "update maintenance_systems set turned_on_on = %s, six_month_due = %s, one_year_due = %s, "
+            "six_month_done_on = %s, one_year_done_on = %s, ppa_kind = %s, ppa_years = %s, plan_years = %s, "
+            "plan_excludes_first_year = %s, phase = %s, roof_access = false where system_id = %s",
+            (
+                on, six, year,
+                # Most checks that fell due were done a few days after; one in five is still waiting.
+                six + timedelta(days=3) if six + timedelta(days=3) < TODAY and i % 5 else None,
+                year + timedelta(days=5) if year + timedelta(days=5) < TODAY and i % 5 else None,
+                "value_buy" if i % 4 == 3 else "ppa", None if i % 4 == 3 else (5, 7, 8)[i % 3],
+                (5, 7, 8)[i % 3], i % 2 == 1, 3 if i % 3 == 0 else 1, m["system_id"],
+            ),
+        )  # fmt: skip
+    for n, (addr, postal, ppa, plan, excl, panels, phase, inverters, months, urgent, pm) in enumerate(LISTING, 1):
+        on = add_months(TODAY, -months)
+        c.execute(
+            "insert into maintenance_systems (import_ref, address, postal_code, run_by, ppa_kind, ppa_years, plan_years, "
+            "plan_excludes_first_year, panels, kwp, phase, inverters, turned_on_on, six_month_due, one_year_due, "
+            "six_month_done_on, roof_access, urgent, urgent_note) "
+            "values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, false, %s, %s)",
+            (
+                f"demo-listing#{n}", addr, postal, u[pm] if pm else None, "ppa" if ppa else "value_buy", ppa, plan, excl,
+                json.dumps([{"count": k, "wp": w} for k, w in panels]), sum(k * w for k, w in panels) / 1000, phase,
+                inverters, on, add_months(on, 6), add_months(on, 12),
+                # The 6-month check done where it fell due over a month ago; 7 Example Avenue's is overdue.
+                add_months(on, 6) + timedelta(days=4) if months >= 8 and n != 2 else None,
+                urgent is not None, urgent,
+            ),
+        )  # fmt: skip
+
+
+def add_months(d: date, n: int) -> date:
+    y, m = divmod(d.month - 1 + n, 12)
+    year, month = d.year + y, m + 1
+    last = (date(year + month // 12, month % 12 + 1, 1) - timedelta(days=1)).day
+    return date(year, month, min(d.day, last))
 
 
 def backdate(c: psycopg.Connection, history: list[tuple[int, dict[str, datetime]]]) -> None:

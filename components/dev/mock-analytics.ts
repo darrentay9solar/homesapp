@@ -14,13 +14,13 @@ const NAMES = [
 ];
 const STATUS: Array<[string, string]> = [
   ["in_progress", "In Progress"], ["in_progress", "In Progress"], ["awaiting_homeowner", "Awaiting Homeowner"],
-  ["draft", "Draft"], ["in_progress", "In Progress"], ["signed", "Signed — PM to Close"], ["closed", "Closed"],
+  ["draft", "Draft"], ["in_progress", "In Progress"], ["signed", "Completed"], ["closed", "Handed Over"],
   ["awaiting_signature", "Awaiting E-Sign"], ["in_progress", "In Progress"], ["homeowner_declined", "Homeowner Declined"],
-  ["homeowner_approved", "Homeowner Approved"], ["pm_approved", "PM Approved"], ["closed", "Closed"], ["in_progress", "In Progress"],
-  ["closed", "Closed"], ["in_progress", "In Progress"], ["closed", "Closed"], ["closed", "Closed"], ["in_progress", "In Progress"],
-  ["closed", "Closed"], ["closed", "Closed"], ["in_progress", "In Progress"], ["closed", "Closed"], ["closed", "Closed"],
-  ["in_progress", "In Progress"], ["closed", "Closed"], ["awaiting_homeowner", "Awaiting Homeowner"], ["closed", "Closed"],
-  ["closed", "Closed"], ["closed", "Closed"],
+  ["homeowner_approved", "Homeowner Approved"], ["pm_approved", "PM Approved"], ["closed", "Handed Over"], ["in_progress", "In Progress"],
+  ["closed", "Handed Over"], ["in_progress", "In Progress"], ["closed", "Handed Over"], ["closed", "Handed Over"], ["in_progress", "In Progress"],
+  ["closed", "Handed Over"], ["closed", "Handed Over"], ["in_progress", "In Progress"], ["closed", "Handed Over"], ["closed", "Handed Over"],
+  ["in_progress", "In Progress"], ["closed", "Handed Over"], ["awaiting_homeowner", "Awaiting Homeowner"], ["closed", "Handed Over"],
+  ["closed", "Handed Over"], ["closed", "Handed Over"],
 ];
 const LATE = new Set([205, 209, 214]);
 const NOSHOW = new Set([205]);
@@ -78,7 +78,7 @@ export function mockAnalytics(search: URLSearchParams) {
     pipeline: [
       ["draft", "Draft"], ["awaiting_homeowner", "Awaiting homeowner"], ["homeowner_declined", "Declined"], ["homeowner_approved", "PM to approve"],
       ["m0", "Approved, not started"], ["m1", "Working on Milestone 1"], ["m2", "Working on Milestone 2"], ["m3", "Working on Milestone 3"],
-      ["awaiting_signature", "Awaiting e-sign"], ["signed", "Signed, to close"], ["closed", "Closed"],
+      ["awaiting_signature", "Awaiting e-sign"], ["signed", "Completed, to hand over"], ["closed", "Handed over"],
     ].map(([key, l], i) => {
       const list = key === "m1" ? [201, 202, 214] : key === "m2" ? [205, 209, 216] : key === "m3" ? [219, 222, 225] : key === "m0" ? [212] : ids((s) => s === key);
       return { key, label: l, count: list.length, ids: list, i };

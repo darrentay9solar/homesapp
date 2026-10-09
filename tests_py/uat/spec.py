@@ -107,6 +107,61 @@ def sees(actor: str, state: str) -> int:
     return 200 if rel else 404
 
 
+def listed(actor: str, state: str) -> bool:
+    """In the Projects list. Handed over (closed), a project's development is done: it
+    leaves the list for the Maintenance page. Its homeowner still has it as their project."""
+    if sees(actor, state) != 200:
+        return False
+    return STATUS[state] != "closed" or relation(actor, state) == "homeowner"
+
+
+# ------------------------------------------------------------------ maintenance
+#
+# Once handed over, a project becomes a maintenance record (and systems from
+# before the app are imported from the project listing, unassigned). Project
+# managers and superadmins look after them; nobody else sees them.
+
+# Whose a record is, relative to the world's people.
+OWNERS = ["pm", "pm2", "none"]
+
+
+def maintenance_sees(actor: str, owner: str) -> int:
+    """GET /maintenance/{id}: a superadmin every record; a project manager theirs and unassigned ones."""
+    if actor == "inactive" or ROLE[actor] not in ("project_manager", "superadmin"):
+        return 403
+    if actor == "sa" or owner == "none" or owner == actor:
+        return 200
+    return 404
+
+
+def maintenance_list(actor: str) -> int:
+    if actor == "inactive" or ROLE[actor] not in ("project_manager", "superadmin"):
+        return 403
+    return 200
+
+
+def check_state(due_in: int | None, done_ago: int | None) -> str:
+    """A check, by days until it's due and days since it was done."""
+    if done_ago is not None:
+        return "done"
+    if due_in is None:
+        return "unscheduled"
+    if due_in < 0:
+        return "overdue"
+    if due_in <= 30:
+        return "due_soon"
+    return "scheduled"
+
+
+def plus_months(y: int, m: int, d: int, n: int) -> tuple[int, int, int]:
+    """The project listing's 6 Months and 1 Year columns: the same day n months on, or that month's last day."""
+    total = y * 12 + (m - 1) + n
+    year, month = divmod(total, 12)
+    month += 1
+    days_in = [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    return year, month, min(d, days_in[month - 1])
+
+
 # ------------------------------------------------------------------ fields
 
 

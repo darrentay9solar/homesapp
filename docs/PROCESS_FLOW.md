@@ -38,7 +38,8 @@ stateDiagram-v2
     InProgress --> AwaitingSignature: Milestone 3 complete
     AwaitingSignature --> InProgress: A PM reopens a milestone
     AwaitingSignature --> Signed: Homeowner e-signs
-    Signed --> Closed: A PM checks and closes
+    Signed --> Closed: A PM checks and closes (hands it over)
+    Closed --> Maintenance: becomes a maintenance record by itself
 ```
 
 | Status | Means | Next step, and who takes it |
@@ -50,8 +51,13 @@ stateDiagram-v2
 | **PM Approved** | Milestone 1's fields are open | Crew: start filling in |
 | **In Progress** | Work under way | Crew: complete Milestones 1, 2, 3 |
 | **Awaiting E-Sign** | Every milestone done; fields are fixed as the record | Homeowner: Review & sign (PM can remind) |
-| **Signed — PM to Close** | The homeowner signed the certificate | PM: check the signed PDF, then Close project |
-| **Closed** | Finished | Nobody: everything is a record, and the signed certificate stays in the app |
+| **Completed** | The homeowner signed the certificate | PM: check the signed PDF, then Close project |
+| **Handed Over** | Signed off and handed over: the development phase is done | Nobody on the project: it leaves the Projects list and its system is looked after on the **Maintenance** page. The project stays as a read-only record with its signed certificate. |
+
+The Projects list's tabs follow this: **Handover** is waiting for the
+signature, **Completed** is signed and waiting for the PM to close it.
+Handed-over projects aren't in the list (a card at its foot says how many and
+opens Maintenance); a homeowner still has theirs as their project.
 
 ---
 
@@ -246,10 +252,13 @@ changed while they were reading (a PM edited the project, say), signing is
 refused with "The certificate changed while you were reading it" and they see
 the new version.
 
-**The project manager** gets "Handover signed". They open the **Signed
-certificate (PDF)**, check it, and tap **Close project**. Everyone on the
-project, the superadmins (the admin team) and the homeowner are told it's
-closed; the homeowner by email too.
+**The project manager** gets "Handover signed", and the project shows as
+**Completed**. They open the **Signed certificate (PDF)**, check it, and tap
+**Close project**. Everyone on the project, the superadmins (the admin team)
+and the homeowner are told it's closed; the homeowner by email too. The
+project is now **Handed Over**: its development phase is done, it becomes a
+maintenance record on its own (see Maintenance, below), and its page says so
+with **Open in Maintenance**.
 
 **Corrections:** while it's waiting for the signature, a PM can **Reopen** a
 milestone. That withdraws the request (the homeowner is told) and the
@@ -263,11 +272,11 @@ the crew changing anything at handover; changing or deleting a signature.
 The database refuses each of these on its own (migration 0029).
 
 **Tests:**
-- **TC-23:** Sign in to the demo as Kumar Raj (homeowner, Punggol Waterway Terrace). Review & sign: the certificate shows 20 × 610 W, 12.20 kWp. Draw, type the name, tick, sign. The status becomes Signed — PM to Close.
+- **TC-23:** Sign in to the demo as Kumar Raj (homeowner, Punggol Waterway Terrace). Review & sign: the certificate shows 20 × 610 W, 12.20 kWp. Draw, type the name, tick, sign. The status becomes Completed.
 - **TC-24:** As Charlotte (PM), Punggol shows "Handover certificate signed". Open the PDF: one page with the signature and fingerprint. Close project. Kumar, Priya and Hafiz get "Project closed".
 - **TC-25:** As Charlotte, open Upper Thomson Corner (already signed by Lina Wong) and close it.
 - **TC-26:** As Marcus Lim (the second PM), Projects shows only Tampines Grove and Pasir Ris Garden; Charlotte's projects aren't there.
-- **TC-27:** Siglap Garden House is Closed: the banner says who closed it and when, and the signed PDF opens.
+- **TC-27:** Siglap Garden House is Handed Over: the banner says who closed it and when, the signed PDF opens, and **Open in Maintenance** shows its system. It isn't in Charlotte's Projects list any more.
 
 ### Throughout: the audit log
 
@@ -406,7 +415,10 @@ the change arrows compare with the period before.
 
 | Tab | What's on it |
 |---|---|
-| **Overview** | Tiles: ongoing, **late** (red), **crew no-shows** (red), waiting for PM approval, waiting on the homeowner, at handover, new projects, projects closed. **Tap a tile** and the projects behind it drop down, each opening its page. Started and finished per week or month; on-time delivery (closed by the target date); where every project is in the flow (tap a stage for its projects); and, for a superadmin, each project manager's ongoing, late, closed and on-time figures (tap one to see only theirs). |
+| **Overview** | Tiles: ongoing, **late** (red), **crew no-shows** (red), waiting for PM approval, waiting on the homeowner, at handover, new projects, projects closed. **Tap a tile** and the projects behind it open right there, each opening its page: on a phone the
+tile itself grows into a full-width card, highlighted, with its projects
+inside and scrolled into view; on a wider screen the list opens under the
+tile's row, pointing up at it. Started and finished per week or month; on-time delivery (closed by the target date); where every project is in the flow (tap a stage for its projects); and, for a superadmin, each project manager's ongoing, late, closed and on-time figures (tap one to see only theirs). |
 | **Delivery** | Average project length, late now, due in the next 14 days, closed on time; average days per step (homeowner approval, PM approval, each milestone, signing, closing); late projects by how late (tap a band); the lists of what's due soon and what's late, latest first. |
 | **Site work** | Site visits, attendance, missed visits, late arrivals (an hour or more after the start), average crew, the next 7 days' visits; when crews check in (day × hour); each contractor's projects, visits, attendance and late arrivals. |
 | **Sales** | New projects (and the trend), capacity installed and in the pipeline (kWp: panels × panel watts), average system size, homeowner approval rate and days to approve, account sign-ups; new projects by region (from the postal code), by electricity retailer, by salesperson (the first part of the Sales field), and sign-ups by role. |
@@ -417,6 +429,39 @@ the Projects list: "late" and "no-show" are the same red flags.
 - **TC-48:** On the demo, as Sam Tan (superadmin) → Dashboard. Tap **Late projects**: the list drops down with Seletar Hills Home first. Set **Project manager** to Marcus Lim: only his 8 projects count.
 - **TC-49:** As Charlotte Sim → Dashboard → **Sales**, period **Last 12 months**: about 230 kWp installed across five regions; Delivery shows each step's average days.
 - **TC-50:** As Priya Nair (contractor) there's no Dashboard, and `/dashboard` sends her to Projects.
+
+## Maintenance (project managers and superadmins)
+
+**Maintenance** in the menu (on a phone, the spanner in the Projects header).
+Every system 9 Solar Home looks after once it's turned on:
+
+- **Handed-over projects** arrive by themselves when a PM closes them, with
+  the project's address, homeowner, manager, panels, system size and inverter.
+  Their checks count from the SP turn-on inspection (or the day it closed).
+- **Systems from before the app** were imported from the project listing
+  (28 Aug 2026: 49 systems) with `scripts/import_maintenance.py`. They have no
+  project, manager or homeowner yet: a superadmin gives each a manager (Edit →
+  Project manager), and the homeowner's name and number can be filled in.
+
+Each system shows its size, panels (a mixed roof as "23 × 635 Wp + 3 × 620
+Wp"), single- or 3-phase, inverters, turn-on date, PPA (years, or value buy),
+maintenance plan ("Free for 5 years", "7 years excluding 1st year"), roof
+access, and its two checks: **6 months** and **1 year** after turn-on (the
+month's last day when it's shorter, as in the listing). **Mark done** records
+when a check was done (not in the future, not before turn-on); **Undo**
+reopens it. Urgent maintenance (e.g. poor generation) and overdue checks make
+the card red and put it first; checks due within 30 days are amber.
+
+A superadmin sees and edits every system and assigns managers. A project
+manager sees and edits the systems they look after and the unassigned ones,
+but can't hand one to anybody. Nobody else sees Maintenance. Every change is
+in the audit log (under the project, for a handed-over one), and the database
+enforces the same rules (migration 0031).
+
+- **TC-51:** On the live site as the superadmin → Maintenance: 49 systems, all Unassigned; the one the listing marked for poor generation is red and first, "Urgent: Poor generation: need to check". Search "635 Wp + 3": the mixed roof shows 23 × 635 Wp + 3 × 620 Wp, 16.465 kWp, 2 × SUN2000-5KTL-L1.
+- **TC-52:** Edit a system → Project manager → pick a PM → Save. Sign in as that PM: it's in their Maintenance; another PM doesn't see it.
+- **TC-53:** On a system whose 6-month check is overdue, **Mark done** with today's date: the check turns green, the card is no longer red. Undo brings it back.
+- **TC-54:** On the demo as Charlotte, close Upper Thomson Corner: it leaves Projects, and Maintenance has it with its panels, inverter and checks counted from today.
 
 ## The demo site
 
@@ -490,6 +535,6 @@ dev database has. Sample people can only be made by that script.
   - conditional fields, decline and ask again
   - uploads (and refused uploads)
   - the IC rule, linking a homeowner, the database's rules, and act-as
-- **User acceptance (UAT):** `npm run test:uat`, 17,263 tests in `tests_py/uat/`. Eleven people (every role, another PM, outsiders, a switched-off account) against a project at each of eleven stages, checked against the brief's rules written down in `tests_py/uat/spec.py`: who sees what, every field's lock and every save, every upload slot, every button, every status change straight in the database, the whole flow end to end in five ways, emails and texts in English and Chinese, the certificate and its PDF, and clearing abandoned uploads. See [TEST_CASES.md](TEST_CASES.md).
+- **User acceptance (UAT):** `npm run test:uat`, 19,621 tests in `tests_py/uat/`. Eleven people (every role, another PM, outsiders, a switched-off account) against a project at each of eleven stages, checked against the brief's rules written down in `tests_py/uat/spec.py`: who sees what, every field's lock and every save, every upload slot, every button, every status change straight in the database, the whole flow end to end in five ways, emails and texts in English and Chinese, the certificate and its PDF, clearing abandoned uploads, and maintenance after the handover. See [TEST_CASES.md](TEST_CASES.md).
 - **Front end:** `npm run test:web`, including `tests/i18n.test.ts`: the dictionary is complete for every `T("…")` key, patterns translate server messages, notification settings, and Chinese search words.
 - **Design:** `/dev-preview/design-check`, 528 checks: 44 screens, tabs and dialogs across phone, tablet and desktop, in Black and Light, in English and Chinese. Every date and time field on them is tapped to make sure its picker opens, and no screen may stack two section titles (categories are tabs).

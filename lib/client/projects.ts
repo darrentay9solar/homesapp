@@ -48,7 +48,8 @@ export type ProjectRow = {
   createdAt: string;
 };
 
-export type ProjectList = { projects: ProjectRow[]; canCreate: boolean; today: string };
+/** handedOver: closed projects, which live on the Maintenance page rather than in the list. */
+export type ProjectList = { projects: ProjectRow[]; canCreate: boolean; handedOver?: number; today: string };
 
 export type Options = {
   homeowners: Array<{ uid: number; name: string; email: string; contactNo: string | null }>;
@@ -73,19 +74,21 @@ export const STATUS_TONE: Record<ProjectStatus, Tone> = {
   closed: "default",
 };
 
-export type Tab = "all" | "attention" | "approval" | "active" | "handover" | "closed";
+export type Tab = "all" | "attention" | "approval" | "active" | "handover" | "completed";
 export const TABS: Array<[Tab, string]> = [
   ["all", "All"],
   ["attention", "Attention"],
   ["approval", "Approval"],
   ["active", "Active"],
   ["handover", "Handover"],
-  ["closed", "Closed"],
+  ["completed", "Completed"],
 ];
 
 const APPROVAL: ProjectStatus[] = ["draft", "awaiting_homeowner", "homeowner_declined", "homeowner_approved"];
 const ACTIVE: ProjectStatus[] = ["pm_approved", "in_progress"];
-const HANDOVER: ProjectStatus[] = ["awaiting_signature", "signed"];
+const HANDOVER: ProjectStatus[] = ["awaiting_signature"];
+/** Signed by the homeowner: complete, waiting for a PM to hand it over to maintenance. */
+const COMPLETED: ProjectStatus[] = ["signed", "closed"];
 
 export function inTab(p: ProjectRow, tab: Tab): boolean {
   switch (tab) {
@@ -99,8 +102,8 @@ export function inTab(p: ProjectRow, tab: Tab): boolean {
       return ACTIVE.includes(p.status);
     case "handover":
       return HANDOVER.includes(p.status);
-    case "closed":
-      return p.status === "closed";
+    case "completed":
+      return COMPLETED.includes(p.status);
   }
 }
 

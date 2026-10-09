@@ -218,6 +218,11 @@ class World:
         for pid in pids:
             shutil.rmtree(storage.LOCAL_DIR / "projects" / str(pid), ignore_errors=True)
         c.execute("delete from upload_intents where uid = any(%s)", (uids,))
+        # The maintenance records the handed-over projects became, and any made for the tests.
+        c.execute(
+            "delete from maintenance_systems where project_id = any(%s) or run_by = any(%s) or import_ref like %s",
+            (pids, uids, f"uat-{self.tag}%"),
+        )
         c.execute("delete from projects where project_id = any(%s)", (pids,))
         c.execute("delete from contractor_group_members where group_id = any(%s)", ([self.group, self.other_group],))
         c.execute("delete from contractor_groups where group_id = any(%s)", ([self.group, self.other_group],))

@@ -1,6 +1,7 @@
 "use client";
 
 import { mockAnalytics } from "./mock-analytics";
+import { mockMaintenance, mockSystem } from "./mock-maintenance";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
@@ -272,7 +273,7 @@ const PROJECTS = [
   ...(
     [
       [105, "Seletar Hills Home", "21 Seletar Hills Drive, Singapore 807000", "807000", "awaiting_signature", "Awaiting E-Sign"],
-      [106, "Upper Thomson Corner", "5 Thomson Hills Road, Singapore 574000", "574000", "signed", "Signed — PM to Close"],
+      [106, "Upper Thomson Corner", "5 Thomson Hills Road, Singapore 574000", "574000", "signed", "Completed"],
       [107, "Siglap Garden House", "40 Siglap Hill, Singapore 456000", "456000", "closed", "Closed"],
     ] as const
   ).map(([id, name, address, postalCode, status, statusLabel]) =>
@@ -318,6 +319,7 @@ function handoverFor(pid: number) {
     signature: signed ? { name: "Jasmine Lee", at: iso(1500) } : null,
     pdf: signed ? "/dev-preview/projects" : null,
     closed: status === "closed" ? { at: iso(200), by: "Wei Ming Tan" } : null,
+    maintenance: status === "closed" ? 204 : null,
     actions: { sign: status === "awaiting_signature", request: false, remind: false, close: status === "signed" },
   };
 }
@@ -651,8 +653,11 @@ function auditHistory(id: number, field: string) {
 
 function answer(method: string, path: string, search: URLSearchParams = new URLSearchParams(), body?: unknown): unknown {
   const key = `${method} ${path}`;
-  if (key === "GET /projects") return { projects: PROJECTS, canCreate: true, today: day(0) };
+  if (key === "GET /projects") return { projects: PROJECTS.filter((p) => p.status !== "closed"), canCreate: true, handedOver: 3, today: day(0) };
   if (key === "GET /analytics") return mockAnalytics(search);
+  if (key === "GET /maintenance") return mockMaintenance();
+  const system = path.match(/^\/maintenance\/(\d+)/);
+  if (system) return mockSystem(Number(system[1]));
   if (key === "GET /projects/options") return PROJECT_OPTIONS;
   if (key === "GET /projects/geocode") {
     const postal = search.get("postal") ?? "";

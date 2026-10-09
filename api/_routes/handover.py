@@ -51,6 +51,11 @@ def current_certificate(p: dict[str, Any], acct: Account) -> dict[str, Any]:
     return certificate.build(p, contractor=label, manager=manager)
 
 
+def _maintenance_id(pid: int) -> int | None:
+    m = fetch_one("select system_id from maintenance_systems where project_id = %s", (pid,))
+    return m["system_id"] if m else None
+
+
 @router.get("/projects/{pid}/handover")
 def handover(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
     p = _project(pid)
@@ -75,6 +80,8 @@ def handover(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
         "closed": {"at": p["closed_at"].isoformat(), "by": closer["full_name"] if closer else None}
         if s == "closed" and p["closed_at"]
         else None,
+        # Handed over, the project lives on as a maintenance record (migration 0031).
+        "maintenance": _maintenance_id(pid) if s == "closed" and rel == "pm" else None,
         "actions": {
             "sign": rel == "homeowner" and s == "awaiting_signature",
             "request": rel == "pm"
@@ -216,4 +223,7 @@ def close(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
             notify.notify(uid, "project_closed", f"Project closed · {p['name']}",
                           "The homeowner signed the handover certificate and the project is closed.",
                           project_id=pid)  # fmt: skip
-    return {"message": "Closed. Everyone on the project has been told."}
+    return {
+        "message": "Closed and moved to Maintenance. Everyone on the project has been told.",
+        "maintenance": _maintenance_id(pid),
+    }

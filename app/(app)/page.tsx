@@ -1,18 +1,24 @@
 "use client";
 
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
+import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
+import CardActionArea from "@mui/material/CardActionArea";
 import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { useMaintenanceHref } from "@/components/maintenance";
 import { NewProjectDialog, ProjectCard, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
@@ -30,6 +36,7 @@ export default function ProjectsPage() {
   const me = useMe();
   const router = useRouter();
   const href = useProjectHref();
+  const maintenance = useMaintenanceHref();
   const { data, error } = useApi<ProjectList>(me ? "/projects" : null);
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
@@ -53,18 +60,24 @@ export default function ProjectsPage() {
         title={T("Projects")}
         action={
           data?.canCreate && (
-            <Button
-              onClick={() => setCreating(true)}
-              startIcon={<AddRoundedIcon />}
-              sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}
-            >
-              <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-                {T("Create project")}
-              </Box>
-              <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
-                {T("New")}
-              </Box>
-            </Button>
+            <>
+              {/* Maintenance isn't on the phone's bottom bar (five tabs fit): it's here instead. */}
+              <IconButton component={Link} href={maintenance()} aria-label={T("Maintenance")} data-testid="maintenance-link" sx={{ color: "#fff", display: { lg: "none" } }}>
+                <HandymanRoundedIcon />
+              </IconButton>
+              <Button
+                onClick={() => setCreating(true)}
+                startIcon={<AddRoundedIcon />}
+                sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}
+              >
+                <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                  {T("Create project")}
+                </Box>
+                <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+                  {T("New")}
+                </Box>
+              </Button>
+            </>
           )
         }
         search={<SearchBox value={q} onChange={setQ} placeholder={T("Search projects, people, places")} testId="projects-search" />}
@@ -133,6 +146,22 @@ export default function ProjectsPage() {
                     <ProjectCard key={p.id} p={p} />
                   ))}
                 </Box>
+              )}
+              {data.canCreate && (tab === "all" || tab === "completed") && !q && (data.handedOver ?? 0) > 0 && (
+                <Card sx={{ mt: 2 }} data-testid="handed-over">
+                  <CardActionArea component={Link} href={maintenance()} sx={{ p: 2, display: "flex", alignItems: "center", gap: 1.5, justifyContent: "flex-start" }}>
+                    <HandymanRoundedIcon sx={{ color: "primary.main" }} />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 600 }}>
+                        {T(data.handedOver === 1 ? "{n} handed-over project" : "{n} handed-over projects", { n: data.handedOver ?? 0 })}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {T("Their development is done. They're kept on the Maintenance page, with their systems and checks.")}
+                      </Typography>
+                    </Box>
+                    <ChevronRightRoundedIcon sx={{ color: "text.secondary" }} />
+                  </CardActionArea>
+                </Card>
               )}
             </>
           )}

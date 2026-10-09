@@ -5,6 +5,7 @@ import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
+import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
@@ -46,6 +47,8 @@ const TABS: Record<Role, Tab[]> = {
   project_manager: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
+    // On a phone, Maintenance opens from the Projects header instead.
+    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
     // On a phone, the audit log opens from the dashboard's header instead.
@@ -57,6 +60,8 @@ const TABS: Record<Role, Tab[]> = {
   superadmin: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
+    // On a phone, Maintenance opens from the Projects header instead.
+    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
     // On a phone, the audit log opens from the dashboard's header instead.

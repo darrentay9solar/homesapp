@@ -60,8 +60,12 @@ describe("tabs", () => {
     assert.ok(inTab(project({ status: "draft" }), "approval"));
     assert.ok(inTab(project({ status: "pm_approved" }), "active"));
     assert.ok(inTab(project({ status: "awaiting_signature" }), "handover"));
-    assert.ok(inTab(project({ status: "closed" }), "closed"));
+    assert.ok(inTab(project({ status: "signed" }), "completed"));
+    assert.ok(!inTab(project({ status: "signed" }), "handover"));
     assert.ok(!inTab(project({ status: "closed" }), "active"));
+  });
+  it("a homeowner's handed-over project is completed (others' are on the Maintenance page)", () => {
+    assert.ok(inTab(project({ status: "closed" }), "completed"));
   });
   it("gathers anything late or with a no-show under Attention", () => {
     const red = project({ attention: true, flags: [{ kind: "overdue", text: "x" }] });
@@ -91,7 +95,7 @@ describe("search", () => {
   });
   it("combines search with a tab", () => {
     const list = [project({ name: "Bedok Ria", status: "closed" }), project({ name: "Bedok North" })];
-    assert.deepEqual(filterProjects(list, { query: "bedok", tab: "closed" }).map((x) => x.name), ["Bedok Ria"]);
+    assert.deepEqual(filterProjects(list, { query: "bedok", tab: "completed" }).map((x) => x.name), ["Bedok Ria"]);
   });
 });
 

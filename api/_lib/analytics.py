@@ -34,8 +34,8 @@ PIPELINE = [
     ("m2", "Working on Milestone 2"),
     ("m3", "Working on Milestone 3"),
     ("awaiting_signature", "Awaiting e-sign"),
-    ("signed", "Signed, to close"),
-    ("closed", "Closed"),
+    ("signed", "Completed, to hand over"),
+    ("closed", "Handed over"),
 ]
 ONGOING = {"pm_approved", "in_progress"}
 HANDOVER = {"awaiting_signature", "signed"}

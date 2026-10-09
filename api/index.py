@@ -26,6 +26,7 @@ from _routes import (
     files,
     handover,
     location,
+    maintenance,
     me,
     onboarding,
     people,
@@ -58,6 +59,7 @@ app.include_router(settings.router, prefix=PREFIX)
 app.include_router(files.router, prefix=PREFIX)
 app.include_router(alerts.router, prefix=PREFIX)
 app.include_router(analytics.router, prefix=PREFIX)
+app.include_router(maintenance.router, prefix=PREFIX)
 app.include_router(profile.router, prefix=PREFIX)
 app.include_router(location.router, prefix=PREFIX)
 app.include_router(demo.router, prefix=PREFIX)

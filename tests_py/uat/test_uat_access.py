@@ -65,7 +65,7 @@ def test_projects_list(api, world, actor, state) -> None:
         assert r.status_code == 403
         return
     listed = {p["id"] for p in r.json()["projects"]}
-    assert (world.pid[state] in listed) == (spec.sees(actor, state) == 200)
+    assert (world.pid[state] in listed) == spec.listed(actor, state)
 
 
 # Files exist from the first piece of work on.

@@ -10,10 +10,12 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
   serial,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -940,6 +942,58 @@ export const uploadIntents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("upload_intents_created_idx").on(table.createdAt)]
+);
+
+// ------------------------------------------------------------- maintenance
+
+/**
+ * A system 9 Solar Home looks after once it's turned on (migration 0031).
+ * A handed-over project becomes one by itself (project_id); systems from
+ * before the app are imported (import_ref) and assigned to a manager later.
+ * Values, who may write and the conversion are enforced in the migration.
+ */
+export const maintenanceSystems = pgTable(
+  "maintenance_systems",
+  {
+    systemId: serial("system_id").primaryKey(),
+    projectId: integer("project_id").references(() => projects.projectId, { onDelete: "set null" }),
+    /** e.g. "listing-2026-08-28#12": the source sheet and its S/N. */
+    importRef: text("import_ref"),
+    address: text("address").notNull(),
+    postalCode: varchar("postal_code", { length: 6 }),
+    runBy: integer("run_by").references(() => users.uid, { onDelete: "set null" }),
+    homeownerId: integer("homeowner_id").references(() => users.uid, { onDelete: "set null" }),
+    homeownerName: text("homeowner_name"),
+    homeownerContactNo: varchar("homeowner_contact_no", { length: 32 }),
+    /** 'ppa' (with ppa_years) or 'value_buy'. */
+    ppaKind: text("ppa_kind"),
+    ppaYears: smallint("ppa_years"),
+    planYears: smallint("plan_years"),
+    /** "7 years excluding 1st year" rather than "Free for 7 years". */
+    planExcludesFirstYear: boolean("plan_excludes_first_year"),
+    /** [{ count: 23, wp: 635 }, { count: 3, wp: 620 }] */
+    panels: jsonb("panels").notNull().default([]),
+    kwp: numeric("kwp", { precision: 8, scale: 3 }),
+    /** 1 (single-phase) or 3. */
+    phase: smallint("phase"),
+    inverters: text("inverters").array().notNull().default(sql`'{}'::text[]`),
+    turnedOnOn: date("turned_on_on"),
+    sixMonthDue: date("six_month_due"),
+    sixMonthDoneOn: date("six_month_done_on"),
+    oneYearDue: date("one_year_due"),
+    oneYearDoneOn: date("one_year_done_on"),
+    roofAccess: boolean("roof_access"),
+    urgent: boolean("urgent").notNull().default(false),
+    urgentNote: text("urgent_note"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("maintenance_systems_project_idx").on(table.projectId),
+    uniqueIndex("maintenance_systems_import_idx").on(table.importRef),
+    index("maintenance_systems_run_by_idx").on(table.runBy),
+  ]
 );
 
 // ----------------------------------------------------------- notifications

@@ -25,7 +25,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { num, ticks } from "@/lib/client/analytics";
 import { alarmSx } from "@/components/topbar";
@@ -158,6 +158,8 @@ export function StatTile({
   open,
   onClick,
   testId,
+  expanded,
+  children,
 }: {
   label: string;
   value: string;
@@ -168,19 +170,38 @@ export function StatTile({
   open?: boolean;
   onClick?: () => void;
   testId?: string;
+  /**
+   * On a phone, an open tile grows into a full-width card with what's behind
+   * the number (children) right under it, rather than a list at the bottom of
+   * the grid. Its grid needs grid-auto-flow: dense so the tiles around it
+   * close up.
+   */
+  expanded?: boolean;
+  children?: ReactNode;
 }) {
   const color = (t: Theme) => (tone === "bad" ? t.palette.error.main : tone === "warn" ? t.palette.warning.main : tone === "good" ? t.palette.success.main : t.palette.primary.main);
+  // What marks the tile as picked: red on a red tile, the accent otherwise.
+  const ring = (t: Theme) => (tone === "bad" ? t.palette.error.main : t.palette.primary.main);
+  const big = Boolean(expanded && open);
+  const region = useId();
+  const card = useRef<HTMLDivElement>(null);
+  // Grown, the card moves to a row of its own: bring it to the top of the screen, details and all.
+  useEffect(() => {
+    if (!big || !card.current) return;
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    card.current.scrollIntoView?.({ block: "start", behavior: still ? "auto" : "smooth" });
+  }, [big]);
   const inner = (
     <Box sx={{ p: { xs: 1.75, sm: 2 }, width: "100%", textAlign: "left", height: "100%" }}>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, justifyContent: "space-between" }}>
-        <Box sx={(t) => ({ width: 34, height: 34, borderRadius: `${DESIGN.radius.iconTile}px`, display: "grid", placeItems: "center", color: color(t), bgcolor: alpha(color(t), 0.12), "& svg": { fontSize: 19 } })}>{icon}</Box>
+        <Box sx={(t) => ({ width: big ? 40 : 34, height: big ? 40 : 34, borderRadius: `${DESIGN.radius.iconTile}px`, display: "grid", placeItems: "center", color: color(t), bgcolor: alpha(color(t), 0.12), "& svg": { fontSize: big ? 22 : 19 } })}>{icon}</Box>
         {onClick && (
-          <Typography variant="caption" sx={{ color: open ? "primary.main" : "text.secondary", fontWeight: 600 }}>
+          <Typography variant="caption" sx={(t) => ({ color: open ? ring(t) : "text.secondary", fontWeight: 600 })}>
             {open ? T("Hide") : T("View")}
           </Typography>
         )}
       </Stack>
-      <Typography sx={{ fontSize: { xs: 26, sm: 28 }, fontWeight: 600, lineHeight: 1.15, mt: 1.25 }}>{value}</Typography>
+      <Typography sx={{ fontSize: big ? 34 : { xs: 26, sm: 28 }, fontWeight: 600, lineHeight: 1.15, mt: 1.25, transition: "font-size .2s" }}>{value}</Typography>
       <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25, lineHeight: 1.35 }}>
         {TR(label)}
       </Typography>
@@ -193,21 +214,40 @@ export function StatTile({
   );
   return (
     <Card
+      ref={card}
       data-testid={testId}
       data-alarm={tone === "bad" || undefined}
+      data-open={open || undefined}
       sx={(t) => ({
         display: "flex",
+        flexDirection: "column",
         minWidth: 0,
+        scrollMarginTop: 12,
+        transition: "box-shadow .2s, transform .2s",
         ...(tone === "bad" && alarmSx(t)),
-        ...(open && { borderColor: t.palette.primary.main, boxShadow: `0 0 0 2px ${alpha(t.palette.primary.main, 0.35)}` }),
+        // Picked: a ring in the tile's colour and a lift, so it reads as the one selected.
+        ...(open && { borderColor: ring(t), boxShadow: `0 0 0 2px ${ring(t)}, 0 10px 28px ${alpha(ring(t), 0.22)}`, transform: big ? "none" : "translateY(-2px)" }),
+        ...(open && tone !== "bad" && { bgcolor: alpha(t.palette.primary.main, t.palette.mode === "dark" ? 0.1 : 0.05) }),
+        ...(big && {
+          gridColumn: "1 / -1",
+          animation: "gha-tile-grow .24s ease-out",
+          transformOrigin: "top center",
+          "@keyframes gha-tile-grow": { from: { transform: "scale(.94)", opacity: 0.6 }, to: { transform: "scale(1)", opacity: 1 } },
+          "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+        }),
       })}
     >
       {onClick ? (
-        <ButtonBase onClick={onClick} aria-expanded={open} sx={{ flex: 1, alignItems: "stretch", borderRadius: "inherit" }}>
+        <ButtonBase onClick={onClick} aria-expanded={open} aria-controls={big ? region : undefined} sx={{ flex: 1, alignItems: "stretch", borderRadius: "inherit" }}>
           {inner}
         </ButtonBase>
       ) : (
         inner
+      )}
+      {big && children && (
+        <Box id={region} role="region" aria-label={TR(label)} sx={(t) => ({ px: 1.25, pb: 1.25, pt: 1, borderTop: `1px solid ${alpha(ring(t), 0.3)}` })}>
+          {children}
+        </Box>
       )}
     </Card>
   );
