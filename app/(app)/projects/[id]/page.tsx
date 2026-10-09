@@ -370,7 +370,7 @@ function MilestoneTrack({ p }: { p: ProjectRow }) {
     const total = s.reduce((a, g) => a + g.total, 0);
     return total ? Math.round((done / total) * 100) : 0;
   });
-  const labels = [T("M1 · Install"), T("M2 · Grid"), T("M3 · Handover")];
+  const labels = [T("Installation"), T("Grid connection"), T("Handover")];
   return (
     <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
       {parts.map((pc, i) => (
@@ -378,9 +378,12 @@ function MilestoneTrack({ p }: { p: ProjectRow }) {
           <Box sx={(t) => ({ height: 6, borderRadius: 3, bgcolor: alpha(t.palette.text.primary, 0.08), overflow: "hidden" })}>
             <Box sx={{ height: "100%", width: `${pc}%`, bgcolor: p.milestone > i ? "primary.main" : "primary.light", transition: "width .6s" }} />
           </Box>
-          <Typography variant="caption" sx={{ color: p.milestone > i ? "primary.main" : "text.secondary", fontWeight: p.milestone > i ? 600 : 400 }}>
-            {labels[i]}
+          <Typography variant="caption" component="div" sx={{ color: p.milestone > i ? "primary.main" : "text.secondary", fontWeight: 600, mt: 0.5, lineHeight: 1.3 }}>
+            {T("Milestone {n}", { n: i + 1 })}
             {p.milestone > i && <CheckRoundedIcon sx={{ fontSize: 13, ml: 0.25, verticalAlign: "-2px" }} />}
+          </Typography>
+          <Typography variant="caption" component="div" sx={{ color: "text.secondary", lineHeight: 1.3 }}>
+            {labels[i]}
           </Typography>
         </Box>
       ))}
