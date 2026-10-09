@@ -15,7 +15,7 @@ import IconButton from "@mui/material/IconButton";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { useMaintenanceHref } from "@/components/maintenance";
@@ -23,21 +23,27 @@ import { NewProjectDialog, ProjectCard, useProjectHref } from "@/components/proj
 import { Page } from "@/components/shell";
 import { GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
 import { useApi } from "@/lib/client/api";
-import { useMe } from "@/lib/client/app-state";
+import { isAdmin, useMe } from "@/lib/client/app-state";
 import { filterProjects, type ProjectList, sortProjects, type Tab, TABS } from "@/lib/client/projects";
 
 import { T } from "@/lib/client/i18n";
 /**
  * Projects. Project managers see every project and can create one; contractor
  * admins and EPC crew see the projects they're on; a homeowner goes straight
- * to their own project.
+ * to their own project. Project managers and superadmins open on the
+ * dashboard instead: "/" takes them there, and their list is /projects.
  */
 export default function ProjectsPage() {
   const me = useMe();
   const router = useRouter();
+  const pathname = usePathname();
+  const toDashboard = isAdmin(me?.role) && pathname === "/";
+  useEffect(() => {
+    if (toDashboard) router.replace("/dashboard");
+  }, [toDashboard, router]);
   const href = useProjectHref();
   const maintenance = useMaintenanceHref();
-  const { data, error } = useApi<ProjectList>(me ? "/projects" : null);
+  const { data, error } = useApi<ProjectList>(me && !toDashboard ? "/projects" : null);
   const [tab, setTab] = useState<Tab>("all");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
@@ -49,7 +55,7 @@ export default function ProjectsPage() {
   }, [only, router, href]);
 
   const all = useMemo(() => sortProjects(data?.projects ?? []), [data]);
-  if (!me || only) return null;
+  if (!me || only || toDashboard) return null;
 
   const shown = filterProjects(all, { query: q, tab });
   const count = (t: Tab) => filterProjects(all, { tab: t }).length;

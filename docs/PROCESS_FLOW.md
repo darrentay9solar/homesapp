@@ -407,8 +407,9 @@ Profile pictures are under `profiles/{person}/images/`.
 
 ## The dashboard (project managers and superadmins)
 
-**Dashboard** in the menu (second on a phone; Audit opens from its header
-there). A project manager sees the projects they run; a superadmin sees
+The **Dashboard** is where project managers and superadmins land when they
+sign in or open the app; it's first in their menu, with **Projects** (their
+list, at `/projects`) next. On a phone, Audit opens from its header. A project manager sees the projects they run; a superadmin sees
 every project and can pick one project manager. A **Period** filter (last 30
 or 90 days, 12 months, all time) above everything scopes every figure, and
 the change arrows compare with the period before.

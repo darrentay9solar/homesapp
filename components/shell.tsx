@@ -45,8 +45,9 @@ const TABS: Record<Role, Tab[]> = {
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
   ],
   project_manager: [
-    { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
+    // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
+    { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     // On a phone, Maintenance opens from the Projects header instead.
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
@@ -58,8 +59,9 @@ const TABS: Record<Role, Tab[]> = {
   ],
   // Everything a project manager has, over every project.
   superadmin: [
-    { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
+    // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
+    { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     // On a phone, Maintenance opens from the Projects header instead.
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
