@@ -11,6 +11,7 @@ import Snackbar from "@mui/material/Snackbar";
 import Typography from "@mui/material/Typography";
 
 import { useApi } from "./api";
+import { demoAs, leaveDemo } from "./demo";
 import { currentLang, type Lang, T, translate, useLang } from "./i18n";
 import type { Prefs } from "./prefs";
 import { registration, setBadge } from "./push";
@@ -138,6 +139,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof data?.unread === "number") setBadge(data.unread);
   }, [data?.unread]);
+  // On the demo, a sample person picked before the demo was reset no longer
+  // exists: forget them and go back to the list to pick someone again.
+  const stalePick = Boolean(error && error.status === 401 && demoAs());
+  useEffect(() => {
+    if (!stalePick) return;
+    leaveDemo();
+    window.location.replace("/sign-in");
+  }, [stalePick]);
 
   if (error) {
     return (
@@ -150,6 +159,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
           <Button variant="outlined" sx={{ mt: 2.5 }} onClick={() => void reload()}>
             {T("Try again")}
           </Button>
+          {demoAs() && (
+            <Button
+              sx={{ mt: 2.5, ml: 1 }}
+              onClick={() => {
+                leaveDemo();
+                window.location.replace("/sign-in");
+              }}
+            >
+              {T("Pick someone else")}
+            </Button>
+          )}
         </Card>
       </Box>
     );
