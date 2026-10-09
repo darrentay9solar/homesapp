@@ -915,8 +915,9 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     for r in c.execute("select project_id, created_at from projects").fetchall():
         if r["project_id"] not in done:
             t0 = r["created_at"]
-            history.append((r["project_id"], {"homeowner_approved": t0 + timedelta(days=2, hours=4), "homeowner_declined": t0 + timedelta(days=3),
-                                              "pm_approved": t0 + timedelta(days=3, hours=1), "in_progress": t0 + timedelta(days=4)}))
+            # Never later than now: a project set up yesterday was approved since, not next week.
+            at = lambda d, h=0, t0=t0: min(t0 + timedelta(days=d, hours=h), NOW - timedelta(minutes=30))  # noqa: E731
+            history.append((r["project_id"], {"homeowner_approved": at(2, 4), "homeowner_declined": at(3), "pm_approved": at(3, 1), "in_progress": at(4)}))
     backdate(c, history)
 
 
