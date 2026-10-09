@@ -38,5 +38,5 @@ and uploads, milestones unlocking in order, homeowner then PM approval,
 scheduling EPC visits with reminders and no-show alerts, GPS check-in and
 check-out with crew counts, the handover e-signature and closing, the audit
 log with revert and restore, messages in English and Chinese, and the login
-screens. It's checked by 16,550 user acceptance tests (see
+screens. It's checked by 17,263 user acceptance tests (see
 [TEST_CASES.md](TEST_CASES.md)).
