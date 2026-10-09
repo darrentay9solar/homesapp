@@ -24,9 +24,21 @@ it either, so the demo shows no sample people. The test and production
 databases are fine. Most likely the dev branch's passwords were reset or the
 branch was recreated.
 
+**Why it keeps breaking:** each dev branch has lasted about a day
+(`ep-withered-cake`, then `ep-damp-fog` 6 to 7 Oct, then `ep-dry-cloud` 8 to
+9 Oct), then both of its logins stop working at once. Neon answers a deleted
+branch with the same "password authentication failed", so the branch is
+being deleted. Nothing in this project can delete a Neon branch: there's no
+Neon API key, no Neon command-line tool, no Neon integration on GitHub or
+Vercel, and a database login can't remove a branch. The likeliest cause is
+the **auto-delete (expiry) setting** when the branch is created in Neon.
+
 1. Go to <https://console.neon.tech> and open the GetHomeApps project.
-2. Click **Branches** and open the **dev** branch (its endpoint starts with
-   `ep-dry-cloud`, unless it was recreated).
+   Click **Branches**. If a **dev** branch is still listed, open it and look
+   for an expiry date ("Expires" / "Auto-delete"); remove it. If it's gone,
+   click **New branch**: name `dev`, parent **production**, and make sure
+   **automatically delete / expire** is **off**.
+2. Open the **dev** branch.
 3. Click **Roles** (left menu, under the branch).
    - Beside **neondb_owner**, click **⋯ → Reset password**, confirm, and copy
      the new password.
