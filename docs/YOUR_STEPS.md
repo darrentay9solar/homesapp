@@ -235,7 +235,10 @@ The demo keeps the development keys; that's what they're for.
    `app.9solarhome.com`, and add the DNS record it shows.
 2. Then update `APP_URL` (step 5, in GitHub too) and `VAPID_SUBJECT` (step 4)
    to it.
-3. Optional: the same for the demo, e.g. `demo.9solarhome.com` on the
+3. Cloudflare → R2 → **gethomeapps-prod** → Settings → CORS policy: add the
+   new address to `AllowedOrigins`, or uploads from it are refused (see
+   [r2.md](r2.md)).
+4. Optional: the same for the demo, e.g. `demo.9solarhome.com` on the
    **gethomeapps-demo** project. Tell me, and I'll add it to step 2's
    uploads list and the demo's settings.
 
@@ -245,9 +248,10 @@ The demo keeps the development keys; that's what they're for.
 
 - Production has every update and its database is up to date. It holds no
   test accounts or test projects: only your own login.
-- The demo project exists on Vercel (gethomeapps-demo). It deploys with
-  every update and has its sign-in keys, the dev photo bucket and the demo
-  switch set. It's waiting on step 1 for its database.
+- The demo (gethomeapps-demo) deploys with every update. It has its sign-in
+  keys, the dev photo bucket, the demo switch, its own phone-notification
+  keys, and the dev database with sample people and a project at every
+  stage, from Draft to Closed.
 - Neither the demo nor production can ever turn the other's data into
   sample data. The demo needs its own switch *and* a marker that only the
   dev database has. Sample people can only be created by the seed script on
