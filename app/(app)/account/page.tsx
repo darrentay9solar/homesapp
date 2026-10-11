@@ -32,7 +32,7 @@ import { Field, ROLE_NAME, RoleChip, SettingRow } from "@/components/m";
 import { NotificationsDialog } from "@/components/notification-settings";
 import { Page } from "@/components/shell";
 import { LangButton, ThemeButton } from "@/components/theme-button";
-import { SegTabs, TopBar } from "@/components/topbar";
+import { SegTabs, TopBar, gradText } from "@/components/topbar";
 import { ACCESS } from "@/lib/client/access";
 import { ACT_AS_KEY, useApi, useFetcher } from "@/lib/client/api";
 import { isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
@@ -129,7 +129,7 @@ function ProfileTab({ change }: { change: Change }) {
       <Card sx={{ p: 2.5, display: "flex", gap: 2, alignItems: "center" }}>
         <AvatarEditor name={me.fullName ?? me.email} role={me.role} src={me.avatar} base="/me" onChanged={reloadMe} />
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 600, fontSize: 18, color: "primary.main", overflowWrap: "anywhere" }}>{me.fullName ?? "—"}</Typography>
+          <Typography sx={[{ fontWeight: 600, fontSize: 18, overflowWrap: "anywhere" }, gradText()]}>{me.fullName ?? "—"}</Typography>
           <Box sx={{ mt: 0.5 }}>
             <RoleChip role={me.role} />
           </Box>
@@ -243,7 +243,7 @@ function AccessTab({ change }: { change: Change }) {
       <Card sx={{ p: 2.25 }} data-testid="access-points">
         <Stack direction="row" sx={{ alignItems: "center", gap: 1.25, mb: 1 }}>
           <ShieldOutlinedIcon sx={{ color: "warning.main" }} />
-          <Typography sx={{ fontWeight: 600, fontSize: 16 }}>{T("As {role} you can:", { role: TR(me.roleLabel) })}</Typography>
+          <Typography sx={[{ fontWeight: 600, fontSize: 16 }, gradText()]}>{T("As {role} you can:", { role: TR(me.roleLabel) })}</Typography>
         </Stack>
         <Box component="ul" sx={{ m: 0, p: 0, listStyle: "none" }}>
           {a.yes.map((x) => point(x, true))}

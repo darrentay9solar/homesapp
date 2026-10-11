@@ -263,3 +263,43 @@ CREATE TRIGGER audit_meeting_people AFTER INSERT OR UPDATE OR DELETE ON meeting_
 DROP TRIGGER IF EXISTS audit_calendar_blocks ON calendar_blocks;--> statement-breakpoint
 CREATE TRIGGER audit_calendar_blocks AFTER INSERT OR UPDATE OR DELETE ON calendar_blocks
   FOR EACH ROW EXECUTE FUNCTION audit_row_change('block_id');
+--> statement-breakpoint
+
+-- ------------------------------------------------------------------ exports
+
+-- Each Excel export: who took which list, and how many rows. An export is
+-- an act on personal data, so it's kept like any other change: insert only,
+-- by the person exporting, and audited.
+CREATE TABLE IF NOT EXISTS "data_exports" (
+  "export_id" serial PRIMARY KEY NOT NULL,
+  "what" text NOT NULL,
+  "row_count" integer NOT NULL,
+  "exported_by" integer NOT NULL,
+  "exported_at" timestamp with time zone DEFAULT now() NOT NULL,
+  CONSTRAINT "data_exports_values" CHECK ("what" IN ('projects', 'people') AND "row_count" >= 0)
+);--> statement-breakpoint
+ALTER TABLE "data_exports" DROP CONSTRAINT IF EXISTS "data_exports_exported_by_users_uid_fk";--> statement-breakpoint
+ALTER TABLE "data_exports" ADD CONSTRAINT "data_exports_exported_by_users_uid_fk" FOREIGN KEY ("exported_by") REFERENCES "public"."users"("uid") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+
+CREATE OR REPLACE FUNCTION guard_data_exports_write() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF app_is_table_owner(TG_RELID) THEN
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+  IF TG_OP <> 'INSERT' THEN
+    RAISE EXCEPTION 'The record of an export can''t be changed.' USING ERRCODE = '42501';
+  END IF;
+  IF NEW.exported_by IS DISTINCT FROM app_actor_uid() OR COALESCE(app_actor_type() NOT IN ('project_manager', 'superadmin'), true) THEN
+    RAISE EXCEPTION 'Only a project manager can export.' USING ERRCODE = '42501';
+  END IF;
+  NEW.exported_at := now();
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS guard_data_exports_write ON data_exports;--> statement-breakpoint
+CREATE TRIGGER guard_data_exports_write BEFORE INSERT OR UPDATE OR DELETE ON data_exports
+  FOR EACH ROW EXECUTE FUNCTION guard_data_exports_write();--> statement-breakpoint
+DROP TRIGGER IF EXISTS audit_data_exports ON data_exports;--> statement-breakpoint
+CREATE TRIGGER audit_data_exports AFTER INSERT OR UPDATE OR DELETE ON data_exports
+  FOR EACH ROW EXECUTE FUNCTION audit_row_change('export_id');

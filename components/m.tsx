@@ -26,6 +26,7 @@ import { useLang } from "@/lib/client/i18n";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
 import { COUNTRIES, joinPhone, splitPhone } from "./phone-input";
+import { gradText } from "./topbar";
 import { initials } from "./ui";
 
 export const ROLE_NAME: Record<Role, string> = {
@@ -143,7 +144,7 @@ export function MDialog({
       <WaveHeader title={title} onBack={onClose} />
       <DialogContent sx={{ px: { xs: 3, sm: 4 }, pt: 0.5, pb: { xs: "calc(28px + env(safe-area-inset-bottom))", sm: 4 } }}>
         {heading && (
-          <Typography sx={{ textAlign: "center", color: "primary.main", fontWeight: 600, fontSize: { xs: 19, sm: 21 } }}>
+          <Typography sx={[{ textAlign: "center", fontWeight: 600, fontSize: { xs: 19, sm: 21 } }, gradText(), { mx: "auto" }]}>
             {tr(heading)}
           </Typography>
         )}

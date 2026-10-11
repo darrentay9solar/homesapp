@@ -27,6 +27,18 @@ export const DESIGN = {
   /** Every green header — page headers and dialog headers — is this gradient. */
   headerGradient: "linear-gradient(145deg, #0E7F53 0%, #0A5C3E 55%, #073F2B 100%)",
 
+  /**
+   * Titles on the page (section headings, card titles, the big numbers) are
+   * painted with a gradient, deep to bright, left to right: green for titles,
+   * the tile's own colour for a red or amber number. Each end keeps readable
+   * contrast against its theme's card. Titles inside a green header stay white.
+   */
+  textGradient: {
+    green: { light: "linear-gradient(95deg, #064D33 0%, #0A7D52 50%, #0C9C64 100%)", dark: "linear-gradient(95deg, #9AF5CF 0%, #3DDC97 45%, #16C47F 100%)" },
+    red: { light: "linear-gradient(95deg, #8E1B1F 0%, #CE2E33 100%)", dark: "linear-gradient(95deg, #FFC2BD 0%, #F0736F 100%)" },
+    amber: { light: "linear-gradient(95deg, #6E450B 0%, #B7791F 100%)", dark: "linear-gradient(95deg, #FFE0A3 0%, #E0A23A 100%)" },
+  },
+
   font: "Poppins",
 
   /** Text sizes in px. */

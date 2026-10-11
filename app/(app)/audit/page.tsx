@@ -3,11 +3,15 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
+import BuildRoundedIcon from "@mui/icons-material/BuildRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
+import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
+import EventRoundedIcon from "@mui/icons-material/EventRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import HowToRegRoundedIcon from "@mui/icons-material/HowToRegRounded";
@@ -46,7 +50,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useState
 
 import { Field, MDialog, RoleAvatar, RoleChip, WaveHeader } from "@/components/m";
 import { Page } from "@/components/shell";
-import { EdgeCard, GRID, Heading, SearchBox, SegTabs, TopBar, roleColor } from "@/components/topbar";
+import { EdgeCard, GRID, Heading, SearchBox, SegTabs, TopBar, gradText, roleColor } from "@/components/topbar";
 import { ago, dt2s } from "@/components/ui";
 import {
   type ActionSpec,
@@ -427,6 +431,10 @@ const KIND_ICON: Record<AuditLocation["kind"], ReactNode> = {
   request: <HowToRegRoundedIcon />,
   group: <GroupsRoundedIcon />,
   retailer: <BoltRoundedIcon />,
+  system: <BuildRoundedIcon />,
+  meeting: <EventRoundedIcon />,
+  calendar: <EventBusyRoundedIcon />,
+  export: <FileDownloadRoundedIcon />,
   other: <DescriptionOutlinedIcon />,
 };
 
@@ -471,7 +479,7 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
           {KIND_ICON[card.location.kind]}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ fontWeight: 600, fontSize: { xs: 15, lg: 16 } }}>
+          <Typography noWrap sx={[{ fontWeight: 600, fontSize: { xs: 15, lg: 16 } }, gradText()]}>
             {TR(card.location.label)}
           </Typography>
           <Typography noWrap variant="caption" sx={{ color: "text.secondary", display: "block" }}>
@@ -803,7 +811,7 @@ function PersonAuditCard({ p, onOpen }: { p: AuditPerson; onOpen: () => void }) 
               <Typography variant="caption" sx={{ color: "text.secondary" }}>
                 {T("Last change {when}", { when: ago(p.lastAt) })}
               </Typography>
-              <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
+              <Typography noWrap sx={[{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }, gradText()]}>
                 {p.name}
               </Typography>
               <Stack direction="row" sx={{ gap: 2, mt: 0.5, color: "text.secondary" }}>
@@ -873,7 +881,7 @@ function PersonDialog({
         <Card sx={{ p: 2, display: "flex", alignItems: "center", gap: 1.75, boxShadow: "0 18px 40px -28px rgba(0,0,0,0.5)" }}>
           <PersonAvatar name={p.name} role={p.role} size={56} />
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography noWrap sx={{ fontWeight: 600, fontSize: 18, color: "primary.main" }}>
+            <Typography noWrap sx={[{ fontWeight: 600, fontSize: 18 }, gradText()]}>
               {p.name}
             </Typography>
             <Stack direction="row" sx={{ gap: 1, alignItems: "center", mt: 0.5, flexWrap: "wrap" }}>

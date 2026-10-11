@@ -44,8 +44,24 @@ TABLES: dict[str, tuple[tuple[str, ...], str]] = {
     "role_change_requests": (("request_id",), "people"),
     "contractor_groups": (("group_id",), "groups"),
     "contractor_group_members": (("group_id", "user_id"), "groups"),
+    "maintenance_systems": (("system_id",), "maintenance"),
+    "meetings": (("meeting_id",), "meetings"),
+    "meeting_people": (("meeting_id", "user_id"), "meetings"),
+    "calendar_blocks": (("block_id",), "meetings"),
+    "data_exports": (("export_id",), "exports"),
 }
-PAGES = ("projects", "milestones", "files", "sites", "signatures", "people", "groups")
+PAGES = (
+    "projects",
+    "milestones",
+    "files",
+    "sites",
+    "signatures",
+    "people",
+    "groups",
+    "maintenance",
+    "meetings",
+    "exports",
+)
 
 # Rows whose history is evidence, or whose decisions are final, are never rewritten.
 NO_REVERT: dict[str, str] = {
@@ -53,6 +69,10 @@ NO_REVERT: dict[str, str] = {
     "role_change_requests": "Decisions on role requests are final. To undo one, revert the role itself.",
     "site_check_ins": "GPS check-ins are site evidence and can't be edited.",
     "project_signatures": "Signatures are legal records and can't be edited.",
+    "meetings": "A meeting is changed by the person who arranged it, in the calendar.",
+    "meeting_people": "Each person answers an invitation for themselves, in the calendar.",
+    "calendar_blocks": "Blocked-out time belongs to its owner, who changes it in their calendar.",
+    "data_exports": "An export is a record of who took a copy of the data.",
 }
 # Link rows can be removed again or put back; anything else created or deleted can't.
 LINK_TABLES = ("contractor_group_members", "project_assignments")
@@ -68,6 +88,7 @@ FIXED = {"clerk_user_id", "clerk_invitation_id", "invited_at", "invited_by", "ge
 USER_REFS = {
     "user_id", "homeowner_id", "project_manager_id", "invited_by", "decided_by", "granted_uid",
     "uploaded_by", "added_by", "assigned_by", "created_by", "completed_by", "signed_by",
+    "run_by", "organiser_id", "cancelled_by", "exported_by",
 }  # fmt: skip
 GROUP_REFS = {"group_id", "contractor_group_id"}
 RETAILER_REFS = {"electricity_retailer_id"}
@@ -144,6 +165,44 @@ def _summary(a: dict[str, Any], names: dict[str, dict[int, str]]) -> str:
         return "Checked out" if "checked_out_at" in ch else "Updated check-in"
     if t == "project_signatures":
         return "Signed the handover" if act == "insert" else f"{verb} signature"
+    if t == "maintenance_systems":
+        if act != "update":
+            return {"insert": "Added a system to maintenance", "delete": "Removed a system from maintenance"}[act]
+        if (ch.get("six_month_done_on") or {}).get("to"):
+            return "Recorded the 6-month check"
+        if (ch.get("one_year_done_on") or {}).get("to"):
+            return "Recorded the 1-year check"
+        if "run_by" in ch:
+            return "Assigned a manager" if ch["run_by"].get("to") else "Unassigned the manager"
+        if "urgent" in ch:
+            return "Marked urgent" if ch["urgent"].get("to") else "Cleared urgent"
+        return "Updated maintenance details"
+    if t == "meetings":
+        if act == "insert":
+            return (
+                "Booked a maintenance check"
+                if (ch.get("kind") or {}).get("to") == "maintenance_check"
+                else "Arranged a meeting"
+            )
+        if (ch.get("cancelled_at") or {}).get("to"):
+            return "Cancelled a meeting"
+        return "Moved a meeting" if "starts_at" in ch or "ends_at" in ch else "Updated a meeting"
+    if t == "meeting_people":
+        uid = (ch.get("user_id") or {}).get("to" if act == "insert" else "from") or (a["entity_key"] or {}).get(
+            "user_id"
+        )
+        who = names["users"].get(uid, "someone") if uid else "someone"
+        if act == "insert":
+            return "Accepted" if (ch.get("response") or {}).get("to") == "accepted" else f"Invited {who}"
+        if act == "delete":
+            return f"Removed {who} from a meeting"
+        answer = (ch.get("response") or {}).get("to")
+        return {"accepted": "Accepted a meeting", "declined": "Declined a meeting"}.get(answer, f"Asked {who} again")
+    if t == "calendar_blocks":
+        return {"insert": "Blocked out time", "delete": "Freed blocked-out time"}.get(act, "Changed blocked-out time")
+    if t == "data_exports":
+        what = (ch.get("what") or {}).get("to")
+        return "Exported people to Excel" if what == "people" else "Exported projects to Excel"
     return f"{verb} {t.replace('_', ' ')}"
 
 
@@ -198,6 +257,8 @@ def _names(entries: list[dict[str, Any]], reader: int) -> dict[str, dict[int, st
     projects: set[int] = set()
     requests: set[int] = set()
     role_requests: set[int] = set()
+    systems: set[int] = set()
+    meetings: set[int] = set()
     for a in entries:
         pid = _project_of(a)
         if pid:
@@ -211,6 +272,10 @@ def _names(entries: list[dict[str, Any]], reader: int) -> dict[str, dict[int, st
             requests.add(int(a["entity_id"]))
         if t == "role_change_requests" and a["entity_id"]:
             role_requests.add(int(a["entity_id"]))
+        if t == "maintenance_systems" and a["entity_id"]:
+            systems.add(int(a["entity_id"]))
+        if t in ("meetings", "meeting_people") and a["entity_id"]:
+            meetings.add(int(a["entity_id"]))
         for f, v in (a["changes"] or {}).items():
             for side in ("from", "to"):
                 x = v.get(side)
@@ -261,6 +326,12 @@ def _names(entries: list[dict[str, Any]], reader: int) -> dict[str, dict[int, st
             "select request_id as id, full_name as name from account_requests where request_id = any(%(ids)s)",
             requests,
         ),
+        "systems": lookup(
+            "select system_id as id, address as name from maintenance_systems where system_id = any(%(ids)s)", systems
+        ),
+        "meetings": lookup(
+            "select meeting_id as id, title as name from meetings where meeting_id = any(%(ids)s)", meetings
+        ),
     }
 
 
@@ -272,11 +343,23 @@ def _location(a: dict[str, Any], names: dict[str, dict[int, str]]) -> dict[str, 
         v = ch.get(field) or {}
         return v.get("to") or v.get("from")
 
+    eid = int(a["entity_id"]) if a["entity_id"] and str(a["entity_id"]).isdigit() else None
+    if t in ("meetings", "meeting_people"):
+        return {"key": f"meeting:{eid}", "kind": "meeting", "id": eid,
+                "label": names["meetings"].get(eid) or was("title") or f"Meeting #{eid}"}  # fmt: skip
+    if t == "maintenance_systems":
+        return {"key": f"system:{eid}", "kind": "system", "id": eid,
+                "label": names["systems"].get(eid) or was("address") or f"System #{eid}"}  # fmt: skip
+    if t == "calendar_blocks":
+        owner = was("user_id")
+        return {"key": f"calendar:{owner}", "kind": "calendar", "id": owner,
+                "label": f"Calendar · {names['users'].get(owner) or owner}"}  # fmt: skip
+    if t == "data_exports":
+        return {"key": "exports", "kind": "export", "id": None, "label": "Excel exports"}
     pid = _project_of(a)
     if pid:
         return {"key": f"project:{pid}", "kind": "project", "id": pid,
                 "label": names["projects"].get(pid) or was("name") or f"Project #{pid}"}  # fmt: skip
-    eid = int(a["entity_id"]) if a["entity_id"] and str(a["entity_id"]).isdigit() else None
     if t == "users":
         return {"key": f"person:{eid}", "kind": "person", "id": eid,
                 "label": names["users"].get(eid) or was("full_name") or was("email") or f"Account #{eid}"}  # fmt: skip

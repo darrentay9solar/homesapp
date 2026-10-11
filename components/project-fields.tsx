@@ -30,6 +30,7 @@ import Typography from "@mui/material/Typography";
 import { type ReactNode, useRef, useState } from "react";
 
 import { Field, MDialog } from "@/components/m";
+import { gradText } from "@/components/topbar";
 import { ApiError, useFetcher } from "@/lib/client/api";
 import { pickerFilter } from "@/lib/client/search";
 import { useApp } from "@/lib/client/app-state";
@@ -66,7 +67,7 @@ export function SectionPanel({ ctx, section: s, index, open, onToggle }: { ctx: 
           {s.complete ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : s.lockedReason ? <LockOutlinedIcon sx={{ fontSize: 16 }} /> : index + 1}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 600, fontSize: 15 }}>{TR(s.name)}</Typography>
+          <Typography sx={[{ fontWeight: 600, fontSize: 15 }, gradText()]}>{TR(s.name)}</Typography>
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
             {s.lockedReason ? TR(s.lockedReason) : T("{done} of {total} required · {sub}", { done: s.done, total: s.total, sub: TR(s.sub) })}
           </Typography>

@@ -57,7 +57,7 @@ import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, SettingRow
 import { LocationRow, PeopleMap } from "@/components/people-map";
 import { splitPhone } from "@/components/phone-input";
 import { Page } from "@/components/shell";
-import { EdgeCard, GRID, HERO_BG, SearchBox, SegTabs, TopBar, roleColor } from "@/components/topbar";
+import { EdgeCard, GRID, HERO_BG, SearchBox, SegTabs, TopBar, gradText, roleColor } from "@/components/topbar";
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { canManage, grantableRoles, isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
@@ -480,7 +480,7 @@ function PersonCard({ person: u, groupNames, onOpen }: { person: Person; groupNa
                 <BadgeRoundedIcon sx={{ fontSize: 15 }} />
                 <Typography variant="caption">#{String(u.uid).padStart(4, "0")}</Typography>
               </Stack>
-              <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
+              <Typography noWrap sx={[{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }, gradText()]}>
                 {u.fullName ?? u.email}
               </Typography>
               <ContactLine icon={<MailOutlineRoundedIcon />} text={u.email} />
@@ -512,7 +512,7 @@ function RequestCard({ r, onReview }: { r: Request; onReview: () => void }) {
             <Typography variant="caption" sx={{ color: "warning.main", fontWeight: 600 }}>
               {T("Requested {when}", { when: ago(r.createdAt) })}
             </Typography>
-            <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
+            <Typography noWrap sx={[{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }, gradText()]}>
               {r.fullName}
             </Typography>
             <ContactLine icon={<MailOutlineRoundedIcon />} text={r.email} />
@@ -545,7 +545,7 @@ function RoleRequestCard({ r, onReview }: { r: RoleRequest; onReview: () => void
             <Typography variant="caption" sx={{ color: "warning.main", fontWeight: 600 }}>
               {T("Role change · {when}", { when: ago(r.createdAt) })}
             </Typography>
-            <Typography noWrap sx={{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }}>
+            <Typography noWrap sx={[{ fontWeight: 600, fontSize: 15.5, mt: 0.25 }, gradText()]}>
               {r.fullName}
             </Typography>
             <ContactLine icon={<MailOutlineRoundedIcon />} text={r.email} />
@@ -584,7 +584,7 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
           {initials(group.name)}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ fontWeight: 600, fontSize: 16 }}>
+          <Typography noWrap sx={[{ fontWeight: 600, fontSize: 16 }, gradText()]}>
             {group.name}
           </Typography>
           <Stack direction="row" sx={{ gap: 1.5, color: "text.secondary", mt: 0.25 }}>
@@ -1117,7 +1117,7 @@ function PersonDialog({ person: u, isMe, groups, reload, onClose }: { person: Pe
               {u.role === "superadmin" ? T("Superadmin accounts are managed directly in the database.") : T("Only a superadmin can change project manager accounts.")}
             </Alert>
           )}
-          <Typography sx={{ fontWeight: 600, fontSize: 17, mt: 3, mb: 1.5 }}>{T("General")}</Typography>
+          <Typography sx={[{ fontWeight: 600, fontSize: 17, mt: 3, mb: 1.5 }, gradText()]}>{T("General")}</Typography>
           <Stack sx={{ gap: 1.25 }}>
             <SettingRow icon={<BadgeRoundedIcon />} tint="#2563EB" label={T("Role")} sub={T("Controls what they can see and edit")}>
               <TextField

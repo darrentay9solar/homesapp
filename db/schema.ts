@@ -1219,3 +1219,15 @@ export const maintenanceReminders = pgTable(
   },
   (table) => [primaryKey({ name: "maintenance_reminders_pk", columns: [table.systemId, table.checkKey, table.due, table.stage] })]
 );
+
+/** Each Excel export: who took which list (projects or people) and how many rows. Insert only, and audited. */
+export const dataExports = pgTable("data_exports", {
+  exportId: serial("export_id").primaryKey(),
+  /** 'projects' or 'people'. */
+  what: text("what").notNull(),
+  rowCount: integer("row_count").notNull(),
+  exportedBy: integer("exported_by")
+    .notNull()
+    .references(() => users.uid, { onDelete: "cascade" }),
+  exportedAt: timestamp("exported_at", { withTimezone: true }).notNull().defaultNow(),
+});

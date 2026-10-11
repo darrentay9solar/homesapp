@@ -32,7 +32,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Field, MDialog } from "@/components/m";
-import { EdgeCard } from "@/components/topbar";
+import { EdgeCard, gradText } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useFetcher } from "@/lib/client/api";
 import { useApp } from "@/lib/client/app-state";
@@ -87,7 +87,7 @@ export function SystemCard({ s }: { s: MaintenanceSystem }) {
         <Box sx={{ p: 1.75, pl: 2.5, flex: 1 }}>
           <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1 }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography noWrap sx={{ fontWeight: 600, fontSize: 16 }}>
+              <Typography noWrap sx={[{ fontWeight: 600, fontSize: 16 }, gradText()]}>
                 {s.address}
               </Typography>
               <Typography noWrap variant="body2" sx={{ color: "text.secondary", fontSize: 13 }}>

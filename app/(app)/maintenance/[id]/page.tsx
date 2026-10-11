@@ -36,7 +36,7 @@ import { useEffect, useState } from "react";
 import { CheckDoneDialog, checkColor, EditSystemDialog, nextCheckText, useMaintenanceHref } from "@/components/maintenance";
 import { DetailRow, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
-import { TopBar } from "@/components/topbar";
+import { TopBar, gradText } from "@/components/topbar";
 import { d2s, dt2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { isAdmin, useApp, useMe } from "@/lib/client/app-state";
@@ -123,7 +123,7 @@ function Body({ d, reload }: { d: MaintenanceDetail; reload: () => Promise<void>
         )}
 
         <Card sx={{ p: { xs: 2, sm: 2.5 } }} data-testid="system-checks">
-          <Typography component="h2" sx={{ fontWeight: 600, fontSize: 17 }}>
+          <Typography component="h2" sx={[{ fontWeight: 600, fontSize: 17 }, gradText()]}>
             {T("Maintenance checks")}
           </Typography>
           <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
@@ -163,7 +163,7 @@ function Body({ d, reload }: { d: MaintenanceDetail; reload: () => Promise<void>
 
         {d.project && (
           <Card sx={{ p: { xs: 2, sm: 2.5 } }} data-testid="system-project">
-            <Typography component="h2" sx={{ fontWeight: 600, fontSize: 17 }}>
+            <Typography component="h2" sx={[{ fontWeight: 600, fontSize: 17 }, gradText()]}>
               {T("Project history")}
             </Typography>
             <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>

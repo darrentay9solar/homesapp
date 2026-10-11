@@ -83,7 +83,7 @@ def workbook(sheets: list[tuple[str, list[str], list[list[Any]]]], lang: str) ->
 def _record(acct: Account, what: str, n: int) -> None:
     """The audit log keeps who exported what: the export is an act on personal data."""
     with transaction(acct.uid) as cur:
-        cur.execute("select app_log_export(%s, %s)", (what, n))
+        cur.execute("insert into data_exports (what, row_count, exported_by) values (%s, %s, %s)", (what, n, acct.uid))
 
 
 def _send(data: bytes, name: str) -> Response:
@@ -178,7 +178,9 @@ def export_projects(acct: Account = Depends(pm_only)) -> Response:
             {"ids": ids},
         )
     }
-    systems = {s["project_id"]: s for s in fetch_all("select * from maintenance_systems where project_id = any(%s)", (ids,))}
+    systems = {
+        s["project_id"]: s for s in fetch_all("select * from maintenance_systems where project_id = any(%s)", (ids,))
+    }
     rows = []
     for n, pid in enumerate(sorted(ids, key=lambda i: listed[i]["createdAt"]), start=1):
         p, r, s = listed[pid], raw[pid], systems.get(pid)

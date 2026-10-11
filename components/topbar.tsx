@@ -130,11 +130,29 @@ export function TopBar({
   );
 }
 
+/**
+ * A title painted with the template's text gradient (green unless told
+ * otherwise). Shrinks to its text so the whole gradient shows on a short
+ * title; plain text colour when the system forces its own colours.
+ */
+export function gradText(tone: keyof typeof DESIGN.textGradient = "green") {
+  return (t: Theme) => ({
+    backgroundImage: DESIGN.textGradient[tone][t.palette.mode === "dark" ? "dark" : "light"],
+    backgroundClip: "text",
+    WebkitBackgroundClip: "text",
+    color: "transparent",
+    WebkitTextFillColor: "transparent",
+    width: "fit-content",
+    maxWidth: "100%",
+    "@media (forced-colors: active)": { backgroundImage: "none", color: "CanvasText", WebkitTextFillColor: "CanvasText" },
+  });
+}
+
 export function Heading({ title, count, action }: { title: string; count?: number; action?: ReactNode }) {
   const { tr } = useLang();
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 2.5, mb: 1.25 }}>
-      <Typography component="h2" sx={{ fontWeight: 600, fontSize: { xs: DESIGN.type.sectionTitle.phone, lg: DESIGN.type.sectionTitle.desktop } }}>
+      <Typography component="h2" sx={[{ fontWeight: 600, fontSize: { xs: DESIGN.type.sectionTitle.phone, lg: DESIGN.type.sectionTitle.desktop } }, gradText()]}>
         {tr(title)}
       </Typography>
       {count !== undefined && <Chip size="small" label={count} sx={{ height: 20, fontSize: 11 }} />}

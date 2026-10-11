@@ -25,7 +25,7 @@ import { MapView, type Pin, useMyPosition } from "@/components/map";
 import { useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { CheckDialog } from "@/components/site-visits";
-import { SegTabs, TopBar } from "@/components/topbar";
+import { SegTabs, TopBar, gradText } from "@/components/topbar";
 import { useApi } from "@/lib/client/api";
 import { useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
@@ -289,7 +289,7 @@ function SiteCard({
     >
       <Stack direction="row" sx={{ gap: 1, alignItems: "flex-start" }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ fontWeight: 600, fontSize: 17 }}>
+          <Typography noWrap sx={[{ fontWeight: 600, fontSize: 17 }, gradText()]}>
             {s.name}
           </Typography>
           <Typography variant="body2" noWrap sx={{ color: "text.secondary", fontSize: 12.5 }}>

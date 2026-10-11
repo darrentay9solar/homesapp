@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 
 import { RoleAvatar } from "@/components/m";
 import { Page } from "@/components/shell";
-import { EdgeCard, GRID, SearchBox, SegTabs, TopBar } from "@/components/topbar";
+import { EdgeCard, GRID, SearchBox, SegTabs, TopBar, gradText } from "@/components/topbar";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { isAdmin, type Role, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
@@ -59,7 +59,7 @@ function FileCard({ f }: { f: MyFile | Everyone }) {
         )}
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography noWrap sx={{ fontWeight: 600, fontSize: 15 }}>
+        <Typography noWrap sx={[{ fontWeight: 600, fontSize: 15 }, gradText()]}>
           {f.name}
         </Typography>
         <Typography variant="body2" noWrap sx={{ color: "text.secondary" }}>

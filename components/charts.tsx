@@ -28,7 +28,7 @@ import Typography from "@mui/material/Typography";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { num, ticks } from "@/lib/client/analytics";
-import { alarmSx } from "@/components/topbar";
+import { alarmSx, gradText } from "@/components/topbar";
 import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
 
@@ -77,7 +77,7 @@ export function ChartCard({
     <Card sx={{ p: { xs: 2, sm: 2.5 }, minWidth: 0 }} data-testid={testId}>
       <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography component="h3" sx={{ fontWeight: 600, fontSize: 15.5 }}>
+          <Typography component="h3" sx={[{ fontWeight: 600, fontSize: 15.5 }, gradText()]}>
             {TR(title)}
           </Typography>
           {sub && (
@@ -201,7 +201,7 @@ export function StatTile({
           </Typography>
         )}
       </Stack>
-      <Typography sx={{ fontSize: big ? 34 : { xs: 26, sm: 28 }, fontWeight: 600, lineHeight: 1.15, mt: 1.25, transition: "font-size .2s" }}>{value}</Typography>
+      <Typography sx={[{ fontSize: big ? 34 : { xs: 26, sm: 28 }, fontWeight: 600, lineHeight: 1.15, mt: 1.25, transition: "font-size .2s" }, gradText(tone === "bad" ? "red" : tone === "warn" ? "amber" : "green")]}>{value}</Typography>
       <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25, lineHeight: 1.35 }}>
         {TR(label)}
       </Typography>
