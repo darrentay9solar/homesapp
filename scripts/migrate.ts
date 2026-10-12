@@ -66,8 +66,7 @@ async function main() {
 
   if (targetsProduction) {
     // A restore point first: if the migration goes wrong, the data can be put back as it was this minute.
-    console.log("
-  Restore point: backing up production first…");
+    console.log("\n  Restore point: backing up production first…");
     const r = spawnSync(process.execPath, ["scripts/py.mjs", "scripts/backup.py", "--target", "prod", "--reason", "before migrating production"], { stdio: "inherit" });
     if (r.status !== 0) throw new Error("The restore point (backup) failed, so nothing was migrated.");
   }
