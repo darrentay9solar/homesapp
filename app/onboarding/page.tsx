@@ -13,11 +13,10 @@ import SolarPowerOutlinedIcon from "@mui/icons-material/SolarPowerOutlined";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import Skeleton from "@mui/material/Skeleton";
 import { useRouter } from "next/navigation";
-import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
 
+import { FieldError } from "@/components/m";
 import { AuthAlt, AuthBadge, AuthButton, AuthChoices, AuthError, AuthField, AuthHeading, AuthPhoneField, AuthRules, AuthShell, AuthSteps, AuthSubtitle, Mark, PersonIcon } from "@/components/auth";
-import { splitPhone } from "@/components/phone-input";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import type { Role } from "@/lib/client/app-state";
@@ -81,11 +80,10 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const mobileOk = splitPhone(form.contactNo).local.replace(/\D/g, "").length >= 6;
   const problem = {
     role: role ? null : T("Choose a role."),
     name: nameProblem(form.fullName),
-    mobile: mobileOk ? null : mobileProblem(splitPhone(form.contactNo).local),
+    mobile: mobileProblem(form.contactNo),
     postal: postalProblem(form.postalCode),
     ic: role === "homeowner" ? icLast4Problem(form.icLast4) : null,
   };
@@ -128,9 +126,9 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
       <form onSubmit={submit} noValidate>
         <AuthChoices label="Role" value={role} onChange={setRole} options={ROLES} />
         {shown("role") && (
-          <Typography role="alert" variant="caption" sx={{ display: "block", color: "error.main", mt: -2, mb: 2, mx: 0.25 }}>
+          <FieldError sx={{ mt: -2, mb: 2, mx: 0.25 }}>
             {shown("role")}
-          </Typography>
+          </FieldError>
         )}
         <AuthField id="ob-name" label="Full name" icon={<PersonIcon />} placeholder="e.g. Aisha Rahman" value={form.fullName} onChange={set("fullName")} error={shown("name")} slotProps={{ htmlInput: { autoComplete: "name" } }} />
         <AuthPhoneField id="ob-phone" value={form.contactNo} onChange={(v) => setForm((f) => ({ ...f, contactNo: v }))} error={shown("mobile")} />

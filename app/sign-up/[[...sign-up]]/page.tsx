@@ -23,11 +23,11 @@ import {
   PasswordField,
   PersonIcon,
   ResendCode,
+  clerkField,
   clerkMessage,
 } from "@/components/auth";
-import { splitPhone } from "@/components/phone-input";
 import { T } from "@/lib/client/i18n";
-import { codeProblem } from "@/lib/client/rules";
+import { codeProblem, mobileProblem } from "@/lib/client/rules";
 
 /**
  * Create an account. Two ways in:
@@ -78,6 +78,8 @@ function SignUpFlow() {
   // What's still missing is said under each field once it's been left, and for every field once Create Account is tapped.
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [tried, setTried] = useState(false);
+  // What Clerk refused, said under the field it's about, until that field changes.
+  const [fieldErr, setFieldErr] = useState<{ email?: string; password?: string }>({});
   const leave = (f: string) => () => setTouched((t) => ({ ...t, [f]: true }));
 
   useEffect(() => {
@@ -85,13 +87,13 @@ function SignUpFlow() {
   }, [isSignedIn, router]);
 
   const longEnough = password.length >= PASSWORD_MIN;
-  const mobileOk = splitPhone(mobile).local.replace(/\D/g, "").length >= 6;
+  const mobileOk = !mobileProblem(mobile);
   const emailOk = Boolean(ticket) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const ready = name.trim().length >= 2 && emailOk && mobileOk && longEnough;
   const problem: Record<"name" | "email" | "mobile" | "password", string | null> = {
     name: name.trim().length >= 2 ? null : T("Enter your full name."),
     email: emailOk ? null : email.trim() ? T("That email doesn't look right. It should be like you@example.com.") : T("Enter your email."),
-    mobile: mobileOk ? null : T("Enter your mobile number (at least 6 digits)."),
+    mobile: mobileProblem(mobile),
     password: longEnough
       ? null
       : password
@@ -128,7 +130,11 @@ function SignUpFlow() {
     }
 
     const created = await signUp.password({ emailAddress: email.trim(), password, username: usernameFor(email.trim()), ...extra });
-    if (created.error) return setErr(clerkMessage(created.error));
+    if (created.error) {
+      const where = clerkField(created.error);
+      if (where === "password" || where === "email") return setFieldErr({ [where]: clerkMessage(created.error) });
+      return setErr(clerkMessage(created.error));
+    }
     const sent = await signUp.verifications.sendEmailCode();
     if (sent.error) return setErr(clerkMessage(sent.error));
     setCode("");
@@ -174,9 +180,12 @@ function SignUpFlow() {
             type="email"
             placeholder="you@example.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setFieldErr((f) => ({ ...f, email: undefined }));
+            }}
             onBlur={leave("email")}
-            error={shown("email")}
+            error={shown("email") ?? fieldErr.email ?? null}
             slotProps={{ htmlInput: { inputMode: "email", autoComplete: "email", "data-testid": "su-email" } }}
           />
         )}
@@ -186,12 +195,15 @@ function SignUpFlow() {
           label="Password"
           placeholder={T("At least {n} characters", { n: PASSWORD_MIN })}
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setFieldErr((f) => ({ ...f, password: undefined }));
+          }}
           onBlur={leave("password")}
-          error={shown("password")}
+          error={shown("password") ?? fieldErr.password ?? null}
           slotProps={{ htmlInput: { autoComplete: "new-password", "data-testid": "su-password" } }}
         />
-        <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { text: T("A short sentence is easiest to remember.") }]} />
+        <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { text: T("Not one that's leaked in a data breach (it's checked).") }, { text: T("A short sentence is easiest to remember.") }]} />
         {/* Clerk's bot protection renders its check here when needed. */}
         <Box id="clerk-captcha" sx={{ "&:empty": { display: "none" }, mb: 1.75 }} />
         <AuthError>{err ?? missing}</AuthError>

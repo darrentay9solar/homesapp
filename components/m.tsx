@@ -6,6 +6,7 @@ import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
+import FormHelperText from "@mui/material/FormHelperText";
 import DialogContent from "@mui/material/DialogContent";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
@@ -321,5 +322,18 @@ export function PhoneField({
         },
       }}
     />
+  );
+}
+
+/**
+ * What's wrong, for a choice that isn't a text box (a role, a signature, a
+ * tick box, a time): the same solid red bar a field shows under itself.
+ */
+export function FieldError({ children, sx }: { children: ReactNode; sx?: SxProps<Theme> }) {
+  if (!children) return null;
+  return (
+    <FormHelperText error role="alert" sx={sx}>
+      {children}
+    </FormHelperText>
   );
 }

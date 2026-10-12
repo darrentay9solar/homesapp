@@ -27,11 +27,23 @@ export function nameProblem(v: string, min = 2, whose: Whose = "your"): string |
   return v.trim().length >= min ? null : v.trim() ? T("That name is too short.") : whose === "your" ? T("Enter your full name.") : T("Enter their full name.");
 }
 
-/** A mobile number's local digits (without the country code). */
-export function mobileProblem(local: string, whose: Whose = "your"): string | null {
-  const digits = local.replace(/\D/g, "");
-  if (!digits) return whose === "your" ? T("Enter your mobile number (at least 6 digits).") : T("Enter their mobile number (at least 6 digits).");
-  return digits.length >= 6 ? null : T("A mobile number has at least 6 digits.");
+/**
+ * A mobile number as the form stores it ("+65 9123 4567": the country code from
+ * the picker, then the number). The same rules as the server
+ * (api/_lib/profile.py clean_phone), in the same words, so nothing the form
+ * accepts is refused after sending.
+ */
+export function mobileProblem(value: string, whose: Whose = "your"): string | null {
+  const v = (value ?? "").trim();
+  // Nothing typed after the country code the picker put in: not a number yet.
+  const typed = v.startsWith("+") ? v.replace(/^\+\d{1,3}\s*/, "") : v;
+  if (!typed.replace(/\D/g, "")) return whose === "your" ? T("Enter your mobile number.") : T("Enter their mobile number.");
+  const digits = v.replace(/\D/g, "");
+  // Step by step as the server does it.
+  if (!v.startsWith("+")) return /^[3689]\d{7}$/.test(digits) ? null : T("Choose the country code and enter the mobile number, e.g. +65 9123 4567.");
+  if (!/^\+[\d\s-]{8,20}$/.test(v) || digits.length < 8 || digits.length > 15) return T("Enter the mobile number as digits, e.g. +65 9123 4567.");
+  if (digits.startsWith("65") && digits.length !== 10) return T("A Singapore mobile number has 8 digits after +65.");
+  return null;
 }
 
 export function passwordProblem(v: string, min = PASSWORD_MIN): string | null {

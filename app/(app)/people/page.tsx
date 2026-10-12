@@ -55,7 +55,6 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { AvatarEditor } from "@/components/avatar";
 import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, SettingRow, WaveHeader } from "@/components/m";
 import { LocationRow, PeopleMap } from "@/components/people-map";
-import { splitPhone } from "@/components/phone-input";
 import { Page } from "@/components/shell";
 import { EdgeCard, ExportButton, GRID, HERO_BG, SearchBox, SegTabs, TopBar, gradText, roleColor } from "@/components/topbar";
 import { ago, d2s, initials } from "@/components/ui";
@@ -923,7 +922,7 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
   const problem = {
     name: nameProblem(f.fullName, 2, "their"),
     email: emailProblem(f.email, "their"),
-    mobile: mobileProblem(splitPhone(f.contactNo).local, "their"),
+    mobile: mobileProblem(f.contactNo, "their"),
     postal: postalProblem(f.postalCode),
     ic: f.role === "homeowner" ? icLast4Problem(f.icLast4) : null,
     expiry: expiryProblem(expiry),

@@ -37,7 +37,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
-import { Field, MDialog, RoleAvatar } from "@/components/m";
+import { Field, FieldError, MDialog, RoleAvatar } from "@/components/m";
 import { gradText } from "@/components/topbar";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp } from "@/lib/client/app-state";
@@ -716,9 +716,9 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
               </Typography>
             )}
             {tried && problem.start && (
-              <Typography role="alert" variant="body2" sx={{ mt: 1, color: "error.main" }}>
+              <FieldError sx={{ mt: 1 }}>
                 {problem.start}
-              </Typography>
+              </FieldError>
             )}
           </Box>
           <Box>

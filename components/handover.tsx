@@ -18,7 +18,7 @@ import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { type PointerEvent, type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
 
-import { Field, MDialog } from "@/components/m";
+import { Field, FieldError, MDialog } from "@/components/m";
 import { useMaintenanceHref } from "@/components/maintenance";
 import { dt2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
@@ -263,9 +263,9 @@ function SignDialog({ h, busy, onClose, onSign }: { h: Handover; busy: boolean; 
       </Typography>
       <SignaturePad ref={pad} onChange={setDrawn} />
       {tried && problem.drawn && (
-        <Typography role="alert" variant="caption" sx={{ display: "block", color: "error.main", mt: 0.5 }}>
+        <FieldError sx={{ mt: 0.5 }}>
           {problem.drawn}
-        </Typography>
+        </FieldError>
       )}
       <Box sx={{ mt: 2 }}>
         <Field label={T("Your full name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" error={tried && Boolean(problem.name)} helperText={tried ? (problem.name ?? undefined) : undefined} />
@@ -276,9 +276,9 @@ function SignDialog({ h, busy, onClose, onSign }: { h: Handover; busy: boolean; 
         label={<Typography variant="body2">{T("I've read the certificate and accept the installation as complete.")}</Typography>}
       />
       {tried && problem.agree && (
-        <Typography role="alert" variant="caption" sx={{ display: "block", color: "error.main" }}>
+        <FieldError>
           {problem.agree}
-        </Typography>
+        </FieldError>
       )}
       <Stack sx={{ gap: 1, mt: 2 }}>
         <Button

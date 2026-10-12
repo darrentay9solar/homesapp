@@ -6,7 +6,7 @@ import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { AuthBadge, AuthButton, AuthError, AuthField, AuthHeading, AuthRules, AuthShell, AuthSubtitle, OtpInput, PASSWORD_MIN, PasswordField, ResendCode, clerkMessage } from "@/components/auth";
+import { AuthBadge, AuthButton, AuthError, AuthField, AuthHeading, AuthRules, AuthShell, AuthSubtitle, OtpInput, PASSWORD_MIN, PasswordField, ResendCode, clerkField, clerkMessage } from "@/components/auth";
 import { T } from "@/lib/client/i18n";
 import { codeProblem, confirmProblem, emailProblem, passwordProblem } from "@/lib/client/rules";
 
@@ -33,6 +33,7 @@ export default function ForgotPasswordPage() {
   const [err, setErr] = useState<string | null>(null);
   // Pressing the button with something wrong says what, under the field.
   const [tried, setTried] = useState(false);
+  const [pwErr, setPwErr] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -88,7 +89,10 @@ export default function ForgotPasswordPage() {
     }
     setErr(null);
     const { error } = await signIn.resetPasswordEmailCode.submitPassword({ password, signOutOfOtherSessions: true });
-    if (error) return setErr(clerkMessage(error));
+    if (error) {
+      if (clerkField(error) === "password") return setPwErr(clerkMessage(error));
+      return setErr(clerkMessage(error));
+    }
     if (signIn.status === "complete") setStep("done");
     else setErr(T("Your password was changed, but signing in needs another step. Please sign in again."));
   }
@@ -117,9 +121,12 @@ export default function ForgotPasswordPage() {
     return (
       <AuthShell title="Reset Password" back={() => setStep("code")}>
         <AuthHeading>{T("Enter new password")}</AuthHeading>
-        <AuthSubtitle>{T("Your new password must be different from previously used passwords.")}</AuthSubtitle>
+        <AuthSubtitle>{T("At least {n} characters, and not one that's leaked in a data breach (it's checked).", { n: PASSWORD_MIN })}</AuthSubtitle>
         <form onSubmit={save} noValidate>
-          <PasswordField id="fp-pw" label="Password" value={password} onChange={(e) => setPassword(e.target.value)} error={tried ? passwordProblem(password) : null} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
+          <PasswordField id="fp-pw" label="Password" value={password} onChange={(e) => {
+            setPassword(e.target.value);
+            setPwErr(null);
+          }} error={(tried ? passwordProblem(password) : null) ?? pwErr} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
           <PasswordField id="fp-pw2" label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} error={tried ? confirmProblem(password, confirm) : null} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
           <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { ok: matches, text: T("Passwords match") }]} />
           <AuthError>{err}</AuthError>

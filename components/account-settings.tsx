@@ -26,7 +26,7 @@ import { ApiError, useFetcher } from "@/lib/client/api";
 import { type Role, useApp } from "@/lib/client/app-state";
 
 import { T, TR } from "@/lib/client/i18n";
-import { codeProblem, confirmProblem, emailProblem, firstProblem, nameProblem, passwordProblem, textProblem } from "@/lib/client/rules";
+import { codeProblem, confirmProblem, emailProblem, firstProblem, mobileProblem, nameProblem, passwordProblem, textProblem } from "@/lib/client/rules";
 /** Runs one step: shows the server's message, or keeps the error on screen. */
 function useStep() {
   const [busy, setBusy] = useState(false);
@@ -212,10 +212,9 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
     return () => clearTimeout(t);
   }, [wait]);
 
-  const digits = number.replace(/\D/g, "");
   const [tried, setTried] = useState(false);
   const [triedCode, setTriedCode] = useState(false);
-  const problem = digits.length < 8 ? T("Enter the new mobile number, with its country code.") : number === current ? T("That's your number already. Enter the new one.") : null;
+  const problem = mobileProblem(number) ?? (number === current ? T("That's your number already. Enter the new one.") : null);
 
   async function send(channel: "auto" | "sms") {
     const r = await step(() => fetcher<Sent>("/me/mobile/send", { method: "POST", json: { number, channel } }));
@@ -338,7 +337,7 @@ export function PasswordDialog({ onClose }: { onClose: () => void }) {
         <PasswordInput label={T("New password again")} value={f.again} onChange={(v) => setF((x) => ({ ...x, again: v }))} autoComplete="new-password" error={tried ? problem.again : null} />
       </Stack>
       <Typography variant="caption" component="div" sx={{ mt: 1.5, color: f.next && !long ? "error.main" : "text.secondary" }}>
-        {T("At least {n} characters. A short sentence is easiest to remember.", { n: PASSWORD_MIN })}
+        {T("At least {n} characters, and not one that's leaked in a data breach (it's checked). A short sentence is easiest to remember.", { n: PASSWORD_MIN })}
         {f.again && !same ? ` ${T("The two new passwords don't match.")}` : ""}
       </Typography>
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}

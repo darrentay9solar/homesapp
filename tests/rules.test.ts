@@ -21,9 +21,14 @@ describe("each rule", () => {
     assert.equal(nameProblem("Jo"), null);
   });
   it("mobile", () => {
-    assert.match(mobileProblem("") ?? "", /Enter your mobile number/);
-    assert.equal(mobileProblem("123 45"), "A mobile number has at least 6 digits.");
-    assert.equal(mobileProblem("9123 4567"), null);
+    assert.equal(mobileProblem(""), "Enter your mobile number.");
+    assert.equal(mobileProblem("+65 ", "their"), "Enter their mobile number.");
+    assert.equal(mobileProblem("+65 9123 456"), "A Singapore mobile number has 8 digits after +65.");
+    assert.equal(mobileProblem("+65 9123 4567"), null);
+    assert.equal(mobileProblem("+60 12 345 6789"), null);
+    assert.equal(mobileProblem("+60 123"), "Enter the mobile number as digits, e.g. +65 9123 4567.");
+    assert.equal(mobileProblem("91234567"), null);
+    assert.equal(mobileProblem("1234567"), "Choose the country code and enter the mobile number, e.g. +65 9123 4567.");
   });
   it("password: how many more characters, and the second copy", () => {
     assert.equal(passwordProblem(""), "Choose a password of at least 15 characters.");

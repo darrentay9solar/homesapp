@@ -251,12 +251,16 @@ const fieldSx: SxProps<Theme> = {
     "& .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.38)" },
     "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(255,255,255,0.7)" },
     "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "#fff" },
-    "& .MuiOutlinedInput-root.Mui-error .MuiOutlinedInput-notchedOutline": { borderColor: "#ffd2d2" },
+    // A field to fix, on the green panel: a deep red box with a bright edge, so it can't blend in.
+    "& .MuiOutlinedInput-root.Mui-error": { bgcolor: "rgba(150,16,22,0.88)" },
+    "& .MuiOutlinedInput-root.Mui-error .MuiOutlinedInput-notchedOutline": { borderColor: "#FF8A84", borderWidth: 2 },
+    "& .MuiInputLabel-root.Mui-error": { color: "#fff", fontWeight: 700 },
     "& .MuiInputLabel-root, & .MuiInputLabel-root.Mui-focused": { color: "#fff" },
     "& .MuiInputAdornment-root, & .MuiInputAdornment-root .MuiIconButton-root, & .MuiSelect-icon": { color: "rgba(255,255,255,0.75)" },
     "& input::placeholder": { color: "rgba(255,255,255,0.55)", opacity: 1 },
     "& input:-webkit-autofill": { WebkitTextFillColor: "#fff", transition: "background-color 9999s" },
     "& .MuiFormHelperText-root": { color: "#ffe1e1" },
+    "& .MuiFormHelperText-root.Mui-error": { bgcolor: "#B3261E", color: "#fff", "&::before": { bgcolor: "#fff", color: "#B3261E" } },
     "& .MuiSelect-select": { color: "#fff" },
   },
 };
@@ -380,7 +384,7 @@ export function AuthButton(props: ButtonProps) {
 export function AuthError({ children }: { children: ReactNode }) {
   if (!children) return null;
   return (
-    <Alert severity="error" sx={{ mb: 1.75, [DESK]: { color: "#fff", bgcolor: "rgba(140,20,24,0.35)", border: "1px solid rgba(255,255,255,0.3)", "& .MuiAlert-icon": { color: "#fff" } } }}>
+    <Alert role="alert" severity="error" sx={{ mb: 1.75, fontWeight: 700, [DESK]: { color: "#fff", bgcolor: "#B3261E", border: "1.5px solid #FF8A84", "& .MuiAlert-icon": { color: "#fff" } } }}>
       {children}
     </Alert>
   );
@@ -635,21 +639,53 @@ export function AuthSteps({ steps }: { steps: Array<{ state: "done" | "now" | "n
 }
 
 /** Clerk errors, as one sentence a person can act on (in their language). */
+/**
+ * Clerk's errors, as one sentence a person can act on (in their language).
+ * The password rules are Clerk's (Dashboard → Passwords, read 12 Oct 2026):
+ * at least 15 characters, no other character rules, and never a password
+ * known from a data breach (checked at sign-up, password changes and sign-in).
+ */
+const CLERK_FRIENDLY: Record<string, string> = {
+  form_password_incorrect: "That password isn't right. Try again, or reset it below.",
+  form_identifier_not_found: "We couldn't find an account with that email.",
+  form_code_incorrect: "That code isn't right. Check the email and try again.",
+  verification_expired: "That code has expired. Send a new one.",
+  verification_failed: "That code isn't right. Check the email and try again.",
+  form_identifier_exists: "An account already uses that email. Sign in instead.",
+  form_password_pwned: "That password has appeared in a data breach elsewhere. Please choose a different one.",
+  form_password_pwned__sign_in: "That password has appeared in a data breach elsewhere, so it can't be used any more. Reset it with Forgot password.",
+  form_password_length_too_short: "The password needs at least 15 characters.",
+  form_password_size_in_bytes_exceeded: "That password is too long. Use a shorter one.",
+  form_password_validation_failed: "That password can't be used. Choose one of at least 15 characters that you haven't used elsewhere.",
+  form_password_not_strong_enough: "That password is too easy to guess. A short sentence works well.",
+  form_param_format_invalid: "That doesn't look right. Check it and try again.",
+  form_param_nil: "Fill in every field.",
+  form_username_invalid_character: "That email can't be used to sign up. Try another.",
+  captcha_invalid: "The security check didn't pass. Turn off ad or tracker blockers for this site, or try another browser, then try again.",
+  captcha_unavailable: "The security check couldn't load. Turn off ad or tracker blockers for this site, or try another browser, then try again.",
+  too_many_requests: "Too many attempts. Wait a minute and try again.",
+  session_exists: "You're already signed in.",
+  not_allowed_access: "Sign-ups aren't open for that email. Ask 9 Solar Home for an invitation.",
+};
+
 export function clerkMessage(err: unknown): string {
   const e = err as { errors?: Array<{ longMessage?: string; message?: string; code?: string }>; longMessage?: string; message?: string; code?: string } | null;
   const first = e?.errors?.[0];
   const code = first?.code ?? e?.code;
-  const friendly: Record<string, string> = {
-    form_password_incorrect: "That password isn't right. Try again, or reset it below.",
-    form_identifier_not_found: "We couldn't find an account with that email.",
-    form_code_incorrect: "That code isn't right. Check the email and try again.",
-    verification_expired: "That code has expired. Send a new one.",
-    form_identifier_exists: "An account already uses that email. Sign in instead.",
-    form_password_pwned: "That password has appeared in a data breach elsewhere. Please choose a different one.",
-    too_many_requests: "Too many attempts. Wait a minute and try again.",
-  };
-  if (code && friendly[code]) return T(friendly[code]);
+  if (code && CLERK_FRIENDLY[code]) return T(CLERK_FRIENDLY[code]);
   return TR(first?.longMessage ?? first?.message ?? e?.longMessage ?? e?.message ?? "Something went wrong. Please try again.");
+}
+
+/** Which field a Clerk error is about, so it can be said under that field. */
+export function clerkField(err: unknown): "email" | "password" | "code" | null {
+  const e = err as { errors?: Array<{ code?: string; meta?: { paramName?: string } }>; code?: string } | null;
+  const first = e?.errors?.[0];
+  const code = first?.code ?? e?.code ?? "";
+  const param = first?.meta?.paramName ?? "";
+  if (code.startsWith("form_password") || param === "password") return "password";
+  if (code.startsWith("form_identifier") || param === "email_address" || param === "identifier") return "email";
+  if (code.startsWith("form_code") || code.startsWith("verification") || param === "code") return "code";
+  return null;
 }
 
 /** Only ever redirect within this site after signing in. */

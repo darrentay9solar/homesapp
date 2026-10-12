@@ -30,8 +30,7 @@ import Typography from "@mui/material/Typography";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { Field, MDialog, PhoneField, RoleAvatar, ROLE_NAME } from "@/components/m";
-import { splitPhone } from "@/components/phone-input";
+import { Field, FieldError, MDialog, PhoneField, ROLE_NAME, RoleAvatar } from "@/components/m";
 import { EdgeCard, gradText } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
@@ -250,7 +249,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           : geo.text,
     address: f.address.trim().length >= 5 ? null : T("Enter the address (it fills in from the postal code)."),
     homeowner: homeownerOk ? null : T("Choose the homeowner's account, or type their name."),
-    contact: mobileProblem(splitPhone(f.contact).local, "their"),
+    contact: mobileProblem(f.contact, "their"),
     contractor: contractorOk ? null : ctr === "group" ? T("Choose a contractor group.") : ctr === "users" ? T("Choose at least one person.") : T("Enter the contractor's name."),
     dates: dates === null ? T("Give a start date, an end date, or both.") : (dates.error ?? null),
   };
@@ -472,9 +471,9 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           </Stack>
           <DatesNote start={f.start} end={f.end} />
           {shown("dates") && dates === null && (
-            <Typography role="alert" variant="caption" sx={{ display: "block", color: "error.main", mt: 0.5 }}>
+            <FieldError sx={{ mt: 0.5 }}>
               {shown("dates")}
-            </Typography>
+            </FieldError>
           )}
         </Box>
       </Stack>

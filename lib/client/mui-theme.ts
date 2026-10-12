@@ -113,7 +113,14 @@ export const theme = createTheme({
     },
     MuiOutlinedInput: {
       styleOverrides: {
-        root: { borderRadius: R.field },
+        root: ({ theme: t }) => ({
+          borderRadius: R.field,
+          "&.Mui-error": {
+            backgroundColor: t.vars ? `rgb(${t.vars.palette.error.mainChannel} / 0.1)` : "rgba(206,46,51,0.1)",
+            ...t.applyStyles("dark", { backgroundColor: t.vars ? `rgb(${t.vars.palette.error.mainChannel} / 0.2)` : "rgba(240,115,111,0.2)" }),
+            "& .MuiOutlinedInput-notchedOutline": { borderWidth: 2, borderColor: (t.vars ?? t).palette.error.main },
+          },
+        }),
         // 16px on phones: anything smaller makes iOS Safari zoom on focus.
         // 52px tall, the same as the account screens' fields.
         input: ({ ownerState }) => {
@@ -131,8 +138,53 @@ export const theme = createTheme({
       styleOverrides: { paper: { borderRadius: R.dialog }, paperFullScreen: { borderRadius: 0 } },
     },
     MuiInputLabel: {
-      // Labels sitting on the border are green, as on the sign-up screens.
-      styleOverrides: { shrink: ({ theme: t }) => ({ color: (t.vars ?? t).palette.primary.main, fontWeight: 500 }) },
+      // Labels sitting on the border are green, as on the sign-up screens; red and bold when the field needs fixing.
+      styleOverrides: {
+        shrink: ({ theme: t }) => ({ color: (t.vars ?? t).palette.primary.main, fontWeight: 500 }),
+        root: ({ theme: t }) => ({ "&.Mui-error": { color: (t.vars ?? t).palette.error.main, fontWeight: 700 } }),
+      },
+    },
+    // A field that needs fixing can't be missed: a thick red border on a red-tinted box,
+    // and the reason in a solid red bar right under it, bold, with a "!" mark.
+    MuiFormHelperText: {
+      styleOverrides: {
+        root: ({ theme: t }) => ({
+          "&.Mui-error": {
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            margin: "6px 0 0",
+            padding: "7px 10px",
+            borderRadius: R.chip,
+            backgroundColor: (t.vars ?? t).palette.error.main,
+            color: (t.vars ?? t).palette.error.contrastText,
+            fontWeight: 700,
+            fontSize: 13,
+            lineHeight: 1.4,
+            "&::before": {
+              content: '"!"',
+              flex: "0 0 auto",
+              width: 18,
+              height: 18,
+              marginTop: 0.5,
+              borderRadius: "50%",
+              display: "grid",
+              placeItems: "center",
+              fontSize: 12,
+              fontWeight: 800,
+              backgroundColor: (t.vars ?? t).palette.error.contrastText,
+              color: (t.vars ?? t).palette.error.main,
+            },
+          },
+        }),
+      },
+    },
+    MuiAlert: {
+      // The summary above a form's button reads as firmly as the fields it points at.
+      styleOverrides: {
+        root: ({ theme: t, ownerState }) =>
+          ownerState.severity === "error" && (ownerState.variant ?? "standard") === "standard" ? { fontWeight: 600, border: `1.5px solid ${(t.vars ?? t).palette.error.main}` } : {},
+      },
     },
     MuiDialogTitle: {
       styleOverrides: { root: { fontWeight: 600 } },
