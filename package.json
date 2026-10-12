@@ -19,6 +19,8 @@
     "icons": "node scripts/generate-icons.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:backup": "node scripts/py.mjs scripts/backup.py",
+    "db:restore": "node scripts/py.mjs scripts/restore.py",
     "db:studio": "drizzle-kit studio",
     "db:verify": "tsx scripts/verify-schema.ts",
     "db:verify-nric": "tsx scripts/verify-nric.ts",

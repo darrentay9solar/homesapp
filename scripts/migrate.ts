@@ -7,7 +7,12 @@
  * Both flags are required for production, and neither has a default. "I ran
  * that against the wrong database" should take two deliberate acts, not one
  * forgotten argument.
+ *
+ * Before touching production it takes a restore point: a backup of every row
+ * (scripts/backup.py) into backups/. If that fails, nothing is migrated.
+ * Put it back with scripts/restore.py (see docs/backups.md).
  */
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -58,6 +63,14 @@ async function main() {
   console.log(`  as       : ${parsed.username}`);
   console.log(`  target   : ${targetsProduction ? "PRODUCTION" : "development"}`);
   console.log("-".repeat(52));
+
+  if (targetsProduction) {
+    // A restore point first: if the migration goes wrong, the data can be put back as it was this minute.
+    console.log("
+  Restore point: backing up production first…");
+    const r = spawnSync(process.execPath, ["scripts/py.mjs", "scripts/backup.py", "--target", "prod", "--reason", "before migrating production"], { stdio: "inherit" });
+    if (r.status !== 0) throw new Error("The restore point (backup) failed, so nothing was migrated.");
+  }
 
   const db = drizzle(neon(url));
   await migrate(db, { migrationsFolder: "./db/migrations" });

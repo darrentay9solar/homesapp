@@ -1,0 +1,61 @@
+name: Nightly backup
+
+# Every night at 02:00 Singapore time, a copy of every row in the production
+# database (scripts/backup.py), encrypted, kept 30 days as a private artifact
+# of this repository (Actions → Nightly backup → a run → Artifacts).
+#
+# It connects as gethomeapps_backup, a login that reads everything and can
+# write nothing (scripts/create_backup_role.py). Needs two repository secrets,
+# set by `python scripts/create_backup_role.py --target prod --github`:
+#   BACKUP_DATABASE_URL   the read-only login's connection string
+#   BACKUP_PASSPHRASE     the key the file is encrypted with (keep a copy in your password manager)
+# Until both are set, this fails, so a missing backup is never silent.
+#
+# To open one: docs/backups.md.
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # 18:00 UTC = 02:00 in Singapore
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install "psycopg[binary]==3.2.3"
+
+      - name: Back up production
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::BACKUP_DATABASE_URL or BACKUP_PASSPHRASE isn't set. Run: python scripts/create_backup_role.py --target prod --github"
+            exit 1
+          fi
+          python scripts/backup.py --url-env BACKUP_DATABASE_URL --label prod --reason nightly --out out
+          f=$(ls out/*.tar.gz)
+          # Encrypted before it leaves the runner: the artifact alone reveals nothing.
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$f" -out "$f.enc" -pass env:BACKUP_PASSPHRASE
+          rm "$f"
+          ls -l out
+
+      - name: Keep it 30 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-backup-${{ github.run_id }}
+          path: out/*.enc
+          retention-days: 30
+          if-no-files-found: error
