@@ -79,6 +79,11 @@ WIPE = [
     "project_milestones",
     "project_files",
     "project_assignments",
+    "data_exports",
+    "maintenance_reminders",
+    "calendar_blocks",
+    "meeting_people",
+    "meetings",
     "maintenance_systems",
     "projects",
     "role_change_requests",
@@ -942,6 +947,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             history.append((r["project_id"], {"homeowner_approved": at(2, 4), "homeowner_declined": at(3), "pm_approved": at(3, 1), "in_progress": at(4)}))
     backdate(c, history)
     maintenance(c, u)
+    meetings(c, u)
 
 
 # Sample systems from before the app, as the project listing import brings them in:
@@ -996,6 +1002,58 @@ def maintenance(c: psycopg.Connection, u: dict[str, int]) -> None:
                 urgent is not None, urgent,
             ),
         )  # fmt: skip
+
+
+def meetings(c: psycopg.Connection, u: dict[str, int]) -> None:
+    """A week of calendars: meetings waiting for an answer and agreed, a maintenance check booked, time blocked out."""
+    c.execute("select set_config('app.actor_uid', '', false)")
+
+    def at(days: int, h: int, m: int = 0) -> datetime:
+        return datetime.combine(D(days), datetime.min.time().replace(hour=h, minute=m), SG)
+
+    def meeting(title: str, organiser: str, others: dict[str, str], start: datetime, hours: float, **cols) -> int:
+        row = {"title": title, "organiser_id": u[organiser], "starts_at": start, "ends_at": start + timedelta(hours=hours), **cols}
+        mid = c.execute(
+            f"insert into meetings ({', '.join(row)}) values ({', '.join(['%s'] * len(row))}) returning meeting_id",
+            tuple(row.values()),
+        ).fetchone()["meeting_id"]
+        c.execute("insert into meeting_people (meeting_id, user_id, response, responded_at) values (%s, %s, 'accepted', now())", (mid, u[organiser]))
+        for who, answer in others.items():
+            c.execute(
+                "insert into meeting_people (meeting_id, user_id, response, responded_at) values (%s, %s, %s, case when %s <> 'pending' then now() end)",
+                (mid, u[who], answer, answer),
+            )
+            if answer == "pending":
+                c.execute(
+                    "insert into notifications (recipient_uid, kind, title, body, link, created_at) values (%s, 'meeting_request', %s, %s, %s, now() - interval '2 hours')",
+                    (u[who], f"Meeting request · {title}", "Accept or decline in your calendar.", f"/calendar?meeting={mid}"),
+                )
+        return mid
+
+    jk = c.execute("select project_id from projects where name = 'Jalan Kayu Residence'").fetchone()
+    meeting("Design review, Jalan Kayu Residence", "charlotte", {"jasmine": "pending"}, at(1, 10), 1,
+            place="online", online_link="https://teams.microsoft.com/l/meetup-join/demo-design-review",
+            notes="Roof layout and the inverter position.", project_id=jk["project_id"] if jk else None)  # fmt: skip
+    meeting("Crew briefing", "charlotte", {"priya": "accepted", "ravi": "accepted"}, at(2, 14), 1,
+            place="office", location="9 Solar Home office", project_id=jk["project_id"] if jk else None)  # fmt: skip
+    meeting("Monthly review", "sam", {"charlotte": "accepted", "marcus": "pending"}, at(3, 9, 30), 1.5,
+            place="online", online_link="https://meet.google.com/demo-monthly-review")  # fmt: skip
+    meeting("Scaffolding plan", "priya", {"charlotte": "pending"}, at(2, 14, 30), 1, place="site", location="Jalan Kayu")
+    # Siglap Garden House is in maintenance: its homeowner has asked for the 6-month visit.
+    sg = c.execute(
+        "select m.system_id, m.run_by, m.address from maintenance_systems m join projects p using (project_id) "
+        "where p.name = 'Siglap Garden House'"
+    ).fetchone()
+    if sg and sg["run_by"]:
+        manager = next(k for k, v in u.items() if v == sg["run_by"])
+        meeting("6-month check · Siglap Garden House", "ethan", {manager: "pending"}, at(6, 9), 2, kind="maintenance_check",
+                place="site", location=sg["address"], system_id=sg["system_id"], check_key="six_month")  # fmt: skip
+    # A cancelled one stays on record.
+    mid = meeting("Retailer contract call", "charlotte", {"daniel": "accepted"}, at(4, 16), 0.5, place="phone", location="+65 8877 2210")
+    c.execute("update meetings set cancelled_at = now(), cancelled_by = %s where meeting_id = %s", (u["charlotte"], mid))
+    # Blocked-out time: a day's leave, and an afternoon's training.
+    c.execute("insert into calendar_blocks (user_id, starts_at, ends_at, note) values (%s, %s, %s, 'Leave')", (u["charlotte"], at(5, 0), at(6, 0)))
+    c.execute("insert into calendar_blocks (user_id, starts_at, ends_at, note) values (%s, %s, %s, 'Training')", (u["priya"], at(1, 13), at(1, 18)))
 
 
 def add_months(d: date, n: int) -> date:

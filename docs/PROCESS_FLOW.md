@@ -433,7 +433,7 @@ the Projects list: "late" and "no-show" are the same red flags.
 
 ## Maintenance (project managers and superadmins)
 
-**Maintenance** in the menu (on a phone, the spanner in the Projects header).
+**Maintenance** in the menu (on a phone, under **More** on the bottom bar).
 Every system 9 Solar Home looks after once it's turned on:
 
 - **Handed-over projects** arrive by themselves when a PM closes them, with
@@ -463,6 +463,97 @@ enforces the same rules (migration 0031).
 - **TC-52:** Edit a system → Project manager → pick a PM → Save. Sign in as that PM: it's in their Maintenance; another PM doesn't see it.
 - **TC-53:** On a system whose 6-month check is overdue, **Mark done** with today's date: the check turns green, the card is no longer red. Undo brings it back.
 - **TC-54:** On the demo as Charlotte, close Upper Thomson Corner: it leaves Projects, and Maintenance has it with its panels, inverter and checks counted from today.
+
+### The maintenance stage, for the homeowner
+
+When a PM closes a project its status becomes **In Maintenance** (migration
+0032 renamed the old "closed"). The homeowner's project page then opens on a
+**Maintenance** tab: the two checks, when each is due, the visit booked for
+it, and what's on their roof. The installation itself, at 100%, is archived
+under its own **Installation** tab, with a note saying so.
+
+### Maintenance reminders
+
+The 15-minute job reminds about each 6-month and 1-year check three times,
+once each: **14 days before**, **on the day**, and **once when overdue** (not
+for checks more than 90 days overdue, which are a list to work through). They
+go to the system's manager (the superadmins while it has none) and to the
+homeowner, saying whether a visit is already booked. Turn them off in Account
+→ Notifications → **Maintenance checks**.
+
+### Booking a check
+
+On a system (the office) or the homeowner's Maintenance tab, **Book a visit**
+opens the meeting dialog already filled in: the check, the address, two hours
+on site, the homeowner (or, for the homeowner, the manager looking after it).
+The check then shows **Visit asked for** (amber) until everyone accepts, then
+**Visit agreed** (green), linking to the meeting.
+
+- **TC-55:** On the demo as Ethan Chua (Siglap Garden House) → the project opens on Maintenance; Installation shows the archived milestones at 100%. The 6-month check shows "Visit asked for".
+- **TC-56:** As the system's manager, open Calendar → the invitation from Ethan is dashed and listed under "Waiting for your answer"; Accept → the check turns to "Visit agreed".
+
+## Calendar and meetings (everyone)
+
+**Calendar** in the menu (on a phone, the bottom bar). Everyone has their own
+calendar, in 30-minute rows, Singapore time: a **Week** on a laptop, a
+**Day** with the week above it on a phone, and **Upcoming**, a list with the
+invitations to answer first.
+
+- **Arranging a meeting:** **+ Meeting** (or tap an empty half-hour). Pick
+  who; the month marks days when any of them is busy (a dot: part of the day;
+  struck through: the whole working day). Pick how long (30 minutes to 3
+  hours) and a start time: only half-hours free for everyone can be picked,
+  and a busy one says who. Then where: online (paste a Teams or Google Meet
+  link; **New Teams meeting** and **New Google Meet** open one to copy from),
+  on site, at the office, or a phone call; and what it's about.
+- **Answering:** everyone invited gets an alert. **Accept** holds the time in
+  their calendar; **Decline** tells the organiser. Until everyone accepts,
+  the meeting is dashed and "Waiting for answers"; an unanswered invitation
+  doesn't block the time.
+- **Changing:** the organiser changes the time, the people or the place; a
+  new time asks everyone again. **Cancel the meeting** tells everyone; it
+  stays on record.
+- **Blocking out time:** **Block out time**, then one window on each day of
+  a range (e.g. 13:00 to the end of the day, Monday to Friday) or whole days
+  (leave). Nobody can book you then.
+- **Into another calendar:** each meeting has **Google Calendar**, **Outlook
+  / Teams** and an **.ics file** for any calendar app.
+
+Who can invite whom: project managers and superadmins anyone; everyone else
+the people on their projects and the manager looking after their system.
+Nobody can be booked over time they're busy, and accepting a time you're
+already busy is refused; the database checks both (migration 0032). Every
+meeting, answer and block is in the audit log (Audit → **Meetings**).
+
+- **TC-57:** On the demo as Charlotte → Calendar: the week shows Design review (dashed, Jasmine hasn't answered), Crew briefing and Scaffolding plan side by side, Monthly review, and Leave hatched across a whole day.
+- **TC-58:** + Meeting → invite Priya Nair, tomorrow: 13:00 to 18:00 is struck through (her training). Pick 10:00 → Send invitations. As Priya: Accept → it's solid in both calendars.
+- **TC-59:** Block out time → whole days, Friday to Monday → those days are struck through for anyone inviting you.
+
+## Excel exports (project managers and superadmins)
+
+The download icon in the **Projects** header gives every project the reader
+runs (a superadmin: all) as an Excel workbook: a **Projects** sheet with
+every detail a person reads (homeowner, team, dates, the milestone fields,
+the handover, the maintenance contract and checks) and a **Maintenance**
+sheet laid out like the project listing. The icon in the **People** header
+gives everyone with an account: role, contact, groups, projects, language,
+and when their account disables (never the NRIC). Column names follow the
+reader's language. Each export is in the audit log (Audit → **Exports**).
+
+- **TC-60:** As the superadmin on the live site → Projects → download: the Maintenance sheet has the 49 systems in the listing's columns.
+
+## Uploads: camera or file
+
+Every upload (milestone photos and documents, profile pictures) asks first:
+**Take a photo** (a phone opens its camera; a laptop opens its camera in a
+window, with **Use this photo** or **Take another**) or **Choose a file**
+(photos and documents already on the device or a shared drive).
+
+## On a phone: More
+
+The bottom bar holds five: for a project manager or superadmin, Dashboard,
+Projects, Calendar, People and **More**, which opens Maintenance, Alerts,
+Audit, My Files and Account (Alerts is also the bell in every header).
 
 ## The demo site
 
