@@ -217,7 +217,7 @@ function SignUpFlow() {
           error={shown("confirm")}
           slotProps={{ htmlInput: { autoComplete: "new-password", "data-testid": "su-password2" } }}
         />
-        <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { ok: matches, text: T("Passwords match") }, { text: T("Not one that's leaked in a data breach (it's checked).") }, { text: T("A short sentence is easiest to remember.") }]} />
+        <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { ok: matches, text: T("Passwords match") }, { text: T("A short sentence is easiest to remember.") }]} />
         {/* Clerk's bot protection renders its check here when needed. */}
         <Box id="clerk-captcha" sx={{ "&:empty": { display: "none" }, mb: 1.75 }} />
         <AuthError>{err ?? missing}</AuthError>

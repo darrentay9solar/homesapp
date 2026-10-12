@@ -337,7 +337,7 @@ export function PasswordDialog({ onClose }: { onClose: () => void }) {
         <PasswordInput label={T("New password again")} value={f.again} onChange={(v) => setF((x) => ({ ...x, again: v }))} autoComplete="new-password" error={tried ? problem.again : null} />
       </Stack>
       <Typography variant="caption" component="div" sx={{ mt: 1.5, color: f.next && !long ? "error.main" : "text.secondary" }}>
-        {T("At least {n} characters, and not one that's leaked in a data breach (it's checked). A short sentence is easiest to remember.", { n: PASSWORD_MIN })}
+        {T("At least {n} characters. A short sentence is easiest to remember.", { n: PASSWORD_MIN })}
         {f.again && !same ? ` ${T("The two new passwords don't match.")}` : ""}
       </Typography>
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
