@@ -296,7 +296,10 @@ export function PasswordField(props: Omit<TextFieldProps, "error" | "type"> & { 
       type={shown ? "text" : "password"}
       icon={<LockOutlinedIcon />}
       slotProps={{
+        // Keep what the form asked for (autocomplete "new-password", a test id) alongside the eye button.
+        ...props.slotProps,
         input: {
+          ...(props.slotProps?.input as object),
           endAdornment: (
             <InputAdornment position="end">
               <IconButton edge="end" aria-label={shown ? T("Hide password") : T("Show password")} onClick={() => setShown((s) => !s)}>
