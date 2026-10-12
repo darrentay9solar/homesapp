@@ -283,6 +283,68 @@ def test_stage_for():
     assert mr.stage_for(d, date(2027, 2, 10)) is None
 
 
+def test_a_check_is_booked_through_the_calendar(client, fx, pm, owner, system, tidy):
+    fx.conn.execute("update maintenance_systems set homeowner_id = %s where system_id = %s", (owner["uid"], system))
+    # The office books with the homeowner; the homeowner with the manager looking after it.
+    d = client.get(f"/api/py/maintenance/{system}", headers=h(pm)).json()
+    assert d["canBook"] and d["bookWith"] == [owner["uid"]]
+    contacts = {p["uid"] for p in client.get("/api/py/calendar/contacts", headers=h(owner)).json()["people"]}
+    assert pm["uid"] in contacts
+
+    r = client.post(
+        "/api/py/meetings",
+        headers=h(owner),
+        json={
+            "title": "6-month check",
+            "people": [pm["uid"]],
+            "startsAt": slot(8, 10),
+            "endsAt": slot(8, 12),
+            "place": "site",
+            "systemId": system,
+            "checkKey": "six_month",
+        },
+    )
+    assert r.status_code == 200, r.text
+    m = r.json()["meeting"]
+    assert m["kind"] == "maintenance_check" and m["system"]["id"] == system and m["checkKey"] == "six_month"
+
+    six = next(
+        c
+        for c in client.get(f"/api/py/maintenance/{system}", headers=h(pm)).json()["system"]["checks"]
+        if c["key"] == "six_month"
+    )
+    assert six["booked"]["meetingId"] == m["id"] and six["booked"]["agreed"] is False
+    client.post(f"/api/py/meetings/{m['id']}/respond", headers=h(pm), json={"response": "accepted"})
+    six = next(
+        c
+        for c in client.get(f"/api/py/maintenance/{system}", headers=h(pm)).json()["system"]["checks"]
+        if c["key"] == "six_month"
+    )
+    assert six["booked"]["agreed"] is True
+
+    # Somebody else's system can't be booked.
+    stranger = fx.user("homeowner")
+    r = client.post(
+        "/api/py/meetings",
+        headers=h(stranger),
+        json={
+            "title": "x",
+            "people": [pm["uid"]],
+            "startsAt": slot(8, 14),
+            "endsAt": slot(8, 15),
+            "systemId": system,
+            "checkKey": "one_year",
+        },
+    )
+    assert r.status_code in (403, 404)
+    # The audit log says what happened.
+    boss = fx.user("superadmin")
+    log = client.get("/api/py/audit", headers=h(boss), params={"page": "meetings"}).json()
+    assert "Booked a maintenance check" in {
+        e["summary"] for e in log["entries"] if e["location"]["key"] == f"meeting:{m['id']}"
+    }
+
+
 def test_each_reminder_goes_once(fx, pm, system):
     def mine() -> list[dict]:
         return fx.conn.execute(
