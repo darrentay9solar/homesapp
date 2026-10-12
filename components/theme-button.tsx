@@ -4,7 +4,7 @@ import DarkModeRoundedIcon from "@mui/icons-material/DarkModeRounded";
 import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import IconButton from "@mui/material/IconButton";
 
-import { type Lang, T, useLang } from "@/lib/client/i18n";
+import { type Lang, markLangPicked, T, useLang } from "@/lib/client/i18n";
 import { useTheme } from "@/lib/client/theme";
 
 /** Shared look: a 40px round button; `onGreen` makes it white, for a green header or panel. */
@@ -49,7 +49,9 @@ export function LangButton({ onGreen = false, onChange }: { onGreen?: boolean; o
       aria-label={next === "zh" ? "切换到中文 (Switch to Chinese)" : "Switch to English (切换到英文)"}
       onClick={() => {
         setLang(next);
-        onChange?.(next);
+        // Signed in: saved to the account. Signed out: saved once they sign in.
+        if (onChange) onChange(next);
+        else markLangPicked();
       }}
       data-testid="lang-button"
       sx={{ ...round(onGreen), fontFamily: "inherit", fontWeight: 700, fontSize: next === "zh" ? 16 : 12.5, lineHeight: 1 }}

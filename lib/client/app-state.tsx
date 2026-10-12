@@ -10,9 +10,9 @@ import Card from "@mui/material/Card";
 import Snackbar from "@mui/material/Snackbar";
 import Typography from "@mui/material/Typography";
 
-import { useApi } from "./api";
+import { useApi, useFetcher } from "./api";
 import { demoAs, leaveDemo } from "./demo";
-import { currentLang, type Lang, T, translate, useLang } from "./i18n";
+import { currentLang, type Lang, T, takeLangPicked, translate, useLang } from "./i18n";
 import type { Prefs } from "./prefs";
 import { registration, setBadge } from "./push";
 
@@ -102,9 +102,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [data, router]);
 
   const { lang, setLang } = useLang();
+  const fetcher = useFetcher();
   const accountLang = data?.settings?.language;
   useEffect(() => {
-    if (accountLang && accountLang !== lang && !data?.actingAs) setLang(accountLang);
+    if (!accountLang || data?.actingAs) return;
+    // Picked on the sign-in screen just now: that's the choice, so the account follows it.
+    if (takeLangPicked() && accountLang !== lang) {
+      void fetcher("/me/settings", { method: "PATCH", json: { language: lang } }).then(() => reload(), () => undefined);
+      return;
+    }
+    if (accountLang !== lang) setLang(accountLang);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the account's choice changes
   }, [accountLang]);
 

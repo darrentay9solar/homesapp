@@ -102,6 +102,30 @@ const LangCtx = createContext<Ctx>({
   tr: (s) => s ?? "",
 });
 
+/**
+ * A language picked before signing in (on the sign-in or sign-up screens) is
+ * the person's latest choice: once they're in, it's saved to their account
+ * rather than replaced by the one saved there before.
+ */
+const PICKED_COOKIE = "gha-lang-picked";
+export function markLangPicked(): void {
+  try {
+    document.cookie = `${PICKED_COOKIE}=1; path=/; max-age=${60 * 60 * 24}; samesite=lax`;
+  } catch {
+    /* cookies blocked */
+  }
+}
+/** Whether a language was picked before signing in; reading it clears it. */
+export function takeLangPicked(): boolean {
+  try {
+    const picked = new RegExp(`(?:^|;\\s*)${PICKED_COOKIE}=1\\b`).test(document.cookie);
+    if (picked) document.cookie = `${PICKED_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    return picked;
+  } catch {
+    return false;
+  }
+}
+
 export function readLangCookie(cookie: string | undefined | null): Lang {
   return /(?:^|;\s*)gha-lang=zh\b/.test(cookie ?? "") ? "zh" : "en";
 }

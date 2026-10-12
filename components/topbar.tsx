@@ -19,7 +19,8 @@ import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { ApiError, useDownload } from "@/lib/client/api";
+import { LangButton } from "@/components/theme-button";
+import { ApiError, useDownload, useFetcher } from "@/lib/client/api";
 import { type Role, useApp } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { useLang } from "@/lib/client/i18n";
@@ -109,6 +110,8 @@ export function TopBar({
             )}
           </Box>
           {action}
+          {/* English / 中文 on every screen, saved to the account. */}
+          <HeaderLang />
           <IconButton component={Link} href="/alerts" aria-label={unread ? t("{n} unread alerts", { n: unread }) : t("Alerts")} sx={{ color: "#fff" }}>
             <Badge color="warning" variant="dot" invisible={!unread}>
               <NotificationsRoundedIcon />
@@ -150,6 +153,20 @@ export function gradText(tone: keyof typeof DESIGN.textGradient = "green") {
     maxWidth: "100%",
     "@media (forced-colors: active)": { backgroundImage: "none", color: "CanvasText", WebkitTextFillColor: "CanvasText" },
   });
+}
+
+/** The language switch in a green header: swaps English and 中文 and saves it to the account. */
+function HeaderLang() {
+  const fetcher = useFetcher();
+  const { reloadMe } = useApp();
+  return (
+    <LangButton
+      onGreen
+      onChange={(l) => {
+        void fetcher("/me/settings", { method: "PATCH", json: { language: l } }).then(() => reloadMe(), () => undefined);
+      }}
+    />
+  );
 }
 
 export function Heading({ title, count, action }: { title: string; count?: number; action?: ReactNode }) {
