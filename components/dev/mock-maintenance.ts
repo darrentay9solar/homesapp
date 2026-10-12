@@ -77,6 +77,17 @@ export function mockSystem(id: number): MaintenanceDetail {
     project: s.project ? { id: s.project.id, name: s.project.name, signedAt: new Date(Date.now() - 45 * DAY).toISOString(), closedAt: new Date(Date.now() - 40 * DAY).toISOString(), certificate: "#" } : null,
     canEdit: true,
     canAssign: true,
+    canBook: true,
+    bookWith: [5],
     managers: MANAGERS,
   };
+}
+
+/** A handed-over project's Maintenance tab: its system, with the 6-month visit asked for. */
+export function mockProjectMaintenance(pid: number): MaintenanceDetail {
+  const s = SYSTEMS.find((x) => x.project?.id === pid) ?? SYSTEMS[3];
+  const start = `${day(5)}T09:00:00+08:00`;
+  const end = `${day(5)}T11:00:00+08:00`;
+  const checks = s.checks.map((c, i) => (i === 0 && c.state !== "done" ? { ...c, booked: { meetingId: 305, startsAt: start, endsAt: end, agreed: false } } : c));
+  return { ...mockSystem(s.id), system: { ...s, checks, notes: null }, canEdit: false, canAssign: false, bookWith: [1] };
 }

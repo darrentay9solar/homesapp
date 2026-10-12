@@ -36,6 +36,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { BarList, ChartCard, ColumnChart, DataTable, Gauge, Heatmap, StatTile, TILE_GRID, seriesColor } from "@/components/charts";
+import { UpkeepTab } from "@/components/dashboard-maintenance";
 import { Field, ROLE_NAME } from "@/components/m";
 import { StatusChip, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
@@ -48,7 +49,7 @@ import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
 import { useTab } from "@/lib/client/tabs";
 
-type Tab = "overview" | "delivery" | "site" | "sales";
+type Tab = "overview" | "delivery" | "site" | "sales" | "maintenance";
 /** The list opened from a tile or a bar: its title and the projects in it. */
 type Open = { key: string; title: string; ids: number[] } | null;
 
@@ -61,7 +62,7 @@ export default function DashboardPage() {
   const me = useMe();
   const router = useRouter();
   const admin = isAdmin(me?.role);
-  const [tab, setTab] = useTab<Tab>(["overview", "delivery", "site", "sales"], "overview");
+  const [tab, setTab] = useTab<Tab>(["overview", "delivery", "site", "sales", "maintenance"], "overview");
   const [period, setPeriod] = useState<Period>("90d");
   const [pm, setPm] = useState("");
   // The open list belongs to the tab and filters it was opened under.
@@ -99,6 +100,7 @@ export default function DashboardPage() {
               { value: "delivery", label: "Delivery" },
               { value: "site", label: "Site work" },
               { value: "sales", label: "Sales" },
+              { value: "maintenance", label: "Maintenance" },
             ]}
           />
         }
@@ -107,13 +109,14 @@ export default function DashboardPage() {
         <Page>
           {/* One row of filters above everything they scope. */}
           <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1.5, mt: 1.5, mb: 2 }}>
-            <Field select label={T("Period")} value={period} onChange={(e) => setPeriod(e.target.value as Period)} sx={{ minWidth: 200 }} data-testid="dashboard-period">
+            {/* Maintenance looks ahead at the checks, not back over a period. */}
+            {tab !== "maintenance" && <Field select label={T("Period")} value={period} onChange={(e) => setPeriod(e.target.value as Period)} sx={{ minWidth: 200 }} data-testid="dashboard-period">
               {PERIODS.map(([k, l]) => (
                 <MenuItem key={k} value={k}>
                   {TR(l)}
                 </MenuItem>
               ))}
-            </Field>
+            </Field>}
             {data?.scope.superadmin && (
               <Field
                 select
@@ -147,6 +150,7 @@ export default function DashboardPage() {
               {tab === "delivery" && <Delivery d={data} open={open} toggle={toggle} />}
               {tab === "site" && <SiteWork d={data} />}
               {tab === "sales" && <Sales d={data} />}
+              {tab === "maintenance" && (data.maintenance ? <UpkeepTab u={data.maintenance} /> : <Alert severity="info">{T("No systems to look after yet")}</Alert>)}
             </Box>
           )}
         </Page>

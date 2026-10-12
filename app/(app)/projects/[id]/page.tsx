@@ -3,6 +3,7 @@
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import EngineeringRoundedIcon from "@mui/icons-material/EngineeringRounded";
+import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
@@ -24,6 +25,7 @@ import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { atHandover, HandoverPanel } from "@/components/handover";
+import { ProjectMaintenance } from "@/components/maintenance";
 import { Field, MDialog, RoleChip } from "@/components/m";
 import { SectionPanel } from "@/components/project-fields";
 import { SiteSchedule } from "@/components/site-visits";
@@ -53,7 +55,9 @@ export default function ProjectPage() {
   const reloadAll = useCallback(async () => {
     await Promise.all([reload(), reloadFields(), reloadVisits()]);
   }, [reload, reloadFields, reloadVisits]);
-  const [tab, setTab] = useTab<Tab>(["milestones", "details", "visits"], "milestones");
+  // Handed over, a project is in maintenance: that's its first tab, and the installation is archived beside it.
+  const upkeep = p?.status === "maintenance";
+  const [tab, setTab] = useTab<Tab>(["maintenance", "milestones", "details", "visits"], upkeep ? "maintenance" : "milestones");
   // An alert about a site visit links to #site-visits: open that tab.
   useEffect(() => {
     if (window.location.hash === "#site-visits") setTab("visits");
@@ -74,7 +78,8 @@ export default function ProjectPage() {
             value={tab}
             onChange={setTab}
             options={[
-              { value: "milestones", label: fields?.relation === "homeowner" ? "Your installation" : "Milestones" },
+              ...(upkeep ? [{ value: "maintenance" as const, label: "Maintenance" }] : []),
+              { value: "milestones", label: upkeep ? "Installation" : fields?.relation === "homeowner" ? "Your installation" : "Milestones" },
               { value: "details", label: "Details" },
               { value: "visits", label: "Site visits", count: visits?.visits.length },
             ]}
@@ -96,7 +101,7 @@ export default function ProjectPage() {
   );
 }
 
-type Tab = "milestones" | "details" | "visits";
+type Tab = "maintenance" | "milestones" | "details" | "visits";
 
 /**
  * The automated header from the brief (progress, on track, days running) and
@@ -126,8 +131,14 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
         <Summary p={p} />
       </Stack>
       <Box sx={{ minWidth: 0 }} data-testid={`project-${tab}`}>
+        {tab === "maintenance" && <ProjectMaintenance pid={p.id} />}
         {tab === "milestones" && (
           <>
+            {p.status === "maintenance" && (
+              <Alert severity="success" icon={<Inventory2RoundedIcon />} sx={{ mb: 1.5 }} data-testid="installation-archived">
+                {T("Archived: the installation is complete and handed over. It's kept here as a record.")}
+              </Alert>
+            )}
             <MilestoneTrack p={p} />
             <Stack sx={{ gap: 1.25, mt: 2 }}>
               {!ctx && SECTIONS.map((x) => <Skeleton key={x.key} variant="rounded" height={68} />)}

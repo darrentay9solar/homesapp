@@ -30,6 +30,24 @@ export type MiniProject = {
 export type Crew = { name: string; projects: number; ongoing: number; late: number; visits: number; attended: number; missed: number; lateArrivals: number; attendance: number | null };
 export type Manager = { uid: number; name: string; projects: number; ongoing: number; late: number; closed: number; onTime: number | null };
 
+/** A system behind a number on the Maintenance tab. */
+export type UpkeepSystem = { id: number; address: string; postalCode: string | null; pm: string | null; kwp: number | null; urgent: boolean; next: { key: string; due: string; overdue: boolean } | null };
+type UpkeepGroup = { label: string; count: number; kwp: number; ids: number[] };
+/** The dashboard's Maintenance tab: the systems the reader looks after (a superadmin: all). */
+export type Upkeep = {
+  tiles: Record<"systems" | "dueSoon" | "overdue" | "urgent" | "unassigned", { count: number; ids: number[] }>;
+  kwp: number;
+  avgKwp: number | null;
+  upcoming: Array<{ label: string; six: number; year: number }>;
+  turnedOn: Array<{ label: string; count: number; kwp: number }>;
+  byPlan: UpkeepGroup[];
+  byPpa: UpkeepGroup[];
+  byPhase: UpkeepGroup[];
+  byRegion: UpkeepGroup[];
+  inverters: Array<{ label: string; count: number }>;
+  systems: Record<string, UpkeepSystem>;
+};
+
 export type Analytics = {
   period: { key: Period; label: string; from: string | null; to: string };
   tiles: Record<TileKey, Tile>;
@@ -70,6 +88,7 @@ export type Analytics = {
     signups: { count: number; delta: number | null; approved: number; pending: number; byRole: Bar[] };
   };
   team: Manager[] | null;
+  maintenance?: Upkeep;
   projects: Record<string, MiniProject>;
   scope: { superadmin: boolean; pm: number | null; managers: Array<{ uid: number; name: string }> };
 };

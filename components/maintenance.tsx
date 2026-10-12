@@ -10,6 +10,7 @@ import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalService
 import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import EventRoundedIcon from "@mui/icons-material/EventRounded";
 import GridViewRoundedIcon from "@mui/icons-material/GridViewRounded";
+import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
 import NotesRoundedIcon from "@mui/icons-material/NotesRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
@@ -20,6 +21,7 @@ import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
 import UndoRoundedIcon from "@mui/icons-material/UndoRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -29,6 +31,7 @@ import Divider from "@mui/material/Divider";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
+import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import type { Theme } from "@mui/material/styles";
 import Switch from "@mui/material/Switch";
@@ -39,9 +42,10 @@ import { useState } from "react";
 
 import { MeetingDialog } from "@/components/calendar";
 import { Field, MDialog } from "@/components/m";
+import { DetailRow } from "@/components/projects";
 import { EdgeCard, gradText } from "@/components/topbar";
 import { d2s } from "@/components/ui";
-import { ApiError, useFetcher } from "@/lib/client/api";
+import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp } from "@/lib/client/app-state";
 import { whenText } from "@/lib/client/calendar";
 import { T, TR, useLang } from "@/lib/client/i18n";
@@ -576,4 +580,55 @@ export function ChecksCard({
 export function useMeetingHref() {
   const preview = usePathname().startsWith("/dev-preview");
   return (id: number) => `${preview ? "/dev-preview" : ""}/calendar?meeting=${id}`;
+}
+
+/**
+ * A handed-over project's Maintenance tab (its homeowner, and the office):
+ * the checks, with booking a visit, and what's on the roof. The project's
+ * installation itself is archived under its own tab.
+ */
+export function ProjectMaintenance({ pid }: { pid: number }) {
+  const { data, error, reload } = useApi<MaintenanceDetail>(`/projects/${pid}/maintenance`);
+  const href = useMaintenanceHref();
+  if (error)
+    return (
+      <Alert severity="info" sx={{ mt: 1 }}>
+        {error.message}
+      </Alert>
+    );
+  if (!data) return <Skeleton variant="rounded" height={260} />;
+  const s = data.system;
+  return (
+    <Stack sx={{ gap: 2 }} data-testid="project-maintenance">
+      <ChecksCard d={data} onBooked={() => void reload()} />
+      <Card sx={{ px: 2, py: 0.5 }} data-testid="system-details">
+        <DetailRow icon={<SolarPowerRoundedIcon />} k="System size">
+          {kwpText(s.kwp) ?? "—"}
+        </DetailRow>
+        <DetailRow icon={<GridViewRoundedIcon />} k="Panels">
+          {panelText(s.panels) ?? "—"}
+        </DetailRow>
+        <DetailRow icon={<ElectricalServicesRoundedIcon />} k="Inverter">
+          {s.inverters.join(", ") || "—"}
+        </DetailRow>
+        <DetailRow icon={<PowerSettingsNewRoundedIcon />} k="Turned on">
+          {s.turnedOn ? d2s(s.turnedOn) : "—"}
+        </DetailRow>
+        <DetailRow icon={<DescriptionOutlinedIcon />} k="PPA">
+          {ppaText(s) ?? "—"}
+        </DetailRow>
+        <DetailRow icon={<CalendarMonthRoundedIcon />} k="Maintenance plan">
+          {planText(s) ?? "—"}
+        </DetailRow>
+        <DetailRow icon={<ShieldOutlinedIcon />} k="Looked after by">
+          {s.pm.name ?? T("9 Solar Home")}
+        </DetailRow>
+      </Card>
+      {data.canEdit && (
+        <Button variant="outlined" component={Link} href={href(s.id)} startIcon={<HandymanRoundedIcon />} sx={{ alignSelf: "flex-start" }}>
+          {T("Open in Maintenance")}
+        </Button>
+      )}
+    </Stack>
+  );
 }

@@ -1,3 +1,5 @@
+import { mockMaintenance } from "./mock-maintenance";
+
 /**
  * DEVELOPMENT ONLY. Sample dashboard data for /dev-preview/dashboard and the
  * design check: a year of a busy installer, so every chart has something to
@@ -117,7 +119,47 @@ export function mockAnalytics(search: URLSearchParams) {
       { uid: 15, name: "Charlotte Sim", projects: 20, ongoing: 6, late: 2, closed: 9, onTime: 0.778 },
       { uid: 16, name: "Marcus Lim", projects: 10, ongoing: 3, late: 1, closed: 5, onTime: 0.8 },
     ],
+    maintenance: upkeep(),
     projects,
     scope: { superadmin: true, pm: null, managers: [{ uid: 15, name: "Charlotte Sim" }, { uid: 16, name: "Marcus Lim" }] },
+  };
+}
+
+/** The Maintenance tab, from the sample systems in mock-maintenance (made-up addresses). */
+function upkeep() {
+  const { systems: list } = mockMaintenance();
+  const ids = (f: (s: (typeof list)[number]) => boolean) => list.filter(f).map((s) => s.id);
+  const months = (back: boolean) =>
+    Array.from({ length: 12 }, (_, i) => {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() + (back ? i - 11 : i));
+      return d.toISOString().slice(0, 7);
+    });
+  const g = (rows: Array<[string, number, number]>) => rows.map(([label, count, kwp]) => ({ label, count, kwp, ids: list.slice(0, count).map((s) => s.id) }));
+  const systems: Record<string, object> = {};
+  for (const s of list) {
+    const n = s.checks.find((c) => c.state !== "done" && c.due);
+    systems[String(s.id)] = { id: s.id, address: s.address, postalCode: s.postalCode, pm: s.pm.name, kwp: s.kwp, urgent: s.urgent, next: n ? { key: n.key, due: n.due, overdue: n.state === "overdue" } : null };
+  }
+  const kwp = Math.round(list.reduce((a, s) => a + (s.kwp ?? 0), 0) * 100) / 100;
+  return {
+    tiles: {
+      systems: { count: list.length, ids: list.map((s) => s.id) },
+      dueSoon: { count: ids((s) => s.next?.state === "due_soon").length, ids: ids((s) => s.next?.state === "due_soon") },
+      overdue: { count: ids((s) => s.checks.some((c) => c.state === "overdue")).length, ids: ids((s) => s.checks.some((c) => c.state === "overdue")) },
+      urgent: { count: ids((s) => s.urgent).length, ids: ids((s) => s.urgent) },
+      unassigned: { count: ids((s) => !s.pm.uid).length, ids: ids((s) => !s.pm.uid) },
+    },
+    kwp,
+    avgKwp: Math.round((kwp / list.length) * 100) / 100,
+    upcoming: months(false).map((label, i) => ({ label, six: [2, 0, 1, 3, 1, 0, 2, 4, 1, 0, 1, 2][i], year: [0, 1, 0, 1, 2, 3, 1, 0, 2, 1, 0, 1][i] })),
+    turnedOn: months(true).map((label, i) => ({ label, count: [1, 0, 2, 1, 3, 2, 1, 4, 2, 3, 1, 2][i], kwp: [12.4, 0, 30.1, 11.5, 45.2, 24.8, 16.5, 52.3, 23.6, 38.4, 12.4, 24.9][i] })),
+    byPlan: g([["Free for 5 years", 3, 47.3], ["7 years excluding 1st year", 2, 54.9], ["Free for 3 years", 1, 23.6], ["Not recorded", 1, 12.4]]),
+    byPpa: g([["5-year PPA", 3, 37.2], ["7-year PPA", 1, 16.5], ["8-year PPA", 1, 38.4], ["Value buy", 1, 23.6], ["Not recorded", 1, 12.4]]),
+    byPhase: g([["Single-phase", 5, 73.6], ["3-phase", 2, 62.0]]),
+    byRegion: g([["East", 3, 52.1], ["Central", 2, 50.8], ["North-East", 1, 12.4], ["West", 1, 23.6]]),
+    inverters: [{ label: "SUN2000-10K-LC0", count: 3 }, { label: "SUN2000-5KTL-L1", count: 2 }, { label: "SUN2000-17KTL-MB0", count: 2 }, { label: "SUN2000-25KTL-M5", count: 1 }, { label: "SUN2000-12K-MB0", count: 1 }],
+    systems,
   };
 }
