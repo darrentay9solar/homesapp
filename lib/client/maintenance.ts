@@ -9,7 +9,9 @@ import { normalise, tokens } from "./people-search";
 
 export type CheckKey = "six_month" | "one_year";
 export type CheckState = "done" | "overdue" | "due_soon" | "scheduled" | "unscheduled";
-export type Check = { key: CheckKey; label: string; due: string | null; doneOn: string | null; state: CheckState };
+/** A visit booked for a check (a maintenance-check meeting); agreed once everyone has accepted. */
+export type Booking = { meetingId: number; startsAt: string; endsAt: string; agreed: boolean };
+export type Check = { key: CheckKey; label: string; due: string | null; doneOn: string | null; state: CheckState; booked?: Booking | null };
 export type PanelSet = { count: number; wp: number | null };
 
 export type MaintenanceSystem = {
@@ -46,6 +48,10 @@ export type MaintenanceDetail = {
   project: { id: number; name: string | null; signedAt: string | null; closedAt: string | null; certificate: string | null } | null;
   canEdit: boolean;
   canAssign: boolean;
+  /** May book a visit for a check: the system's managers and its homeowner. */
+  canBook?: boolean;
+  /** Who a visit is booked with: the homeowner (for the office), or the manager (for the homeowner). */
+  bookWith?: number[];
   managers: Manager[];
 };
 

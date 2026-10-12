@@ -3,9 +3,11 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalServicesRounded";
+import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import EventRoundedIcon from "@mui/icons-material/EventRounded";
 import GridViewRoundedIcon from "@mui/icons-material/GridViewRounded";
 import NotesRoundedIcon from "@mui/icons-material/NotesRounded";
@@ -16,11 +18,14 @@ import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRou
 import RoofingRoundedIcon from "@mui/icons-material/RoofingRounded";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
+import UndoRoundedIcon from "@mui/icons-material/UndoRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
@@ -28,15 +33,18 @@ import Stack from "@mui/material/Stack";
 import type { Theme } from "@mui/material/styles";
 import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { MeetingDialog } from "@/components/calendar";
 import { Field, MDialog } from "@/components/m";
 import { EdgeCard, gradText } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useFetcher } from "@/lib/client/api";
 import { useApp } from "@/lib/client/app-state";
-import { T, TR } from "@/lib/client/i18n";
+import { whenText } from "@/lib/client/calendar";
+import { T, TR, useLang } from "@/lib/client/i18n";
 import {
   addMonths,
   type Check,
@@ -443,4 +451,129 @@ export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail
       </Typography>
     </MDialog>
   );
+}
+
+// ------------------------------------------------------------------- checks and booking
+
+export const CHECK_STATE: Record<Check["state"], string> = {
+  done: "Done",
+  overdue: "Overdue",
+  due_soon: "Due soon",
+  scheduled: "Scheduled",
+  unscheduled: "Not scheduled",
+};
+
+/**
+ * A system's 6-month and 1-year checks: when each is due or was done, the
+ * visit booked for it (waiting for answers, or agreed), and booking one
+ * through the calendar. The office also marks a check done (onMark, onUndo).
+ */
+export function ChecksCard({
+  d,
+  busy = false,
+  onMark,
+  onUndo,
+  onBooked,
+}: {
+  d: MaintenanceDetail;
+  busy?: boolean;
+  onMark?: (c: Check) => void;
+  onUndo?: (c: Check) => void;
+  onBooked: () => void;
+}) {
+  const s = d.system;
+  const { lang } = useLang();
+  const meetingHref = useMeetingHref();
+  const [booking, setBooking] = useState<Check | null>(null);
+  const today = sgToday();
+  return (
+    <Card sx={{ p: { xs: 2, sm: 2.5 } }} data-testid="system-checks">
+      <Typography component="h2" sx={[{ fontWeight: 600, fontSize: 17 }, gradText()]}>
+        {T("Maintenance checks")}
+      </Typography>
+      <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
+        {nextCheckText(s)}
+      </Typography>
+      <Stack sx={{ mt: 1.5 }} divider={<Divider />}>
+        {s.checks.map((c) => (
+          <Box key={c.key} sx={{ py: 1.25 }} data-testid={`check-${c.key}`}>
+            <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+              <Box sx={{ color: c.state === "done" ? "success.main" : c.state === "overdue" ? "error.main" : "text.secondary", display: "grid" }}>
+                {c.state === "done" ? <CheckCircleRoundedIcon /> : <EventRoundedIcon />}
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography noWrap sx={{ fontWeight: 600 }}>
+                  {TR(c.label)}
+                </Typography>
+                <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", flexWrap: "wrap", mt: 0.25 }}>
+                  <Chip size="small" color={checkColor(c)} variant={c.state === "scheduled" ? "outlined" : "filled"} label={TR(CHECK_STATE[c.state])} sx={{ height: 22 }} />
+                  <Typography variant="caption" sx={{ color: c.state === "overdue" ? "error.main" : "text.secondary", fontWeight: c.state === "overdue" ? 700 : 400 }}>
+                    {c.doneOn ? T("Done {date}", { date: d2s(c.doneOn) }) : c.due ? T("Due {date}", { date: d2s(c.due) }) : T("Not scheduled")}
+                  </Typography>
+                </Stack>
+              </Box>
+              {onMark &&
+                onUndo &&
+                (c.state === "done" ? (
+                  <Button size="small" startIcon={<UndoRoundedIcon />} disabled={busy} onClick={() => onUndo(c)} aria-label={T("Undo {check}", { check: TR(c.label) })}>
+                    {T("Undo")}
+                  </Button>
+                ) : (
+                  <Button size="small" variant="contained" disabled={busy || !c.due} onClick={() => onMark(c)} data-testid={`done-${c.key}`}>
+                    {T("Mark done")}
+                  </Button>
+                ))}
+            </Stack>
+            {c.state !== "done" && (c.booked || d.canBook) && (
+              <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 1, ml: { xs: 0, sm: 4.5 }, flexWrap: "wrap" }}>
+                {c.booked ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color={c.booked.agreed ? "success" : "warning"}
+                    startIcon={<EventAvailableRoundedIcon />}
+                    component={Link}
+                    href={meetingHref(c.booked.meetingId)}
+                    data-testid={`booked-${c.key}`}
+                    sx={{ textAlign: "left" }}
+                  >
+                    {c.booked.agreed ? T("Visit agreed: {when}", { when: whenText(c.booked, lang) }) : T("Visit asked for: {when}", { when: whenText(c.booked, lang) })}
+                  </Button>
+                ) : (
+                  <Button size="small" variant="outlined" startIcon={<EventRoundedIcon />} onClick={() => setBooking(c)} data-testid={`book-${c.key}`}>
+                    {T("Book a visit")}
+                  </Button>
+                )}
+              </Stack>
+            )}
+          </Box>
+        ))}
+      </Stack>
+      {booking && (
+        <MeetingDialog
+          draft={{
+            title: `${TR(booking.label)} · ${s.address}`,
+            people: d.bookWith ?? [],
+            systemId: s.id,
+            checkKey: booking.key,
+            place: "site",
+            location: [s.address, s.postalCode ? `Singapore ${s.postalCode}` : null].filter(Boolean).join(", "),
+            duration: 120,
+            day: booking.due && booking.due > today ? booking.due : undefined,
+          }}
+          onClose={() => setBooking(null)}
+          onSaved={() => {
+            setBooking(null);
+            onBooked();
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+/** A meeting in the calendar: inside the dev preview when browsing it, otherwise the app. */
+export function useMeetingHref() {
+  const preview = usePathname().startsWith("/dev-preview");
+  return (id: number) => `${preview ? "/dev-preview" : ""}/calendar?meeting=${id}`;
 }

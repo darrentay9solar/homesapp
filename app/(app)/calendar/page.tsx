@@ -18,7 +18,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { BlockDetails, BlockDialog, daysWith, type DayMark, Legend, MeetingDetails, MeetingDialog, type MeetingDraft, MeetingRow, MiniMonth, TimeGrid, WeekStrip } from "@/components/calendar";
+import { BlockDetails, BlockDialog, daysWith, useNow, type DayMark, Legend, MeetingDetails, MeetingDialog, type MeetingDraft, MeetingRow, MiniMonth, TimeGrid, WeekStrip } from "@/components/calendar";
 import { Page } from "@/components/shell";
 import { Heading, SegTabs, TopBar } from "@/components/topbar";
 import { useApi, useFetcher } from "@/lib/client/api";
@@ -43,13 +43,14 @@ export default function CalendarPage() {
   const fetcher = useFetcher();
   const { lang } = useLang();
   const wide = useMediaQuery((t: Theme) => t.breakpoints.up("lg"), { noSsr: true });
-  const [view, setView] = useState<View>(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "list" ? "list" : wide ? "week" : "day"));
+  // Until someone picks a view: a week on a laptop, a day on a phone (or the list, when linked to it).
+  const [chosen, setView] = useState<View | null>(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "list" ? "list" : null));
+  const view: View = chosen ?? (wide ? "week" : "day");
+  const now = useNow();
   const [anchor, setAnchor] = useState(today());
   const [month, setMonth] = useState(today());
   const [open, setOpen] = useState<Open>(null);
 
-  // A week on a laptop is the natural view; a phone has room for a day.
-  useEffect(() => setView((v) => (v === "list" ? v : wide ? "week" : "day")), [wide]);
 
   const week = weekDays(anchor);
   const grid = monthGrid(month);
@@ -88,7 +89,7 @@ export default function CalendarPage() {
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- grid follows month
   }, [data, month]);
-  const toAnswer = sortUpcoming(meetings).filter((m) => m.canRespond && m.myResponse === "pending" && Date.parse(m.endsAt) > Date.now());
+  const toAnswer = sortUpcoming(meetings).filter((m) => m.canRespond && m.myResponse === "pending" && Date.parse(m.endsAt) > now);
 
   if (!me) return null;
   const refresh = async () => {

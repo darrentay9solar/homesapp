@@ -212,9 +212,13 @@ def detail(acct: Account, r: dict[str, Any]) -> dict[str, Any]:
     if homeowner:
         # The homeowner sees their system and its checks, not the office's notes.
         system["notes"] = None
-    # Who a check is booked with: the manager looking after it, or the superadmins while there's none.
-    with_whom = [r["run_by"]] if r["run_by"] else [a["uid"] for a in fetch_all(
-        "select uid from users where user_type = 'superadmin' and active")]  # fmt: skip
+    # Who a check is booked with. The homeowner books with the manager looking after the system (the
+    # superadmins while there's none); the office books with the homeowner, when they have an account.
+    if homeowner:
+        with_whom = [r["run_by"]] if r["run_by"] else [a["uid"] for a in fetch_all(
+            "select uid from users where user_type = 'superadmin' and active")]  # fmt: skip
+    else:
+        with_whom = [r["homeowner_id"]] if r["homeowner_id"] else []
     return {
         "system": system,
         "project": project,

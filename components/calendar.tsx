@@ -1,7 +1,6 @@
 "use client";
 
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
-import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import BusinessRoundedIcon from "@mui/icons-material/BusinessRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
@@ -94,6 +93,16 @@ import { T, TR, useLang } from "@/lib/client/i18n";
  */
 
 const WEEK_LETTERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/** The time now, kept fresh each minute (for the now line, and what's over). */
+export function useNow(every = 60_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), every);
+    return () => clearInterval(id);
+  }, [every]);
+  return now;
+}
 
 // ------------------------------------------------------------------ mini month
 
@@ -253,7 +262,7 @@ export function TimeGrid({
   onMeeting,
   onBlock,
   onSlot,
-  now = Date.now(),
+  now: nowProp,
   height,
 }: {
   days: string[];
@@ -266,6 +275,8 @@ export function TimeGrid({
   height?: number | string | Record<string, number | string>;
 }) {
   const { lang } = useLang();
+  const ticking = useNow();
+  const now = nowProp ?? ticking;
   const scroller = useRef<HTMLDivElement>(null);
   const shown = useMemo(() => {
     let from = DAY_FROM;
@@ -801,7 +812,7 @@ export function MeetingDetails({ m, onClose, onChanged, onEdit }: { m: Meeting; 
     }
   };
   const service = linkKind(m.onlineLink);
-  const over = Date.parse(m.endsAt) < Date.now();
+  const over = Date.parse(m.endsAt) < useNow();
   return (
     <MDialog title={m.kind === "maintenance_check" ? T("Maintenance Check") : T("Meeting")} heading={m.title} subtitle={whenText(m, lang)} onClose={onClose}>
       <Stack direction="row" sx={{ justifyContent: "center", gap: 1, mt: -1.5, mb: 2, flexWrap: "wrap" }} data-testid="meeting-details">

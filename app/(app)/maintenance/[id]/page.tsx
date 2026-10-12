@@ -2,11 +2,9 @@
 
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
-import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalServicesRounded";
-import EventRoundedIcon from "@mui/icons-material/EventRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import GridViewRoundedIcon from "@mui/icons-material/GridViewRounded";
 import NotesRoundedIcon from "@mui/icons-material/NotesRounded";
@@ -17,7 +15,6 @@ import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRou
 import RoofingRoundedIcon from "@mui/icons-material/RoofingRounded";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
-import UndoRoundedIcon from "@mui/icons-material/UndoRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
@@ -25,7 +22,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -33,7 +29,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { CheckDoneDialog, checkColor, EditSystemDialog, nextCheckText, useMaintenanceHref } from "@/components/maintenance";
+import { CheckDoneDialog, ChecksCard, EditSystemDialog, useMaintenanceHref } from "@/components/maintenance";
 import { DetailRow, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { TopBar, gradText } from "@/components/topbar";
@@ -122,44 +118,7 @@ function Body({ d, reload }: { d: MaintenanceDetail; reload: () => Promise<void>
           </Alert>
         )}
 
-        <Card sx={{ p: { xs: 2, sm: 2.5 } }} data-testid="system-checks">
-          <Typography component="h2" sx={[{ fontWeight: 600, fontSize: 17 }, gradText()]}>
-            {T("Maintenance checks")}
-          </Typography>
-          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
-            {nextCheckText(s)}
-          </Typography>
-          <Stack sx={{ mt: 1.5 }} divider={<Divider />}>
-            {s.checks.map((c) => (
-              <Stack key={c.key} direction="row" sx={{ alignItems: "center", gap: 1.5, py: 1.25 }} data-testid={`check-${c.key}`}>
-                <Box sx={{ color: c.state === "done" ? "success.main" : c.state === "overdue" ? "error.main" : "text.secondary", display: "grid" }}>
-                  {c.state === "done" ? <CheckCircleRoundedIcon /> : <EventRoundedIcon />}
-                </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography noWrap sx={{ fontWeight: 600 }}>
-                    {TR(c.label)}
-                  </Typography>
-                  <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", flexWrap: "wrap", mt: 0.25 }}>
-                    <Chip size="small" color={checkColor(c)} variant={c.state === "scheduled" ? "outlined" : "filled"} label={TR(STATE[c.state])} sx={{ height: 22 }} />
-                    <Typography variant="caption" sx={{ color: c.state === "overdue" ? "error.main" : "text.secondary", fontWeight: c.state === "overdue" ? 700 : 400 }}>
-                      {c.doneOn ? T("Done {date}", { date: d2s(c.doneOn) }) : c.due ? T("Due {date}", { date: d2s(c.due) }) : T("Not scheduled")}
-                    </Typography>
-                  </Stack>
-                </Box>
-                {d.canEdit &&
-                  (c.state === "done" ? (
-                    <Button size="small" startIcon={<UndoRoundedIcon />} disabled={busy} onClick={() => void setDone(c, null)} aria-label={T("Undo {check}", { check: TR(c.label) })}>
-                      {T("Undo")}
-                    </Button>
-                  ) : (
-                    <Button size="small" variant="contained" disabled={busy || !c.due} onClick={() => setMarking(c)} data-testid={`done-${c.key}`}>
-                      {T("Mark done")}
-                    </Button>
-                  ))}
-              </Stack>
-            ))}
-          </Stack>
-        </Card>
+        <ChecksCard d={d} busy={busy} onMark={setMarking} onUndo={(c) => void setDone(c, null)} onBooked={() => void reload()} />
 
         {d.project && (
           <Card sx={{ p: { xs: 2, sm: 2.5 } }} data-testid="system-project">
@@ -260,10 +219,3 @@ function Body({ d, reload }: { d: MaintenanceDetail; reload: () => Promise<void>
   );
 }
 
-const STATE: Record<Check["state"], string> = {
-  done: "Done",
-  overdue: "Overdue",
-  due_soon: "Due soon",
-  scheduled: "Scheduled",
-  unscheduled: "Not scheduled",
-};
