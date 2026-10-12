@@ -1038,7 +1038,7 @@ def meetings(c: psycopg.Connection, u: dict[str, int]) -> None:
             place="office", location="9 Solar Home office", project_id=jk["project_id"] if jk else None)  # fmt: skip
     meeting("Monthly review", "sam", {"charlotte": "accepted", "marcus": "pending"}, at(3, 9, 30), 1.5,
             place="online", online_link="https://meet.google.com/demo-monthly-review")  # fmt: skip
-    meeting("Scaffolding plan", "priya", {"charlotte": "pending"}, at(2, 14, 30), 1, place="site", location="Jalan Kayu")
+    meeting("Scaffolding plan", "priya", {"charlotte": "pending"}, at(3, 10), 1, place="site", location="Jalan Kayu")
     # Siglap Garden House is in maintenance: its homeowner has asked for the 6-month visit.
     sg = c.execute(
         "select m.system_id, m.run_by, m.address from maintenance_systems m join projects p using (project_id) "

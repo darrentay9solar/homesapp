@@ -525,7 +525,7 @@ Nobody can be booked over time they're busy, and accepting a time you're
 already busy is refused; the database checks both (migration 0032). Every
 meeting, answer and block is in the audit log (Audit → **Meetings**).
 
-- **TC-57:** On the demo as Charlotte → Calendar: the week shows Design review (dashed, Jasmine hasn't answered), Crew briefing and Scaffolding plan side by side, Monthly review, and Leave hatched across a whole day.
+- **TC-57:** On the demo as Charlotte → Calendar: the week shows Design review (dashed, Jasmine hasn't answered), Crew briefing, Monthly review with the Scaffolding plan invitation beside it, and Leave hatched across a whole day.
 - **TC-58:** + Meeting → invite Priya Nair, tomorrow: 13:00 to 18:00 is struck through (her training). Pick 10:00 → Send invitations. As Priya: Accept → it's solid in both calendars.
 - **TC-59:** Block out time → whole days, Friday to Monday → those days are struck through for anyone inviting you.
 
