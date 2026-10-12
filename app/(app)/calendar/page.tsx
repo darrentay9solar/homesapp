@@ -292,7 +292,9 @@ function UpcomingList({ meetings, onOpen }: { meetings: Meeting[] | null; onOpen
     <Box data-testid="upcoming-list">
       {ask.length > 0 && (
         <>
-          <Heading title={T("Waiting for your answer")} count={ask.length} />
+          <Typography variant="body2" sx={{ color: "warning.main", fontWeight: 600, mt: 2, mb: 1 }}>
+            {T("Waiting for your answer")} · {ask.length}
+          </Typography>
           <Stack sx={{ gap: 1 }}>
             {ask.map((m) => (
               <MeetingRow key={m.id} m={m} onClick={() => onOpen(m)} />
@@ -300,16 +302,33 @@ function UpcomingList({ meetings, onOpen }: { meetings: Meeting[] | null; onOpen
           </Stack>
         </>
       )}
-      {[...byDay.entries()].map(([d, ms]) => (
-        <Box key={d}>
-          <Heading title={d === today() ? T("Today") : d === addDays(today(), 1) ? T("Tomorrow") : dayText(d, lang, { weekday: "long", day: "numeric", month: "long" })} count={ms.length} />
-          <Stack sx={{ gap: 1 }}>
-            {ms.map((m) => (
-              <MeetingRow key={m.id} m={m} onClick={() => onOpen(m)} />
-            ))}
-          </Stack>
-        </Box>
-      ))}
+      {byDay.size > 0 && <Heading title={T("Coming up")} count={rest.length} />}
+      {/* An agenda, as in Google Calendar: the date on the left, that day's meetings beside it. */}
+      <Stack sx={{ gap: 2 }}>
+        {[...byDay.entries()].map(([d, ms]) => {
+          const isToday = d === today();
+          return (
+            <Box key={d} sx={{ display: "grid", gridTemplateColumns: "56px minmax(0, 1fr)", gap: 1.5, alignItems: "start" }} data-testid="agenda-day">
+              <Stack sx={{ alignItems: "center", pt: 0.5 }} aria-label={dayText(d, lang, { weekday: "long", day: "numeric", month: "long" })}>
+                <Typography variant="caption" sx={{ fontWeight: 600, textTransform: "uppercase", color: isToday ? "primary.main" : "text.secondary" }}>
+                  {isToday ? T("Today") : dayText(d, lang, { weekday: "short" })}
+                </Typography>
+                <Box sx={(t) => ({ width: 40, height: 40, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 18, bgcolor: isToday ? (t.vars ?? t).palette.primary.main : "transparent", color: isToday ? (t.vars ?? t).palette.primary.contrastText : (t.vars ?? t).palette.text.primary })}>
+                  {Number(d.slice(8))}
+                </Box>
+                <Typography variant="caption" sx={{ color: "text.secondary", fontSize: 11 }}>
+                  {dayText(d, lang, { month: "short" })}
+                </Typography>
+              </Stack>
+              <Stack sx={{ gap: 1 }}>
+                {ms.map((m) => (
+                  <MeetingRow key={m.id} m={m} onClick={() => onOpen(m)} />
+                ))}
+              </Stack>
+            </Box>
+          );
+        })}
+      </Stack>
     </Box>
   );
 }

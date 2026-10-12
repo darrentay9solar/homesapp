@@ -159,16 +159,16 @@ export function MiniMonth({
                 fontSize: 13,
                 fontWeight: isSel || d === now ? 700 : 500,
                 fontFamily: "inherit",
-                color: isSel ? t.palette.primary.contrastText : !inMonth(d) || off ? t.palette.text.disabled : mark === "full" ? t.palette.error.main : t.palette.text.primary,
-                bgcolor: isSel ? t.palette.primary.main : "transparent",
-                border: d === now && !isSel ? `1.5px solid ${t.palette.primary.main}` : "1.5px solid transparent",
+                color: isSel ? pal(t).primary.contrastText : !inMonth(d) || off ? pal(t).text.disabled : mark === "full" ? pal(t).error.main : pal(t).text.primary,
+                bgcolor: isSel ? pal(t).primary.main : "transparent",
+                border: d === now && !isSel ? `1.5px solid ${pal(t).primary.main}` : "1.5px solid transparent",
                 textDecoration: mark === "full" && !isSel ? "line-through" : "none",
                 position: "relative",
-                "&:hover": { bgcolor: isSel ? t.palette.primary.main : alpha(t.palette.primary.main, 0.1) },
+                "&:hover": { bgcolor: isSel ? pal(t).primary.main : tint(t, "primary", 0.1) },
               })}
             >
               {Number(d.slice(8))}
-              {mark === "some" && <Box component="span" sx={(t) => ({ position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: "50%", bgcolor: isSel ? t.palette.primary.contrastText : t.palette.warning.main })} />}
+              {mark === "some" && <Box component="span" sx={(t) => ({ position: "absolute", bottom: 3, width: 4, height: 4, borderRadius: "50%", bgcolor: isSel ? pal(t).primary.contrastText : pal(t).warning.main })} />}
             </ButtonBase>
           );
         })}
@@ -196,9 +196,9 @@ export function WeekStrip({ days, selected, onSelect, busyDays }: { days: string
               py: 0.75,
               borderRadius: `${DESIGN.radius.listItem}px`,
               fontFamily: "inherit",
-              bgcolor: sel ? t.palette.primary.main : "transparent",
-              color: sel ? t.palette.primary.contrastText : t.palette.text.primary,
-              border: `1px solid ${sel ? t.palette.primary.main : d === now ? t.palette.primary.main : t.palette.divider}`,
+              bgcolor: sel ? pal(t).primary.main : "transparent",
+              color: sel ? pal(t).primary.contrastText : pal(t).text.primary,
+              border: `1px solid ${sel ? pal(t).primary.main : d === now ? pal(t).primary.main : pal(t).divider}`,
             })}
           >
             <Box component="span" sx={{ fontSize: 11, fontWeight: 600, opacity: 0.8 }}>
@@ -207,7 +207,7 @@ export function WeekStrip({ days, selected, onSelect, busyDays }: { days: string
             <Box component="span" sx={{ fontSize: 17, fontWeight: 700, lineHeight: 1.3 }}>
               {Number(d.slice(8))}
             </Box>
-            <Box component="span" sx={(t) => ({ width: 5, height: 5, borderRadius: "50%", bgcolor: busyDays.has(d) ? (sel ? t.palette.primary.contrastText : t.palette.primary.main) : "transparent" })} />
+            <Box component="span" sx={(t) => ({ width: 5, height: 5, borderRadius: "50%", bgcolor: busyDays.has(d) ? (sel ? pal(t).primary.contrastText : pal(t).primary.main) : "transparent" })} />
           </ButtonBase>
         );
       })}
@@ -219,9 +219,25 @@ export function WeekStrip({ days, selected, onSelect, busyDays }: { days: string
 
 const ROW = 26;
 
+type Tone = "primary" | "warning" | "error" | "success";
+
+/** The theme's own colour variables, so each scheme gets its own (t.palette is the light scheme's). */
+const pal = (t: Theme) => (t.vars ?? t).palette;
+
+/** A see-through tint of a theme colour, in either scheme. */
+function tint(t: Theme, c: Tone | "text", a: number): string {
+  const v = t.vars?.palette;
+  if (v) return `rgb(${c === "text" ? v.text.primaryChannel : v[c].mainChannel} / ${a})`;
+  return alpha(c === "text" ? t.palette.text.primary : t.palette[c].main, a);
+}
+
+function meetingTone(m: Meeting): Tone {
+  if (m.status === "declined") return "error";
+  return m.kind === "maintenance_check" ? "warning" : "primary";
+}
+
 function meetingColor(t: Theme, m: Meeting): string {
-  if (m.status === "declined") return t.palette.error.main;
-  return m.kind === "maintenance_check" ? t.palette.warning.main : t.palette.primary.main;
+  return pal(t)[meetingTone(m)].main;
 }
 
 /**
@@ -289,7 +305,7 @@ export function TimeGrid({
                 <Typography variant="caption" sx={{ color: isToday ? "primary.main" : "text.secondary", fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>
                   {dayText(d, lang, { weekday: "short" })}
                 </Typography>
-                <Box sx={(t) => ({ width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 16, bgcolor: isToday ? t.palette.primary.main : "transparent", color: isToday ? t.palette.primary.contrastText : t.palette.text.primary })}>
+                <Box sx={(t) => ({ width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 16, bgcolor: isToday ? pal(t).primary.main : "transparent", color: isToday ? pal(t).primary.contrastText : pal(t).text.primary })}>
                   {Number(d.slice(8))}
                 </Box>
               </Stack>
@@ -328,8 +344,8 @@ export function TimeGrid({
                   borderColor: "divider",
                   cursor: onSlot ? "copy" : "default",
                   // An hour line, and a fainter half-hour line.
-                  backgroundImage: `repeating-linear-gradient(to bottom, ${t.palette.divider} 0 1px, transparent 1px ${ROW}px, ${alpha(t.palette.divider, 0.45)} ${ROW}px ${ROW + 1}px, transparent ${ROW + 1}px ${ROW * 2}px)`,
-                  bgcolor: d === nowDay ? alpha(t.palette.primary.main, 0.025) : "transparent",
+                  backgroundImage: `repeating-linear-gradient(to bottom, ${pal(t).divider} 0 1px, transparent 1px ${ROW}px, ${tint(t, "text", 0.035)} ${ROW}px ${ROW + 1}px, transparent ${ROW + 1}px ${ROW * 2}px)`,
+                  bgcolor: d === nowDay ? tint(t, "primary", 0.025) : "transparent",
                 })}
               >
                 {placedBlocks.map((p) => (
@@ -350,9 +366,9 @@ export function TimeGrid({
                       px: 0.75,
                       pt: 0.25,
                       fontFamily: "inherit",
-                      color: t.palette.text.secondary,
-                      backgroundImage: `repeating-linear-gradient(135deg, ${alpha(t.palette.text.primary, 0.09)} 0 6px, transparent 6px 12px)`,
-                      border: `1px solid ${alpha(t.palette.text.primary, 0.12)}`,
+                      color: pal(t).text.secondary,
+                      backgroundImage: `repeating-linear-gradient(135deg, ${tint(t, "text", 0.09)} 0 6px, transparent 6px 12px)`,
+                      border: `1px solid ${tint(t, "text", 0.12)}`,
                       display: y(p.top + p.height) - y(p.top) > 0 ? "flex" : "none",
                     })}
                   >
@@ -373,6 +389,7 @@ export function TimeGrid({
                       aria-label={`${m.title}, ${whenText(m, lang)}, ${TR(STATUS_LABEL[m.status])}`}
                       sx={(t) => {
                         const c = meetingColor(t, m);
+                        const tone = meetingTone(m);
                         return {
                           position: "absolute",
                           top: y(p.top) + 1,
@@ -388,13 +405,14 @@ export function TimeGrid({
                           px: 0.75,
                           py: h > 30 ? 0.4 : 0,
                           fontFamily: "inherit",
-                          bgcolor: alpha(c, pending ? 0.1 : t.palette.mode === "dark" ? 0.32 : 0.18),
+                          bgcolor: tint(t, tone, pending ? 0.1 : 0.18),
+                          ...(!pending && t.applyStyles("dark", { bgcolor: tint(t, tone, 0.32) })),
                           borderLeft: `3px solid ${c}`,
-                          outline: pending ? `1.5px dashed ${alpha(c, 0.8)}` : "none",
+                          outline: pending ? `1.5px dashed ${c}` : "none",
                           outlineOffset: -1.5,
-                          color: t.palette.text.primary,
+                          color: pal(t).text.primary,
                           zIndex: 1,
-                          "&:hover": { bgcolor: alpha(c, 0.28) },
+                          "&:hover": { bgcolor: tint(t, tone, 0.28) },
                         };
                       }}
                     >
@@ -410,7 +428,7 @@ export function TimeGrid({
                   );
                 })}
                 {d === nowDay && nowMin >= from && nowMin <= to && (
-                  <Box aria-hidden data-allow-overlap sx={(t) => ({ position: "absolute", left: 0, right: 0, top: y(nowMin), height: 2, bgcolor: t.palette.error.main, zIndex: 2, pointerEvents: "none", "&::before": { content: '""', position: "absolute", left: -5, top: -4, width: 10, height: 10, borderRadius: "50%", bgcolor: t.palette.error.main } })} />
+                  <Box aria-hidden data-allow-overlap sx={(t) => ({ position: "absolute", left: 0, right: 0, top: y(nowMin), height: 2, bgcolor: pal(t).error.main, zIndex: 2, pointerEvents: "none", "&::before": { content: '""', position: "absolute", left: -5, top: -4, width: 10, height: 10, borderRadius: "50%", bgcolor: pal(t).error.main } })} />
                 )}
               </Box>
             );
@@ -424,10 +442,10 @@ export function TimeGrid({
 /** What the colours mean. */
 export function Legend() {
   const items: Array<[string, (t: Theme) => object]> = [
-    ["Confirmed", (t) => ({ bgcolor: alpha(t.palette.primary.main, 0.25), borderLeft: `3px solid ${t.palette.primary.main}` })],
-    ["Waiting for answers", (t) => ({ outline: `1.5px dashed ${t.palette.primary.main}`, outlineOffset: -1.5 })],
-    ["Maintenance check", (t) => ({ bgcolor: alpha(t.palette.warning.main, 0.25), borderLeft: `3px solid ${t.palette.warning.main}` })],
-    ["Blocked out", (t) => ({ backgroundImage: `repeating-linear-gradient(135deg, ${alpha(t.palette.text.primary, 0.2)} 0 3px, transparent 3px 6px)` })],
+    ["Confirmed", (t) => ({ bgcolor: tint(t, "primary", 0.25), borderLeft: `3px solid ${pal(t).primary.main}` })],
+    ["Waiting for answers", (t) => ({ outline: `1.5px dashed ${pal(t).primary.main}`, outlineOffset: -1.5 })],
+    ["Maintenance check", (t) => ({ bgcolor: tint(t, "warning", 0.25), borderLeft: `3px solid ${pal(t).warning.main}` })],
+    ["Blocked out", (t) => ({ backgroundImage: `repeating-linear-gradient(135deg, ${tint(t, "text", 0.2)} 0 3px, transparent 3px 6px)` })],
   ];
   return (
     <Stack sx={{ gap: 0.75 }}>
@@ -461,8 +479,8 @@ export function MeetingRow({ m, onClick }: { m: Meeting; onClick: () => void }) 
         p: 1.5,
         borderRadius: `${DESIGN.radius.listItem}px`,
         border: 1,
-        borderColor: ask ? t.palette.warning.main : t.palette.divider,
-        bgcolor: ask ? alpha(t.palette.warning.main, 0.08) : t.palette.background.paper,
+        borderColor: ask ? pal(t).warning.main : pal(t).divider,
+        bgcolor: ask ? tint(t, "warning", 0.08) : pal(t).background.paper,
         fontFamily: "inherit",
       })}
     >
@@ -712,7 +730,7 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
             )}
           </Box>
           {!edit && !draft.systemId && (contacts?.projects.length ?? 0) > 0 && (
-            <Field select label={T("About a project")} icon={<SolarPowerRoundedIcon />} value={projectId} onChange={(e) => setProjectId(e.target.value === "" ? "" : Number(e.target.value))}>
+            <Field select label={T("About a project")} icon={<SolarPowerRoundedIcon />} value={projectId} onChange={(e) => setProjectId(e.target.value === "" ? "" : Number(e.target.value))} slotProps={{ select: { displayEmpty: true } }}>
               <MenuItem value="">{T("No project")}</MenuItem>
               {contacts?.projects.map((p) => (
                 <MenuItem key={p.id} value={p.id}>

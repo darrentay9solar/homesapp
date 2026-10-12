@@ -137,7 +137,8 @@ export function TopBar({
  */
 export function gradText(tone: keyof typeof DESIGN.textGradient = "green") {
   return (t: Theme) => ({
-    backgroundImage: DESIGN.textGradient[tone][t.palette.mode === "dark" ? "dark" : "light"],
+    backgroundImage: DESIGN.textGradient[tone].light,
+    ...t.applyStyles("dark", { backgroundImage: DESIGN.textGradient[tone].dark }),
     backgroundClip: "text",
     WebkitBackgroundClip: "text",
     color: "transparent",
