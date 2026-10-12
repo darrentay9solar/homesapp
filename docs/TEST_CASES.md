@@ -9,6 +9,9 @@
 | `tests_py/test_analytics.py` | 69 | The dashboard's figures from hand-made projects; periods; regions, salespeople, kWp; who may see it |
 | `tests/analytics.test.ts` | 33 | Axis steps, percentages, kWp, days, change arrows, column names |
 | `tests_py/test_maintenance.py` | 102 | Maintenance: a handed-over project converting (once, audited), who sees and changes what, every field's checks, the database's guard and value rules, the Projects list leaving handed-over projects out, and the listing import read strictly |
+| `tests_py/test_form_rules.py` | 1,102 | Every form rule, the same on the screens and the server, over 1,077 values (mobile numbers from 18 countries, emails, NRIC, postal codes, names, passwords against Clerk's policy); the language picked anywhere saved on the account, both ways, for every role ([form-rules.md](form-rules.md)) |
+| `tests/rules.test.ts` | 6 | Each form rule's message, and nothing when it's right |
+| `tests_py/test_backup.py` | 4 | A backup holds every table with its rows and checksum; a restore loads tables in an order that works, and refuses a loop ([backups.md](backups.md)) |
 | `tests_py/test_meetings.py` | 14 | Meetings and calendars: invitations asked not held, accepting holds the time, nobody double-booked (by the API and by the database), blocking out days and windows, a new time asks again, cancelling is final, who can invite whom, booking a maintenance check, the audit log; maintenance reminders going once each; Excel exports and their audit entry |
 | `tests/calendar.test.ts` | 13 | Singapore days and minutes on any device, weeks from Monday, overlapping meetings side by side, busy time and free start times, Google Calendar, Outlook, Teams and .ics |
 | `tests/maintenance.test.ts` | 42 | How a system reads (PPA, plan, panels, inverters) in English and Chinese, the tabs, search, order, months added as the listing does |
