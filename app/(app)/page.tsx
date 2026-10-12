@@ -11,7 +11,6 @@ import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import Chip from "@mui/material/Chip";
-import IconButton from "@mui/material/IconButton";
 import Skeleton from "@mui/material/Skeleton";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
@@ -21,7 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMaintenanceHref } from "@/components/maintenance";
 import { NewProjectDialog, ProjectCard, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
-import { GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
+import { ExportButton, GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
 import { useApi } from "@/lib/client/api";
 import { isAdmin, useMe } from "@/lib/client/app-state";
 import { filterProjects, type ProjectList, sortProjects, type Tab, TABS } from "@/lib/client/projects";
@@ -67,10 +66,7 @@ export default function ProjectsPage() {
         action={
           data?.canCreate && (
             <>
-              {/* Maintenance isn't on the phone's bottom bar (five tabs fit): it's here instead. */}
-              <IconButton component={Link} href={maintenance()} aria-label={T("Maintenance")} data-testid="maintenance-link" sx={{ color: "#fff", display: { lg: "none" } }}>
-                <HandymanRoundedIcon />
-              </IconButton>
+              <ExportButton path="/export/projects.xlsx" name="GetHomeApps projects.xlsx" label="Download all projects (Excel)" testId="export-projects" />
               <Button
                 onClick={() => setCreating(true)}
                 startIcon={<AddRoundedIcon />}

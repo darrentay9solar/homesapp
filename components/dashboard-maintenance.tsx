@@ -1,6 +1,5 @@
 "use client";
 
-import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import EventRoundedIcon from "@mui/icons-material/EventRounded";
@@ -26,7 +25,7 @@ import { bucketLabel, kwp, num, type Upkeep, type UpkeepSystem } from "@/lib/cli
 import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
 
-type TileKey = keyof Upkeep["tiles"];
+type TileKey = "systems" | "dueSoon" | "attention" | "unassigned";
 
 const CHECK_NAME: Record<string, string> = { six_month: "6-month check", one_year: "1-year check" };
 
@@ -39,12 +38,13 @@ const CHECK_NAME: Record<string, string> = { six_month: "6-month check", one_yea
 export function UpkeepTab({ u }: { u: Upkeep }) {
   const [open, setOpen] = useState<TileKey | null>(null);
   const wide = useMediaQuery((th: Theme) => th.breakpoints.up("md"));
-  const t = u.tiles;
+  // Urgent, or a check overdue: one number, as on the Maintenance page.
+  const attention = [...new Set([...u.tiles.urgent.ids, ...u.tiles.overdue.ids])];
+  const t: Record<TileKey, { count: number; ids: number[] }> = { ...u.tiles, attention: { count: attention.length, ids: attention } };
   const tiles: Array<{ key: TileKey; label: string; icon: ReactNode; tone?: "bad" | "warn" | "good"; sub: string }> = [
     { key: "systems", label: "Systems looked after", icon: <SolarPowerRoundedIcon />, sub: u.avgKwp ? T("{total} · {avg} on average", { total: kwp(u.kwp), avg: kwp(u.avgKwp) }) : kwp(u.kwp) },
     { key: "dueSoon", label: "Checks due in 30 days", icon: <EventRoundedIcon />, tone: t.dueSoon.count ? "warn" : undefined, sub: T("6-month and 1-year checks") },
-    { key: "overdue", label: "Checks overdue", icon: <WarningAmberRoundedIcon />, tone: t.overdue.count ? "bad" : "good", sub: t.overdue.count ? T("Book a visit for each") : T("Every check on time") },
-    { key: "urgent", label: "Urgent maintenance", icon: <BoltRoundedIcon />, tone: t.urgent.count ? "bad" : undefined, sub: T("Poor generation, faults") },
+    { key: "attention", label: "Need attention", icon: <WarningAmberRoundedIcon />, tone: attention.length ? "bad" : "good", sub: T("{a} urgent · {b} with a check overdue", { a: u.tiles.urgent.count, b: u.tiles.overdue.count }) },
     { key: "unassigned", label: "Unassigned systems", icon: <PersonOffRoundedIcon />, tone: t.unassigned.count ? "warn" : undefined, sub: T("No project manager yet") },
   ];
   const picked = open ? tiles.find((x) => x.key === open) : null;

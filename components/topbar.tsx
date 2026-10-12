@@ -2,6 +2,7 @@
 
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import Badge from "@mui/material/Badge";
@@ -13,10 +14,12 @@ import IconButton from "@mui/material/IconButton";
 import InputBase from "@mui/material/InputBase";
 import Stack from "@mui/material/Stack";
 import { alpha, type Theme } from "@mui/material/styles";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
+import { ApiError, useDownload } from "@/lib/client/api";
 import { type Role, useApp } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { useLang } from "@/lib/client/i18n";
@@ -324,5 +327,41 @@ export function EdgeCard({ color, children, dim, alarm }: { color: (t: Theme) =>
     >
       {children}
     </Card>
+  );
+}
+
+/**
+ * Download a list as an Excel workbook (project managers and superadmins):
+ * an icon in a green header, with a tooltip saying what it downloads.
+ */
+export function ExportButton({ path, name, label, testId }: { path: string; name: string; label: string; testId?: string }) {
+  const download = useDownload();
+  const { toast } = useApp();
+  const { tr } = useLang();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Tooltip title={tr(label)}>
+      <span>
+        <IconButton
+          aria-label={tr(label)}
+          disabled={busy}
+          data-testid={testId}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await download(path, name);
+              toast(tr("Downloaded. Open it in Excel."));
+            } catch (e) {
+              toast(e instanceof ApiError ? e.message : tr("Something went wrong. Please try again."), "bad");
+            } finally {
+              setBusy(false);
+            }
+          }}
+          sx={{ color: "#fff", "&.Mui-disabled": { color: "rgba(255,255,255,0.5)" } }}
+        >
+          <FileDownloadRoundedIcon />
+        </IconButton>
+      </span>
+    </Tooltip>
   );
 }

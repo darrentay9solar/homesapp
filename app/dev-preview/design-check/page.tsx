@@ -44,7 +44,7 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Dashboard · site work", path: "/dev-preview/dashboard?tab=site", kind: "app" },
   { name: "Dashboard · sales", path: "/dev-preview/dashboard?tab=sales", kind: "app" },
   { name: "Dashboard · maintenance", path: "/dev-preview/dashboard?tab=maintenance", kind: "app" },
-  { name: "Dashboard · overdue checks", path: "/dev-preview/dashboard?tab=maintenance", kind: "app", click: "[data-testid=utile-overdue]", opens: false },
+  { name: "Dashboard · maintenance attention", path: "/dev-preview/dashboard?tab=maintenance", kind: "app", click: "[data-testid=utile-attention]", opens: false },
   { name: "Project page · fields", path: "/dev-preview/projects/101", kind: "app" },
   { name: "Project page · approval", path: "/dev-preview/projects/103", kind: "app" },
   { name: "Project page · sign", path: "/dev-preview/projects/105", kind: "app" },

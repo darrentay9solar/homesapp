@@ -57,7 +57,7 @@ import { Field, MDialog, PhoneField, ROLE_NAME, RoleAvatar, RoleChip, SettingRow
 import { LocationRow, PeopleMap } from "@/components/people-map";
 import { splitPhone } from "@/components/phone-input";
 import { Page } from "@/components/shell";
-import { EdgeCard, GRID, HERO_BG, SearchBox, SegTabs, TopBar, gradText, roleColor } from "@/components/topbar";
+import { EdgeCard, ExportButton, GRID, HERO_BG, SearchBox, SegTabs, TopBar, gradText, roleColor } from "@/components/topbar";
 import { ago, d2s, initials } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { canManage, grantableRoles, isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
@@ -229,6 +229,8 @@ export default function PeoplePage() {
       <TopBar
         title={T("People")}
         action={
+          <>
+          {isAdmin(me?.role) && <ExportButton path="/export/people.xlsx" name="GetHomeApps people.xlsx" label="Download everyone (Excel)" testId="export-people" />}
           <Button
             onClick={() => setDialog({ kind: "newuser" })}
             startIcon={<PersonAddAlt1RoundedIcon />}
@@ -241,6 +243,7 @@ export default function PeoplePage() {
               {T("New")}
             </Box>
           </Button>
+          </>
         }
         search={
           section === "people" ? (
