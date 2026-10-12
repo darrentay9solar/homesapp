@@ -89,6 +89,11 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Maintenance · checks done", path: "/dev-preview/maintenance/207", kind: "app" },
   { name: "Edit System dialog", path: "/dev-preview/maintenance/201", kind: "app", click: "[data-testid=edit-system]" },
   { name: "Maintenance Check dialog", path: "/dev-preview/maintenance/202", kind: "app", click: "[data-testid=done-six_month]" },
+  { name: "Calendar", path: "/dev-preview/calendar", kind: "app" },
+  { name: "Calendar · upcoming", path: "/dev-preview/calendar?view=list", kind: "app" },
+  { name: "New Meeting dialog", path: "/dev-preview/calendar", kind: "app", click: "[data-testid=new-meeting]" },
+  { name: "Meeting dialog", path: "/dev-preview/calendar?view=list", kind: "app", click: "[data-testid=meeting-row]" },
+  { name: "Block Out Time dialog", path: "/dev-preview/calendar?view=list", kind: "app", click: "[data-testid=block-time]" },
 ];
 const SIZES: Array<[string, number, number]> = [
   ["Phone", 375, 812],

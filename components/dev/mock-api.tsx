@@ -1,6 +1,7 @@
 "use client";
 
 import { mockAnalytics } from "./mock-analytics";
+import { mockBusy, mockCalendar, mockContacts, mockMeeting, mockUpcoming } from "./mock-calendar";
 import { mockMaintenance, mockSystem } from "./mock-maintenance";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
@@ -656,6 +657,13 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "GET /projects") return { projects: PROJECTS.filter((p) => p.status !== "maintenance"), canCreate: true, handedOver: 3, today: day(0) };
   if (key === "GET /analytics") return mockAnalytics(search);
   if (key === "GET /maintenance") return mockMaintenance();
+  if (key === "GET /calendar") return mockCalendar();
+  if (key === "GET /calendar/upcoming") return mockUpcoming();
+  if (key === "GET /calendar/contacts") return mockContacts();
+  if (key === "GET /calendar/busy") return mockBusy(search);
+  const meetingId = path.match(/^\/meetings\/(\d+)$/);
+  if (method === "GET" && meetingId) return mockMeeting(Number(meetingId[1]));
+  if (method !== "GET" && (path.startsWith("/meetings") || path.startsWith("/calendar/"))) return { message: "Preview only — nothing was saved.", meeting: mockMeeting(301) };
   const system = path.match(/^\/maintenance\/(\d+)/);
   if (system) return mockSystem(Number(system[1]));
   if (key === "GET /projects/options") return PROJECT_OPTIONS;

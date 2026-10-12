@@ -1,6 +1,7 @@
 "use client";
 
 import AccountCircleRoundedIcon from "@mui/icons-material/AccountCircleRounded";
+import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
@@ -8,12 +9,14 @@ import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
+import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
 import Badge from "@mui/material/Badge";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import Box from "@mui/material/Box";
+import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
@@ -23,7 +26,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { ACT_AS_KEY } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
@@ -34,13 +37,19 @@ import { RoleAvatar } from "./m";
 
 import { T, TR } from "@/lib/client/i18n";
 import { leaveDemo } from "@/lib/client/demo";
-/** phone: false keeps a tab off the phone's bottom bar (at most five fit); it stays in the desktop drawer. */
+/**
+ * phone: false puts a tab under More on the phone's bottom bar (five fit:
+ * four tabs and More); the desktop drawer lists every tab.
+ */
 type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
+
+const CALENDAR: Tab = { href: "/calendar", label: "Calendar", icon: <CalendarMonthRoundedIcon /> };
 
 /** Tabs per role, from the prototype. Audit is project managers' and the superadmin's only. */
 const TABS: Record<Role, Tab[]> = {
   homeowner: [
     { href: "/", label: "My Project", icon: <HomeRoundedIcon /> },
+    CALENDAR,
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
   ],
@@ -48,31 +57,32 @@ const TABS: Record<Role, Tab[]> = {
     // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
     { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
-    // On a phone, Maintenance opens from the Projects header instead.
-    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    CALENDAR,
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
-    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
-    // On a phone, the audit log opens from the dashboard's header instead.
+    // On a phone, the rest are under More (Alerts also has the bell in every header).
+    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon />, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
-    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
+    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false },
   ],
   // Everything a project manager has, over every project.
   superadmin: [
     // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
     { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
-    // On a phone, Maintenance opens from the Projects header instead.
-    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    CALENDAR,
     { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
-    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
-    // On a phone, the audit log opens from the dashboard's header instead.
+    // On a phone, the rest are under More (Alerts also has the bell in every header).
+    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon />, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
-    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
+    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false },
   ],
   contractor: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
+    CALENDAR,
     { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon /> },
     { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
     { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
@@ -80,9 +90,10 @@ const TABS: Record<Role, Tab[]> = {
   epc_team: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     { href: "/sites", label: "Sites", icon: <PlaceRoundedIcon /> },
+    CALENDAR,
     { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon /> },
-    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
-    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
+    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon />, phone: false },
+    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false },
   ],
 };
 
@@ -113,10 +124,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { me: state } = useApp();
   const pathname = usePathname();
   const router = useRouter();
+  const [more, setMore] = useState(false);
   if (!me) return null;
   const tabs = TABS[me.role];
   const current = activeHref(pathname, tabs);
   const unread = (state?.unread ?? 0) > 0;
+  const bar = tabs.filter((t) => t.phone !== false);
+  const extra = tabs.filter((t) => t.phone === false);
+  const inMore = extra.some((t) => t.href === current);
 
   return (
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
@@ -205,8 +220,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           backdropFilter: "blur(18px)",
         }}
       >
-        <BottomNavigation showLabels value={current} onChange={(_, v: string) => router.push(v)} sx={{ height: 64, bgcolor: "transparent" }}>
-          {tabs.filter((t) => t.phone !== false).map((t) => (
+        <BottomNavigation
+          showLabels
+          value={inMore ? "more" : current}
+          onChange={(_, v: string) => (v === "more" ? setMore(true) : router.push(v))}
+          sx={{ height: 64, bgcolor: "transparent" }}
+        >
+          {bar.map((t) => (
             <BottomNavigationAction
               key={t.href}
               value={t.href}
@@ -214,8 +234,41 @@ export function AppShell({ children }: { children: ReactNode }) {
               icon={withBadge(t.icon, t.href === "/alerts" && unread)}
             />
           ))}
+          {extra.length > 0 && (
+            <BottomNavigationAction
+              value="more"
+              label={T("More")}
+              data-testid="nav-more"
+              icon={withBadge(<MoreHorizRoundedIcon />, extra.some((t) => t.href === "/alerts") && unread)}
+            />
+          )}
         </BottomNavigation>
       </Paper>
+
+      {/* Phones: the tabs that don't fit on the bar, as a sheet from the bottom. */}
+      <Drawer
+        anchor="bottom"
+        open={more}
+        onClose={() => setMore(false)}
+        slotProps={{ paper: { sx: { borderTopLeftRadius: DESIGN.radius.dialog, borderTopRightRadius: DESIGN.radius.dialog, pb: "calc(12px + env(safe-area-inset-bottom))" } } }}
+      >
+        <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: "divider", mx: "auto", mt: 1.25, mb: 1 }} />
+        <List sx={{ px: 1.5 }} data-testid="more-sheet" aria-label={T("More")}>
+          {extra.map((t) => (
+            <ListItemButton
+              key={t.href}
+              component={Link}
+              href={t.href}
+              selected={current === t.href}
+              onClick={() => setMore(false)}
+              sx={{ minHeight: 52, "&.Mui-selected": { bgcolor: "action.selected", "& .MuiListItemIcon-root": { color: "primary.main" } } }}
+            >
+              <ListItemIcon sx={{ minWidth: 44 }}>{withBadge(t.icon, t.href === "/alerts" && unread)}</ListItemIcon>
+              <ListItemText primary={TR(t.label)} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: 15.5 } } }} />
+            </ListItemButton>
+          ))}
+        </List>
+      </Drawer>
     </Box>
   );
 }

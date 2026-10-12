@@ -697,7 +697,7 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
               <Box sx={{ mt: 1.5 }}>
                 <Field label={T("Meeting link")} icon={<LinkRoundedIcon />} value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://" error={linkBad} helperText={linkBad ? T("Paste the meeting link as it starts: https://") : T("Start one, then paste its link here.")} slotProps={{ htmlInput: { inputMode: "url", "data-testid": "meeting-link" } }} />
                 <Stack direction="row" sx={{ gap: 1, mt: 1, flexWrap: "wrap" }}>
-                  <Button size="small" variant="outlined" startIcon={<VideocamRoundedIcon />} endIcon={<OpenInNewRoundedIcon />} disabled={start === null} href={start === null ? undefined : teamsNewUrl(title.trim() || T("Meeting"), `${startsAt}:00+08:00`, `${endsAt}:00+08:00`)} target="_blank" rel="noopener noreferrer">
+                  <Button size="small" variant="outlined" startIcon={<VideocamRoundedIcon />} endIcon={<OpenInNewRoundedIcon />} disabled={start === null} href={start === null ? "#" : teamsNewUrl(title.trim() || T("Meeting"), `${startsAt}:00+08:00`, `${endsAt}:00+08:00`)} target="_blank" rel="noopener noreferrer">
                     {T("New Teams meeting")}
                   </Button>
                   <Button size="small" variant="outlined" startIcon={<VideocamRoundedIcon />} endIcon={<OpenInNewRoundedIcon />} href={GOOGLE_MEET_NEW} target="_blank" rel="noopener noreferrer">

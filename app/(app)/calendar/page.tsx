@@ -43,7 +43,7 @@ export default function CalendarPage() {
   const fetcher = useFetcher();
   const { lang } = useLang();
   const wide = useMediaQuery((t: Theme) => t.breakpoints.up("lg"), { noSsr: true });
-  const [view, setView] = useState<View>(wide ? "week" : "day");
+  const [view, setView] = useState<View>(() => (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("view") === "list" ? "list" : wide ? "week" : "day"));
   const [anchor, setAnchor] = useState(today());
   const [month, setMonth] = useState(today());
   const [open, setOpen] = useState<Open>(null);
