@@ -26,6 +26,7 @@ import { ApiError, useFetcher } from "@/lib/client/api";
 import { type Role, useApp } from "@/lib/client/app-state";
 
 import { T, TR } from "@/lib/client/i18n";
+import { codeProblem, confirmProblem, emailProblem, firstProblem, nameProblem, passwordProblem, textProblem } from "@/lib/client/rules";
 /** Runs one step: shows the server's message, or keeps the error on screen. */
 function useStep() {
   const [busy, setBusy] = useState(false);
@@ -49,10 +50,12 @@ function Actions({ children }: { children: React.ReactNode }) {
   return <Stack sx={{ gap: 1, mt: 3 }}>{children}</Stack>;
 }
 
-function CodeField({ value, onChange, label = "6-digit code" }: { value: string; onChange: (v: string) => void; label?: string }) {
+function CodeField({ value, onChange, label = "6-digit code", error }: { value: string; onChange: (v: string) => void; label?: string; error?: string | null }) {
   return (
     <Field
       label={label}
+      error={Boolean(error)}
+      helperText={error ?? undefined}
       icon={<PinRoundedIcon />}
       value={value}
       autoFocus
@@ -69,17 +72,19 @@ export function NameDialog({ current, onClose }: { current: string; onClose: () 
   const { reloadMe, toast } = useApp();
   const { busy, error, step } = useStep();
   const [name, setName] = useState(current);
-  const ok = name.trim().length >= 2 && name.trim() !== current;
+  const [tried, setTried] = useState(false);
+  const problem = nameProblem(name) ?? (name.trim() === current ? T("That's your name already. Change it, or Cancel.") : null);
   return (
     <MDialog title={T("Your Name")} heading={T("Change your name")} subtitle={T("This is how you appear to everyone on your projects.")} onClose={onClose} maxWidth="xs">
-      <Field label={T("Full name")} icon={<PersonOutlineRoundedIcon />} value={name} autoFocus onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 80 } }} />
+      <Field label={T("Full name")} icon={<PersonOutlineRoundedIcon />} value={name} autoFocus onChange={(e) => setName(e.target.value)} error={tried && Boolean(problem)} helperText={tried ? (problem ?? undefined) : undefined} slotProps={{ htmlInput: { maxLength: 80 } }} />
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       <Actions>
         <Button
           size="large"
           variant="contained"
-          disabled={!ok || busy}
+          disabled={busy}
           onClick={async () => {
+            if (problem) return setTried(true);
             const r = await step(() => fetcher<{ message: string }>("/me/name", { method: "PATCH", json: { fullName: name } }));
             if (r) {
               toast(r.message);
@@ -116,7 +121,9 @@ export function EmailDialog({ current, onClose }: { current: string; onClose: ()
 
   const create = useReverification((address: string) => user!.createEmailAddress({ email: address }));
   const makePrimary = useReverification((id: string) => user!.update({ primaryEmailAddressId: id }));
-  const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) && email.trim().toLowerCase() !== current.toLowerCase();
+  const [triedCode, setTriedCode] = useState(false);
+  const [tried, setTried] = useState(false);
+  const problem = emailProblem(email) ?? (email.trim().toLowerCase() === current.toLowerCase() ? T("That's your email already. Enter the new one.") : null);
 
   async function send() {
     const r = await step(async () => {
@@ -157,19 +164,19 @@ export function EmailDialog({ current, onClose }: { current: string; onClose: ()
       maxWidth="xs"
     >
       {!pendingId ? (
-        <Field label={T("New email")} type="email" icon={<MailOutlineRoundedIcon />} value={email} autoFocus onChange={(e) => setEmail(e.target.value)} slotProps={{ htmlInput: { autoComplete: "email" } }} />
+        <Field label={T("New email")} type="email" icon={<MailOutlineRoundedIcon />} value={email} autoFocus onChange={(e) => setEmail(e.target.value)} error={tried && Boolean(problem)} helperText={tried ? (problem ?? undefined) : undefined} slotProps={{ htmlInput: { autoComplete: "email" } }} />
       ) : (
-        <CodeField value={code} onChange={setCode} />
+        <CodeField value={code} onChange={setCode}  error={triedCode ? codeProblem(code) : null} />
       )}
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       <Actions>
         {!pendingId ? (
-          <Button size="large" variant="contained" disabled={!ok || busy} onClick={() => void send()}>
+          <Button size="large" variant="contained" disabled={busy} onClick={() => (problem ? setTried(true) : void send())}>
             {busy ? T("Sending…") : T("Send code")}
           </Button>
         ) : (
           <>
-            <Button size="large" variant="contained" disabled={code.length !== 6 || busy} onClick={() => void confirm()}>
+            <Button size="large" variant="contained" disabled={busy} onClick={() => (codeProblem(code) ? setTriedCode(true) : void confirm())}>
               {busy ? T("Confirming…") : T("Confirm new email")}
             </Button>
             <Button size="large" disabled={busy} onClick={() => void send()}>
@@ -206,7 +213,9 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
   }, [wait]);
 
   const digits = number.replace(/\D/g, "");
-  const ok = digits.length >= 8 && number !== current;
+  const [tried, setTried] = useState(false);
+  const [triedCode, setTriedCode] = useState(false);
+  const problem = digits.length < 8 ? T("Enter the new mobile number, with its country code.") : number === current ? T("That's your number already. Enter the new one.") : null;
 
   async function send(channel: "auto" | "sms") {
     const r = await step(() => fetcher<Sent>("/me/mobile/send", { method: "POST", json: { number, channel } }));
@@ -234,7 +243,7 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
       onClose={onClose}
       maxWidth="xs"
     >
-      {!sent ? <PhoneField label={T("New mobile")} value={number} onChange={setNumber} /> : <CodeField value={code} onChange={setCode} />}
+      {!sent ? <PhoneField label={T("New mobile")} value={number} onChange={setNumber} error={tried && Boolean(problem)} helperText={tried ? (problem ?? undefined) : undefined} /> : <CodeField value={code} onChange={setCode} error={triedCode ? codeProblem(code) : null} />}
       {sent?.devCode && (
         <Alert severity="info" sx={{ mt: 2 }} data-testid="dev-code">
           {sent.sentBy === "demo" ? T("Demo: nothing is sent from the demo site, so here's the code:") : T("Development only: WhatsApp and SMS aren't set up, so here's the code:")} <b>{sent.devCode}</b>
@@ -243,12 +252,12 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       <Actions>
         {!sent ? (
-          <Button size="large" variant="contained" disabled={!ok || busy} onClick={() => void send("auto")}>
+          <Button size="large" variant="contained" disabled={busy} onClick={() => (problem ? setTried(true) : void send("auto"))}>
             {busy ? T("Sending…") : T("Send code")}
           </Button>
         ) : (
           <>
-            <Button size="large" variant="contained" disabled={code.length !== 6 || busy} onClick={() => void verify()}>
+            <Button size="large" variant="contained" disabled={busy} onClick={() => (codeProblem(code) ? setTriedCode(true) : void verify())}>
               {busy ? T("Checking…") : T("Confirm new number")}
             </Button>
             <Stack direction="row" sx={{ gap: 1 }}>
@@ -271,11 +280,13 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
 
 // ---------------------------------------------------------------- password
 
-function PasswordInput({ label, value, onChange, autoComplete }: { label: string; value: string; onChange: (v: string) => void; autoComplete: string }) {
+function PasswordInput({ label, value, onChange, autoComplete, error }: { label: string; value: string; onChange: (v: string) => void; autoComplete: string; error?: string | null }) {
   const [show, setShow] = useState(false);
   return (
     <Field
       label={label}
+      error={Boolean(error)}
+      helperText={error ?? undefined}
       type={show ? "text" : "password"}
       icon={<LockOutlinedIcon />}
       value={value}
@@ -311,14 +322,20 @@ export function PasswordDialog({ onClose }: { onClose: () => void }) {
   const change = useReverification((p: { currentPassword: string; newPassword: string }) => user!.updatePassword({ ...p, signOutOfOtherSessions: true }));
   const long = f.next.length >= PASSWORD_MIN;
   const same = f.next === f.again;
-  const ok = f.current.length > 0 && long && same && f.next !== f.current;
+  const [tried, setTried] = useState(false);
+  const problem = {
+    current: f.current ? null : T("Enter your current password."),
+    next: passwordProblem(f.next) ?? (f.next === f.current ? T("The new password must be different from the current one.") : null),
+    again: confirmProblem(f.next, f.again),
+  };
+  const ok = !firstProblem(problem.current, problem.next, problem.again);
 
   return (
     <MDialog title={T("Your Password")} heading={T("Change your password")} subtitle={T("Enter your current password, then the new one twice. You'll stay signed in here; other devices are signed out.")} onClose={onClose} maxWidth="xs">
       <Stack sx={{ gap: 2.5 }}>
-        <PasswordInput label={T("Current password")} value={f.current} onChange={(v) => setF((x) => ({ ...x, current: v }))} autoComplete="current-password" />
-        <PasswordInput label={T("New password")} value={f.next} onChange={(v) => setF((x) => ({ ...x, next: v }))} autoComplete="new-password" />
-        <PasswordInput label={T("New password again")} value={f.again} onChange={(v) => setF((x) => ({ ...x, again: v }))} autoComplete="new-password" />
+        <PasswordInput label={T("Current password")} value={f.current} onChange={(v) => setF((x) => ({ ...x, current: v }))} autoComplete="current-password" error={tried ? problem.current : null} />
+        <PasswordInput label={T("New password")} value={f.next} onChange={(v) => setF((x) => ({ ...x, next: v }))} autoComplete="new-password" error={tried ? problem.next : null} />
+        <PasswordInput label={T("New password again")} value={f.again} onChange={(v) => setF((x) => ({ ...x, again: v }))} autoComplete="new-password" error={tried ? problem.again : null} />
       </Stack>
       <Typography variant="caption" component="div" sx={{ mt: 1.5, color: f.next && !long ? "error.main" : "text.secondary" }}>
         {T("At least {n} characters. A short sentence is easiest to remember.", { n: PASSWORD_MIN })}
@@ -329,8 +346,9 @@ export function PasswordDialog({ onClose }: { onClose: () => void }) {
         <Button
           size="large"
           variant="contained"
-          disabled={!ok || busy}
+          disabled={busy}
           onClick={async () => {
+            if (!ok) return setTried(true);
             const r = await step(async () => {
               if (!user) throw new Error("Please sign in again first.");
               await change({ currentPassword: f.current, newPassword: f.next });
@@ -365,6 +383,8 @@ export function RoleDialog({ current, onClose }: { current: Role; onClose: () =>
   const options = (Object.keys(ROLE_NAME) as Role[]).filter((r) => r !== current && r !== "project_manager" && r !== "superadmin");
   const [role, setRole] = useState<Role>(options[0]);
   const [reason, setReason] = useState("");
+  const [tried, setTried] = useState(false);
+  const problem = textProblem(reason, 5, "why you need it");
   return (
     <MDialog title={T("Your Role")} heading={T("Ask for a different role")} subtitle={T("A project manager reviews it, the same way new accounts are approved. You keep your current role until then.")} onClose={onClose} maxWidth="xs">
       <Stack sx={{ gap: 2.5 }}>
@@ -375,15 +395,16 @@ export function RoleDialog({ current, onClose }: { current: Role; onClose: () =>
             </MenuItem>
           ))}
         </Field>
-        <Field label={T("Why you need it")} icon={<ChatBubbleOutlineRoundedIcon />} multiline minRows={3} placeholder={T("e.g. I've moved from the office to the EPC crew at Apex.")} value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 500 } }} />
+        <Field label={T("Why you need it")} icon={<ChatBubbleOutlineRoundedIcon />} multiline minRows={3} placeholder={T("e.g. I've moved from the office to the EPC crew at Apex.")} value={reason} onChange={(e) => setReason(e.target.value)} error={tried && Boolean(problem)} helperText={tried ? (problem ?? undefined) : undefined} slotProps={{ htmlInput: { maxLength: 500 } }} />
       </Stack>
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       <Actions>
         <Button
           size="large"
           variant="contained"
-          disabled={reason.trim().length < 5 || busy}
+          disabled={busy}
           onClick={async () => {
+            if (problem) return setTried(true);
             const r = await step(() => fetcher<{ message: string }>("/me/role-request", { method: "POST", json: { role, reason } }));
             if (r) {
               toast(r.message);

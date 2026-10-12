@@ -270,12 +270,14 @@ export function PhoneField({
   label = "Mobile",
   helperText,
   required,
+  error,
 }: {
   value: string;
   onChange: (v: string) => void;
   label?: string;
   helperText?: string;
   required?: boolean;
+  error?: boolean;
 }) {
   const [dial, setDial] = useState(() => splitPhone(value).dial);
   const { local } = splitPhone(value);
@@ -284,6 +286,7 @@ export function PhoneField({
     <TextField
       label={tr(label)}
       required={required}
+      error={error}
       type="tel"
       value={local}
       placeholder={dial === "65" ? "9123 4567" : t("Mobile number")}

@@ -54,6 +54,16 @@ export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarge
   const [problem, setProblem] = useState<string | null>(null);
   const n = Number(crew);
   const crewOk = crew !== "" && Number.isInteger(n) && (leaving ? n >= 0 : n >= 1) && n <= 200;
+  const crewProblem = crewOk
+    ? null
+    : crew === ""
+      ? leaving
+        ? T("Enter how many crew are still on site (0 if everyone's left).")
+        : T("Enter how many crew are on site.")
+      : n > 200
+        ? T("That's more than 200. Check the number.")
+        : T("At least 1 person checks in.");
+  const [tried, setTried] = useState(false);
   // A laptop, or a visitor on the demo site (who isn't at the house): stand in for the phone's GPS.
   const simulated = (DEV || Boolean(me?.demo)) && t.site?.lat != null && t.site?.lng != null;
 
@@ -97,6 +107,8 @@ export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarge
           onChange={(e) => setCrew(e.target.value.replace(/[^\d]/g, ""))}
           icon={<GroupsRoundedIcon />}
           placeholder={leaving ? "0" : "e.g. 4"}
+          error={tried && Boolean(crewProblem)}
+          helperText={tried ? (crewProblem ?? undefined) : undefined}
           slotProps={{ htmlInput: { inputMode: "numeric", min: leaving ? 0 : 1, max: 200, "aria-label": "Crew count", style: { textAlign: "center", fontWeight: 700 } } }}
         />
         <IconButton aria-label={T("One more")} disabled={busy || n >= 200} onClick={() => setCrew(String((n || 0) + 1))} sx={{ border: 1, borderColor: "divider", width: DESIGN.height.field, height: DESIGN.height.field, borderRadius: `${DESIGN.radius.field}px` }}>
@@ -128,11 +140,11 @@ export function CheckDialog({ target: t, onClose, onDone }: { target: CheckTarge
         </Alert>
       )}
 
-      <Button fullWidth size="large" variant="contained" disabled={!crewOk || busy} sx={{ mt: 3 }} startIcon={leaving ? <LogoutRoundedIcon /> : <LoginRoundedIcon />} onClick={() => void go()}>
+      <Button fullWidth size="large" variant="contained" disabled={busy} sx={{ mt: 3 }} startIcon={leaving ? <LogoutRoundedIcon /> : <LoginRoundedIcon />} onClick={() => (crewOk ? void go() : setTried(true))}>
         {busy ? T("Working…") : problem ? T("Try Again") : leaving ? T("Check Out") : T("Check In")}
       </Button>
       {simulated && (
-        <Button fullWidth size="small" color="warning" disabled={!crewOk || busy} sx={{ mt: 1 }} onClick={() => void go(true)}>
+        <Button fullWidth size="small" color="warning" disabled={busy} sx={{ mt: 1 }} onClick={() => (crewOk ? void go(true) : setTried(true))}>
           {me?.demo ? T("Demo: pretend I'm at the house") : T("Use the site's location (development only)")}
         </Button>
       )}
@@ -151,12 +163,13 @@ function ScheduleDialog({ pid, onClose, onDone }: { pid: number; onClose: () => 
   const todayIso = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
   const [f, setF] = useState({ date: todayIso, time: "09:00", note: "" });
   const [busy, setBusy] = useState(false);
-  const ok = Boolean(f.date) && f.date >= todayIso;
+  const dateProblem = !f.date ? T("Choose the day of the visit.") : f.date < todayIso ? T("That day has passed. Choose today or later.") : null;
+  const [tried, setTried] = useState(false);
   return (
     <MDialog title={T("Schedule Visit")} heading={T("When must the EPC team be on site?")} subtitle={T("The crew is told now, reminded an hour before, and you're alerted if nobody checks in.")} onClose={onClose} maxWidth="xs">
       <Stack sx={{ gap: 2.5 }}>
         <Stack direction="row" sx={{ gap: 1.5 }}>
-          <Field label={T("Date")} required type="date" icon={<CalendarMonthRoundedIcon />} value={f.date} onChange={(e) => setF((x) => ({ ...x, date: e.target.value }))} slotProps={{ htmlInput: { min: todayIso } }} />
+          <Field label={T("Date")} required type="date" icon={<CalendarMonthRoundedIcon />} value={f.date} onChange={(e) => setF((x) => ({ ...x, date: e.target.value }))} error={tried && Boolean(dateProblem)} helperText={tried ? (dateProblem ?? undefined) : undefined} slotProps={{ htmlInput: { min: todayIso } }} />
           <Field label={T("Start time")} type="time" icon={<ScheduleRoundedIcon />} value={f.time} onChange={(e) => setF((x) => ({ ...x, time: e.target.value }))} helperText={T("Optional")} />
         </Stack>
         <Field label={T("Works")} icon={<ConstructionRoundedIcon />} placeholder={T("e.g. Scaffolding and panel mounting")} value={f.note} onChange={(e) => setF((x) => ({ ...x, note: e.target.value }))} slotProps={{ htmlInput: { maxLength: 200 } }} />
@@ -165,9 +178,10 @@ function ScheduleDialog({ pid, onClose, onDone }: { pid: number; onClose: () => 
         fullWidth
         size="large"
         variant="contained"
-        disabled={!ok || busy}
+        disabled={busy}
         sx={{ mt: 3 }}
         onClick={async () => {
+          if (dateProblem) return setTried(true);
           setBusy(true);
           try {
             const res = await fetcher<{ message: string }>(`/projects/${pid}/visits`, { method: "POST", json: { date: f.date, time: f.time || null, note: f.note } });

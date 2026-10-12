@@ -24,6 +24,7 @@ import { dt2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp, useMe } from "@/lib/client/app-state";
 import { T, TR } from "@/lib/client/i18n";
+import { nameProblem } from "@/lib/client/rules";
 import type { ProjectRow } from "@/lib/client/projects";
 
 /** What GET /projects/{id}/handover returns. */
@@ -247,6 +248,13 @@ function SignDialog({ h, busy, onClose, onSign }: { h: Handover; busy: boolean; 
   const [name, setName] = useState(me?.fullName ?? "");
   const [agree, setAgree] = useState(false);
   const ready = drawn && name.trim().length >= 2 && agree;
+  // Pressing Sign with something missing says what, next to it.
+  const [tried, setTried] = useState(false);
+  const problem = {
+    drawn: drawn ? null : T("Sign in the box above with your finger, mouse or pen."),
+    name: nameProblem(name),
+    agree: agree ? null : T("Tick the box to accept the installation."),
+  };
   return (
     <MDialog title={T("Handover Certificate")} heading={h.certificate.title} subtitle={T("Certificate no. {number}", { number: h.certificate.number })} onClose={onClose}>
       <Certificate h={h} />
@@ -254,21 +262,31 @@ function SignDialog({ h, busy, onClose, onSign }: { h: Handover; busy: boolean; 
         {T("Sign here")}
       </Typography>
       <SignaturePad ref={pad} onChange={setDrawn} />
+      {tried && problem.drawn && (
+        <Typography role="alert" variant="caption" sx={{ display: "block", color: "error.main", mt: 0.5 }}>
+          {problem.drawn}
+        </Typography>
+      )}
       <Box sx={{ mt: 2 }}>
-        <Field label={T("Your full name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+        <Field label={T("Your full name")} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" error={tried && Boolean(problem.name)} helperText={tried ? (problem.name ?? undefined) : undefined} />
       </Box>
       <FormControlLabel
         sx={{ mt: 1.5, alignItems: "flex-start", "& .MuiCheckbox-root": { pt: 0.25 } }}
         control={<Checkbox checked={agree} onChange={(e) => setAgree(e.target.checked)} data-testid="agree" />}
         label={<Typography variant="body2">{T("I've read the certificate and accept the installation as complete.")}</Typography>}
       />
+      {tried && problem.agree && (
+        <Typography role="alert" variant="caption" sx={{ display: "block", color: "error.main" }}>
+          {problem.agree}
+        </Typography>
+      )}
       <Stack sx={{ gap: 1, mt: 2 }}>
         <Button
           size="large"
           variant="contained"
-          disabled={!ready || busy}
+          disabled={busy}
           data-testid="sign-certificate"
-          onClick={() => void onSign({ fingerprint: h.fingerprint, signerName: name.trim(), signature: pad.current?.jpeg() ?? "", agree })}
+          onClick={() => (!ready ? setTried(true) : void onSign({ fingerprint: h.fingerprint, signerName: name.trim(), signature: pad.current?.jpeg() ?? "", agree }))}
         >
           {T("Sign certificate")}
         </Button>

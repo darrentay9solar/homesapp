@@ -179,6 +179,8 @@ export function CheckDoneDialog({
   const [on, setOn] = useState(today);
   const future = Boolean(on) && on > today;
   const early = Boolean(on && turnedOn && on < turnedOn);
+  const [tried, setTried] = useState(false);
+  const missing = tried && !on;
   return (
     <MDialog
       title={T("Maintenance Check")}
@@ -193,12 +195,12 @@ export function CheckDoneDialog({
         icon={<CalendarMonthRoundedIcon />}
         value={on}
         onChange={(e) => setOn(e.target.value)}
-        error={future || early}
-        helperText={future ? T("A check can't be done in the future.") : early ? T("A check can't be done before the system was turned on.") : " "}
+        error={future || early || missing}
+        helperText={future ? T("A check can't be done in the future.") : early ? T("A check can't be done before the system was turned on.") : missing ? T("Choose the day it was done.") : " "}
         slotProps={{ htmlInput: { max: today, min: turnedOn ?? undefined, "data-testid": "done-on" } }}
       />
       <Stack sx={{ gap: 1, mt: 2 }}>
-        <Button size="large" variant="contained" disabled={busy || !on || future || early} onClick={() => void onDone(on)} data-testid="confirm-done">
+        <Button size="large" variant="contained" disabled={busy} onClick={() => (!on || future || early ? setTried(true) : void onDone(on))} data-testid="confirm-done">
           {T("Mark done")}
         </Button>
         <Button size="large" onClick={onClose}>
@@ -275,6 +277,7 @@ function problemOf(f: Form): string | null {
 
 /** Everything about a system that the app keeps, in one form. A superadmin also picks who looks after it. */
 export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [tried, setTried] = useState(false);
   const s = d.system;
   const [f, setF] = useState<Form>(() => formOf(s));
   const [busy, setBusy] = useState(false);
@@ -447,7 +450,12 @@ export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail
         {f.urgent && <Field label={T("What's wrong")} icon={<WarningAmberRoundedIcon />} value={f.urgentNote} onChange={set("urgentNote")} />}
         <Field label={T("Notes")} icon={<NotesRoundedIcon />} multiline minRows={2} value={f.notes} onChange={set("notes")} />
       </Stack>
-      <Button fullWidth size="large" variant="contained" disabled={busy || Boolean(problem)} sx={{ mt: 3 }} onClick={() => void save()} data-testid="save-system">
+      {tried && problem && (
+        <Alert severity="error" sx={{ mt: 2.5 }}>
+          {problem}
+        </Alert>
+      )}
+      <Button fullWidth size="large" variant="contained" disabled={busy} sx={{ mt: 3 }} onClick={() => (problem ? setTried(true) : void save())} data-testid="save-system">
         {busy ? T("Saving…") : T("Save Changes")}
       </Button>
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: problem ? "error.main" : "text.secondary", mt: 1.25 }}>

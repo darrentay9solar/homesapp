@@ -39,6 +39,7 @@ import { DESIGN } from "@/lib/client/design";
 import { type FieldDef, type ProjectFields, type Section, showValue, SP_STATUS, type StoredFile } from "@/lib/client/projects";
 
 import { T, TR } from "@/lib/client/i18n";
+import { icLast4Problem } from "@/lib/client/rules";
 type Ctx = { pid: number; data: ProjectFields; reload: () => Promise<void> };
 
 /** One section of the brief's milestone lists: a card that opens to its fields. */
@@ -120,8 +121,11 @@ function useSave(ctx: Ctx, f: FieldDef) {
   const fetcher = useFetcher();
   const { toast } = useApp();
   const [state, setState] = useState<SaveState>("idle");
+  // Why the last value was refused, kept under the field until it's changed.
+  const [error, setError] = useState<string | null>(null);
   async function save(value: unknown) {
     setState("saving");
+    setError(null);
     try {
       const res = await fetcher<{ message: string }>(`/projects/${ctx.pid}/fields`, { method: "PATCH", json: { key: f.key, value } });
       // A plain save shows a tick; a milestone completing is worth a message.
@@ -129,11 +133,13 @@ function useSave(ctx: Ctx, f: FieldDef) {
       setState("saved");
       await ctx.reload();
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : `Couldn't save ${TR(f.label)}.`, "bad");
+      const why = err instanceof ApiError ? err.message : T("Couldn't save {field}.", { field: TR(f.label) });
+      toast(why, "bad");
+      setError(why);
       setState("idle");
     }
   }
-  return { save, state };
+  return { save, state, error, setError };
 }
 
 function FieldRow({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
@@ -192,7 +198,7 @@ function Status({ state }: { state: SaveState }) {
 
 /** Text, numbers, dates and the homeowner's IC: saved when you leave the field (or press Enter). */
 function Typed({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
-  const { save, state } = useSave(ctx, f);
+  const { save, state, error, setError } = useSave(ctx, f);
   const ic = f.key === "homeowner.ic_last4";
   const initial = ic ? "" : f.value == null ? "" : String(f.value);
   const [text, setText] = useState(initial);
@@ -201,8 +207,11 @@ function Typed({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
     setSeen(initial);
     setText(initial);
   }
+  // Checked here first, so a value that can't be saved says why at once.
+  const local = ic ? icLast4Problem(text) : f.kind === "number" && text !== "" && !(Number.isInteger(Number(text)) && Number(text) >= 0) ? T("A whole number, 0 or more.") : null;
   const commit = () => {
     if (text === initial && !(ic && text)) return;
+    if (local) return setError(local);
     void save(f.kind === "number" ? (text === "" ? null : Number(text)) : text);
   };
   return (
@@ -212,13 +221,15 @@ function Typed({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
       placeholder={ic ? (f.value ? T("Recorded · type to replace") : "e.g. 567D") : f.kind === "number" ? "0" : ""}
       onChange={(e) => {
         setText(e.target.value);
+        setError(null);
         if (f.kind === "date" && e.target.value && e.target.value !== initial) void save(e.target.value);
       }}
       onBlur={f.kind === "date" ? undefined : commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
       }}
-      helperText={ic ? T("Only the last 4 characters, e.g. 567D. Stored privately and never shown again.") : undefined}
+      error={Boolean(error)}
+      helperText={error ?? (ic ? T("Only the last 4 characters, e.g. 567D. Stored privately and never shown again.") : undefined)}
       slotProps={{
         htmlInput: { inputMode: f.kind === "number" ? "numeric" : undefined, maxLength: ic ? 4 : 200, min: f.kind === "number" ? 0 : undefined, "aria-label": f.label },
         input: { endAdornment: <Status state={state} /> },

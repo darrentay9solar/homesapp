@@ -27,6 +27,7 @@ import {
 } from "@/components/auth";
 import { splitPhone } from "@/components/phone-input";
 import { T } from "@/lib/client/i18n";
+import { codeProblem } from "@/lib/client/rules";
 
 /**
  * Create an account. Two ways in:
@@ -135,7 +136,7 @@ function SignUpFlow() {
   }
 
   async function verify(value = code) {
-    if (value.length < 6) return;
+    if (value.length < 6) return setErr(codeProblem(value));
     setErr(null);
     const { error } = await signUp.verifications.verifyEmailCode({ code: value });
     if (error) return setErr(clerkMessage(error));
@@ -151,7 +152,7 @@ function SignUpFlow() {
         <OtpInput value={code} onChange={setCode} onComplete={(v) => void verify(v)} />
         <AuthError>{err}</AuthError>
         <ResendCode onResend={async () => void (await signUp.verifications.sendEmailCode())} />
-        <AuthButton disabled={busy || code.length < 6} onClick={() => void verify()} sx={{ mt: 2.75 }}>
+        <AuthButton disabled={busy} onClick={() => void verify()} sx={{ mt: 2.75 }}>
           {busy ? T("Checking…") : T("Verify and Proceed")}
         </AuthButton>
       </AuthShell>

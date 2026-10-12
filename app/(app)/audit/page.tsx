@@ -86,6 +86,7 @@ import { isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
 import { ROLE_COLOR } from "@/lib/client/mui-theme";
 
 import { T, TR } from "@/lib/client/i18n";
+import { textProblem } from "@/lib/client/rules";
 type View = "timeline" | "people";
 type Filter = AuditPage | "all";
 type Confirm = { spec: ActionSpec; entry: AuditEntry | null };
@@ -1053,6 +1054,8 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
   const [preview, setPreview] = useState<{ spec: ActionSpec; data: Preview } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  // Pressing the button with too short a reason says so under it.
+  const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -1153,7 +1156,8 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
           placeholder={T("e.g. Panel count was entered for the wrong house.")}
           value={reason}
           onChange={(ev) => setReason(ev.target.value)}
-          helperText={T("Kept with this change in the audit log. At least {n} characters.", { n: MIN_REASON })}
+          error={tried && !reasonOk(reason)}
+          helperText={tried && !reasonOk(reason) ? textProblem(reason, MIN_REASON, "a reason") : T("Kept with this change in the audit log. At least {n} characters.", { n: MIN_REASON })}
           slotProps={{ htmlInput: { maxLength: 500, "data-testid": "action-reason" } }}
         />
       )}
@@ -1163,9 +1167,10 @@ function ActionDialog({ spec: initial, entry: e, refs, onClose, onDone }: Confir
           <Button
             size="large"
             variant="contained"
-            disabled={busy || !p || !reasonOk(reason)}
+            disabled={busy || !p}
             onClick={async () => {
               if (!p) return;
+              if (!reasonOk(reason)) return setTried(true);
               setBusy(true);
               try {
                 const res = await fetcher<{ message: string }>("/audit/actions/apply", {

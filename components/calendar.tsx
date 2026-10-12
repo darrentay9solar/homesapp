@@ -84,6 +84,7 @@ import {
 } from "@/lib/client/calendar";
 import { DESIGN } from "@/lib/client/design";
 import { T, TR, useLang } from "@/lib/client/i18n";
+import { FIX_FIELDS } from "@/lib/client/rules";
 
 /**
  * The calendar's pieces, in the style of Google Calendar on the app's
@@ -591,6 +592,13 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
   const nameOf = (uid: number) => contactList.find((c) => c.uid === uid)?.name ?? edit?.people.find((p) => p.uid === uid)?.name ?? String(uid);
   const linkBad = place === "online" && link.trim() !== "" && !/^https:\/\/\S+$/.test(link.trim());
   const ready = title.trim() && people.length > 0 && start !== null && !clash && !linkBad;
+  // Pressing Send with something missing marks it, instead of a grey button.
+  const [tried, setTried] = useState(false);
+  const problem = {
+    title: title.trim() ? null : T("Give the meeting a title."),
+    people: people.length ? null : T("Invite at least one person."),
+    start: start === null ? T("Choose a start time.") : null,
+  };
 
   const startsAt = start === null ? "" : wallTime(day, start);
   const endsAt = start === null ? "" : wallTime(day, start + duration);
@@ -616,7 +624,7 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
     <MDialog title={edit ? T("Change Meeting") : draft.checkKey ? T("Book a Check") : T("New Meeting")} onClose={onClose} maxWidth="md">
       <Box data-testid="meeting-dialog" sx={{ display: "grid", gap: { xs: 2.5, md: 4 }, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "minmax(0, 1fr) minmax(0, 1fr)" }, pt: 1 }}>
         <Stack sx={{ gap: 2.5, minWidth: 0 }}>
-          <Field label={T("Title")} icon={<TitleRoundedIcon />} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={T("What's it about?")} slotProps={{ htmlInput: { maxLength: 120, "data-testid": "meeting-title" } }} />
+          <Field label={T("Title")} icon={<TitleRoundedIcon />} value={title} onChange={(e) => setTitle(e.target.value)} error={tried && Boolean(problem.title)} helperText={tried ? (problem.title ?? undefined) : undefined} placeholder={T("What's it about?")} slotProps={{ htmlInput: { maxLength: 120, "data-testid": "meeting-title" } }} />
           <Autocomplete
             multiple
             options={contactList.map((c) => c.uid)}
@@ -644,7 +652,7 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
                 </Box>
               );
             }}
-            renderInput={(params) => <TextField {...params} label={T("Invite")} placeholder={people.length ? "" : T("Add people")} slotProps={{ ...params.slotProps, inputLabel: { ...params.slotProps.inputLabel, shrink: true }, htmlInput: { ...params.slotProps.htmlInput, "data-testid": "meeting-people" } }} />}
+            renderInput={(params) => <TextField {...params} label={T("Invite")} placeholder={people.length ? "" : T("Add people")} error={tried && Boolean(problem.people)} helperText={tried ? (problem.people ?? undefined) : undefined} slotProps={{ ...params.slotProps, inputLabel: { ...params.slotProps.inputLabel, shrink: true }, htmlInput: { ...params.slotProps.htmlInput, "data-testid": "meeting-people" } }} />}
           />
           <Box>
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>
@@ -707,6 +715,11 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
                 {clash}
               </Typography>
             )}
+            {tried && problem.start && (
+              <Typography role="alert" variant="body2" sx={{ mt: 1, color: "error.main" }}>
+                {problem.start}
+              </Typography>
+            )}
           </Box>
           <Box>
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.75 }}>
@@ -753,16 +766,16 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
           <Field label={T("Notes")} icon={<NotesRoundedIcon />} value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 1000 } }} />
         </Stack>
       </Box>
-      {error && (
+      {(error || (tried && !ready)) && (
         <Alert severity="error" sx={{ mt: 2 }}>
-          {error}
+          {error ?? T(FIX_FIELDS)}
         </Alert>
       )}
       <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1, mt: 3, justifyContent: "flex-end" }}>
         <Button size="large" onClick={onClose}>
           {T("Cancel")}
         </Button>
-        <Button size="large" variant="contained" disabled={!ready || busy} onClick={() => void save()} data-testid="send-meeting">
+        <Button size="large" variant="contained" disabled={busy} onClick={() => (ready ? void save() : setTried(true))} data-testid="send-meeting">
           {edit ? T("Save changes") : T("Send invitations")}
         </Button>
       </Stack>
@@ -996,7 +1009,7 @@ export function BlockDialog({ day, onClose, onSaved }: { day: string; onClose: (
         )}
         <Field label={T("Note (only you see it)")} icon={<NotesRoundedIcon />} value={note} onChange={(e) => setNote(e.target.value)} placeholder={T("Leave, training…")} slotProps={{ htmlInput: { maxLength: 200 } }} />
         {(bad || error) && <Alert severity="error">{bad ?? error}</Alert>}
-        <Button size="large" variant="contained" startIcon={<EventBusyRoundedIcon />} disabled={busy || Boolean(bad)} onClick={() => void save()} data-testid="save-block">
+        <Button size="large" variant="contained" startIcon={<EventBusyRoundedIcon />} disabled={busy} onClick={() => (bad ? undefined : void save())} data-testid="save-block">
           {T("Block out")}
         </Button>
       </Stack>

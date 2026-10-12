@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 import { AuthBadge, AuthButton, AuthError, AuthField, AuthHeading, AuthRules, AuthShell, AuthSubtitle, OtpInput, PASSWORD_MIN, PasswordField, ResendCode, clerkMessage } from "@/components/auth";
 import { T } from "@/lib/client/i18n";
+import { codeProblem, confirmProblem, emailProblem, passwordProblem } from "@/lib/client/rules";
 
 type Step = "email" | "code" | "password" | "done";
 
@@ -30,6 +31,8 @@ export default function ForgotPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [unknown, setUnknown] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Pressing the button with something wrong says what, under the field.
+  const [tried, setTried] = useState(false);
 
   useEffect(() => {
     try {
@@ -65,7 +68,7 @@ export default function ForgotPasswordPage() {
   }
 
   async function verify(value = code) {
-    if (value.length < 6) return;
+    if (value.length < 6) return setErr(codeProblem(value));
     setErr(null);
     if (unknown) return setErr(T("That code isn't right. Check the email and try again."));
     const { error } = await signIn.resetPasswordEmailCode.verifyCode({ code: value });
@@ -79,7 +82,10 @@ export default function ForgotPasswordPage() {
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!longEnough || !matches) return;
+    if (!longEnough || !matches) {
+      setTried(true);
+      return;
+    }
     setErr(null);
     const { error } = await signIn.resetPasswordEmailCode.submitPassword({ password, signOutOfOtherSessions: true });
     if (error) return setErr(clerkMessage(error));
@@ -113,11 +119,11 @@ export default function ForgotPasswordPage() {
         <AuthHeading>{T("Enter new password")}</AuthHeading>
         <AuthSubtitle>{T("Your new password must be different from previously used passwords.")}</AuthSubtitle>
         <form onSubmit={save} noValidate>
-          <PasswordField id="fp-pw" label="Password" value={password} onChange={(e) => setPassword(e.target.value)} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
-          <PasswordField id="fp-pw2" label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
+          <PasswordField id="fp-pw" label="Password" value={password} onChange={(e) => setPassword(e.target.value)} error={tried ? passwordProblem(password) : null} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
+          <PasswordField id="fp-pw2" label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} error={tried ? confirmProblem(password, confirm) : null} slotProps={{ htmlInput: { autoComplete: "new-password" } }} />
           <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { ok: matches, text: T("Passwords match") }]} />
           <AuthError>{err}</AuthError>
-          <AuthButton disabled={busy || !longEnough || !matches}>{busy ? T("Saving…") : T("Continue")}</AuthButton>
+          <AuthButton disabled={busy}>{busy ? T("Saving…") : T("Continue")}</AuthButton>
         </form>
       </AuthShell>
     );
@@ -131,7 +137,7 @@ export default function ForgotPasswordPage() {
         <OtpInput value={code} onChange={setCode} onComplete={(v) => void verify(v)} />
         <AuthError>{err}</AuthError>
         <ResendCode onResend={async () => void (unknown || (await signIn.resetPasswordEmailCode.sendCode()))} />
-        <AuthButton disabled={busy || code.length < 6} onClick={() => void verify()} sx={{ mt: 2.75 }}>
+        <AuthButton disabled={busy} onClick={() => void verify()} sx={{ mt: 2.75 }}>
           {busy ? T("Checking…") : T("Verify and Proceed")}
         </AuthButton>
       </AuthShell>
@@ -151,10 +157,11 @@ export default function ForgotPasswordPage() {
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          error={tried ? emailProblem(email) : null}
           slotProps={{ htmlInput: { inputMode: "email", autoComplete: "email" } }}
         />
         <AuthError>{err}</AuthError>
-        <AuthButton disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())}>{busy ? T("Sending…") : T("Send Code")}</AuthButton>
+        <AuthButton disabled={busy}>{busy ? T("Sending…") : T("Send Code")}</AuthButton>
       </form>
     </AuthShell>
   );

@@ -13,6 +13,7 @@ import SolarPowerOutlinedIcon from "@mui/icons-material/SolarPowerOutlined";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import Skeleton from "@mui/material/Skeleton";
 import { useRouter } from "next/navigation";
+import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
 
 import { AuthAlt, AuthBadge, AuthButton, AuthChoices, AuthError, AuthField, AuthHeading, AuthPhoneField, AuthRules, AuthShell, AuthSteps, AuthSubtitle, Mark, PersonIcon } from "@/components/auth";
@@ -21,6 +22,7 @@ import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import type { Role } from "@/lib/client/app-state";
 import { currentLang, T, TR } from "@/lib/client/i18n";
+import { FIX_FIELDS, firstProblem, icLast4Problem, mobileProblem, nameProblem, postalProblem } from "@/lib/client/rules";
 
 type MeState = {
   state: "active" | "deactivated" | "pending" | "rejected" | "no_account";
@@ -80,11 +82,24 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const mobileOk = splitPhone(form.contactNo).local.replace(/\D/g, "").length >= 6;
-  const ready = role && form.fullName.trim().length >= 2 && mobileOk;
+  const problem = {
+    role: role ? null : T("Choose a role."),
+    name: nameProblem(form.fullName),
+    mobile: mobileOk ? null : mobileProblem(splitPhone(form.contactNo).local),
+    postal: postalProblem(form.postalCode),
+    ic: role === "homeowner" ? icLast4Problem(form.icLast4) : null,
+  };
+  const ready = !firstProblem(...Object.values(problem));
+  // Pressing Request Access with something wrong marks it, instead of a grey button.
+  const [tried, setTried] = useState(false);
+  const shown = (k: keyof typeof problem) => (tried ? problem[k] : null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!ready) return;
+    if (!ready) {
+      setTried(true);
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
@@ -112,8 +127,13 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
 
       <form onSubmit={submit} noValidate>
         <AuthChoices label="Role" value={role} onChange={setRole} options={ROLES} />
-        <AuthField id="ob-name" label="Full name" icon={<PersonIcon />} placeholder="e.g. Aisha Rahman" value={form.fullName} onChange={set("fullName")} slotProps={{ htmlInput: { autoComplete: "name" } }} />
-        <AuthPhoneField id="ob-phone" value={form.contactNo} onChange={(v) => setForm((f) => ({ ...f, contactNo: v }))} />
+        {shown("role") && (
+          <Typography role="alert" variant="caption" sx={{ display: "block", color: "error.main", mt: -2, mb: 2, mx: 0.25 }}>
+            {shown("role")}
+          </Typography>
+        )}
+        <AuthField id="ob-name" label="Full name" icon={<PersonIcon />} placeholder="e.g. Aisha Rahman" value={form.fullName} onChange={set("fullName")} error={shown("name")} slotProps={{ htmlInput: { autoComplete: "name" } }} />
+        <AuthPhoneField id="ob-phone" value={form.contactNo} onChange={(v) => setForm((f) => ({ ...f, contactNo: v }))} error={shown("mobile")} />
         <AuthField
           id="ob-postal"
           label="Postal code (optional)"
@@ -121,12 +141,13 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
           placeholder="6 digits — fills in your address"
           value={form.postalCode}
           onChange={set("postalCode")}
+          error={shown("postal")}
           slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6, autoComplete: "postal-code" } }}
         />
         <AuthField id="ob-addr" label="Address (optional)" icon={<HomeOutlinedIcon />} placeholder="Filled in from your postal code" value={form.address} onChange={set("address")} slotProps={{ htmlInput: { autoComplete: "street-address" } }} />
         {role === "homeowner" && (
           <>
-            <AuthField id="ob-ic" label="NRIC last 4 (optional)" icon={<BadgeOutlinedIcon />} placeholder="e.g. 567D" value={form.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4, autoComplete: "off" } }} />
+            <AuthField id="ob-ic" label="NRIC last 4 (optional)" icon={<BadgeOutlinedIcon />} placeholder="e.g. 567D" value={form.icLast4} onChange={set("icLast4")} error={shown("ic")} slotProps={{ htmlInput: { maxLength: 4, autoComplete: "off" } }} />
             <AuthRules rules={[{ text: T("We never ask for your full NRIC.") }]} />
           </>
         )}
@@ -139,8 +160,8 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
           onChange={set("note")}
           slotProps={{ htmlInput: { maxLength: 500 } }}
         />
-        <AuthError>{err}</AuthError>
-        <AuthButton disabled={!ready || busy}>{busy ? T("Sending…") : T("Request Access")}</AuthButton>
+        <AuthError>{err ?? (tried && !ready ? T(FIX_FIELDS) : null)}</AuthError>
+        <AuthButton disabled={busy}>{busy ? T("Sending…") : T("Request Access")}</AuthButton>
       </form>
     </>
   );

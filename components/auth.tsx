@@ -664,7 +664,7 @@ export function safeRedirect(raw: string | null): string {
 }
 
 /** Mirrors the Clerk instance's password policy (Dashboard → Passwords). */
-export const PASSWORD_MIN = 15;
+export { PASSWORD_MIN } from "@/lib/client/rules";
 
 /** The person icon, for the name field. */
 export const PersonIcon = AccountCircleOutlinedIcon;

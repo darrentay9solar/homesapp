@@ -9,6 +9,7 @@ import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import Alert from "@mui/material/Alert";
 import Autocomplete from "@mui/material/Autocomplete";
 import AvatarGroup from "@mui/material/AvatarGroup";
 import Box from "@mui/material/Box";
@@ -39,6 +40,7 @@ import { useApp } from "@/lib/client/app-state";
 import { type Options, planDates, type ProjectRow, STATUS_TONE } from "@/lib/client/projects";
 
 import { T, TR } from "@/lib/client/i18n";
+import { FIX_FIELDS, firstProblem, mobileProblem } from "@/lib/client/rules";
 /** Where a project opens: inside the dev preview when browsing it, otherwise the app. */
 export function useProjectHref() {
   const pathname = usePathname();
@@ -236,17 +238,25 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
   const dates = planDates(f.start, f.end);
   const homeownerOk = typeof homeowner === "string" ? homeowner.trim().length >= 2 : homeowner !== null;
   const contractorOk = ctr === "group" ? Boolean(f.groupId) : ctr === "users" ? crew.length > 0 : f.ctrText.trim().length >= 2;
-  const ok =
-    f.name.trim().length >= 2 &&
-    /^\d{6}$/.test(f.postal) &&
-    geo?.postal === f.postal &&
-    geo.ok &&
-    f.address.trim().length >= 5 &&
-    homeownerOk &&
-    splitPhone(f.contact).local.replace(/\D/g, "").length >= 6 &&
-    contractorOk &&
-    dates !== null &&
-    !dates.error;
+  // Each rule, as what to do about it. Pressing the button with any unmet marks those fields.
+  const problem = {
+    name: f.name.trim().length >= 2 ? null : T("Enter the project's name."),
+    postal: !/^\d{6}$/.test(f.postal)
+      ? T("Enter the 6-digit postal code.")
+      : geo?.postal !== f.postal
+        ? T("Wait a moment: the postal code is still being looked up.")
+        : geo.ok
+          ? null
+          : geo.text,
+    address: f.address.trim().length >= 5 ? null : T("Enter the address (it fills in from the postal code)."),
+    homeowner: homeownerOk ? null : T("Choose the homeowner's account, or type their name."),
+    contact: mobileProblem(splitPhone(f.contact).local),
+    contractor: contractorOk ? null : ctr === "group" ? T("Choose a contractor group.") : ctr === "users" ? T("Choose at least one person.") : T("Enter the contractor's name."),
+    dates: dates === null ? T("Give a start date, an end date, or both.") : (dates.error ?? null),
+  };
+  const ok = !firstProblem(...Object.values(problem));
+  const [tried, setTried] = useState(false);
+  const shown = (k: keyof typeof problem) => (tried ? problem[k] : null);
   const linked = homeowner !== null && typeof homeowner !== "string";
 
   async function submit() {
@@ -285,7 +295,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
       onClose={onClose}
     >
       <Stack sx={{ gap: 2.5 }}>
-        <Field label={T("Project name")} required icon={<SolarPowerRoundedIcon />} placeholder={T("e.g. Hillcrest Villa")} value={f.name} onChange={set("name")} />
+        <Field label={T("Project name")} required icon={<SolarPowerRoundedIcon />} placeholder={T("e.g. Hillcrest Villa")} value={f.name} onChange={set("name")} error={Boolean(shown("name"))} helperText={shown("name") ?? undefined} />
 
         <Field
           label={T("Postal code")}
@@ -294,22 +304,23 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           placeholder={T("6 digits — finds the address and site location")}
           value={f.postal}
           onChange={(e) => setF((x) => ({ ...x, postal: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
-          error={Boolean(geo && geo.postal === f.postal && !geo.ok)}
+          error={Boolean(geo && geo.postal === f.postal && !geo.ok) || Boolean(shown("postal"))}
           helperText={
-            geo && geo.postal === f.postal
+            shown("postal") ??
+            (geo && geo.postal === f.postal
               ? geo.ok
                 ? "Found on OneMap. GPS check-in will use this site."
                 : geo.text
               : /^\d{6}$/.test(f.postal)
                 ? "Looking it up…"
-                : "Used for the site's GPS location at check-in."
+                : "Used for the site's GPS location at check-in.")
           }
           slotProps={{
             htmlInput: { inputMode: "numeric", maxLength: 6 },
             input: geo && geo.postal === f.postal && geo.ok ? { endAdornment: <InputAdornment position="end"><Chip size="small" color="success" label={T("Located")} /></InputAdornment> } : undefined,
           }}
         />
-        <Field label={T("Project address")} required icon={<HomeOutlinedIcon />} multiline minRows={2} placeholder={T("Filled in from the postal code")} value={f.address} onChange={set("address")} />
+        <Field label={T("Project address")} required icon={<HomeOutlinedIcon />} multiline minRows={2} placeholder={T("Filled in from the postal code")} value={f.address} onChange={set("address")} error={Boolean(shown("address"))} helperText={shown("address") ?? undefined} />
 
         <Autocomplete
           freeSolo
@@ -341,12 +352,14 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
               label={T("Homeowner")}
               required
               placeholder={T("Choose their account, or type a name")}
+              error={Boolean(shown("homeowner"))}
               helperText={
-                linked
+                shown("homeowner") ??
+                (linked
                   ? "Account linked: they'll be asked to approve the project."
                   : homeownerOk
                     ? "No account: the project stays a draft until one is linked, since only an account can approve and e-sign."
-                    : "Choose a homeowner account, or type a name if they don't have one yet."
+                    : "Choose a homeowner account, or type a name if they don't have one yet.")
               }
               slotProps={{
                 ...params.slotProps,
@@ -363,7 +376,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
             />
           )}
         />
-        <PhoneField required label={T("Homeowner contact no.")} value={f.contact} onChange={(v) => setF((x) => ({ ...x, contact: v }))} />
+        <PhoneField required label={T("Homeowner contact no.")} value={f.contact} onChange={(v) => setF((x) => ({ ...x, contact: v }))} error={Boolean(shown("contact"))} helperText={shown("contact") ?? undefined} />
 
         <Box>
           <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 500, display: "block", mb: 0.75 }}>
@@ -383,7 +396,8 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           </ToggleButtonGroup>
           {ctr === "group" && (
             <Field select label={T("Contractor group")} required icon={<GroupsRoundedIcon />} value={f.groupId} onChange={set("groupId")}
-              helperText={opts?.groups.length === 0 ? T("No groups yet. Create one in People.") : T("Everyone in the group is told about the project.")}>
+              error={Boolean(shown("contractor"))}
+              helperText={shown("contractor") ?? (opts?.groups.length === 0 ? T("No groups yet. Create one in People.") : T("Everyone in the group is told about the project."))}>
               {(opts?.groups ?? []).map((g) => (
                 <MenuItem key={g.id} value={String(g.id)}>
                   {g.name} · {g.members.length} member{g.members.length === 1 ? "" : "s"}
@@ -418,7 +432,8 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
                   {...params}
                   label={T("Contractor admins & EPC crew")}
                   required
-                  helperText={T("Each person chosen is told about the project.")}
+                  error={Boolean(shown("contractor"))}
+                  helperText={shown("contractor") ?? T("Each person chosen is told about the project.")}
                   slotProps={{ ...params.slotProps, inputLabel: { ...params.slotProps.inputLabel, shrink: true } }}
                 />
               )}
@@ -426,7 +441,8 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           )}
           {ctr === "text" && (
             <Field label={T("Contractor name")} required icon={<EngineeringRoundedIcon />} placeholder={T("e.g. Northline Roofing Pte Ltd")} value={f.ctrText} onChange={set("ctrText")}
-              helperText={T("A typed name has no accounts to notify.")} />
+              error={Boolean(shown("contractor"))}
+              helperText={shown("contractor") ?? T("A typed name has no accounts to notify.")} />
           )}
         </Box>
 
@@ -455,14 +471,24 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
             <Field label={T("End date")} type="date" icon={<CalendarMonthRoundedIcon />} value={f.end} onChange={set("end")} />
           </Stack>
           <DatesNote start={f.start} end={f.end} />
+          {shown("dates") && dates === null && (
+            <Typography role="alert" variant="caption" sx={{ display: "block", color: "error.main", mt: 0.5 }}>
+              {shown("dates")}
+            </Typography>
+          )}
         </Box>
       </Stack>
 
-      <Button fullWidth size="large" variant="contained" disabled={!ok || busy} sx={{ mt: 3 }} onClick={() => void submit()}>
+      {tried && !ok && (
+        <Alert severity="error" sx={{ mt: 2.5 }}>
+          {T(FIX_FIELDS)}
+        </Alert>
+      )}
+      <Button fullWidth size="large" variant="contained" disabled={busy} sx={{ mt: 3 }} onClick={() => (ok ? void submit() : setTried(true))}>
         {busy ? (p ? T("Saving…") : T("Creating…")) : p ? T("Save Changes") : T("Next — Create Project")}
       </Button>
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        {!ok ? T("Complete every field to continue.") : p ? T("Anyone newly added to the project will be notified.") : T("The homeowner, contractor admins and EPC crew will be notified.")}
+        {p ? T("Anyone newly added to the project will be notified.") : T("The homeowner, contractor admins and EPC crew will be notified.")}
       </Typography>
     </MDialog>
   );

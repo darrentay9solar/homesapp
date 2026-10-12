@@ -11,6 +11,7 @@ import { AuthAlt, AuthButton, AuthError, AuthField, AuthHeading, AuthLink, AuthS
 import { DemoPicker } from "@/components/demo-picker";
 import { DEMO_SITE } from "@/lib/client/demo";
 import { T } from "@/lib/client/i18n";
+import { codeProblem } from "@/lib/client/rules";
 
 /**
  * Sign in — the template's design, with Clerk doing the authentication
@@ -36,6 +37,8 @@ function SignInFlow() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  // Pressing Sign In with a field empty says which, instead of a grey button.
+  const [tried, setTried] = useState(false);
   const busy = fetchStatus === "fetching";
 
   useEffect(() => {
@@ -62,6 +65,10 @@ function SignInFlow() {
 
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
+    if (!email.trim() || !password) {
+      setTried(true);
+      return;
+    }
     setErr(null);
     const { error } = await signIn.password({ emailAddress: email.trim(), password });
     if (error) return setErr(clerkMessage(error));
@@ -69,7 +76,7 @@ function SignInFlow() {
   }
 
   async function submitCode(value = code) {
-    if (value.length < 6) return;
+    if (value.length < 6) return setErr(codeProblem(value));
     setErr(null);
     const { error } = await signIn.mfa.verifyEmailCode({ code: value });
     if (error) return setErr(clerkMessage(error));
@@ -84,7 +91,7 @@ function SignInFlow() {
         <OtpInput value={code} onChange={setCode} onComplete={(v) => void submitCode(v)} />
         <AuthError>{err}</AuthError>
         <ResendCode onResend={async () => void (await signIn.mfa.sendEmailCode())} />
-        <AuthButton disabled={busy || code.length < 6} onClick={() => void submitCode()} sx={{ mt: 2.75 }}>
+        <AuthButton disabled={busy} onClick={() => void submitCode()} sx={{ mt: 2.75 }}>
           {busy ? T("Checking…") : T("Verify and Proceed")}
         </AuthButton>
       </AuthShell>
@@ -106,6 +113,7 @@ function SignInFlow() {
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          error={tried && !email.trim() ? T("Enter your email.") : null}
           slotProps={{ htmlInput: { inputMode: "email", autoComplete: "email" } }}
         />
         <PasswordField
@@ -114,6 +122,7 @@ function SignInFlow() {
           placeholder="Your password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          error={tried && !password ? T("Enter your password.") : null}
           slotProps={{ htmlInput: { autoComplete: "current-password" } }}
         />
         <Box sx={{ textAlign: "right", mt: -1, mb: 2.25, mx: 0.25 }}>
@@ -133,7 +142,7 @@ function SignInFlow() {
           </AuthLink>
         </Box>
         <AuthError>{err}</AuthError>
-        <AuthButton disabled={busy || !email.trim() || !password}>{busy ? T("Signing in…") : T("Sign In")}</AuthButton>
+        <AuthButton disabled={busy}>{busy ? T("Signing in…") : T("Sign In")}</AuthButton>
       </form>
       <AuthAlt>
         {T("New here?")} <Link href="/sign-up">{T("Create an account")}</Link>

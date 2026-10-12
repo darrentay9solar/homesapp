@@ -63,6 +63,7 @@ import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { canManage, grantableRoles, isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { currentLang, LANGS, T, TR } from "@/lib/client/i18n";
+import { emailProblem, FIX_FIELDS, firstProblem, icLast4Problem, mobileProblem, nameProblem, postalProblem } from "@/lib/client/rules";
 import { type Status, filterPeople, statusOf } from "@/lib/client/people-search";
 import { useTab } from "@/lib/client/tabs";
 
@@ -95,8 +96,22 @@ function day(iso: string): string {
   return d2s(`${iso}T12:00:00+08:00`);
 }
 
+/** What's wrong with an expiry, if anything: one of a date (from tomorrow) or "No expiry" is required. */
+function expiryProblem(v: { expiresOn: string; noExpiry: boolean }): string | null {
+  if (v.noExpiry) return null;
+  if (!v.expiresOn) return T("Set when the account expires, or tick No expiry.");
+  return v.expiresOn < tomorrowSg() ? T("Choose a date from tomorrow on.") : null;
+}
+
+/** A date to save for an account (expires, enables again): from tomorrow, and different from the one set. */
+function dateProblem(v: string, was: string | null | undefined): string | null {
+  if (!v) return T("Choose a date first.");
+  if (v < tomorrowSg()) return T("Choose a date from tomorrow on.");
+  return v === (was ?? "") ? T("That's the date already set.") : null;
+}
+
 /** Expiry chosen when an account is made: a date, or "No expiry" ticked. One is required. */
-function ExpiryFields({ value, onChange }: { value: { expiresOn: string; noExpiry: boolean }; onChange: (v: { expiresOn: string; noExpiry: boolean }) => void }) {
+function ExpiryFields({ value, onChange, error }: { value: { expiresOn: string; noExpiry: boolean }; onChange: (v: { expiresOn: string; noExpiry: boolean }) => void; error?: string | null }) {
   const tomorrow = tomorrowSg();
   return (
     <Box>
@@ -107,7 +122,8 @@ function ExpiryFields({ value, onChange }: { value: { expiresOn: string; noExpir
         value={value.expiresOn}
         disabled={value.noExpiry}
         onChange={(e) => onChange({ ...value, expiresOn: e.target.value })}
-        helperText={T("It disables itself that day. You can change the date later.")}
+        error={Boolean(error)}
+        helperText={error ?? T("It disables itself that day. You can change the date later.")}
         slotProps={{ htmlInput: { min: tomorrow, "data-testid": "expires-on" } }}
       />
       <FormControlLabel
@@ -679,6 +695,7 @@ function Detail({ k, v }: { k: string; v: string }) {
 }
 
 function ReviewDialog({ request: r, groups, reload, onClose }: { request: Request; groups: Group[]; reload: () => Promise<void>; onClose: () => void }) {
+  const [tried, setTried] = useState(false);
   const me = useMe();
   const can = grantableRoles(me?.role);
   const [grant, setGrant] = useState<Role>(can.includes(r.role) ? r.role : can[0]);
@@ -771,14 +788,15 @@ function ReviewDialog({ request: r, groups, reload, onClose }: { request: Reques
             ))}
           </Field>
         )}
-        <ExpiryFields value={expiry} onChange={setExpiry} />
+        <ExpiryFields value={expiry} onChange={setExpiry} error={tried ? expiryProblem(expiry) : null} />
       </Stack>
       <Stack sx={{ gap: 1, mt: 3 }}>
         <Button
           size="large"
           variant="contained"
-          disabled={busy || !(expiry.noExpiry || expiry.expiresOn)}
+          disabled={busy}
           onClick={async () => {
+            if (expiryProblem(expiry)) return setTried(true);
             const json = { role: grant, groupId: groupId ? Number(groupId) : null, ...expiry };
             if (await run(`/account-requests/${r.id}/approve`, { method: "POST", json })) onClose();
           }}
@@ -901,9 +919,17 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
   const [f, setF] = useState({ fullName: "", email: "", role: "homeowner" as Role, contactNo: "", groupId: "", postalCode: "", address: "", icLast4: "", language: currentLang() as string });
   const [expiry, setExpiry] = useState({ expiresOn: "", noExpiry: false });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
-  const mobileOk = splitPhone(f.contactNo).local.replace(/\D/g, "").length >= 6;
-  const expiryOk = expiry.noExpiry || Boolean(expiry.expiresOn);
-  const ok = f.fullName.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim()) && mobileOk && expiryOk;
+  const [tried, setTried] = useState(false);
+  const problem = {
+    name: nameProblem(f.fullName),
+    email: emailProblem(f.email),
+    mobile: mobileProblem(splitPhone(f.contactNo).local),
+    postal: postalProblem(f.postalCode),
+    ic: f.role === "homeowner" ? icLast4Problem(f.icLast4) : null,
+    expiry: expiryProblem(expiry),
+  };
+  const ok = !firstProblem(...Object.values(problem));
+  const shown = (k: keyof typeof problem) => (tried ? problem[k] : null);
 
   return (
     <MDialog
@@ -913,9 +939,9 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
       onClose={onClose}
     >
       <Stack sx={{ gap: 2.5 }}>
-        <Field label={T("Full name")} required icon={<PersonOutlineRoundedIcon />} placeholder={T("e.g. Aisha Rahman")} value={f.fullName} onChange={set("fullName")} autoComplete="off" />
-        <Field label={T("Email")} required type="email" icon={<MailOutlineRoundedIcon />} placeholder={T("name@example.com")} value={f.email} onChange={set("email")} autoComplete="off" />
-        <PhoneField required value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} helperText={T("For WhatsApp, or SMS if WhatsApp can't deliver")} />
+        <Field label={T("Full name")} required icon={<PersonOutlineRoundedIcon />} placeholder={T("e.g. Aisha Rahman")} value={f.fullName} onChange={set("fullName")} autoComplete="off" error={Boolean(shown("name"))} helperText={shown("name") ?? undefined} />
+        <Field label={T("Email")} required type="email" icon={<MailOutlineRoundedIcon />} placeholder={T("name@example.com")} value={f.email} onChange={set("email")} autoComplete="off" error={Boolean(shown("email"))} helperText={shown("email") ?? undefined} />
+        <PhoneField required value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} error={Boolean(shown("mobile"))} helperText={shown("mobile") ?? T("For WhatsApp, or SMS if WhatsApp can't deliver")} />
         <Field select label={T("Role")} required icon={<BadgeRoundedIcon />} value={f.role} onChange={set("role")}>
           {grantableRoles(me?.role).map((k) => (
             <MenuItem key={k} value={k}>
@@ -934,9 +960,9 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
           </Field>
         )}
         <Stack direction="row" sx={{ gap: 1.5 }}>
-          <Field label={T("Postal code")} icon={<PlaceOutlinedIcon />} placeholder={T("6 digits")} value={f.postalCode} onChange={set("postalCode")} slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }} />
+          <Field label={T("Postal code")} icon={<PlaceOutlinedIcon />} placeholder={T("6 digits")} value={f.postalCode} onChange={set("postalCode")} error={Boolean(shown("postal"))} helperText={shown("postal") ?? undefined} slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }} />
           {f.role === "homeowner" && (
-            <Field label={T("NRIC last 4")} icon={<FingerprintRoundedIcon />} placeholder="567D" value={f.icLast4} onChange={set("icLast4")} slotProps={{ htmlInput: { maxLength: 4 } }} />
+            <Field label={T("NRIC last 4")} icon={<FingerprintRoundedIcon />} placeholder="567D" value={f.icLast4} onChange={set("icLast4")} error={Boolean(shown("ic"))} helperText={shown("ic") ?? undefined} slotProps={{ htmlInput: { maxLength: 4 } }} />
           )}
         </Stack>
         <Field label={T("Address")} icon={<HomeOutlinedIcon />} placeholder={T("Filled in from the postal code")} value={f.address} onChange={set("address")} />
@@ -947,22 +973,28 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
             </MenuItem>
           ))}
         </Field>
-        <ExpiryFields value={expiry} onChange={setExpiry} />
+        <ExpiryFields value={expiry} onChange={setExpiry} error={shown("expiry")} />
       </Stack>
+      {tried && !ok && (
+        <Alert severity="error" sx={{ mt: 2.5 }}>
+          {T(FIX_FIELDS)}
+        </Alert>
+      )}
       <Button
         fullWidth
         size="large"
         variant="contained"
-        disabled={busy || !ok}
+        disabled={busy}
         sx={{ mt: 3 }}
         onClick={async () => {
+          if (!ok) return setTried(true);
           if (await run("/people", { method: "POST", json: { ...f, ...expiry, groupId: f.groupId ? Number(f.groupId) : null } })) onClose();
         }}
       >
         {busy ? T("Creating…") : T("Create Account")}
       </Button>
       <Typography variant="caption" sx={{ display: "block", textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        {ok ? T("We never ask for a full NRIC.") : !expiryOk && f.fullName && mobileOk ? T("Set when the account expires, or tick No expiry.") : T("Enter their name, email and mobile.")}
+        {T("We never ask for a full NRIC.")}
       </Typography>
     </MDialog>
   );
@@ -971,16 +1003,19 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
 function NewGroupDialog({ reload, onClose }: { reload: () => Promise<void>; onClose: () => void }) {
   const [name, setName] = useState("");
   const { run, busy } = useAction(reload);
+  const [tried, setTried] = useState(false);
+  const problem = name.trim().length >= 3 ? null : name.trim() ? T("A group name has at least 3 characters.") : T("Enter the group's name.");
   return (
     <MDialog title={T("New Group")} heading={T("Create a contractor group")} subtitle={T("Groups can be assigned to projects as one unit.")} onClose={onClose} maxWidth="xs">
-      <Field label={T("Group name")} required icon={<GroupsRoundedIcon />} placeholder={T("e.g. Northline Roofing Pte Ltd")} value={name} onChange={(e) => setName(e.target.value)} />
+      <Field label={T("Group name")} required icon={<GroupsRoundedIcon />} placeholder={T("e.g. Northline Roofing Pte Ltd")} value={name} onChange={(e) => setName(e.target.value)} error={tried && Boolean(problem)} helperText={tried ? (problem ?? undefined) : undefined} />
       <Button
         fullWidth
         size="large"
         variant="contained"
-        disabled={busy || name.trim().length < 3}
+        disabled={busy}
         sx={{ mt: 3 }}
         onClick={async () => {
+          if (problem) return setTried(true);
           if (await run("/groups", { method: "POST", json: { name } })) onClose();
         }}
       >
@@ -1023,6 +1058,10 @@ function AddMemberDialog({ group, users, groupById, reload, onClose }: { group: 
 function AccountSchedule({ person: u, busy, run }: { person: Person; busy: boolean; run: (path: string, init: RequestInit & { json?: unknown }) => Promise<boolean> }) {
   const [disableOn, setDisableOn] = useState(u.disableOn ?? "");
   const [enableOn, setEnableOn] = useState(u.enableOn ?? "");
+  // Save with a date missing, past or unchanged says so under that date.
+  const [tried, setTried] = useState<"disable" | "enable" | null>(null);
+  const disableProblem = dateProblem(disableOn, u.disableOn);
+  const enableProblem = dateProblem(enableOn, u.enableOn);
   const tomorrow = tomorrowSg();
   const save = (json: Record<string, unknown>) => void run(`/people/${u.uid}`, { method: "PATCH", json });
   const expired = !u.active && u.disabledReason === "scheduled";
@@ -1042,10 +1081,11 @@ function AccountSchedule({ person: u, busy, run }: { person: Person; busy: boole
             icon={<EventBusyRoundedIcon />}
             value={disableOn}
             onChange={(e) => setDisableOn(e.target.value)}
-            helperText={u.disableOn ? undefined : "No expiry"}
+            error={tried === "disable" && Boolean(disableProblem)}
+            helperText={tried === "disable" && disableProblem ? disableProblem : u.disableOn ? undefined : "No expiry"}
             slotProps={{ htmlInput: { min: tomorrow, "data-testid": "disable-on" } }}
           />
-          <Button variant="outlined" disabled={busy || disableOn === (u.disableOn ?? "") || !disableOn} onClick={() => save({ disableOn })} sx={{ flex: "0 0 auto", height: 52 }}>
+          <Button variant="outlined" disabled={busy} onClick={() => (disableProblem ? setTried("disable") : save({ disableOn }))} sx={{ flex: "0 0 auto", height: 52 }}>
             {T("Save")}
           </Button>
         </Stack>
@@ -1062,10 +1102,11 @@ function AccountSchedule({ person: u, busy, run }: { person: Person; busy: boole
               icon={<EventAvailableRoundedIcon />}
               value={enableOn}
               onChange={(e) => setEnableOn(e.target.value)}
-              helperText={u.enableOn ? undefined : "Stays disabled until a project manager enables it"}
+              error={tried === "enable" && Boolean(enableProblem)}
+              helperText={tried === "enable" && enableProblem ? enableProblem : u.enableOn ? undefined : "Stays disabled until a project manager enables it"}
               slotProps={{ htmlInput: { min: tomorrow, "data-testid": "enable-on" } }}
             />
-            <Button variant="outlined" disabled={busy || enableOn === (u.enableOn ?? "") || !enableOn} onClick={() => save({ enableOn })} sx={{ flex: "0 0 auto", height: 52 }}>
+            <Button variant="outlined" disabled={busy} onClick={() => (enableProblem ? setTried("enable") : save({ enableOn }))} sx={{ flex: "0 0 auto", height: 52 }}>
               {T("Save")}
             </Button>
           </Stack>
