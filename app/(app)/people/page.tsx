@@ -921,9 +921,9 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const [tried, setTried] = useState(false);
   const problem = {
-    name: nameProblem(f.fullName),
-    email: emailProblem(f.email),
-    mobile: mobileProblem(splitPhone(f.contactNo).local),
+    name: nameProblem(f.fullName, 2, "their"),
+    email: emailProblem(f.email, "their"),
+    mobile: mobileProblem(splitPhone(f.contactNo).local, "their"),
     postal: postalProblem(f.postalCode),
     ic: f.role === "homeowner" ? icLast4Problem(f.icLast4) : null,
     expiry: expiryProblem(expiry),

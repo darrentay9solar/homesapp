@@ -250,7 +250,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           : geo.text,
     address: f.address.trim().length >= 5 ? null : T("Enter the address (it fills in from the postal code)."),
     homeowner: homeownerOk ? null : T("Choose the homeowner's account, or type their name."),
-    contact: mobileProblem(splitPhone(f.contact).local),
+    contact: mobileProblem(splitPhone(f.contact).local, "their"),
     contractor: contractorOk ? null : ctr === "group" ? T("Choose a contractor group.") : ctr === "users" ? T("Choose at least one person.") : T("Enter the contractor's name."),
     dates: dates === null ? T("Give a start date, an end date, or both.") : (dates.error ?? null),
   };

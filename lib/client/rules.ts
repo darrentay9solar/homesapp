@@ -15,19 +15,22 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Shown above the button when anything on the form needs fixing. */
 export const FIX_FIELDS = "Some details are missing or need fixing. See the fields marked in red.";
 
-export function emailProblem(v: string): string | null {
-  if (!v.trim()) return T("Enter your email.");
+/** `whose`: "your" on your own forms; "their" when filling in for someone else. */
+type Whose = "your" | "their";
+
+export function emailProblem(v: string, whose: Whose = "your"): string | null {
+  if (!v.trim()) return whose === "your" ? T("Enter your email.") : T("Enter their email.");
   return EMAIL.test(v.trim()) ? null : T("That email doesn't look right. It should be like you@example.com.");
 }
 
-export function nameProblem(v: string, min = 2): string | null {
-  return v.trim().length >= min ? null : v.trim() ? T("That name is too short.") : T("Enter your full name.");
+export function nameProblem(v: string, min = 2, whose: Whose = "your"): string | null {
+  return v.trim().length >= min ? null : v.trim() ? T("That name is too short.") : whose === "your" ? T("Enter your full name.") : T("Enter their full name.");
 }
 
 /** A mobile number's local digits (without the country code). */
-export function mobileProblem(local: string): string | null {
+export function mobileProblem(local: string, whose: Whose = "your"): string | null {
   const digits = local.replace(/\D/g, "");
-  if (!digits) return T("Enter your mobile number (at least 6 digits).");
+  if (!digits) return whose === "your" ? T("Enter your mobile number (at least 6 digits).") : T("Enter their mobile number (at least 6 digits).");
   return digits.length >= 6 ? null : T("A mobile number has at least 6 digits.");
 }
 
