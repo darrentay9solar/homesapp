@@ -27,9 +27,10 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Field, MDialog } from "@/components/m";
+import { useCapture } from "@/components/capture";
 import { gradText } from "@/components/topbar";
 import { ApiError, useFetcher } from "@/lib/client/api";
 import { pickerFilter } from "@/lib/client/search";
@@ -311,13 +312,14 @@ const isImage = (t: string | null) => Boolean(t && t.startsWith("image/"));
 function FileSlot({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
   const fetcher = useFetcher();
   const { toast } = useApp();
-  const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const files = f.files ?? [];
   const canChange = !f.lockedReason;
   const many = f.kind === "photos";
+  // Take a photo now, or choose one (or a PDF) already on the phone or laptop.
+  const pick = useCapture({ accept: "image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf", multiple: many, onFiles: (list) => void send(list) });
 
-  async function send(list: FileList) {
+  async function send(list: File[]) {
     for (const file of Array.from(list)) {
       setBusy(file.name);
       try {
@@ -377,8 +379,9 @@ function FileSlot({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
       )}
       {canChange ? (
         <ButtonBase
-          onClick={() => input.current?.click()}
+          onClick={(e) => pick.open(e.currentTarget)}
           disabled={Boolean(busy)}
+          data-testid={`upload-${f.key}`}
           sx={(t) => ({ width: "100%", minHeight: DESIGN.height.field, px: 2, gap: 1, justifyContent: "flex-start", fontFamily: "inherit", borderRadius: `${DESIGN.radius.field}px`, border: `1.5px dashed ${alpha(t.palette.primary.main, 0.5)}`, color: "primary.main", bgcolor: alpha(t.palette.primary.main, 0.04) })}
         >
           {busy ? <CircularProgress size={18} /> : many ? <AddPhotoAlternateOutlinedIcon /> : <UploadFileRoundedIcon />}
@@ -388,21 +391,11 @@ function FileSlot({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
               {ctx.data.storage === "local" ? T("Photos or PDF, up to 25 MB · saved on this computer until Cloudflare R2 is set up") : T("Photos or PDF, up to 25 MB")}
             </Typography>
           </Box>
-          <input
-            ref={input}
-            hidden
-            type="file"
-            multiple={many}
-            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
-            onChange={(e) => {
-              if (e.target.files?.length) void send(e.target.files);
-              e.target.value = "";
-            }}
-          />
         </ButtonBase>
       ) : (
         !files.length && <ReadOnly f={f} />
       )}
+      {canChange && pick.element}
       {ctx.data.storage === null && canChange && (
         <Typography variant="caption" sx={{ color: "warning.main", display: "block", mt: 0.5 }}>
           {T("File storage isn't set up yet (Cloudflare R2), so uploads will be refused.")}
