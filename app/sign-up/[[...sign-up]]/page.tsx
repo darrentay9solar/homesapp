@@ -74,6 +74,10 @@ function SignUpFlow() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  // What's still missing is said under each field once it's been left, and for every field once Create Account is tapped.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [tried, setTried] = useState(false);
+  const leave = (f: string) => () => setTouched((t) => ({ ...t, [f]: true }));
 
   useEffect(() => {
     if (isSignedIn) router.replace("/");
@@ -81,7 +85,21 @@ function SignUpFlow() {
 
   const longEnough = password.length >= PASSWORD_MIN;
   const mobileOk = splitPhone(mobile).local.replace(/\D/g, "").length >= 6;
-  const ready = name.trim().length >= 2 && (ticket || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) && mobileOk && longEnough;
+  const emailOk = Boolean(ticket) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const ready = name.trim().length >= 2 && emailOk && mobileOk && longEnough;
+  const problem: Record<"name" | "email" | "mobile" | "password", string | null> = {
+    name: name.trim().length >= 2 ? null : T("Enter your full name."),
+    email: emailOk ? null : email.trim() ? T("That email doesn't look right. It should be like you@example.com.") : T("Enter your email."),
+    mobile: mobileOk ? null : T("Enter your mobile number (at least 6 digits)."),
+    password: longEnough
+      ? null
+      : password
+        ? T("The password needs at least {n} characters: {left} more to go.", { n: PASSWORD_MIN, left: PASSWORD_MIN - password.length })
+        : T("Choose a password of at least {n} characters.", { n: PASSWORD_MIN }),
+  };
+  // Until everything's right, Create Account says so above the button, and goes away once it is.
+  const missing = tried && !ready ? T("Some details are missing or need fixing. See the fields marked in red.") : null;
+  const shown = (f: keyof typeof problem) => ((tried || touched[f]) && problem[f]) || null;
 
   async function finish(to: string) {
     const { error } = await signUp.finalize({ navigate: () => router.push(to) });
@@ -90,7 +108,10 @@ function SignUpFlow() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!ready) return;
+    if (!ready) {
+      setTried(true);
+      return;
+    }
     setErr(null);
     // The mobile rides along in Clerk's sign-up metadata; the request-access
     // screen picks it up so nobody types it twice.
@@ -143,7 +164,7 @@ function SignUpFlow() {
       <AuthHeading>{ticket ? T("Set up your login") : T("Create your login")}</AuthHeading>
       <AuthSubtitle>{ticket ? T("9 Solar Home has invited you. Choose a password to finish.") : T("Invited by 9 Solar Home? Open the link in your invitation email instead.")}</AuthSubtitle>
       <form onSubmit={submit} noValidate>
-        <AuthField id="su-name" label="Full name" icon={<PersonIcon />} placeholder="e.g. Aisha Rahman" value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { autoComplete: "name" } }} />
+        <AuthField id="su-name" label="Full name" icon={<PersonIcon />} placeholder="e.g. Aisha Rahman" value={name} onChange={(e) => setName(e.target.value)} onBlur={leave("name")} error={shown("name")} slotProps={{ htmlInput: { autoComplete: "name", "data-testid": "su-name" } }} />
         {!ticket && (
           <AuthField
             id="su-email"
@@ -153,23 +174,27 @@ function SignUpFlow() {
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            slotProps={{ htmlInput: { inputMode: "email", autoComplete: "email" } }}
+            onBlur={leave("email")}
+            error={shown("email")}
+            slotProps={{ htmlInput: { inputMode: "email", autoComplete: "email", "data-testid": "su-email" } }}
           />
         )}
-        <AuthPhoneField id="su-mobile" value={mobile} onChange={setMobile} />
+        <AuthPhoneField id="su-mobile" value={mobile} onChange={setMobile} error={shown("mobile")} />
         <PasswordField
           id="su-password"
           label="Password"
           placeholder={T("At least {n} characters", { n: PASSWORD_MIN })}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          slotProps={{ htmlInput: { autoComplete: "new-password" } }}
+          onBlur={leave("password")}
+          error={shown("password")}
+          slotProps={{ htmlInput: { autoComplete: "new-password", "data-testid": "su-password" } }}
         />
         <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { text: T("A short sentence is easiest to remember.") }]} />
         {/* Clerk's bot protection renders its check here when needed. */}
         <Box id="clerk-captcha" sx={{ "&:empty": { display: "none" }, mb: 1.75 }} />
-        <AuthError>{err}</AuthError>
-        <AuthButton disabled={busy || !ready}>{busy ? T("Creating…") : T("Create Account")}</AuthButton>
+        <AuthError>{err ?? missing}</AuthError>
+        <AuthButton disabled={busy} data-testid="create-account">{busy ? T("Creating…") : T("Create Account")}</AuthButton>
       </form>
       <AuthAlt>
         {T("Already have an account?")} <Link href="/sign-in">{T("Sign in")}</Link>
