@@ -27,7 +27,7 @@ npm run test:uat   # the user acceptance tests (about 15 minutes)
 npm run test:r2    # only the 39 tests that use the real R2 dev bucket (~85 requests)
 ```
 
-**Last run (9 Oct 2026): 3,076 Python tests passed (43 skipped: the ones that use real R2), all 19,621 UAT tests passed, and 442 front-end tests.**
+**Last run (12 Oct 2026): 3,090 Python tests passed (43 skipped: the ones that use real R2), all 20,035 UAT tests passed, 455 front-end tests, and all 792 design checks.**
 
 ---
 

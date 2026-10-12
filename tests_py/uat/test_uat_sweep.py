@@ -26,6 +26,19 @@ def _old(world, key: str, hours: int = 30) -> None:
     )
 
 
+def _sweep_all() -> dict[str, int]:
+    """Runs the job until nothing old is left. Each run takes the oldest 200; a test
+    database that has gathered more than that from earlier runs needs a few."""
+    total = {"checked": 0, "deleted": 0, "failed": 0}
+    for _ in range(50):
+        out = sweep.sweep()
+        for k in total:
+            total[k] += out.get(k, 0)
+        if out.get("checked", 0) < sweep.BATCH:
+            break
+    return total
+
+
 def _stored(key: str) -> bool:
     return (storage.LOCAL_DIR / key).exists()
 
@@ -41,7 +54,7 @@ def test_an_abandoned_upload_is_deleted_after_a_day(world, hours) -> None:
     key = f"projects/{world.pid['in_progress_m0']}/documents/gst_proof/{uuid.uuid4()}.pdf"
     _put(key)
     _old(world, key, hours)
-    sweep.sweep()
+    _sweep_all()
     assert not _stored(key)
     assert not world.conn.execute("select 1 from upload_intents where key = %s", (key,)).fetchone()
 
@@ -59,7 +72,7 @@ def test_a_recent_upload_is_left_alone(world, hours) -> None:
 def test_an_abandoned_link_that_never_uploaded_anything_is_just_forgotten(world) -> None:
     key = f"projects/{world.pid['in_progress_m0']}/documents/gst_proof/{uuid.uuid4()}.pdf"
     _old(world, key)
-    out = sweep.sweep()
+    out = _sweep_all()
     assert out["failed"] == 0
     assert not world.conn.execute("select 1 from upload_intents where key = %s", (key,)).fetchone()
 
