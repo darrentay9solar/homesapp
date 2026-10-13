@@ -19,7 +19,7 @@ from typing import Any
 import psycopg
 
 from _lib import certificate, storage
-from conftest import bearer, owner_conn
+from conftest import bearer, fresh_mobile, owner_conn
 from uat import spec
 
 SITE = (1.3691, 103.8486)
@@ -108,7 +108,7 @@ class World:
                 role,
                 name or f"UAT {key.replace('_', ' ').title()}",
                 f"user_uat_{key}_{uuid.uuid4().hex[:10]}",
-                "+65 9123 4567",
+                fresh_mobile(),
                 active,
             ),
         ).fetchone()
@@ -231,7 +231,9 @@ class World:
             (uids,),
         )
         c.execute(
-            "update users set active = false, clerk_user_id = null, full_name = 'uat fixture' where uid = any(%s)",
+            # The number goes too: one mobile, one account, and the next run's people need theirs.
+            "update users set active = false, clerk_user_id = null, contact_no = null, full_name = 'uat fixture' "
+            "where uid = any(%s)",
             (uids,),
         )
         c.close()

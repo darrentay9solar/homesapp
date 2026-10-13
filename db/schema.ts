@@ -279,6 +279,11 @@ export const users = pgTable(
     // Case-insensitive: nobody should be able to register Bob@x.com alongside
     // bob@x.com and end up with two profiles for one person.
     uniqueIndex("users_email_lower_idx").on(table.email),
+    // One mobile number, one account: compared by its digits, so the same
+    // number typed with or without spaces still counts as taken (0033).
+    uniqueIndex("users_contact_no_digits_idx")
+      .on(sql`regexp_replace(${table.contactNo}, '[^0-9]', '', 'g')`)
+      .where(sql`${table.contactNo} IS NOT NULL`),
     // Three digits then the checksum letter. Rejects a full NRIC outright, so
     // one cannot arrive through a stray import, a seed script or a fixture.
     check("users_ic_last4_format", sql`${table.icLast4} ~ '^[0-9]{3}[A-Za-z]$'`),

@@ -28,7 +28,7 @@ from pydantic import BaseModel
 from _lib import clerk, demo, notify
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
-from _lib.profile import clean_phone
+from _lib.profile import MOBILE_TAKEN_OWN, FieldProblem, clean_phone, mobile_taken
 from _lib.rights import may_manage
 from _lib.web import act_as_allowed, active, role
 
@@ -127,6 +127,9 @@ def send_mobile_code(body: MobileIn, acct: Account = Depends(active)) -> dict[st
         raise HTTPException(400, "That doesn't look like a mobile number.")
     if number == acct.user["contact_no"]:
         raise HTTPException(400, "That's already your mobile number.")
+    # Said before a code is sent, not after it's typed in.
+    if mobile_taken(number, uid=acct.uid):
+        raise FieldProblem(409, MOBILE_TAKEN_OWN, "mobile")
 
     recent = fetch_all(
         "select created_at, extract(epoch from now() - created_at) as age from verification_codes "

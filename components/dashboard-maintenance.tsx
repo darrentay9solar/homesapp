@@ -42,13 +42,23 @@ export function UpkeepTab({ u }: { u: Upkeep }) {
   const attention = [...new Set([...u.tiles.urgent.ids, ...u.tiles.overdue.ids])];
   const t: Record<TileKey, { count: number; ids: number[] }> = { ...u.tiles, attention: { count: attention.length, ids: attention } };
   const tiles: Array<{ key: TileKey; label: string; icon: ReactNode; tone?: "bad" | "warn" | "good"; sub: string }> = [
-    { key: "systems", label: "Systems looked after", icon: <SolarPowerRoundedIcon />, sub: u.avgKwp ? T("{total} · {avg} on average", { total: kwp(u.kwp), avg: kwp(u.avgKwp) }) : kwp(u.kwp) },
+    // The typical (median) size: a few big systems pull an average up.
+    { key: "systems", label: "Systems looked after", icon: <SolarPowerRoundedIcon />, sub: u.medianKwp ? T("{total} · typically {size}", { total: kwp(u.kwp), size: kwp(u.medianKwp) }) : kwp(u.kwp) },
     { key: "dueSoon", label: "Checks due in 30 days", icon: <EventRoundedIcon />, tone: t.dueSoon.count ? "warn" : undefined, sub: T("6-month and 1-year checks") },
     { key: "attention", label: "Need attention", icon: <WarningAmberRoundedIcon />, tone: attention.length ? "bad" : "good", sub: T("{a} urgent · {b} with a check overdue", { a: u.tiles.urgent.count, b: u.tiles.overdue.count }) },
     { key: "unassigned", label: "Unassigned systems", icon: <PersonOffRoundedIcon />, tone: t.unassigned.count ? "warn" : undefined, sub: T("No project manager yet") },
   ];
   const picked = open ? tiles.find((x) => x.key === open) : null;
   const list = open ? t[open].ids.map((i) => u.systems[String(i)]).filter(Boolean) : [];
+  // Overdue checks lead the chart, so the work already late is on it too.
+  const late = u.overdueChecks.six + u.overdueChecks.year;
+  const checks = [...(late ? [{ label: T("Overdue"), values: [u.overdueChecks.six, u.overdueChecks.year] }] : []), ...u.upcoming.map((x) => ({ label: bucketLabel(x.label), values: [x.six, x.year] }))];
+  const busiest = u.upcoming.reduce<(typeof u.upcoming)[number] | null>((b, x) => (x.six + x.year > (b ? b.six + b.year : 0) ? x : b), null);
+  const checksSub = [
+    T("6-month and 1-year checks falling due, month by month, over the next 12 months"),
+    late ? T("{n} overdue", { n: late }) : null,
+    busiest ? T("busiest in {month} ({n} checks)", { month: bucketLabel(busiest.label), n: busiest.six + busiest.year }) : null,
+  ].filter(Boolean).join(" · ");
   return (
     <Stack sx={{ gap: { xs: 1.5, lg: 2 } }} data-testid="dashboard-upkeep">
       <Box sx={{ ...TILE_GRID, gridAutoFlow: "row dense" }}>
@@ -86,15 +96,15 @@ export function UpkeepTab({ u }: { u: Upkeep }) {
       <Box sx={GRID}>
         <ChartCard
           title="Checks coming up"
-          sub={T("6-month and 1-year checks falling due, month by month, over the next 12 months")}
+          sub={checksSub}
           legend={[
             { label: "6-month checks", color: (th) => seriesColor(th, 0) },
             { label: "1-year checks", color: (th) => seriesColor(th, 1) },
           ]}
-          table={{ head: ["Month", "6-month checks", "1-year checks"], rows: u.upcoming.map((x) => [bucketLabel(x.label), x.six, x.year]) }}
+          table={{ head: ["Month", "6-month checks", "1-year checks"], rows: checks.map((x) => [x.label, ...x.values]) }}
           testId="chart-checks"
         >
-          <ColumnChart data={u.upcoming.map((x) => ({ label: bucketLabel(x.label), values: [x.six, x.year] }))} series={["6-month checks", "1-year checks"]} />
+          <ColumnChart data={checks} series={["6-month checks", "1-year checks"]} />
         </ChartCard>
         <ChartCard
           title="Systems turned on"
@@ -110,17 +120,36 @@ export function UpkeepTab({ u }: { u: Upkeep }) {
         <ChartCard title="Maintenance plan" sub={T("Systems by the plan they're on")} table={{ head: ["Plan", "Systems", "kWp"], rows: u.byPlan.map((g) => [g.label, g.count, g.kwp]) }} testId="chart-plan">
           <BarList rows={u.byPlan.map((g) => ({ key: g.label, label: g.label, value: g.count, note: kwp(g.kwp) }))} emptyText="No systems yet." />
         </ChartCard>
-        <ChartCard title="PPA" sub={T("Systems by their power purchase agreement")} table={{ head: ["PPA", "Systems", "kWp"], rows: u.byPpa.map((g) => [g.label, g.count, g.kwp]) }} testId="chart-ppa">
-          <BarList rows={u.byPpa.map((g) => ({ key: g.label, label: g.label, value: g.count, note: kwp(g.kwp) }))} emptyText="No systems yet." />
+        {/* When each PPA ends says more than its length: the PPA and plan years mostly match. */}
+        <ChartCard
+          title="When PPAs end"
+          sub={T("PPA systems by the year their agreement ends: the renewals to plan for")}
+          table={{ head: ["Year", "Systems", "kWp"], rows: u.ppaEnds.map((g) => [g.label, g.count, g.kwp]) }}
+          testId="chart-ppa-ends"
+        >
+          <BarList rows={u.ppaEnds.map((g) => ({ key: g.label, label: g.label, value: g.count, note: kwp(g.kwp) }))} emptyText="No PPAs recorded yet." />
         </ChartCard>
-        <ChartCard title="Inverters" sub={T("Inverter models across the systems")} table={{ head: ["Inverter", "Count"], rows: u.inverters.map((g) => [g.label, g.count]) }} testId="chart-inverters">
-          <BarList rows={u.inverters.map((g) => ({ key: g.label, label: g.label, value: g.count }))} emptyText="No inverters recorded yet." />
+        <ChartCard
+          title="Inverters"
+          sub={T("Inverters by their rating; every model is in the table")}
+          table={{ head: ["Rating", "Count", "Models"], rows: u.inverterPower.map((g) => [g.label, g.count, g.models.join(", ")]) }}
+          testId="chart-inverters"
+        >
+          <BarList rows={u.inverterPower.map((g) => ({ key: g.label, label: g.label, value: g.count, note: g.models.length > 1 ? T("{n} models", { n: g.models.length }) : g.models[0] }))} emptyText="No inverters recorded yet." />
         </ChartCard>
-        <ChartCard title="Where they are" sub={T("Systems by region, and by supply")} table={{ head: ["Region", "Systems", "kWp"], rows: u.byRegion.map((g) => [g.label, g.count, g.kwp]) }} testId="chart-upkeep-region">
+        <ChartCard
+          title="System sizes"
+          sub={u.medianKwp ? T("Systems by size; typically {size}", { size: kwp(u.medianKwp) }) : T("Systems by size")}
+          table={{ head: ["Size", "Systems", "kWp"], rows: u.bySize.map((g) => [g.label, g.count, g.kwp]) }}
+          testId="chart-sizes"
+        >
+          <BarList rows={u.bySize.map((g) => ({ key: g.label, label: g.label, value: g.count, note: kwp(g.kwp) }))} emptyText="No systems yet." />
+        </ChartCard>
+        <ChartCard title="Where they are" sub={T("Systems by region, from the postal code")} table={{ head: ["Region", "Systems", "kWp"], rows: u.byRegion.map((g) => [g.label, g.count, g.kwp]) }} testId="chart-upkeep-region">
           <BarList rows={u.byRegion.map((g) => ({ key: g.label, label: g.label, value: g.count, note: kwp(g.kwp) }))} emptyText="No systems yet." />
-          <Box sx={{ mt: 2 }}>
-            <BarList rows={u.byPhase.map((g) => ({ key: `phase-${g.label}`, label: g.label, value: g.count }))} emptyText="No systems yet." />
-          </Box>
+        </ChartCard>
+        <ChartCard title="Supply" sub={T("Single-phase or 3-phase")} table={{ head: ["Supply", "Systems", "kWp"], rows: u.byPhase.map((g) => [g.label, g.count, g.kwp]) }} testId="chart-phase">
+          <BarList rows={u.byPhase.map((g) => ({ key: g.label, label: g.label, value: g.count, note: kwp(g.kwp) }))} emptyText="No systems yet." />
         </ChartCard>
       </Box>
     </Stack>

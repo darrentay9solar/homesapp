@@ -18,7 +18,9 @@ import { currentLang, translate } from "./i18n";
 export class ApiError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    /** The form field the server's refusal is about ("mobile", "email"), to show it under that field. */
+    readonly field?: string
   ) {
     super(message);
     this.name = "ApiError";
@@ -67,7 +69,8 @@ export function useFetcher(): Fetcher {
           data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : "";
         const message = serverMessage || `Request failed (${res.status})`;
         // The server writes in English; shown in the person's language.
-        throw new ApiError(translate(message, currentLang()), res.status);
+        const field = data && typeof data === "object" && "field" in data ? String((data as { field: unknown }).field) : undefined;
+        throw new ApiError(translate(message, currentLang()), res.status, field);
       }
       return data as T;
     },
