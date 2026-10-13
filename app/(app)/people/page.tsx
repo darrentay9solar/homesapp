@@ -187,7 +187,8 @@ function useAction(reload: () => Promise<void>) {
   const fetcher = useFetcher();
   const { toast } = useApp();
   const [busy, setBusy] = useState(false);
-  async function run(path: string, init: RequestInit & { json?: unknown }): Promise<boolean> {
+  // onField: a refusal about one field (a mobile number already taken) goes under that field instead of a toast.
+  async function run(path: string, init: RequestInit & { json?: unknown }, onField?: (field: string, message: string) => void): Promise<boolean> {
     setBusy(true);
     try {
       const res = await fetcher<{ message?: string }>(path, init);
@@ -195,7 +196,8 @@ function useAction(reload: () => Promise<void>) {
       await reload();
       return true;
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : "Something went wrong.", "bad");
+      if (onField && err instanceof ApiError && err.field) onField(err.field, err.message);
+      else toast(err instanceof ApiError ? err.message : "Something went wrong.", "bad");
       return false;
     } finally {
       setBusy(false);
@@ -928,7 +930,9 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
     expiry: expiryProblem(expiry),
   };
   const ok = !firstProblem(...Object.values(problem));
-  const shown = (k: keyof typeof problem) => (tried ? problem[k] : null);
+  // What the server refused (that email or mobile is already on an account), under its field until it changes.
+  const [taken, setTaken] = useState<{ email?: string; mobile?: string }>({});
+  const shown = (k: keyof typeof problem) => (tried ? problem[k] : null) ?? (k === "email" || k === "mobile" ? taken[k] ?? null : null);
 
   return (
     <MDialog
@@ -939,8 +943,14 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
     >
       <Stack sx={{ gap: 2.5 }}>
         <Field label={T("Full name")} required icon={<PersonOutlineRoundedIcon />} placeholder={T("e.g. Aisha Rahman")} value={f.fullName} onChange={set("fullName")} autoComplete="off" error={Boolean(shown("name"))} helperText={shown("name") ?? undefined} />
-        <Field label={T("Email")} required type="email" icon={<MailOutlineRoundedIcon />} placeholder={T("name@example.com")} value={f.email} onChange={set("email")} autoComplete="off" error={Boolean(shown("email"))} helperText={shown("email") ?? undefined} />
-        <PhoneField required value={f.contactNo} onChange={(v) => setF((x) => ({ ...x, contactNo: v }))} error={Boolean(shown("mobile"))} helperText={shown("mobile") ?? T("For WhatsApp, or SMS if WhatsApp can't deliver")} />
+        <Field label={T("Email")} required type="email" icon={<MailOutlineRoundedIcon />} placeholder={T("name@example.com")} value={f.email} onChange={(e) => {
+          set("email")(e);
+          setTaken((t) => ({ ...t, email: undefined }));
+        }} autoComplete="off" error={Boolean(shown("email"))} helperText={shown("email") ?? undefined} />
+        <PhoneField required value={f.contactNo} onChange={(v) => {
+          setF((x) => ({ ...x, contactNo: v }));
+          setTaken((t) => ({ ...t, mobile: undefined }));
+        }} error={Boolean(shown("mobile"))} helperText={shown("mobile") ?? T("For WhatsApp, or SMS if WhatsApp can't deliver")} />
         <Field select label={T("Role")} required icon={<BadgeRoundedIcon />} value={f.role} onChange={set("role")}>
           {grantableRoles(me?.role).map((k) => (
             <MenuItem key={k} value={k}>
@@ -987,7 +997,8 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
         sx={{ mt: 3 }}
         onClick={async () => {
           if (!ok) return setTried(true);
-          if (await run("/people", { method: "POST", json: { ...f, ...expiry, groupId: f.groupId ? Number(f.groupId) : null } })) onClose();
+          const body = { ...f, ...expiry, groupId: f.groupId ? Number(f.groupId) : null };
+          if (await run("/people", { method: "POST", json: body }, (field, message) => setTaken((t) => ({ ...t, [field]: message })))) onClose();
         }}
       >
         {busy ? T("Creating…") : T("Create Account")}

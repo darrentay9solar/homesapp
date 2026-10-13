@@ -17,7 +17,7 @@ from _lib import clerk, demo, notify
 from _lib.account import ROLE_LABEL, SG, Account, apply_schedule
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.i18n import LANGS
-from _lib.profile import ROLES, ProfileIn, clean_email, clean_profile
+from _lib.profile import MOBILE_TAKEN, ROLES, FieldProblem, ProfileIn, clean_email, clean_profile, mobile_taken
 from _lib.rights import may_manage
 from _lib.web import role
 
@@ -195,7 +195,9 @@ def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, 
     expires = expiry_from(body.expiresOn, body.noExpiry)
     lang = body.language if body.language in LANGS else "en"
     if fetch_one("select 1 from users where lower(email) = %s", (email,)):
-        raise HTTPException(409, "An account with that email already exists.")
+        raise FieldProblem(409, "An account with that email already exists.", "email")
+    if mobile_taken(p["contact_no"]):
+        raise FieldProblem(409, MOBILE_TAKEN, "mobile")
 
     with transaction(acct.uid) as cur:
         cur.execute(
@@ -348,13 +350,19 @@ def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only))
     if body.role not in ROLES:
         raise HTTPException(400, "Choose a role to grant.")
     may_manage(acct, body.role)
-    req = fetch_one("select email, status, language from account_requests where request_id = %s", (request_id,))
+    req = fetch_one(
+        "select email, status, language, contact_no from account_requests where request_id = %s", (request_id,)
+    )
     if not req:
         raise HTTPException(404, "No such request.")
     if req["status"] != "pending":
         raise HTTPException(409, f"This request has already been {req['status']}.")
     if fetch_one("select 1 from users where lower(email) = lower(%s)", (req["email"],)):
         raise HTTPException(409, "An account with that email already exists. Decline this request instead.")
+    if mobile_taken(req["contact_no"]):
+        raise HTTPException(
+            409, "The mobile number on this request is already on another account. Decline this request instead."
+        )
     expires = expiry_from(body.expiresOn, body.noExpiry)
 
     # One transaction: the account, the approval and any group membership

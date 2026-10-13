@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from _lib import onemap
+from _lib.db import fetch_one
 
 ROLES = ("homeowner", "project_manager", "contractor", "epc_team")
 
@@ -24,6 +25,35 @@ class ProfileIn(BaseModel):
 
 def bad(message: str) -> HTTPException:
     return HTTPException(400, message)
+
+
+class FieldProblem(HTTPException):
+    """A refusal about one field, so the form can say it under that field."""
+
+    def __init__(self, status: int, message: str, field: str) -> None:
+        super().__init__(status, message)
+        self.field = field
+
+
+# Where someone types their own number, and where a PM types someone else's.
+MOBILE_TAKEN_OWN = "That mobile number is already on another account. Use your own mobile number."
+MOBILE_TAKEN = "That mobile number is already on another account. Each person needs their own."
+
+
+def mobile_taken(contact: str | None, *, uid: int | None = None) -> bool:
+    """Whether an account other than ``uid`` has this mobile number.
+
+    Compared by its digits, as the database does (users_contact_no_digits_idx),
+    so "+65 9123 4567" and "+6591234567" are the same number.
+    """
+    if not contact:
+        return False
+    row = fetch_one(
+        "select 1 from users where contact_no is not null "
+        "and regexp_replace(contact_no, '[^0-9]', '', 'g') = %s and uid is distinct from %s",
+        (re.sub(r"\D", "", contact), uid),
+    )
+    return row is not None
 
 
 def clean_profile(p: ProfileIn, *, require_mobile: bool = False) -> dict[str, Any]:

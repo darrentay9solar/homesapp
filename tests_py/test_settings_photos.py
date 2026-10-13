@@ -19,7 +19,7 @@ from test_project_work import _onemap, approve_both, new_project, team, upload  
 from _lib import notify, prefs, push
 from _lib.account import SG
 from _lib.db import transaction
-from conftest import bearer
+from conftest import bearer, fresh_mobile
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 80
 
@@ -242,7 +242,7 @@ def make(client, pm, **extra):
             "fullName": "Scheduled Person",
             "email": f"pytest-s-{uuid.uuid4().hex[:8]}@example.com",
             "role": "contractor",
-            "contactNo": "+65 9123 4567",
+            "contactNo": fresh_mobile(),
             **extra,
         },
     )

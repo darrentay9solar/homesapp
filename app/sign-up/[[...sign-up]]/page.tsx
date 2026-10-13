@@ -27,7 +27,7 @@ import {
   clerkMessage,
 } from "@/components/auth";
 import { T } from "@/lib/client/i18n";
-import { codeProblem, mobileProblem } from "@/lib/client/rules";
+import { codeProblem, confirmProblem, mobileProblem } from "@/lib/client/rules";
 
 /**
  * Create an account. Two ways in:
@@ -73,6 +73,8 @@ function SignUpFlow() {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
+  // Typed twice, so a slip of the finger can't lock them out of a new account.
+  const [confirm, setConfirm] = useState("");
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
   // What's still missing is said under each field once it's been left, and for every field once Create Account is tapped.
@@ -89,8 +91,9 @@ function SignUpFlow() {
   const longEnough = password.length >= PASSWORD_MIN;
   const mobileOk = !mobileProblem(mobile);
   const emailOk = Boolean(ticket) || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const ready = name.trim().length >= 2 && emailOk && mobileOk && longEnough;
-  const problem: Record<"name" | "email" | "mobile" | "password", string | null> = {
+  const matches = confirm.length > 0 && confirm === password;
+  const ready = name.trim().length >= 2 && emailOk && mobileOk && longEnough && matches;
+  const problem: Record<"name" | "email" | "mobile" | "password" | "confirm", string | null> = {
     name: name.trim().length >= 2 ? null : T("Enter your full name."),
     email: emailOk ? null : email.trim() ? T("That email doesn't look right. It should be like you@example.com.") : T("Enter your email."),
     mobile: mobileProblem(mobile),
@@ -99,6 +102,7 @@ function SignUpFlow() {
       : password
         ? T("The password needs at least {n} characters: {left} more to go.", { n: PASSWORD_MIN, left: PASSWORD_MIN - password.length })
         : T("Choose a password of at least {n} characters.", { n: PASSWORD_MIN }),
+    confirm: confirmProblem(password, confirm),
   };
   // Until everything's right, Create Account says so above the button, and goes away once it is.
   const missing = tried && !ready ? T("Some details are missing or need fixing. See the fields marked in red.") : null;
@@ -203,7 +207,17 @@ function SignUpFlow() {
           error={shown("password") ?? fieldErr.password ?? null}
           slotProps={{ htmlInput: { autoComplete: "new-password", "data-testid": "su-password" } }}
         />
-        <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { text: T("Not one that's leaked in a data breach (it's checked).") }, { text: T("A short sentence is easiest to remember.") }]} />
+        <PasswordField
+          id="su-password2"
+          label="Confirm password"
+          placeholder={T("Type the same password again")}
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          onBlur={leave("confirm")}
+          error={shown("confirm")}
+          slotProps={{ htmlInput: { autoComplete: "new-password", "data-testid": "su-password2" } }}
+        />
+        <AuthRules rules={[{ ok: longEnough, text: T("{n}+ characters", { n: PASSWORD_MIN }) }, { ok: matches, text: T("Passwords match") }, { text: T("A short sentence is easiest to remember.") }]} />
         {/* Clerk's bot protection renders its check here when needed. */}
         <Box id="clerk-captcha" sx={{ "&:empty": { display: "none" }, mb: 1.75 }} />
         <AuthError>{err ?? missing}</AuthError>

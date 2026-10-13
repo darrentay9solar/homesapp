@@ -38,13 +38,24 @@ export type Upkeep = {
   tiles: Record<"systems" | "dueSoon" | "overdue" | "urgent" | "unassigned", { count: number; ids: number[] }>;
   kwp: number;
   avgKwp: number | null;
+  /** The typical size: a few big systems pull the average up. */
+  medianKwp: number | null;
   upcoming: Array<{ label: string; six: number; year: number }>;
+  /** Checks past their due date and not done, which no month ahead holds. */
+  overdueChecks: { six: number; year: number };
   turnedOn: Array<{ label: string; count: number; kwp: number }>;
   byPlan: UpkeepGroup[];
   byPpa: UpkeepGroup[];
+  /** PPAs by the year they end (label: the year), soonest first. */
+  ppaEnds: UpkeepGroup[];
   byPhase: UpkeepGroup[];
   byRegion: UpkeepGroup[];
+  /** System sizes in bands, smallest first. */
+  bySize: UpkeepGroup[];
+  /** Every inverter model, most common first. */
   inverters: Array<{ label: string; count: number }>;
+  /** Inverters by their rating ("10 kW"), with the models in each. */
+  inverterPower: Array<{ label: string; count: number; models: string[] }>;
   systems: Record<string, UpkeepSystem>;
 };
 

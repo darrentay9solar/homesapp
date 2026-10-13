@@ -1,3 +1,4 @@
+# ruff: noqa: E501  (project tables read better one per line)
 """The dashboard's numbers (_lib/analytics.py) and who may see them (GET /analytics).
 
 maths      every figure from hand-made rows, where the right answer is known

@@ -13,6 +13,7 @@ Clerk's. Everything after signature verification is the real code path.
 from __future__ import annotations
 
 import os
+import secrets
 import sys
 import time
 import uuid
@@ -107,6 +108,12 @@ def _laptop_storage(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(storage, "_r2", lambda: None)
 
 
+def fresh_mobile() -> str:
+    """A Singapore mobile number no other test account has: one mobile, one account."""
+    n = f"{secrets.randbelow(10**7):07d}"
+    return f"+65 8{n[:3]} {n[3:]}"
+
+
 def owner_conn() -> psycopg.Connection:
     return psycopg.connect(TEST_OWNER_URL, row_factory=dict_row, autocommit=True)
 
@@ -146,8 +153,9 @@ class Fixtures:
                 (self.uids,),
             )
             self.conn.execute(
-                "update users set active = false, clerk_user_id = null, full_name = 'pytest fixture' "
-                "where uid = any(%s)",
+                # The number goes too: one mobile, one account, and the next test's people need theirs.
+                "update users set active = false, clerk_user_id = null, contact_no = null, "
+                "full_name = 'pytest fixture' where uid = any(%s)",
                 (self.uids,),
             )
         self.conn.close()

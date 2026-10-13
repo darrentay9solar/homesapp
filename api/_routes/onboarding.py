@@ -13,9 +13,9 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from _lib import notify
 from _lib.account import ROLE_LABEL, Account
-from _lib.db import fetch_all, transaction
+from _lib.db import fetch_all, fetch_one, transaction
 from _lib.i18n import LANGS
-from _lib.profile import ProfileIn, clean_profile
+from _lib.profile import MOBILE_TAKEN_OWN, FieldProblem, ProfileIn, clean_profile, mobile_taken
 from _lib.web import account
 
 router = APIRouter()
@@ -36,6 +36,14 @@ def request_account(body: RequestIn, acct: Account = Depends(account)) -> dict[s
         raise HTTPException(400, "Verify your email address first.")
 
     p = clean_profile(body, require_mobile=True)
+    # One mobile number, one account: not one already on an account, nor on someone else's request waiting.
+    waiting = fetch_one(
+        "select 1 from account_requests where status = 'pending' and clerk_user_id is distinct from %s "
+        "and regexp_replace(contact_no, '[^0-9]', '', 'g') = regexp_replace(%s, '[^0-9]', '', 'g')",
+        (acct.identity.clerk_user_id, p["contact_no"]),
+    )
+    if mobile_taken(p["contact_no"]) or waiting:
+        raise FieldProblem(409, MOBILE_TAKEN_OWN, "mobile")
     note = (body.note or "").strip()[:500] or None
 
     # No actor: the requester has no account yet.

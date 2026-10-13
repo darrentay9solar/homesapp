@@ -78,6 +78,8 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
   const [form, setForm] = useState({ fullName: me.clerk?.fullName ?? "", contactNo: me.clerk?.phone ?? "", postalCode: "", address: "", icLast4: "", note: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // A number already on another account is said under the mobile field, until it changes.
+  const [mobileErr, setMobileErr] = useState<string | null>(null);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const problem = {
@@ -104,7 +106,8 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
       await fetcher("/account-requests", { method: "POST", json: { ...form, role, language: currentLang() } });
       await onDone();
     } catch (x) {
-      setErr(x instanceof ApiError ? x.message : T("Something went wrong. Please try again."));
+      if (x instanceof ApiError && x.field === "mobile") setMobileErr(x.message);
+      else setErr(x instanceof ApiError ? x.message : T("Something went wrong. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -131,7 +134,10 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
           </FieldError>
         )}
         <AuthField id="ob-name" label="Full name" icon={<PersonIcon />} placeholder="e.g. Aisha Rahman" value={form.fullName} onChange={set("fullName")} error={shown("name")} slotProps={{ htmlInput: { autoComplete: "name" } }} />
-        <AuthPhoneField id="ob-phone" value={form.contactNo} onChange={(v) => setForm((f) => ({ ...f, contactNo: v }))} error={shown("mobile")} />
+        <AuthPhoneField id="ob-phone" value={form.contactNo} onChange={(v) => {
+            setForm((f) => ({ ...f, contactNo: v }));
+            setMobileErr(null);
+          }} error={shown("mobile") ?? mobileErr} />
         <AuthField
           id="ob-postal"
           label="Postal code (optional)"

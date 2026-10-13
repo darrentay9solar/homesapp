@@ -18,6 +18,7 @@ sending.
 | Full name | At least 2 characters (spaces don't count) | Sign up, Request Access, New Account, Your Name |
 | Email | Something@something.something | Sign up, Sign in, Forgot Password, New Account, Your Email |
 | Mobile | The country code from the picker, then the number: a Singapore number is 8 digits after +65; others 8 to 15 digits in all | Sign up, Request Access, New Account, Your Mobile, Create Project |
+| Mobile, one per account | Not already on another account (a deactivated one too), nor on someone else's waiting request. Compared by its digits, so spaces and dashes don't hide a repeat. Said under the mobile field; the database's unique index (0033) holds it whatever else writes | Request Access, New Account, approving a request, Your Mobile |
 | Password | At least 15 characters, and not one known from a data breach (Clerk checks it, at sign-up, password changes and sign-in). No other character rules. | Sign up, Forgot Password, Your Password |
 | Code | All 6 digits | Email and phone verification |
 | Postal code | Optional on accounts; 6 digits when given. Required on a project, and looked up on OneMap | Request Access, New Account, Create Project |

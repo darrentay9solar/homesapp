@@ -8,6 +8,7 @@ and the dashboard can never count a project its reader isn't allowed to see.
 
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -489,6 +490,30 @@ def _month_key(d: date) -> str:
     return f"{d.year:04d}-{d.month:02d}"
 
 
+# System sizes in bands (kWp, upper bound exclusive): a few big systems pull an average up, bands don't.
+SIZE_BANDS = ((10, "Under 10 kWp"), (15, "10–15 kWp"), (20, "15–20 kWp"), (40, "20–40 kWp"), (None, "40 kWp and over"))
+
+
+def _size_label(r: dict[str, Any]) -> str:
+    if r["kwp"] is None:
+        return "Not recorded"
+    k = float(r["kwp"])
+    return next(label for top, label in SIZE_BANDS if top is None or k < top)
+
+
+def inverter_power(model: str) -> str:
+    """An inverter's rating from its model name: SUN2000-10KTL-M1 → "10 kW"."""
+    m = re.search(r"(\d+(?:\.\d+)?)\s*K", model, re.IGNORECASE)
+    return f"{float(m.group(1)):g} kW" if m else "Other"
+
+
+def _add_years(d: date, years: int) -> date:
+    try:
+        return d.replace(year=d.year + years)
+    except ValueError:  # 29 February
+        return d.replace(year=d.year + years, day=28)
+
+
 def maintenance(rows: list[dict[str, Any]], today: date) -> dict[str, Any]:
     """The Maintenance tab: what's looked after, what's coming up, and what the systems are.
 
@@ -528,13 +553,46 @@ def maintenance(rows: list[dict[str, Any]], today: date) -> dict[str, Any]:
             e["ids"].append(r["system_id"])
         return sorted(g.values(), key=lambda e: (-e["count"], e["label"]))
 
+    # Overdue checks: not in any month ahead, so counted on their own (the chart's first column).
+    overdue_checks = {"six": 0, "year": 0}
+    for r in rows:
+        for key, d in pending(r):
+            if d < today:
+                overdue_checks["six" if key == "six_month" else "year"] += 1
+
+    # Every model, for the table; grouped by rating for the bars, since one
+    # maker's many model names otherwise end up mostly in "Other".
     inverters: dict[str, int] = defaultdict(int)
     for r in rows:
         for model in r["inverters"] or []:
             inverters[model] += 1
     inv = sorted(({"label": k, "count": v} for k, v in inverters.items()), key=lambda e: (-e["count"], e["label"]))
-    if len(inv) > 8:
-        inv = inv[:7] + [{"label": "Other", "count": sum(e["count"] for e in inv[7:])}]
+    power: dict[str, dict[str, Any]] = {}
+    for e in inv:
+        rating = inverter_power(e["label"])
+        p = power.setdefault(rating, {"label": rating, "count": 0, "models": []})
+        p["count"] += e["count"]
+        p["models"].append(e["label"])
+    by_power = sorted(power.values(), key=lambda e: (-e["count"], e["label"]))
+
+    sizes = sorted(float(r["kwp"]) for r in rows if r["kwp"] is not None)
+    median = None
+    if sizes:
+        mid = len(sizes) // 2
+        median = round(sizes[mid] if len(sizes) % 2 else (sizes[mid - 1] + sizes[mid]) / 2, 2)
+    band_order = [label for _, label in SIZE_BANDS] + ["Not recorded"]
+    by_size = sorted(group(_size_label), key=lambda e: band_order.index(e["label"]))
+
+    # When each PPA ends (turn-on + its years), by year: the renewals to plan for.
+    ends: dict[int, dict[str, Any]] = {}
+    for r in rows:
+        if r["ppa_kind"] == "ppa" and r["ppa_years"] and r["turned_on_on"]:
+            y_end = _add_years(r["turned_on_on"], r["ppa_years"]).year
+            e = ends.setdefault(y_end, {"label": str(y_end), "count": 0, "kwp": 0.0, "ids": []})
+            e["count"] += 1
+            e["kwp"] = round(e["kwp"] + float(r["kwp"] or 0), 2)
+            e["ids"].append(r["system_id"])
+    ppa_ends = [ends[k] for k in sorted(ends)]
 
     # Systems turned on, month by month over the last 12 months.
     on_months = []
@@ -572,12 +630,17 @@ def maintenance(rows: list[dict[str, Any]], today: date) -> dict[str, Any]:
         },
         "kwp": total_kwp,
         "avgKwp": round(total_kwp / len(ids), 2) if ids else None,
+        "medianKwp": median,
         "upcoming": list(upcoming.values()),
+        "overdueChecks": overdue_checks,
         "turnedOn": list(turned.values()),
         "byPlan": group(_plan_label),
         "byPpa": group(_ppa_label),
+        "ppaEnds": ppa_ends,
         "byPhase": group(_phase_label),
         "byRegion": group(lambda r: region(r["postal_code"])),
+        "bySize": by_size,
         "inverters": inv,
+        "inverterPower": by_power,
         "systems": {str(r["system_id"]): mini(r) for r in rows},
     }

@@ -121,7 +121,7 @@ export default function ForgotPasswordPage() {
     return (
       <AuthShell title="Reset Password" back={() => setStep("code")}>
         <AuthHeading>{T("Enter new password")}</AuthHeading>
-        <AuthSubtitle>{T("At least {n} characters, and not one that's leaked in a data breach (it's checked).", { n: PASSWORD_MIN })}</AuthSubtitle>
+        <AuthSubtitle>{T("At least {n} characters. A short sentence is easiest to remember.", { n: PASSWORD_MIN })}</AuthSubtitle>
         <form onSubmit={save} noValidate>
           <PasswordField id="fp-pw" label="Password" value={password} onChange={(e) => {
             setPassword(e.target.value);

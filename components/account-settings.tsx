@@ -28,22 +28,26 @@ import { type Role, useApp } from "@/lib/client/app-state";
 import { T, TR } from "@/lib/client/i18n";
 import { codeProblem, confirmProblem, emailProblem, firstProblem, mobileProblem, nameProblem, passwordProblem, textProblem } from "@/lib/client/rules";
 /** Runs one step: shows the server's message, or keeps the error on screen. */
-function useStep() {
+function useStep({ fieldErrors = false } = {}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A refusal about the field itself (a number already on another account) is said under it instead.
+  const [fieldError, setFieldError] = useState<string | null>(null);
   async function step<T>(fn: () => Promise<T>): Promise<T | null> {
     setBusy(true);
     setError(null);
+    setFieldError(null);
     try {
       return await fn();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : clerkMessage(e));
+      if (fieldErrors && e instanceof ApiError && e.field) setFieldError(e.message);
+      else setError(e instanceof ApiError ? e.message : clerkMessage(e));
       return null;
     } finally {
       setBusy(false);
     }
   }
-  return { busy, error, setError, step };
+  return { busy, error, setError, fieldError, setFieldError, step };
 }
 
 function Actions({ children }: { children: React.ReactNode }) {
@@ -200,7 +204,7 @@ type Sent = { sentBy: "whatsapp" | "sms" | "dev" | "demo"; to: string; message: 
 export function MobileDialog({ current, onClose }: { current: string | null; onClose: () => void }) {
   const fetcher = useFetcher();
   const { reloadMe, toast } = useApp();
-  const { busy, error, step } = useStep();
+  const { busy, error, fieldError, setFieldError, step } = useStep({ fieldErrors: true });
   const [number, setNumber] = useState(current ?? "+65 ");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState<Sent | null>(null);
@@ -242,13 +246,25 @@ export function MobileDialog({ current, onClose }: { current: string | null; onC
       onClose={onClose}
       maxWidth="xs"
     >
-      {!sent ? <PhoneField label={T("New mobile")} value={number} onChange={setNumber} error={tried && Boolean(problem)} helperText={tried ? (problem ?? undefined) : undefined} /> : <CodeField value={code} onChange={setCode} error={triedCode ? codeProblem(code) : null} />}
+      {!sent ? (
+        <PhoneField
+          label={T("New mobile")}
+          value={number}
+          onChange={(v) => {
+            setNumber(v);
+            setFieldError(null);
+          }}
+          error={(tried && Boolean(problem)) || Boolean(fieldError)}
+          helperText={(tried ? problem : null) ?? fieldError ?? undefined}
+        />
+      ) : <CodeField value={code} onChange={setCode} error={triedCode ? codeProblem(code) : null} />}
       {sent?.devCode && (
         <Alert severity="info" sx={{ mt: 2 }} data-testid="dev-code">
           {sent.sentBy === "demo" ? T("Demo: nothing is sent from the demo site, so here's the code:") : T("Development only: WhatsApp and SMS aren't set up, so here's the code:")} <b>{sent.devCode}</b>
         </Alert>
       )}
-      {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+      {/* Taken between sending the code and typing it in: no number field on screen to put it under. */}
+      {(error ?? (sent ? fieldError : null)) && <Alert severity="error" sx={{ mt: 2 }}>{error ?? fieldError}</Alert>}
       <Actions>
         {!sent ? (
           <Button size="large" variant="contained" disabled={busy} onClick={() => (problem ? setTried(true) : void send("auto"))}>
@@ -337,7 +353,7 @@ export function PasswordDialog({ onClose }: { onClose: () => void }) {
         <PasswordInput label={T("New password again")} value={f.again} onChange={(v) => setF((x) => ({ ...x, again: v }))} autoComplete="new-password" error={tried ? problem.again : null} />
       </Stack>
       <Typography variant="caption" component="div" sx={{ mt: 1.5, color: f.next && !long ? "error.main" : "text.secondary" }}>
-        {T("At least {n} characters, and not one that's leaked in a data breach (it's checked). A short sentence is easiest to remember.", { n: PASSWORD_MIN })}
+        {T("At least {n} characters. A short sentence is easiest to remember.", { n: PASSWORD_MIN })}
         {f.again && !same ? ` ${T("The two new passwords don't match.")}` : ""}
       </Typography>
       {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}

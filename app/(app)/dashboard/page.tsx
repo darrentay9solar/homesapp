@@ -22,6 +22,7 @@ import TimerRoundedIcon from "@mui/icons-material/TimerRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import IconButton from "@mui/material/IconButton";
@@ -62,16 +63,19 @@ export default function DashboardPage() {
   const me = useMe();
   const router = useRouter();
   const admin = isAdmin(me?.role);
-  const [tab, setTab] = useTab<Tab>(["overview", "delivery", "site", "sales", "maintenance"], "overview");
   const [period, setPeriod] = useState<Period>("90d");
   const [pm, setPm] = useState("");
+  const { data, error } = useApi<Analytics>(admin ? `/analytics?period=${period}${pm ? `&pm=${pm}` : ""}` : null);
+  // No projects in the app yet, but systems to look after: the dashboard opens where the numbers are.
+  const noProjects = Boolean(data && data.pipeline.every((x) => x.count === 0));
+  const quiet = noProjects && (data?.maintenance?.tiles.systems.count ?? 0) > 0;
+  const [tab, setTab] = useTab<Tab>(["overview", "delivery", "site", "sales", "maintenance"], quiet ? "maintenance" : "overview");
   // The open list belongs to the tab and filters it was opened under.
   const [opened, setOpened] = useState<(NonNullable<Open> & { ctx: string }) | null>(null);
   useEffect(() => {
     if (me && !admin) router.replace("/");
   }, [me, admin, router]);
 
-  const { data, error } = useApi<Analytics>(admin ? `/analytics?period=${period}${pm ? `&pm=${pm}` : ""}` : null);
   // While a new period loads, the old numbers stay, dimmed.
   const stale = Boolean(data && (data.period.key !== period || String(data.scope.pm ?? "") !== pm));
   const ctx = `${tab}|${period}|${pm}`;
@@ -146,7 +150,24 @@ export default function DashboardPage() {
           )}
           {data && (
             <Box sx={{ opacity: stale ? 0.55 : 1, transition: "opacity .2s" }} data-testid={`dashboard-${tab}`}>
-              {tab === "overview" && <Overview d={data} open={open} toggle={toggle} onPm={(uid) => setPm(String(uid))} />}
+              {/* Zeros alone would look like a fault: say what fills these tabs, and where the numbers are now. */}
+              {noProjects && tab !== "maintenance" && (
+                <Alert
+                  severity="info"
+                  sx={{ mb: 2 }}
+                  data-testid="dashboard-no-projects"
+                  action={
+                    data.maintenance?.tiles.systems.count ? (
+                      <Button color="inherit" size="small" onClick={() => setTab("maintenance")}>
+                        {T("Open Maintenance")}
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  {T("No projects in the app yet. These numbers fill in as projects are created.")}
+                </Alert>
+              )}
+              {tab === "overview" && <Overview d={data} open={open} toggle={toggle} onPm={(uid) => setPm(String(uid))} onMaintenance={() => setTab("maintenance")} />}
               {tab === "delivery" && <Delivery d={data} open={open} toggle={toggle} />}
               {tab === "site" && <SiteWork d={data} />}
               {tab === "sales" && <Sales d={data} />}
@@ -163,7 +184,32 @@ type Props = { d: Analytics; open: Open; toggle: (key: string, title: string, id
 
 // ------------------------------------------------------------------ overview
 
-function Overview({ d, open, toggle, onPm }: Props & { onPm: (uid: number) => void }) {
+/**
+ * The systems looked after, on the Overview: what needs a visit sits beside
+ * what needs a decision. Tapping it opens the Maintenance tab.
+ */
+function UpkeepSummary({ d, onOpen }: { d: Analytics; onOpen: () => void }) {
+  const u = d.maintenance;
+  if (!u?.tiles.systems.count) return null;
+  const attention = new Set([...u.tiles.urgent.ids, ...u.tiles.overdue.ids]).size;
+  return (
+    <ChartCard title="Maintenance" sub={T("The systems 9 Solar Home looks after. Tap to open the Maintenance tab.")} testId="overview-upkeep">
+      <ButtonBase
+        onClick={onOpen}
+        aria-label={T("Open Maintenance")}
+        sx={(th) => ({ width: "100%", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr)) auto", gap: { xs: 1, sm: 3 }, alignItems: "center", px: 1, py: 1, borderRadius: `${DESIGN.radius.listItem}px`, "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) } })}
+      >
+        <Figure n={u.tiles.systems.count} label="systems" />
+        <Figure n={attention} label="need attention" bad={attention > 0} />
+        <Figure n={u.tiles.dueSoon.count} label="checks in 30 days" />
+        <Figure n={u.tiles.unassigned.count} label="unassigned" />
+        <ChevronRightRoundedIcon sx={{ color: "text.secondary" }} />
+      </ButtonBase>
+    </ChartCard>
+  );
+}
+
+function Overview({ d, open, toggle, onPm, onMaintenance }: Props & { onPm: (uid: number) => void; onMaintenance: () => void }) {
   const t = d.tiles;
   const p = d.period.key;
   const dueSoon = d.delivery.dueSoon.length;
@@ -186,8 +232,11 @@ function Overview({ d, open, toggle, onPm }: Props & { onPm: (uid: number) => vo
   const cols = wide ? 4 : 2;
   const at = open ? tiles.findIndex((x) => open.key === `tile-${x.key}`) : -1;
   const rowEnd = at < 0 ? -1 : Math.min(tiles.length, Math.ceil((at + 1) / cols) * cols) - 1;
+  // With no projects yet, the systems are the news: they go first.
+  const noProjects = d.pipeline.every((x) => x.count === 0);
   return (
     <Stack sx={{ gap: { xs: 1.5, lg: 2 } }}>
+      {noProjects && <UpkeepSummary d={d} onOpen={onMaintenance} />}
       <Box sx={{ ...TILE_GRID, gridAutoFlow: "row dense" }}>
         {tiles.map((x, i) => {
           const picked = i === at && open !== null;
@@ -212,6 +261,7 @@ function Overview({ d, open, toggle, onPm }: Props & { onPm: (uid: number) => vo
           );
         })}
       </Box>
+      {!noProjects && <UpkeepSummary d={d} onOpen={onMaintenance} />}
 
       <Box sx={GRID}>
         <ChartCard

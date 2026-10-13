@@ -14,6 +14,7 @@ import uuid
 
 import pytest
 
+from conftest import fresh_mobile
 from uat import spec
 from uat.conftest import SENT
 
@@ -40,7 +41,7 @@ def _body(role: str, lang: str = "en") -> dict:
         "fullName": "UAT New Person",
         "email": f"uat-new-{uuid.uuid4().hex[:8]}@example.com",
         "role": role,
-        "contactNo": "+65 9123 4567",
+        "contactNo": fresh_mobile(),
         "noExpiry": True,
         "language": lang,
         "icLast4": "123A" if role == "homeowner" else "",

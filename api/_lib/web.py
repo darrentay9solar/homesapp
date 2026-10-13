@@ -14,6 +14,7 @@ from _lib import demo
 from _lib.account import Account, resolve
 from _lib.auth import AuthError, ClerkIdentity, env, verify_token
 from _lib.db import fetch_one
+from _lib.profile import MOBILE_TAKEN
 
 
 def identity(request: Request) -> ClerkIdentity:
@@ -104,7 +105,11 @@ def install_error_handlers(app: FastAPI) -> None:
     # Starlette's base class, so 404s for unknown paths are JSON {"error"} too.
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_req: Request, exc: StarletteHTTPException) -> JSONResponse:
-        return JSONResponse({"error": exc.detail}, status_code=exc.status_code)
+        body = {"error": exc.detail}
+        # A refusal about one field (profile.FieldProblem) says which, so the form can show it there.
+        if getattr(exc, "field", None):
+            body["field"] = exc.field  # type: ignore[attr-defined]
+        return JSONResponse(body, status_code=exc.status_code)
 
     @app.exception_handler(psycopg.Error)
     async def db_error(_req: Request, exc: psycopg.Error) -> JSONResponse:
@@ -116,6 +121,9 @@ def install_error_handlers(app: FastAPI) -> None:
             return JSONResponse({"error": message}, status_code=403)
         if state in ("P0001", "P0002", "23514"):
             return JSONResponse({"error": message}, status_code=400)
+        if state == "23505" and exc.diag and exc.diag.constraint_name == "users_contact_no_digits_idx":
+            # Two people saving the same number at once: the forms' own check let both through.
+            return JSONResponse({"error": MOBILE_TAKEN, "field": "mobile"}, status_code=409)
         if state == "23505":
             return JSONResponse({"error": "That already exists.", "detail": message}, status_code=409)
         print(f"[api] database error {state}: {exc}")

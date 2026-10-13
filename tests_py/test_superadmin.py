@@ -19,7 +19,7 @@ import pytest
 from test_project_work import _onemap, new_project, team  # noqa: F401
 
 from _lib.db import transaction
-from conftest import bearer
+from conftest import bearer, fresh_mobile
 
 
 def h(u) -> dict[str, str]:
@@ -53,7 +53,7 @@ def person(role: str) -> dict:
     return {
         "fullName": f"New {role}",
         "email": f"sa-{uuid.uuid4().hex[:8]}@example.com",
-        "contactNo": "+65 9123 4500",
+        "contactNo": fresh_mobile(),
         "role": role,
         "noExpiry": True,
     }
@@ -211,8 +211,8 @@ def test_both_see_everyone_in_people(client, team, boss, pm2) -> None:  # noqa: 
 def request(fx, role: str) -> int:
     return fx.conn.execute(
         "insert into account_requests (clerk_user_id, email, full_name, requested_type, contact_no) "
-        "values (%s, %s, 'Asking Person', %s, '+6591234500') returning request_id",
-        (f"user_ask_{uuid.uuid4().hex[:8]}", f"ask-{uuid.uuid4().hex[:8]}@example.com", role),
+        "values (%s, %s, 'Asking Person', %s, %s) returning request_id",
+        (f"user_ask_{uuid.uuid4().hex[:8]}", f"ask-{uuid.uuid4().hex[:8]}@example.com", role, fresh_mobile()),
     ).fetchone()["request_id"]
 
 
