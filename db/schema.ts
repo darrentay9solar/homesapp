@@ -127,6 +127,10 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "meeting_changed",
   // A maintenance check coming up, due today, or overdue.
   "maintenance_due",
+  // Managers' warnings (0035): a project gone late, an escalation, the morning summary.
+  "project_late",
+  "escalation",
+  "daily_summary",
 ]);
 
 /**
@@ -1223,6 +1227,26 @@ export const maintenanceReminders = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ name: "maintenance_reminders_pk", columns: [table.systemId, table.checkKey, table.due, table.stage] })]
+);
+
+/**
+ * Which warning (a project gone late, an escalation, the morning summary)
+ * went to whom about what, so each goes once (_lib/watch.py, 0034).
+ */
+export const watchAlerts = pgTable(
+  "watch_alerts",
+  {
+    kind: text("kind").notNull(),
+    subject: text("subject").notNull(),
+    recipientUid: integer("recipient_uid")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: "watch_alerts_pk", columns: [table.kind, table.subject, table.recipientUid] }),
+    check("watch_alerts_kind", sql`${table.kind} in ('project_late', 'escalation', 'daily_summary')`),
+  ]
 );
 
 /** Each Excel export: who took which list (projects or people) and how many rows. Insert only, and audited. */

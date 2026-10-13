@@ -25,7 +25,7 @@ import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from _lib import maintenance_reminders, notify, sweep
+from _lib import maintenance_reminders, notify, sweep, watch
 from _lib.account import Account, apply_schedule
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
@@ -432,10 +432,17 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
         raise HTTPException(401, "Not allowed.")
     # The same job applies account expiry and enable dates (migration 0025),
     # clears out abandoned uploads (_lib/sweep), and reminds people of
-    # maintenance checks coming up (_lib/maintenance_reminders).
-    return {
+    # maintenance checks coming up (_lib/maintenance_reminders), and warns
+    # managers: a project gone late, an escalation, the morning summary (_lib/watch).
+    out = {
         "sent": run_reminders(datetime.now(SG)),
         "accounts": apply_schedule(),
         "uploads": sweep.sweep(),
         "maintenance": maintenance_reminders.run(datetime.now(SG)),
     }
+    try:
+        out["warnings"] = watch.run(datetime.now(SG))
+    except Exception as exc:  # the reminders above have gone; a summary that fails mustn't hide that
+        print(f"[cron] manager warnings failed: {exc}")
+        out["warnings"] = {"error": "failed; see the logs"}
+    return out

@@ -431,6 +431,23 @@ the Projects list: "late" and "no-show" are the same red flags.
 - **TC-49:** As Charlotte Sim → Dashboard → **Sales**, period **Last 12 months**: about 230 kWp installed across five regions; Delivery shows each step's average days.
 - **TC-50:** As Priya Nair (contractor) there's no Dashboard, and `/dashboard` sends her to Projects.
 
+### Warnings for managers
+
+The 15-minute job also warns managers, each warning once (`_lib/watch.py`):
+
+| When | Who | What |
+|---|---|---|
+| A project passes its target end date (1 to 7 days late) | Its project manager (the superadmins if it has none) | **Project late · name**, opening the project |
+| A project 14 days late | The superadmins | **Two weeks late · name**, with who runs it |
+| A maintenance check 30 days overdue, on a system with a manager | The superadmins | **6-month check a month overdue · address** (a system without a manager already reminds them) |
+| 8 am, Monday to Saturday | Each project manager and superadmin with something to act on | **Your morning summary**: late projects (and the latest), urgent systems, systems with a check overdue, approvals and handovers waiting, account requests waiting, checks this week, projects due in 14 days, and (superadmins) systems without a manager. Opens the dashboard. Nothing to act on, nothing sent. |
+
+They arrive in Alerts, on the phone and by email, in the person's language;
+**Account → Notifications** can mute **Late and overdue** or **Morning
+summary**. Older items never arrive as a burst: they're in the summary.
+
+- **TC-51a:** On a laptop against the dev database, set a project's target end date to three days ago and run the job: its manager gets **Project late**, once; at 8 am the next summary says "Late projects: 1, the latest 3 days over".
+
 ## Maintenance (project managers and superadmins)
 
 **Maintenance** in the menu (on a phone, under **More** on the bottom bar).

@@ -47,6 +47,10 @@ KIND_LABEL = {
     "role_request": "People",
     "role_approved": "Account",
     "role_rejected": "Account",
+    "maintenance_due": "Maintenance",
+    "project_late": "Project late",
+    "escalation": "Escalation",
+    "daily_summary": "Summary",
 }
 
 

@@ -30,6 +30,8 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
     "people": ("account_request", "role_request"),
     "meetings": ("meeting_request", "meeting_response", "meeting_changed"),
     "maintenance": ("maintenance_due",),
+    "warnings": ("project_late", "escalation"),
+    "summary": ("daily_summary",),
     "account": (
         "account_created",
         "account_approved",
