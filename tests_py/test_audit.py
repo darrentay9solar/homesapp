@@ -8,7 +8,7 @@ import psycopg
 import pytest
 
 from _lib.db import transaction
-from conftest import bearer
+from conftest import bearer, fresh_mobile
 
 REASON = "Entered on the wrong account by mistake."
 
@@ -345,7 +345,7 @@ def test_what_can_never_be_reverted(client, pm, fx) -> None:
             "fullName": "Brand New",
             "email": f"pytest-a-{uuid.uuid4().hex[:6]}@example.com",
             "role": "homeowner",
-            "contactNo": "+65 9123 4567",
+            "contactNo": fresh_mobile(),
             "noExpiry": True,
         },  # fmt: skip
     )

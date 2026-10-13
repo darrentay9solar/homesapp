@@ -1681,6 +1681,7 @@
  "The project is approved. Milestone 1 fields are open.": "项目已批准。里程碑 1 的字段已开启。",
  "The project is at handover; its fields are now the signed record.": "项目已到移交阶段；其字段现已成为签署记录。",
  "The project is at handover; its files are now the signed record.": "项目已进入移交阶段，其文件现为已签署的记录。",
+ "The project is done. Its maintenance checks are on the Maintenance tab.": "项目已完成。维护检查在“维护”标签页中。",
  "The project is done; its system is now looked after on the Maintenance page.": "项目已完成；其系统现在在维护页面中跟进。",
  "The project is {status}, so its details are now the signed record and can't be rewound.": "项目状态为{status}，因此其详情现已成为签署记录，无法回退。",
  "The project isn't at the point of asking for a signature.": "项目尚未到请求签署的阶段。",

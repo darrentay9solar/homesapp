@@ -22,7 +22,7 @@ import { Field, FieldError, MDialog } from "@/components/m";
 import { useMaintenanceHref } from "@/components/maintenance";
 import { dt2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
-import { useApp, useMe } from "@/lib/client/app-state";
+import { isAdmin, useApp, useMe } from "@/lib/client/app-state";
 import { T, TR } from "@/lib/client/i18n";
 import { nameProblem } from "@/lib/client/rules";
 import type { ProjectRow } from "@/lib/client/projects";
@@ -61,6 +61,8 @@ export function HandoverPanel({ p, reload }: { p: ProjectRow; reload: () => Prom
   const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<"sign" | "view" | "close" | null>(null);
   const maintenanceHref = useMaintenanceHref();
+  // The Maintenance page is project managers' and superadmins'; anyone else would only be sent back.
+  const staff = isAdmin(useMe()?.role);
   // Reload when the status moves (a crew member's last field asks for the signature).
   useEffect(() => {
     void reloadHandover();
@@ -143,11 +145,15 @@ export function HandoverPanel({ p, reload }: { p: ProjectRow; reload: () => Prom
       <Alert severity="success" icon={<TaskAltRoundedIcon />} data-testid="handover-banner" sx={{ "& .MuiAlert-message": { width: "100%" } }}>
         <AlertTitle sx={{ fontWeight: 600 }}>{T("Handed over")}</AlertTitle>
         {h.closed && (h.closed.by ? T("Closed on {date} by {name}.", { date: dt2s(h.closed.at), name: h.closed.by }) : T("Closed on {date}.", { date: dt2s(h.closed.at) }))} {signed}{" "}
-        {h.maintenance ? T("The project is done; its system is now looked after on the Maintenance page.") : null}
-        {(pdf || h.maintenance) && (
+        {h.maintenance
+          ? staff
+            ? T("The project is done; its system is now looked after on the Maintenance page.")
+            : T("The project is done. Its maintenance checks are on the Maintenance tab.")
+          : null}
+        {(pdf || (staff && h.maintenance)) && (
           <Stack direction="row" sx={{ gap: 1, mt: 1.5, flexWrap: "wrap" }}>
             {pdf}
-            {h.maintenance ? (
+            {staff && h.maintenance ? (
               <Button variant="contained" component={Link} href={maintenanceHref(h.maintenance)} startIcon={<HandymanRoundedIcon />} data-testid="open-maintenance">
                 {T("Open in Maintenance")}
               </Button>

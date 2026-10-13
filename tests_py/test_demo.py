@@ -18,7 +18,7 @@ import pytest
 
 from _lib import clerk, demo, notify, storage
 from _lib.db import transaction
-from conftest import bearer
+from conftest import bearer, fresh_mobile
 
 
 @pytest.fixture
@@ -199,7 +199,7 @@ def test_new_accounts_in_the_demo_get_no_clerk_invitation(client, on, sample, mo
         json={
             "fullName": "Visitor Made",
             "email": f"visitor-{uuid.uuid4().hex[:8]}@example.com",
-            "contactNo": "+65 9123 4500",
+            "contactNo": fresh_mobile(),
             "role": "homeowner",
             "noExpiry": True,
         },
