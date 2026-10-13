@@ -551,9 +551,15 @@ window, with **Use this photo** or **Take another**) or **Choose a file**
 
 ## On a phone: More
 
-The bottom bar holds five: for a project manager or superadmin, Dashboard,
-Projects, Calendar, People and **More**, which opens Maintenance, Alerts,
-Audit, My Files and Account (Alerts is also the bell in every header).
+Every role's bottom bar has the same shape: its main screens, then
+**Alerts**, then **More**. Files and Account are always under More.
+
+| Role | Bottom bar | Under More |
+|---|---|---|
+| Project manager, superadmin | Dashboard, Projects, Calendar, Alerts, More | People, Maintenance, Audit, My Files, Account |
+| EPC crew | Projects, Sites, Calendar, Alerts, More | Files, Account |
+| Contractor | Projects, Calendar, Alerts, More | Files, Account |
+| Homeowner | My Project, Calendar, Alerts, More | Account |
 
 ## The demo site
 

@@ -38,62 +38,58 @@ import { RoleAvatar } from "./m";
 import { T, TR } from "@/lib/client/i18n";
 import { leaveDemo } from "@/lib/client/demo";
 /**
- * phone: false puts a tab under More on the phone's bottom bar (five fit:
- * four tabs and More); the desktop drawer lists every tab.
+ * phone: false puts a tab under More on the phone's bottom bar. Every role's
+ * bar has the same shape: its own main screens, then Alerts, then More
+ * (five at most). Files and Account are always under More. The desktop
+ * drawer lists every tab.
  */
 type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
 
 const CALENDAR: Tab = { href: "/calendar", label: "Calendar", icon: <CalendarMonthRoundedIcon /> };
+const ALERTS: Tab = { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> };
+const ACCOUNT: Tab = { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false };
 
 /** Tabs per role, from the prototype. Audit is project managers' and the superadmin's only. */
 const TABS: Record<Role, Tab[]> = {
-  homeowner: [
-    { href: "/", label: "My Project", icon: <HomeRoundedIcon /> },
-    CALENDAR,
-    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
-    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
-  ],
+  homeowner: [{ href: "/", label: "My Project", icon: <HomeRoundedIcon /> }, CALENDAR, ALERTS, ACCOUNT],
   project_manager: [
     // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
     { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     CALENDAR,
-    { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
-    // On a phone, the rest are under More (Alerts also has the bell in every header).
+    ALERTS,
+    { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
-    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon />, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
-    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false },
+    ACCOUNT,
   ],
   // Everything a project manager has, over every project.
   superadmin: [
-    // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
     { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     CALENDAR,
-    { href: "/people", label: "People", icon: <GroupsRoundedIcon /> },
-    // On a phone, the rest are under More (Alerts also has the bell in every header).
+    ALERTS,
+    { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
-    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon />, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
-    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false },
+    ACCOUNT,
   ],
   contractor: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     CALENDAR,
-    { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon /> },
-    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> },
-    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon /> },
+    ALERTS,
+    { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon />, phone: false },
+    ACCOUNT,
   ],
   epc_team: [
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     { href: "/sites", label: "Sites", icon: <PlaceRoundedIcon /> },
     CALENDAR,
-    { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon /> },
-    { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon />, phone: false },
-    { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false },
+    ALERTS,
+    { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon />, phone: false },
+    ACCOUNT,
   ],
 };
 

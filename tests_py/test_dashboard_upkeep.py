@@ -80,13 +80,9 @@ def test_inverter_rating(model: str, rating: str) -> None:
 def test_sizes_come_in_bands_and_the_typical_size_is_the_median() -> None:
     sizes = [8.68, 9.9, 10.0, 12.0, 14.08, 15.0, 19.99, 20.0, 76.8]
     u = an.maintenance([system(i, kwp=k) for i, k in enumerate(sizes, 1)], TODAY)
-    assert [(g["label"], g["count"]) for g in u["bySize"]] == [
-        ("Under 10 kWp", 2),
-        ("10–15 kWp", 3),
-        ("15–20 kWp", 2),
-        ("20–40 kWp", 1),
-        ("40 kWp and over", 1),
-    ]
+    # Under 10, 10 to 15, 15 to 20, 20 to 40, 40 and over: smallest first.
+    bands = [label for _, label in an.SIZE_BANDS]
+    assert [(g["label"], g["count"]) for g in u["bySize"]] == list(zip(bands, [2, 3, 2, 1, 1], strict=True))
     assert u["medianKwp"] == 14.08
     assert u["avgKwp"] > u["medianKwp"], "one big system pulls the average up"
 
