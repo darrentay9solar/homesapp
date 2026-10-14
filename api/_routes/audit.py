@@ -71,6 +71,12 @@ PAGES = (
     "support",
 )
 
+# A person switching the app's language isn't a change worth showing (and since 0040 isn't recorded).
+NOT_LANGUAGE = (
+    "not (entity_table = 'users' and action = 'update' "
+    "and (coalesce(changes, '{}'::jsonb) - 'language' - 'updated_at') = '{}'::jsonb)"
+)
+
 # Rows whose history is evidence, or whose decisions are final, are never rewritten.
 NO_REVERT: dict[str, str] = {
     "account_requests": "Decisions on access requests are final.",
@@ -540,7 +546,7 @@ def log(
     limit: int = Query(200, ge=1, le=500),
 ) -> dict[str, Any]:
     """Newest first. Filter by page of the app, by who did it, or by where it happened."""
-    where = ["entity_table = any(%(tables)s)"]
+    where = ["entity_table = any(%(tables)s)", NOT_LANGUAGE]
     params: dict[str, Any] = {"limit": limit + 1}
     if page:
         if page not in PAGES:
@@ -584,6 +590,7 @@ def log(
 
     # How many entries each page has, under the same person filter — for the tabs.
     scope = "actor_uid = %(uid)s" if uid is not None else "actor_uid is null" if system else "true"
+    scope = f"{scope} and {NOT_LANGUAGE}"
     counts = {p: 0 for p in PAGES}
     for r in fetch_all(
         f"select entity_table, count(*)::int as n from audit_log where {scope} group by entity_table",
@@ -619,6 +626,8 @@ def people(acct: Account = Depends(pm_only)) -> list[dict[str, Any]]:
           from audit_log a
           left join users u on u.uid = a.actor_uid
          where a.entity_table = any(%(tables)s)
+           and not (a.entity_table = 'users' and a.action = 'update'
+                    and (coalesce(a.changes, '{}'::jsonb) - 'language' - 'updated_at') = '{}'::jsonb)
          group by a.actor_uid, u.full_name, u.user_type, u.email, u.active
          order by max(a.occurred_at) desc
         """,
