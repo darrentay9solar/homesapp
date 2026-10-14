@@ -49,8 +49,8 @@ type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
 const CALENDAR: Tab = { href: "/calendar", label: "Calendar", icon: <CalendarMonthRoundedIcon /> };
 const ALERTS: Tab = { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> };
 const ACCOUNT: Tab = { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false };
-// A homeowner's Help is on their bar (it's theirs to ask); everyone else answers or helps from Support, under More.
-const HELP: Tab = { href: "/support", label: "Help", icon: <SupportAgentRoundedIcon /> };
+// Help (a homeowner asks) and Support (everyone else answers or helps): both under More on a phone.
+const HELP: Tab = { href: "/support", label: "Help", icon: <SupportAgentRoundedIcon />, phone: false };
 const SUPPORT: Tab = { href: "/support", label: "Support", icon: <SupportAgentRoundedIcon />, phone: false };
 
 /** Tabs per role, from the prototype. Audit is project managers' and the superadmin's only. */

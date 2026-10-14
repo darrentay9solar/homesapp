@@ -377,3 +377,53 @@ def test_the_summary_leads_with_people_waiting() -> None:
     assert watch.summary_lines(d, u, 0, superadmin=False, today=today, support=2) == [
         "People waiting for a support answer: 2"
     ]
+
+
+# ------------------------------------------------------------------ a video call
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://meet.google.com/abc-defg-hij",
+        "https://teams.microsoft.com/l/meetup-join/19%3ameeting_x",
+        "https://us02web.zoom.us/j/123456789?pwd=abc",
+        "https://zoom.us/j/987",
+    ],
+)
+def test_the_manager_sends_a_video_call(client, fx, setup, link) -> None:
+    tid = asked_for_person(client, setup)
+    r = client.post(f"/api/py/support/{tid}/call", headers=h(setup["pm"]), json={"link": link})
+    assert r.status_code == 200, r.text
+    t = get(client, setup["ho"], tid).json()
+    assert t["messages"][-1]["kind"] == "call" and t["messages"][-1]["body"] == link
+    assert t["status"] == "open", "a call is an answer"
+    assert alerts(fx, setup["ho"]["uid"], "support_message")[-1]["title"].startswith("Video call · ")
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "http://meet.google.com/abc",
+        "https://meet.google.com.evil.example/abc",
+        "https://evil.example/meet.google.com/abc",
+        "javascript:alert(1)",
+        "https://meet.google.com/",
+        "",
+        "https://meet.google.com/abc def",
+    ],
+)
+def test_only_real_meeting_links(client, setup, link) -> None:
+    tid = asked_for_person(client, setup)
+    assert client.post(f"/api/py/support/{tid}/call", headers=h(setup["pm"]), json={"link": link}).status_code == 400
+
+
+def test_only_the_manager_starts_a_call(client, setup) -> None:
+    tid = asked_for_person(client, setup)
+    r = client.post(f"/api/py/support/{tid}/call", headers=h(setup["ho"]), json={"link": "https://meet.google.com/abc"})
+    assert r.status_code == 403
+    with pytest.raises(psycopg.errors.InsufficientPrivilege), transaction(setup["ho"]["uid"]) as cur:
+        cur.execute(
+            "insert into support_messages (thread_id, sender_uid, kind, body) values (%s, %s, 'call', 'https://meet.google.com/x')",
+            (tid, setup["ho"]["uid"]),
+        )

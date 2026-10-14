@@ -11,6 +11,9 @@ import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import BoltOutlinedIcon from "@mui/icons-material/BoltOutlined";
+import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalServicesRounded";
+import RouterRoundedIcon from "@mui/icons-material/RouterRounded";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 import Box from "@mui/material/Box";
@@ -24,6 +27,7 @@ import Typography from "@mui/material/Typography";
 import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 
+import { ClientRecord, FeedbackCard, recordRows, WarrantyCard } from "@/components/client-record";
 import { atHandover, HandoverPanel } from "@/components/handover";
 import { ProjectMaintenance } from "@/components/maintenance";
 import { Field, MDialog, RoleChip } from "@/components/m";
@@ -34,9 +38,10 @@ import { Page } from "@/components/shell";
 import { SegTabs, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
-import { useApp, useMe } from "@/lib/client/app-state";
+import { isAdmin, useApp, useMe } from "@/lib/client/app-state";
 import { firstOpenSection, type ProjectFields, type ProjectRow, SECTIONS } from "@/lib/client/projects";
 import { useTab } from "@/lib/client/tabs";
+import type { ProjectRecord } from "@/lib/client/records";
 import type { ProjectVisits } from "@/lib/client/sites";
 
 import { T, TR } from "@/lib/client/i18n";
@@ -109,6 +114,7 @@ type Tab = "maintenance" | "milestones" | "details" | "visits";
  */
 function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: ProjectFields | null; visits: ProjectVisits | null; reload: () => Promise<void>; tab: Tab }) {
   const [editing, setEditing] = useState(false);
+  const manager = isAdmin(useMe()?.role);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const first = fields ? firstOpenSection(fields.sections) : null;
   const isOpen = (key: string) => open[key] ?? key === first;
@@ -159,6 +165,7 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
               </Stack>
             )}
             <Details p={p} />
+            {manager && <ProjectRecordCards pid={p.id} />}
           </>
         )}
         {tab === "visits" &&
@@ -409,4 +416,23 @@ function ScrollToHash() {
     if (id) document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
   return null;
+}
+
+/** The project list's client record, the inverter's warranty and what the homeowner said: project managers only. */
+function ProjectRecordCards({ pid }: { pid: number }) {
+  const { data } = useApi<ProjectRecord>(`/projects/${pid}/record`);
+  if (!data) return null;
+  const r = data.record;
+  const extra = [
+    { icon: <BoltOutlinedIcon />, k: "PPA", v: r.ppa ? (r.ppa.kind === "value_buy" ? T("Value buy") : T("{n}-year PPA", { n: r.ppa.years ?? "" })) : null },
+    { icon: <ElectricalServicesRoundedIcon />, k: "Supply", v: r.phase === 1 ? T("Single-phase") : r.phase === 3 ? T("3-phase") : null },
+    { icon: <RouterRoundedIcon />, k: "Dongle serial no.", v: r.dongleSerial },
+  ];
+  return (
+    <Stack sx={{ gap: 2, mt: 2 }}>
+      <ClientRecord rows={[...recordRows(r), ...extra]} note={r.note} />
+      <WarrantyCard warranties={data.warranties} />
+      <FeedbackCard feedback={data.feedback} />
+    </Stack>
+  );
 }

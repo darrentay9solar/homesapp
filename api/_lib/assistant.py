@@ -267,8 +267,8 @@ def reply(uid: int, project_id: int | None, history: list[dict[str, Any]], lang:
     if configured():
         try:
             return ask_claude(history, project_facts(project_id), lang)
-        except (urllib.error.URLError, TimeoutError, ValueError, KeyError, json.JSONDecodeError) as exc:
-            print(f"[assistant] Claude unavailable, answering from the list: {exc}")
+        except Exception as exc:  # a wrong key, a network blip, an odd reply: the list still answers
+            print(f"[assistant] Claude unavailable, answering from the list: {type(exc).__name__}: {exc}")
     return from_list(question, lang)
 
 
@@ -317,6 +317,6 @@ STARTER: list[tuple[str, str, str, str]] = [
         "How do I turn notifications on or off?",
         "Go to Account → Notifications. You can choose what reaches your phone, email and WhatsApp, pause them, or set quiet hours.",
         "如何开启或关闭通知？",
-        "前往“账户 → 通知”，可以选择推送到手机、电邮和WhatsApp的内容，暂停通知，或设置免打扰时段。",
+        "前往“账户 → 通知”，可以选择推送到手机、电子邮件和WhatsApp的内容，暂停通知，或设置免打扰时段。",
     ),
 ]

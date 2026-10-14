@@ -6,6 +6,7 @@
 
 import { currentLang, interpolate, type Lang } from "./i18n";
 import { normalise, tokens } from "./people-search";
+import type { SystemExtras } from "./records";
 
 export type CheckKey = "six_month" | "one_year";
 export type CheckState = "done" | "overdue" | "due_soon" | "scheduled" | "unscheduled";
@@ -53,7 +54,7 @@ export type MaintenanceDetail = {
   /** Who a visit is booked with: the homeowner (for the office), or the manager (for the homeowner). */
   bookWith?: number[];
   managers: Manager[];
-};
+} & Partial<SystemExtras>;
 
 // ------------------------------------------------------------- how it reads
 

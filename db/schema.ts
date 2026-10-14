@@ -136,6 +136,8 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "support_message",
   "support_added",
   "support_settled",
+  // A meeting coming up: a day before, and within 30 minutes of the start (0039).
+  "meeting_reminder",
 ]);
 
 /**
@@ -581,6 +583,25 @@ export const projects = pgTable("projects", {
   closedAt: timestamp("closed_at", { withTimezone: true }),
   closedBy: integer("closed_by").references(() => users.uid, { onDelete: "set null" }),
 
+  // ---- the client record (0038, from 9 Solar Home's project list) ---------
+  /** 9 Solar Home's own project code, e.g. 9SH0123. */
+  projectCode: text("project_code"),
+  salutation: text("salutation"),
+  homeownerEmail: text("homeowner_email"),
+  /** When the client signed. */
+  signedOn: date("signed_on"),
+  referrer: text("referrer"),
+  solarPlan: text("solar_plan"),
+  ratePerKwh: numeric("rate_per_kwh", { precision: 8, scale: 4 }),
+  ppaKind: text("ppa_kind"),
+  ppaYears: smallint("ppa_years"),
+  phase: smallint("phase"),
+  dongleSerial: text("dongle_serial"),
+  /** Where an imported project came from, e.g. clients-2026-10-14#9SH0123. */
+  importRef: text("import_ref"),
+  /** What an import set by itself (dates not in the list), for the manager to check. */
+  recordNote: text("record_note"),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1007,6 +1028,22 @@ export const maintenanceSystems = pgTable(
     urgent: boolean("urgent").notNull().default(false),
     urgentNote: text("urgent_note"),
     notes: text("notes"),
+    // The client record (0038): the project list's columns, kept with the system.
+    projectCode: text("project_code"),
+    salutation: text("salutation"),
+    homeownerEmail: text("homeowner_email"),
+    signedOn: date("signed_on"),
+    salesperson: text("salesperson"),
+    referrer: text("referrer"),
+    solarPlan: text("solar_plan"),
+    ratePerKwh: numeric("rate_per_kwh", { precision: 8, scale: 4 }),
+    epc: text("epc"),
+    inverterSerials: text("inverter_serials").array().notNull().default(sql`'{}'::text[]`),
+    dongleSerials: text("dongle_serials").array().notNull().default(sql`'{}'::text[]`),
+    installationStart: date("installation_start"),
+    installationEnd: date("installation_end"),
+    estMonthlyKwh: numeric("est_monthly_kwh", { precision: 10, scale: 2 }),
+    billingPeriod: text("billing_period"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1307,7 +1344,7 @@ export const supportMembers = pgTable(
   ]
 );
 
-/** What was said in a support conversation. Insert only. kind: text, assistant, event. */
+/** What was said in a support conversation. Insert only. kind: text, assistant, event, call (a video call link, 0037). */
 export const supportMessages = pgTable(
   "support_messages",
   {
@@ -1324,7 +1361,7 @@ export const supportMessages = pgTable(
     index("support_messages_thread_idx").on(table.threadId, table.messageId),
     check(
       "support_messages_values",
-      sql`${table.kind} in ('text', 'assistant', 'event') and btrim(${table.body}) <> '' and length(${table.body}) <= 4000 and ((${table.kind} = 'assistant') = (${table.senderUid} is null))`
+      sql`${table.kind} in ('text', 'assistant', 'event', 'call') and btrim(${table.body}) <> '' and length(${table.body}) <= 4000 and ((${table.kind} = 'assistant') = (${table.senderUid} is null)) and (${table.kind} <> 'call' or ${table.body} ~ '^https://[^\\s]+$')`
     ),
   ]
 );
@@ -1350,6 +1387,74 @@ export const supportFaq = pgTable(
       sql`btrim(${table.question}) <> '' and length(${table.question}) <= 300 and btrim(${table.answer}) <> '' and length(${table.answer}) <= 3000 and (${table.questionZh} is null or length(${table.questionZh}) <= 300) and (${table.answerZh} is null or length(${table.answerZh}) <= 3000)`
     ),
   ]
+);
+
+/** kWh a system generated each month (0038). */
+export const systemOutput = pgTable(
+  "system_output",
+  {
+    systemId: integer("system_id")
+      .notNull()
+      .references(() => maintenanceSystems.systemId, { onDelete: "cascade" }),
+    month: date("month").notNull(),
+    kwh: numeric("kwh", { precision: 10, scale: 2 }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ name: "system_output_pk", columns: [table.systemId, table.month] })]
+);
+
+/** A system's billing period for each month (0038). */
+export const systemBilling = pgTable(
+  "system_billing",
+  {
+    systemId: integer("system_id")
+      .notNull()
+      .references(() => maintenanceSystems.systemId, { onDelete: "cascade" }),
+    month: date("month").notNull(),
+    period: text("period").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ name: "system_billing_pk", columns: [table.systemId, table.month] })]
+);
+
+/** What a homeowner said, on a project or a system (0038). */
+export const clientFeedback = pgTable("client_feedback", {
+  feedbackId: serial("feedback_id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.projectId, { onDelete: "cascade" }),
+  systemId: integer("system_id").references(() => maintenanceSystems.systemId, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  importRef: text("import_ref"),
+  createdBy: integer("created_by").references(() => users.uid, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Each inverter model's phase, price and warranty: project managers' reference (0038). */
+export const inverterModels = pgTable("inverter_models", {
+  /** The model with spaces and "TL" taken out, so the list's spellings match. */
+  modelKey: text("model_key").primaryKey(),
+  model: text("model").notNull(),
+  phase: smallint("phase"),
+  priceExGst: numeric("price_ex_gst", { precision: 10, scale: 2 }),
+  priceInclGst: numeric("price_incl_gst", { precision: 10, scale: 2 }),
+  warrantyYears: smallint("warranty_years"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Which meeting reminder (a day before, or soon) went to whom, for which start time (0039). */
+export const meetingReminders = pgTable(
+  "meeting_reminders",
+  {
+    meetingId: integer("meeting_id")
+      .notNull()
+      .references(() => meetings.meetingId, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    stage: text("stage").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ name: "meeting_reminders_pk", columns: [table.meetingId, table.userId, table.stage, table.startsAt] })]
 );
 
 /** Each Excel export: who took which list (projects or people) and how many rows. Insert only, and audited. */

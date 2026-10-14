@@ -52,6 +52,10 @@ TABLES: dict[str, tuple[tuple[str, ...], str]] = {
     "support_threads": (("thread_id",), "support"),
     "support_members": (("thread_id", "user_id"), "support"),
     "support_faq": (("faq_id",), "support"),
+    "system_output": (("system_id", "month"), "maintenance"),
+    "system_billing": (("system_id", "month"), "maintenance"),
+    "client_feedback": (("feedback_id",), "maintenance"),
+    "inverter_models": (("model_key",), "maintenance"),
 }
 PAGES = (
     "projects",

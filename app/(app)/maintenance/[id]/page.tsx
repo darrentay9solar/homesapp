@@ -29,6 +29,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { ClientRecord, FeedbackCard, installRows, OutputCard, recordRows, serialRows, WarrantyCard } from "@/components/client-record";
 import { CheckDoneDialog, ChecksCard, EditSystemDialog, useMaintenanceHref } from "@/components/maintenance";
 import { DetailRow, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
@@ -201,6 +202,15 @@ function Body({ d, reload }: { d: MaintenanceDetail; reload: () => Promise<void>
             </DetailRow>
           )}
         </Card>
+        {/* The project list's record, output, warranty and feedback: the office's only (the API sends them to managers). */}
+        {d.record && (
+          <Stack sx={{ gap: 2, mt: 2 }}>
+            <ClientRecord rows={[...recordRows(d.record), ...installRows(d.record.epc, d.record.installationStart, d.record.installationEnd, d.record.billingPeriod), ...serialRows(d.record.inverterSerials, d.record.dongleSerials)]} />
+            {d.output && <OutputCard output={d.output} billing={d.billing ?? []} />}
+            <WarrantyCard warranties={d.warranties ?? []} />
+            <FeedbackCard feedback={d.feedback ?? []} />
+          </Stack>
+        )}
       </Box>
 
       {editing && <EditSystemDialog d={d} onClose={() => setEditing(false)} onSaved={reload} />}

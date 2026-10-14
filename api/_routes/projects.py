@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from _lib import notify, onemap, project_fields
+from _lib import notify, onemap, project_fields, records
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.profile import clean_phone
@@ -470,3 +470,14 @@ def _announce(pid: int, v: dict[str, Any], acct: Account) -> None:
             "select user_id from contractor_group_members where group_id = %s", (v["group_id"],))}  # fmt: skip
     for uid in crew - {acct.uid}:
         notify.notify(uid, "assignment", "New project assigned", f"{v['name']} — {v['address']}", project_id=pid)
+
+
+@router.get("/projects/{pid}/record")
+def client_record(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
+    """The client record from the project list, what the homeowner said, and the inverter's warranty (managers only)."""
+    if not _load(acct, pid):
+        raise HTTPException(404, "No such project.")
+    out = records.for_project(pid)
+    if out is None:
+        raise HTTPException(404, "No such project.")
+    return out

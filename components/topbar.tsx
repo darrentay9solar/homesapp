@@ -88,13 +88,14 @@ export function TopBar({
       }}
     >
       <Box data-layout="header-column" sx={PAGE_COLUMN}>
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1, minHeight: 44 }}>
+        {/* With very large text (or a very narrow phone) the buttons move under the title instead of off the screen. */}
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1, minHeight: 44, flexWrap: "wrap", rowGap: 0.5 }}>
           {onBack && (
             <IconButton onClick={onBack} aria-label={t("Back")} sx={{ color: "#fff", ml: -1 }}>
               <ArrowBackRoundedIcon />
             </IconButton>
           )}
-          <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
             <Typography
               component="h1"
               noWrap

@@ -55,6 +55,7 @@ KIND_LABEL = {
     "support_message": "Support",
     "support_added": "Support",
     "support_settled": "Support",
+    "meeting_reminder": "Meeting",
 }
 
 

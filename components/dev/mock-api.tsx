@@ -2,7 +2,7 @@
 
 import { mockAnalytics } from "./mock-analytics";
 import { mockBusy, mockCalendar, mockContacts, mockMeeting, mockUpcoming } from "./mock-calendar";
-import { mockMaintenance, mockProjectMaintenance, mockSystem } from "./mock-maintenance";
+import { mockMaintenance, mockProjectMaintenance, mockRecord, mockSystem } from "./mock-maintenance";
 import { asHomeowner, mockAnswers, mockAssistantThread, mockInbox, mockSupportMe, mockSupportPeople, mockThread } from "./mock-support";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
@@ -692,6 +692,10 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "POST /alerts/read") return { unread: 0 };
   if (key === "GET /push/key") return { publicKey: null, devices: 0 };
   if (key === "POST /me/mobile/send") return { sentBy: "dev", to: "•••• 4567", message: "Preview only — code shown here.", devCode: "123456" };
+  if (method === "GET" && /^\/projects\/\d+\/record$/.test(path)) {
+    const r = mockRecord();
+    return { record: { ...r.record, ppa: { kind: "ppa", years: 7 }, phase: 3, dongleSerial: "DG7Q2201", note: null }, feedback: r.feedback, warranties: r.warranties };
+  }
   const upkeepFor = path.match(/^\/projects\/(\d+)\/maintenance$/);
   if (method === "GET" && upkeepFor) return mockProjectMaintenance(Number(upkeepFor[1]));
   const visitsFor = path.match(/^\/projects\/(\d+)\/visits$/);

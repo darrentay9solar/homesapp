@@ -509,6 +509,20 @@ The check then shows **Visit asked for** (amber) until everyone accepts, then
 - **TC-55:** On the demo as Ethan Chua (Siglap Garden House) → the project opens on Maintenance; Installation shows the archived milestones at 100%. The 6-month check shows "Visit asked for".
 - **TC-56:** As the system's manager, open Calendar → the invitation from Ethan is dashed and listed under "Waiting for your answer"; Accept → the check turns to "Visit agreed".
 
+### The client record (project managers and superadmins)
+
+9 Solar Home's project list (the client workbook) is loaded with
+`scripts/import_client_list.py` (`--dry-run` first; production needs
+`--confirm`). Each system and project then shows managers a **Client
+record** (project code, email, signed date, salesperson, referrer, solar
+plan and rate, EPC, serial numbers, installation dates, billing period), the
+**Inverter warranty** (years, until when, price before and with GST),
+**Solar output** month by month against the estimate, and **Homeowner
+feedback**. Homeowners and crews never see any of it. Clients signed but not
+yet turned on arrive as projects in progress with no manager; where the list
+had no installation dates the import sets three weeks from the day it ran
+and says so on the project, for the manager to change.
+
 ## Calendar and meetings (everyone)
 
 **Calendar** in the menu (on a phone, the bottom bar). Everyone has their own
@@ -591,7 +605,7 @@ Every role's bottom bar has the same shape: its main screens, then
 | Project manager, superadmin | Dashboard, Projects, Calendar, Alerts, More | People, Maintenance, Audit, Support, My Files, Account |
 | EPC crew | Projects, Sites, Calendar, Alerts, More | Support, Files, Account |
 | Contractor | Projects, Calendar, Alerts, More | Support, Files, Account |
-| Homeowner | My Project, Calendar, Help, Alerts, More | Account |
+| Homeowner | My Project, Calendar, Alerts, More | Help, Account |
 
 ## The demo site
 

@@ -193,11 +193,12 @@ def send_mobile_code(body: MobileIn, acct: Account = Depends(active)) -> dict[st
 def verify_mobile_code(body: CodeIn, acct: Account = Depends(active)) -> dict[str, Any]:
     code = re.sub(r"\D", "", body.code)
     row = fetch_one(
-        "select * from verification_codes where uid = %s and purpose = 'mobile' and consumed_at is null "
-        "order by created_at desc limit 1",
+        # Expired by the database's clock, the same clock that set expires_at.
+        "select *, expires_at <= now() as expired from verification_codes where uid = %s and purpose = 'mobile' "
+        "and consumed_at is null order by created_at desc limit 1",
         (acct.uid,),
     )
-    if not row or row["expires_at"].timestamp() < time.time():
+    if not row or row["expired"]:
         raise HTTPException(400, "That code has expired. Ask for a new one.")
     if row["attempts"] >= CODE_TRIES:
         raise HTTPException(429, "Too many wrong tries. Ask for a new code.")

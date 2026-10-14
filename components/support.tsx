@@ -9,6 +9,7 @@ import SmartToyRoundedIcon from "@mui/icons-material/SmartToyRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import VideocamRoundedIcon from "@mui/icons-material/VideocamRounded";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -32,7 +33,7 @@ import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { locale, T, TR } from "@/lib/client/i18n";
-import { type Answer, type Candidate, MAX_MESSAGE, type Message, statusText, statusTone, type Thread, type ThreadSummary, withDays } from "@/lib/client/support";
+import { type Answer, CALL_LINK, type Candidate, MAX_MESSAGE, type Message, statusText, statusTone, type Thread, type ThreadSummary, withDays } from "@/lib/client/support";
 
 /** Where a conversation lives, in the app or the dev preview. */
 export function useSupportHref() {
@@ -73,7 +74,7 @@ export function ThreadCard({ t, staff, onOpen }: { t: ThreadSummary; staff: bool
         {t.last && (
           <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25, overflowWrap: "anywhere", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             {t.last.kind === "assistant" ? `${T("Assistant")}: ` : t.last.by ? `${t.last.by}: ` : ""}
-            {t.last.kind === "event" ? TR(t.last.body) : t.last.body}
+            {t.last.kind === "event" ? TR(t.last.body) : t.last.kind === "call" ? T("Video call") : t.last.body}
           </Typography>
         )}
         <Typography variant="caption" component="p" sx={{ color: "text.secondary", mt: 0.75 }}>
@@ -162,6 +163,25 @@ function Bubble({ m, mine }: { m: Message; mine: boolean }) {
       </Typography>
     );
   }
+  if (m.kind === "call") {
+    // A video call from whoever handles it: one button that opens the meeting in a new tab.
+    return (
+      <Card sx={(t) => ({ p: 1.75, alignSelf: "stretch", borderColor: (t.vars ?? t).palette.primary.main })} data-testid="support-call">
+        <Stack direction="row" sx={{ gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+          <VideocamRoundedIcon sx={{ color: "primary.main" }} />
+          <Box sx={{ flex: "1 1 160px", minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{T("{name} started a video call", { name: m.by?.name ?? "" })}</Typography>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              {clock(m.at)}
+            </Typography>
+          </Box>
+          <Button variant="contained" component="a" href={m.body} target="_blank" rel="noopener noreferrer" startIcon={<VideocamRoundedIcon />}>
+            {T("Join")}
+          </Button>
+        </Stack>
+      </Card>
+    );
+  }
   const bot = m.kind === "assistant";
   return (
     <Stack sx={{ alignItems: mine ? "flex-end" : "flex-start", gap: 0.5 }} data-testid={bot ? "support-assistant" : "support-message"}>
@@ -248,7 +268,7 @@ function Composer({ onSend, placeholder }: { onSend: (body: string) => Promise<b
 export function Conversation({ t, me, staff, reload }: { t: Thread; me: number; staff: boolean; reload: () => Promise<void> }) {
   const fetcher = useFetcher();
   const { toast, reloadMe } = useApp();
-  const [dialog, setDialog] = useState<"add" | "assign" | null>(null);
+  const [dialog, setDialog] = useState<"add" | "assign" | "call" | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function act(path: string, init: RequestInit & { json?: unknown } = { method: "POST" }): Promise<boolean> {
@@ -358,11 +378,16 @@ export function Conversation({ t, me, staff, reload }: { t: Thread; me: number; 
             </Stack>
           )}
         </Stack>
-        {(t.can.add || t.can.assign || t.can.settle || t.can.reopen) && (
+        {(t.can.add || t.can.assign || t.can.call || t.can.settle || t.can.reopen) && (
           <Stack direction="row" sx={{ gap: 1, mt: 2, flexWrap: "wrap" }}>
             {t.can.add && (
               <Button variant="contained" startIcon={<PersonAddAltRoundedIcon />} disabled={busy} onClick={() => setDialog("add")} data-testid="support-add">
                 {T("Add someone")}
+              </Button>
+            )}
+            {t.can.call && (
+              <Button variant="outlined" startIcon={<VideocamRoundedIcon />} disabled={busy} onClick={() => setDialog("call")} data-testid="support-call-start">
+                {T("Video call")}
               </Button>
             )}
             {t.can.assign && (
@@ -390,8 +415,44 @@ export function Conversation({ t, me, staff, reload }: { t: Thread; me: number; 
       </Card>
 
       {dialog === "add" && <AddPersonDialog tid={t.id} onClose={() => setDialog(null)} onAdd={async (uid) => (await act("/members", { method: "POST", json: { uid } })) && setDialog(null)} />}
+      {dialog === "call" && <CallDialog onClose={() => setDialog(null)} onSend={async (link) => (await act("/call", { method: "POST", json: { link } })) && setDialog(null)} />}
       {dialog === "assign" && <AssignDialog tid={t.id} current={t.handledBy?.uid ?? null} onClose={() => setDialog(null)} onPick={async (uid) => (await act("/assign", { method: "POST", json: { uid } })) && setDialog(null)} />}
     </Stack>
+  );
+}
+
+/**
+ * Start a video call: make a Google Meet (or a Teams or Zoom meeting) in
+ * another tab, paste its link here, and everyone in the conversation gets a
+ * Join button and an alert. To arrange a time instead, use the Calendar.
+ */
+function CallDialog({ onClose, onSend }: { onClose: () => void; onSend: (link: string) => void }) {
+  const [link, setLink] = useState("");
+  const [tried, setTried] = useState(false);
+  const problem = !link.trim() ? T("Paste the meeting's link.") : CALL_LINK.test(link.trim()) ? null : T("Paste a Google Meet, Microsoft Teams or Zoom link, starting with https://.");
+  return (
+    <MDialog title={T("Video call")} heading={T("Talk it through face to face")} subtitle={T("Make a meeting, paste its link, and everyone in this conversation can join with one tap.")} onClose={onClose}>
+      <Stack sx={{ gap: 2.5 }}>
+        <Button variant="outlined" size="large" component="a" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer" startIcon={<VideocamRoundedIcon />} data-testid="call-new-meet">
+          {T("Make a Google Meet")}
+        </Button>
+        <Field
+          label={T("Meeting link")}
+          placeholder="https://meet.google.com/abc-defg-hij"
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+          error={tried && Boolean(problem)}
+          helperText={tried ? (problem ?? undefined) : T("Google Meet, Microsoft Teams or Zoom.")}
+          slotProps={{ htmlInput: { inputMode: "url", autoComplete: "off", "data-testid": "call-link" } }}
+        />
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {T("To arrange a time instead, use the Calendar: New meeting, with the same people.")}
+        </Typography>
+      </Stack>
+      <Button fullWidth size="large" variant="contained" sx={{ mt: 3 }} startIcon={<SendRoundedIcon />} onClick={() => (problem ? setTried(true) : onSend(link.trim()))} data-testid="call-send">
+        {T("Send the link")}
+      </Button>
+    </MDialog>
   );
 }
 

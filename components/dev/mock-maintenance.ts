@@ -80,6 +80,34 @@ export function mockSystem(id: number): MaintenanceDetail {
     canBook: true,
     bookWith: [5],
     managers: MANAGERS,
+    ...mockRecord(),
+  };
+}
+
+const month = (back: number) => {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - back);
+  return d.toISOString().slice(0, 10);
+};
+
+/** The project list's client record for a sample system (made-up people). */
+export function mockRecord() {
+  return {
+    record: {
+      projectCode: "9SH0101", salutation: "Ms", email: "jasmine@example.com", signedOn: month(9), salesperson: "Mei Ling Goh",
+      referrer: "K. Chandra", plan: "Smart Green", ratePerKwh: 0.19, epc: "Apex Solar Contractors", inverterSerials: ["HV2310049871"],
+      dongleSerials: ["DG7Q2201"], installationStart: month(7), installationEnd: month(7), billingPeriod: "Full Calendar Month",
+    },
+    output: {
+      estMonthlyKwh: 1300,
+      months: [5, 4, 3, 2, 1].map((b, i) => ({ month: month(b), kwh: [1180, 1265.5, 1342, 1298.25, 1220][i] })),
+      total: 6305.75,
+      ofEstimate: 0.97,
+    },
+    billing: [{ month: month(2), period: "18 Jul – 17 Aug 2026" }, { month: month(1), period: "Full Calendar Month" }],
+    feedback: [{ id: 1, body: "Very happy with how tidy the installation was.", at: new Date().toISOString() }],
+    warranties: [{ model: "SUN2000-10KTL-MAP0", known: true, years: 10, until: "2036-03-01", priceExGst: 2091, priceInclGst: 2279.19 }],
   };
 }
 

@@ -590,7 +590,7 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
 
   const contactList = contacts?.people ?? [];
   const nameOf = (uid: number) => contactList.find((c) => c.uid === uid)?.name ?? edit?.people.find((p) => p.uid === uid)?.name ?? String(uid);
-  const linkBad = place === "online" && link.trim() !== "" && !/^https:\/\/\S+$/.test(link.trim());
+  const linkBad = link.trim() !== "" && !/^https:\/\/\S+$/.test(link.trim());
   const ready = title.trim() && people.length > 0 && start !== null && !clash && !linkBad;
   // Pressing Send with something missing marks it, instead of a grey button.
   const [tried, setTried] = useState(false);
@@ -606,7 +606,7 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
     if (!ready || start === null) return;
     setBusy(true);
     setError(null);
-    const body = { title: title.trim(), people, startsAt, endsAt, place, location: place === "online" ? null : location, onlineLink: place === "online" ? link.trim() || null : null, notes };
+    const body = { title: title.trim(), people, startsAt, endsAt, place, location: place === "online" ? null : location, onlineLink: link.trim() || null, notes };
     try {
       const r = edit
         ? await fetcher<{ message: string; meeting: Meeting }>(`/meetings/${edit.id}`, { method: "PATCH", json: body })
@@ -750,6 +750,11 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
             ) : (
               <Box sx={{ mt: 1.5 }}>
                 <Field label={place === "phone" ? T("Number to call") : T("Address")} icon={place === "phone" ? <PhoneRoundedIcon /> : <PlaceRoundedIcon />} value={location} onChange={(e) => setLocation(e.target.value)} slotProps={{ htmlInput: { maxLength: 300 } }} />
+                {/* Someone who can't be there joins by video. */}
+                <Field label={T("Video call link (optional)")} icon={<VideocamRoundedIcon />} value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://" error={linkBad} helperText={linkBad ? T("Paste the meeting link as it starts: https://") : T("For anyone joining from elsewhere.")} sx={{ mt: 1.5 }} slotProps={{ htmlInput: { inputMode: "url", "data-testid": "meeting-video-link" } }} />
+                <Button size="small" variant="outlined" startIcon={<VideocamRoundedIcon />} endIcon={<OpenInNewRoundedIcon />} href={GOOGLE_MEET_NEW} target="_blank" rel="noopener noreferrer" sx={{ mt: 1 }}>
+                  {T("New Google Meet")}
+                </Button>
               </Box>
             )}
           </Box>
@@ -858,11 +863,18 @@ export function MeetingDetails({ m, onClose, onChanged, onEdit }: { m: Meeting; 
             </Typography>
           )
         ) : (
-          m.location && (
-            <Typography variant="body2" sx={{ color: "text.secondary", overflowWrap: "anywhere" }}>
-              {m.location}
-            </Typography>
-          )
+          <>
+            {m.location && (
+              <Typography variant="body2" sx={{ color: "text.secondary", overflowWrap: "anywhere" }}>
+                {m.location}
+              </Typography>
+            )}
+            {m.onlineLink && (
+              <Button variant="outlined" size="small" startIcon={<VideocamRoundedIcon />} href={m.onlineLink} target="_blank" rel="noopener noreferrer" sx={{ mt: 0.75 }} data-testid="join-meeting">
+                {service === "teams" ? T("Join on Teams") : service === "meet" ? T("Join on Google Meet") : T("Join by video")}
+              </Button>
+            )}
+          </>
         )}
       </Line>
       {(m.project || m.system) && (

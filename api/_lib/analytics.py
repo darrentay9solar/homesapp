@@ -579,7 +579,7 @@ def maintenance(rows: list[dict[str, Any]], today: date) -> dict[str, Any]:
     median = None
     if sizes:
         mid = len(sizes) // 2
-        median = round(sizes[mid] if len(sizes) % 2 else (sizes[mid - 1] + sizes[mid]) / 2, 2)
+        median = round(sizes[mid] if len(sizes) % 2 else (sizes[mid - 1] + sizes[mid]) / 2, 3)  # sizes are kept to 3 places
     band_order = [label for _, label in SIZE_BANDS] + ["Not recorded"]
     by_size = sorted(group(_size_label), key=lambda e: band_order.index(e["label"]))
 

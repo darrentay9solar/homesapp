@@ -23,6 +23,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from _lib import records
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.web import active, role
@@ -219,7 +220,7 @@ def detail(acct: Account, r: dict[str, Any]) -> dict[str, Any]:
             "select uid from users where user_type = 'superadmin' and active")]  # fmt: skip
     else:
         with_whom = [r["homeowner_id"]] if r["homeowner_id"] else []
-    return {
+    out = {
         "system": system,
         "project": project,
         "canEdit": can_edit(acct, r),
@@ -228,6 +229,10 @@ def detail(acct: Account, r: dict[str, Any]) -> dict[str, Any]:
         "bookWith": [u for u in with_whom if u != acct.uid],
         "managers": _managers() if superadmin else [],
     }
+    if acct.role in ("project_manager", "superadmin"):
+        # The client record from the project list, output, billing, feedback and warranties: the office's only.
+        out.update(records.for_system(r))
+    return out
 
 
 # ------------------------------------------------------------------ changes

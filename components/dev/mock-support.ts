@@ -68,6 +68,7 @@ export function mockThread(id: number) {
     { id: 4, kind: "text", body: "Thanks Jasmine. Can you send a photo of the screen? I've asked Priya from Apex to join as well.", at: iso(40), by: WEI },
     { id: 5, kind: "event", body: "Wei Ming Tan added Priya Nair.", at: iso(39), by: WEI },
     { id: 6, kind: "text", body: "Hi Jasmine, it's likely a grid fault after last night's storm. I can reset it remotely in 10 minutes.", at: iso(30), by: PRIYA },
+    { id: 7, kind: "call", body: "https://meet.google.com/abc-defg-hij", at: iso(20), by: WEI },
   ];
   return {
     ...t,
@@ -81,8 +82,8 @@ export function mockThread(id: number) {
       { uid: 3, name: "Priya Nair", role: "contractor", roleLabel: "Contractor Admin", asker: false, handler: false },
     ],
     can: homeowner
-      ? { write: true, askPerson: false, add: false, remove: false, settle: true, reopen: false, assign: false }
-      : { write: true, askPerson: false, add: true, remove: true, settle: true, reopen: false, assign: true },
+      ? { write: true, askPerson: false, add: false, remove: false, settle: true, reopen: false, assign: false, call: false }
+      : { write: true, askPerson: false, add: true, remove: true, settle: true, reopen: false, assign: true, call: true },
   };
 }
 
@@ -98,7 +99,7 @@ export function mockAssistantThread() {
       { id: 2, kind: "assistant", body: "Your 6-month check is due on 3 Nov. You can book a visit on your project's Maintenance tab; a reminder comes 14 days before.", at: iso(60 * 5), by: null },
     ],
     members: [{ uid: 5, name: "Jasmine Lee", role: "homeowner", roleLabel: "Homeowner", asker: true, handler: false }],
-    can: { write: true, askPerson: true, add: false, remove: false, settle: true, reopen: false, assign: false },
+    can: { write: true, askPerson: true, add: false, remove: false, settle: true, reopen: false, assign: false, call: false },
   };
 }
 

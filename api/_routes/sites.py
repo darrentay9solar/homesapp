@@ -25,7 +25,7 @@ import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from _lib import maintenance_reminders, notify, sweep, watch
+from _lib import maintenance_reminders, meeting_reminders, notify, sweep, watch
 from _lib.account import Account, apply_schedule
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
@@ -439,6 +439,7 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
         "accounts": apply_schedule(),
         "uploads": sweep.sweep(),
         "maintenance": maintenance_reminders.run(datetime.now(SG)),
+        "meetings": meeting_reminders.run(datetime.now(SG)),
     }
     try:
         out["warnings"] = watch.run(datetime.now(SG))

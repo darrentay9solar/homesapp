@@ -39,6 +39,19 @@ def last_audit(fx, uid, field):
     ).fetchone()
 
 
+TEST_NUMBERS = ["6581234567", "6582223333", "6583334444", "6584445555", "6585556666", "6586667777", "6590001111"]
+
+
+@pytest.fixture(autouse=True)
+def free_test_numbers(fx):
+    """One mobile per account: an earlier run's leftover test account mustn't still hold the numbers used here."""
+    fx.conn.execute(
+        "update users set contact_no = null where email like '%%@example.com' "
+        "and regexp_replace(contact_no, '[^0-9]', '', 'g') = any(%s)",
+        (TEST_NUMBERS,),
+    )
+
+
 @pytest.fixture
 def people(fx):
     pm = fx.user("project_manager", full_name="Settings PM")

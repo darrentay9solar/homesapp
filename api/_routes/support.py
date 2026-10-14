@@ -12,6 +12,7 @@
   POST   /support/{tid}/settle            it's settled (the asker or the manager)
   POST   /support/{tid}/reopen            it isn't after all
   POST   /support/{tid}/assign            hand it to another project manager {uid}
+  POST   /support/{tid}/call              start a video call {link}: Google Meet, Teams or Zoom
   GET    /support/people?thread=&q=       who can be brought in
   GET    /support/answers                 the assistant's answers (managers)
   POST   /support/answers                 add one
@@ -26,6 +27,7 @@ superadmins. The database checks the same (migration 0036).
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -248,6 +250,7 @@ def thread(tid: int, acct: Account = Depends(active)) -> dict[str, Any]:
         "settle": (mine or staff_here) and not settled,
         "reopen": (mine or staff_here) and settled,
         "assign": staff_here and not settled,
+        "call": staff_here and not settled,
     }
     return out
 
@@ -680,6 +683,58 @@ def assign(tid: int, body: AssignIn, acct: Account = Depends(active)) -> dict[st
             project_id=t["project_id"],
         )
     return {"message": f"{name} is handling it now."}
+
+
+# ------------------------------------------------------------------ a video call
+
+# The services a call link may point at, so a Join button never leads anywhere else.
+CALL_LINK = re.compile(
+    r"^https://(meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|([a-z0-9-]+\.)?zoom\.us)/[^\s<>\"']{1,500}$",
+    re.IGNORECASE,
+)
+
+
+class CallIn(BaseModel):
+    link: str = ""
+
+
+@router.post("/support/{tid:int}/call")
+def call(tid: int, body: CallIn, acct: Account = Depends(active)) -> dict[str, Any]:
+    t, ms = visible(acct, tid)
+    _require_handler(acct, t)
+    link = (body.link or "").strip()
+    if not CALL_LINK.match(link):
+        raise HTTPException(400, "Paste a Google Meet, Microsoft Teams or Zoom link, starting with https://.")
+    name = acct.user.get("full_name") or acct.user.get("email")
+    with transaction(acct.uid) as cur:
+        if not any(m["user_id"] == acct.uid for m in ms):
+            cur.execute(
+                "insert into support_members (thread_id, user_id) values (%s, %s) on conflict do nothing",
+                (tid, acct.uid),
+            )
+        cur.execute(
+            "insert into support_messages (thread_id, sender_uid, kind, body) values (%s, %s, 'call', %s)",
+            (tid, acct.uid, link),
+        )
+        if t["status"] in ("assistant", "waiting"):
+            cur.execute(
+                "update support_threads set status = 'open', answered_at = coalesce(answered_at, now()), handled_by = coalesce(handled_by, %s) where thread_id = %s",
+                (acct.uid, tid),
+            )
+    for m in members(tid):
+        if m["user_id"] != acct.uid and m["active"]:
+            u = _person(m["user_id"])
+            if u:
+                _tell(
+                    u,
+                    "support_message",
+                    f"Video call · {t['subject']}",
+                    f"{name} started a video call. Open the conversation to join.",
+                    tid,
+                    email=True,
+                    project_id=t["project_id"],
+                )
+    return {"message": "Call link sent. Everyone in the conversation has been told."}
 
 
 # ------------------------------------------------------------------ the assistant's answers

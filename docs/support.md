@@ -8,7 +8,7 @@ can bring in anyone with an account to help settle it.
 
 | Who | What they can do |
 |---|---|
-| Homeowner | Ask (Help, on their phone bar). Talk with the assistant, then **Talk to a person**. Write, settle, reopen. |
+| Homeowner | Ask (Help, under More on a phone). Talk with the assistant, then **Talk to a person**. Write, settle, reopen. |
 | Contractor, EPC crew | Ask (Support, under More): their question goes straight to a person. Write in conversations they're added to. |
 | Project manager | Sees the conversations about projects they run, and any handed to them. Answers, **Add someone** (anyone with an account, on the project or not), takes them out again, **Hand to another manager**, settles and reopens. Keeps the assistant's **Answers**. |
 | Superadmin | All of that, for every conversation, including those about projects with no manager. |

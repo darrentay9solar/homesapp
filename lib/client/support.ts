@@ -36,7 +36,8 @@ export type Inbox = {
   projects: Array<{ id: number; name: string }>;
 };
 
-export type MessageKind = "text" | "assistant" | "event";
+/** call: a video call link (Google Meet, Teams or Zoom) from whoever handles it. */
+export type MessageKind = "text" | "assistant" | "event" | "call";
 
 export type Message = {
   id: number;
@@ -51,7 +52,7 @@ export type Member = { uid: number; name: string | null; role: Role; roleLabel: 
 export type Thread = ThreadSummary & {
   messages: Message[];
   members: Member[];
-  can: { write: boolean; askPerson: boolean; add: boolean; remove: boolean; settle: boolean; reopen: boolean; assign: boolean };
+  can: { write: boolean; askPerson: boolean; add: boolean; remove: boolean; settle: boolean; reopen: boolean; assign: boolean; call: boolean };
 };
 
 export type Answer = {
@@ -107,3 +108,6 @@ export function withDays(messages: Message[]): Array<{ day: string; messages: Me
 
 /** A message's text is limited (the server says the same). */
 export const MAX_MESSAGE = 2000;
+
+/** The services a call link may point at (the server checks the same). */
+export const CALL_LINK = /^https:\/\/(meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|([a-z0-9-]+\.)?zoom\.us)\/[^\s<>"']{1,500}$/i;

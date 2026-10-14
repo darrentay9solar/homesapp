@@ -191,7 +191,14 @@ export const theme = createTheme({
     },
     MuiBottomNavigationAction: {
       styleOverrides: {
-        root: { minWidth: 0, "& .MuiBottomNavigationAction-label": { fontSize: "0.68rem", fontWeight: 500 } },
+        // Five share the bar evenly; a label that doesn't fit shrinks (components/auto-fit) rather than push the bar off the screen.
+        root: {
+          minWidth: 0,
+          flex: "1 1 0",
+          paddingLeft: 2,
+          paddingRight: 2,
+          "& .MuiBottomNavigationAction-label": { fontSize: "0.68rem", fontWeight: 500, maxWidth: "100%", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
+        },
       },
     },
     MuiListItemButton: {

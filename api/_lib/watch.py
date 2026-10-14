@@ -5,12 +5,13 @@ once to each person (watch_alerts):
 
   project_late   the day a project passes its target end date, to its
                  project manager (the superadmins while it has none).
-  escalation     to the superadmins: a project 14 days late, or a
+  escalation     to the superadmins: a project 14 days late, a
                  maintenance check 30 days overdue on a system that has a
-                 manager (one without already reminds the superadmins).
+                 manager (one without already reminds the superadmins), or
+                 someone waiting a day for a support answer.
   daily_summary  from 08:00 Singapore time, Monday to Saturday, to every
                  active project manager and superadmin with something to act
-                 on: late projects, approvals and handovers waiting, projects
+                 on: people waiting for a support answer, late projects, approvals and handovers waiting, projects
                  due soon, maintenance checks overdue or due this week,
                  urgent systems, account requests waiting and (superadmins)
                  systems without a manager. Nothing to act on, nothing sent.
