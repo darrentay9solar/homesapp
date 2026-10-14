@@ -4,7 +4,7 @@
  * describing the current state in a line.
  */
 
-export type Category = "approvals" | "visits" | "late" | "milestones" | "meetings" | "maintenance" | "warnings" | "summary" | "people" | "account";
+export type Category = "approvals" | "visits" | "late" | "milestones" | "meetings" | "maintenance" | "warnings" | "summary" | "support" | "people" | "account";
 export type Prefs = {
   pausedUntil: string | null;
   quiet: { on: boolean; from: string; to: string };
@@ -31,6 +31,7 @@ export const CATEGORIES: Array<{ key: Category; label: string; sub: string; pm?:
   { key: "maintenance", label: "Maintenance checks", sub: "A 6-month or 1-year check coming up, due, or overdue" },
   { key: "warnings", label: "Late and overdue", sub: "A project gone past its target date; to superadmins, anything two weeks late or a check a month overdue", pm: true },
   { key: "summary", label: "Morning summary", sub: "At 8 am, Monday to Saturday: what needs you today. Only sent when something does", pm: true },
+  { key: "support", label: "Support", sub: "Answers to your questions, people asking for help, and conversations you're added to" },
   { key: "people", label: "People to review", sub: "New account and role requests", pm: true },
   { key: "account", label: "Your account", sub: "Your account or role approved, and changes reverted" },
 ];

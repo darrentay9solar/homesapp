@@ -3,6 +3,7 @@
 import { mockAnalytics } from "./mock-analytics";
 import { mockBusy, mockCalendar, mockContacts, mockMeeting, mockUpcoming } from "./mock-calendar";
 import { mockMaintenance, mockProjectMaintenance, mockSystem } from "./mock-maintenance";
+import { asHomeowner, mockAnswers, mockAssistantThread, mockInbox, mockSupportMe, mockSupportPeople, mockThread } from "./mock-support";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
@@ -656,6 +657,12 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   const key = `${method} ${path}`;
   if (key === "GET /projects") return { projects: PROJECTS.filter((p) => p.status !== "maintenance"), canCreate: true, handedOver: 3, today: day(0) };
   if (key === "GET /analytics") return mockAnalytics(search);
+  if (key === "GET /support") return mockInbox();
+  if (key === "GET /support/answers") return mockAnswers();
+  if (key === "GET /support/people") return mockSupportPeople();
+  const supportId = path.match(/^\/support\/(\d+)$/);
+  if (method === "GET" && supportId) return Number(supportId[1]) === 403 ? mockAssistantThread() : mockThread(Number(supportId[1]));
+  if (method !== "GET" && path.startsWith("/support")) return { message: "Preview only — nothing was sent.", id: 401, ok: true };
   if (key === "GET /maintenance") return mockMaintenance();
   if (key === "GET /calendar") return mockCalendar();
   if (key === "GET /calendar/upcoming") return mockUpcoming();
@@ -711,6 +718,8 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
     }
     return { state: "no_account", clerk: { fullName: "Aisha Rahman", email: "aisha@example.com", phone: "+65 9123 4567" } };
   }
+  // /dev-preview/support?as=homeowner shows Help as a homeowner sees it.
+  if (key === "GET /me" && asHomeowner()) return mockSupportMe(me());
   if (key === "GET /me") return me();
   if (key in FIXTURES) return FIXTURES[key];
   if (/^GET \/people\/\d+\/projects$/.test(key)) {

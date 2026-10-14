@@ -54,7 +54,7 @@ import psycopg
 from psycopg import sql as psql
 from psycopg.rows import dict_row
 
-from _lib import certificate, storage
+from _lib import assistant, certificate, storage
 from _lib.db import _from_env_file
 
 SG = timezone(timedelta(hours=8))
@@ -67,6 +67,10 @@ URLS = {"dev": "MIGRATION_DATABASE_URL", "test": "TEST_MIGRATION_DATABASE_URL", 
 # Everything a project or a person owns. TRUNCATE skips row triggers (no audit
 # entry per row) and CASCADE takes anything else that points at these.
 WIPE = [
+    "support_messages",
+    "support_members",
+    "support_threads",
+    "support_faq",
     "notification_deliveries",
     "notifications",
     "push_subscriptions",
@@ -948,6 +952,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     backdate(c, history)
     maintenance(c, u)
     meetings(c, u)
+    support(c, u)
 
 
 # Sample systems from before the app, as the project listing import brings them in:
@@ -1161,3 +1166,47 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def support(c: psycopg.Connection, u: dict[str, int]) -> None:
+    """Help and Support: the starter answers, a conversation a manager is on (with a crew lead brought in), and one waiting."""
+    c.execute("select set_config('app.actor_uid', '', false)")
+    for i, (q, a, qz, az) in enumerate(assistant.STARTER, 1):
+        c.execute(
+            "insert into support_faq (question, answer, question_zh, answer_zh, position, updated_by) values (%s, %s, %s, %s, %s, %s)",
+            (q, a, qz, az, i, u["charlotte"]),
+        )
+
+    def project(name: str) -> dict:
+        return c.execute("select project_id, project_manager_id from projects where name = %s", (name,)).fetchone() or {}
+
+    def thread(asker: str, name: str, subject: str, status: str, said: list[tuple[str | None, str, str, int]], members: list[str]) -> None:
+        p = project(name)
+        t = c.execute(
+            "insert into support_threads (subject, opened_by, project_id, handled_by, status, asked_at, answered_at, created_at) "
+            "values (%s, %s, %s, %s, %s, %s, %s, %s) returning thread_id",
+            (subject, u[asker], p.get("project_id"), p.get("project_manager_id") if status != "assistant" else None, status,
+             NOW - timedelta(minutes=said[0][3] - 2), NOW - timedelta(minutes=said[-1][3]) if status == "open" else None,
+             NOW - timedelta(minutes=said[0][3])),
+        ).fetchone()["thread_id"]
+        for who in members:
+            c.execute("insert into support_members (thread_id, user_id, last_read_id) values (%s, %s, 0)", (t, u[who]))
+        for who, kind, body, mins in said:
+            c.execute(
+                "insert into support_messages (thread_id, sender_uid, kind, body, created_at) values (%s, %s, %s, %s, %s)",
+                (t, u[who] if who else None, kind, body, NOW - timedelta(minutes=mins)),
+            )
+
+    thread("jasmine", "Jalan Kayu Residence", "Inverter shows a red light", "open", [
+        ("jasmine", "text", "The inverter has had a red light on since this morning. Is that normal?", 180),
+        (None, "assistant", "A red light usually means the inverter has stopped and needs a look. Please don't open it. Your project manager can arrange a check: tap Talk to a person.", 179),
+        ("jasmine", "event", "Asked for a person.", 175),
+        ("charlotte", "text", "Thanks Jasmine. Could you send a photo of the screen? I've asked Priya from Apex to have a look too.", 160),
+        ("charlotte", "event", "Charlotte Sim added Priya Nair.", 159),
+        ("priya", "text", "Hi Jasmine, it looks like a grid fault after last night's storm. I can reset it remotely this afternoon.", 120),
+    ], ["jasmine", "charlotte", "priya"])  # fmt: skip
+    thread("aisha", "Seletar Hills Home", "Can the panels be moved for a roof repair?", "waiting", [
+        ("aisha", "text", "Our roofer needs to repair two tiles under the panels next month. Can your team move the panels?", 70),
+        (None, "assistant", "I'm not sure about that one. Your project manager can help: tap Talk to a person.", 69),
+        ("aisha", "event", "Asked for a person.", 65),
+    ], ["aisha"])  # fmt: skip

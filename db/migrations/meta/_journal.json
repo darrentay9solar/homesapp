@@ -253,6 +253,13 @@
       "when": 1791960000000,
       "tag": "0035_warning_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791970000000,
+      "tag": "0036_support",
+      "breakpoints": true
     }
   ]
 }

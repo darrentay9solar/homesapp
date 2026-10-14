@@ -566,6 +566,21 @@ Every upload (milestone photos and documents, profile pictures) asks first:
 window, with **Use this photo** or **Take another**) or **Choose a file**
 (photos and documents already on the device or a shared drive).
 
+## Help and Support (everyone)
+
+A homeowner asks in **Help**; the assistant answers common questions from the
+managers' answers and their own project; **Talk to a person** hands it to
+the project's manager, who answers in **Support**, can bring in anyone with
+an account (on the project or not), hand it to another manager, and settle
+it. Crews and contractors ask in Support and go straight to a person. Every
+step is an alert (and an email when someone's asked for, added or answered).
+Details: [support.md](support.md).
+
+- **TC-60:** On the demo as Jasmine Lee → **Help** → **Ask**: "When is my next maintenance check?". The assistant answers from the list straight away.
+- **TC-61:** Tap **Talk to a person**. As Charlotte Sim, **Support** shows it under Waiting (and she has an alert); answer it, **Add someone** → Priya Nair. As Priya, the conversation is in Support and she can write in it.
+- **TC-62:** As Charlotte, **Mark settled**; as Jasmine, write again: it's back to Waiting.
+- **TC-63:** As Charlotte → Support → **Answers** → **Add the starter answers**; turn one off: the assistant stops using it.
+
 ## On a phone: More
 
 Every role's bottom bar has the same shape: its main screens, then
@@ -573,10 +588,10 @@ Every role's bottom bar has the same shape: its main screens, then
 
 | Role | Bottom bar | Under More |
 |---|---|---|
-| Project manager, superadmin | Dashboard, Projects, Calendar, Alerts, More | People, Maintenance, Audit, My Files, Account |
-| EPC crew | Projects, Sites, Calendar, Alerts, More | Files, Account |
-| Contractor | Projects, Calendar, Alerts, More | Files, Account |
-| Homeowner | My Project, Calendar, Alerts, More | Account |
+| Project manager, superadmin | Dashboard, Projects, Calendar, Alerts, More | People, Maintenance, Audit, Support, My Files, Account |
+| EPC crew | Projects, Sites, Calendar, Alerts, More | Support, Files, Account |
+| Contractor | Projects, Calendar, Alerts, More | Support, Files, Account |
+| Homeowner | My Project, Calendar, Help, Alerts, More | Account |
 
 ## The demo site
 

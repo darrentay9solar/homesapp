@@ -11,6 +11,8 @@ import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
 import EventRoundedIcon from "@mui/icons-material/EventRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
+import QuizRoundedIcon from "@mui/icons-material/QuizRounded";
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
@@ -436,6 +438,8 @@ const KIND_ICON: Record<AuditLocation["kind"], ReactNode> = {
   meeting: <EventRoundedIcon />,
   calendar: <EventBusyRoundedIcon />,
   export: <FileDownloadRoundedIcon />,
+  support: <SupportAgentRoundedIcon />,
+  "support-answers": <QuizRoundedIcon />,
   other: <DescriptionOutlinedIcon />,
 };
 

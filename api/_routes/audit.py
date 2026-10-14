@@ -49,6 +49,9 @@ TABLES: dict[str, tuple[tuple[str, ...], str]] = {
     "meeting_people": (("meeting_id", "user_id"), "meetings"),
     "calendar_blocks": (("block_id",), "meetings"),
     "data_exports": (("export_id",), "exports"),
+    "support_threads": (("thread_id",), "support"),
+    "support_members": (("thread_id", "user_id"), "support"),
+    "support_faq": (("faq_id",), "support"),
 }
 PAGES = (
     "projects",
@@ -61,6 +64,7 @@ PAGES = (
     "maintenance",
     "meetings",
     "exports",
+    "support",
 )
 
 # Rows whose history is evidence, or whose decisions are final, are never rewritten.
@@ -73,6 +77,8 @@ NO_REVERT: dict[str, str] = {
     "meeting_people": "Each person answers an invitation for themselves, in the calendar.",
     "calendar_blocks": "Blocked-out time belongs to its owner, who changes it in their calendar.",
     "data_exports": "An export is a record of who took a copy of the data.",
+    "support_threads": "A support conversation is changed in Support, by the people in it.",
+    "support_members": "Who is in a support conversation is changed in Support.",
 }
 # Link rows can be removed again or put back; anything else created or deleted can't.
 LINK_TABLES = ("contractor_group_members", "project_assignments")
@@ -203,6 +209,30 @@ def _summary(a: dict[str, Any], names: dict[str, dict[int, str]]) -> str:
     if t == "data_exports":
         what = (ch.get("what") or {}).get("to")
         return "Exported people to Excel" if what == "people" else "Exported projects to Excel"
+    if t == "support_threads":
+        if act == "insert":
+            return "Asked for help"
+        status = (ch.get("status") or {}).get("to")
+        if "handled_by" in ch and not status:
+            return "Handed a support conversation on"
+        said = {
+            "waiting": "Asked for a person",
+            "open": "Answered a support request",
+            "settled": "Settled a support conversation",
+        }
+        return said.get(status or "", "Updated a support conversation")
+    if t == "support_members":
+        side = "to" if act == "insert" else "from"
+        uid = (ch.get("user_id") or {}).get(side) or (a["entity_key"] or {}).get("user_id")
+        who = names["users"].get(uid, "someone") if uid else "someone"
+        if act == "insert":
+            return f"Added {who} to a support conversation"
+        return f"Took {who} out of a support conversation"
+    if t == "support_faq":
+        if act == "insert":
+            return "Added an assistant answer"
+        off = (ch.get("active") or {}).get("to") is False
+        return "Turned off an assistant answer" if off else "Changed an assistant answer"
     return f"{verb} {t.replace('_', ' ')}"
 
 
@@ -356,6 +386,11 @@ def _location(a: dict[str, Any], names: dict[str, dict[int, str]]) -> dict[str, 
                 "label": f"Calendar · {names['users'].get(owner) or owner}"}  # fmt: skip
     if t == "data_exports":
         return {"key": "exports", "kind": "export", "id": None, "label": "Excel exports"}
+    if t in ("support_threads", "support_members"):
+        return {"key": f"support:{eid}", "kind": "support", "id": eid,
+                "label": f"Support · {was('subject') or f'#{eid}'}"}  # fmt: skip
+    if t == "support_faq":
+        return {"key": "support-answers", "kind": "support-answers", "id": None, "label": "Assistant answers"}
     pid = _project_of(a)
     if pid:
         return {"key": f"project:{pid}", "kind": "project", "id": pid,

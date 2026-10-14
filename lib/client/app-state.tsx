@@ -50,6 +50,10 @@ export type Me = {
     avatar?: string | null;
   };
   unread?: number;
+  /** Support conversations with something new from someone else. */
+  supportUnread?: number;
+  /** Managers: people waiting for a first answer from them (a superadmin: anyone waiting). */
+  supportWaiting?: number;
   /** Account settings: verified steps and any role request waiting for a PM. */
   settings?: {
     language: Lang;

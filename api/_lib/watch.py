@@ -147,10 +147,12 @@ def overdue_checks(today: date, *, uids: list[int] | None = None, system_ids: li
 
 
 def summary_lines(d: dict[str, Any], upkeep: dict[str, Any], requests: int, *, superadmin: bool,
-                  today: date) -> list[str]:  # fmt: skip
+                  today: date, support: int = 0) -> list[str]:  # fmt: skip
     """What needs this person, most pressing first; empty when nothing does."""
     t, u = d["tiles"], upkeep["tiles"]
     lines = []
+    if support:
+        lines.append(f"People waiting for a support answer: {support}")
     if t["late"]["count"]:
         # Keyed by id: numbers here, strings once sent as JSON.
         late = [d["projects"].get(i) or d["projects"].get(str(i)) for i in t["late"]["ids"]]
@@ -178,6 +180,37 @@ def summary_lines(d: dict[str, Any], upkeep: dict[str, Any], requests: int, *, s
     if superadmin and u["unassigned"]["count"]:
         lines.append(f"Systems without a project manager: {u['unassigned']['count']}")
     return lines
+
+
+def support_waiting(uid: int, superadmin: bool) -> int:
+    """Support conversations waiting for a first answer from this person (a superadmin: from anyone)."""
+    return fetch_all(
+        "select count(*)::int as n from support_threads t left join projects p on p.project_id = t.project_id "
+        "where t.status = 'waiting' and (%(sa)s or t.handled_by = %(me)s "
+        "or (t.handled_by is null and p.project_manager_id = %(me)s))",
+        {"sa": superadmin, "me": uid},
+    )[0]["n"]
+
+
+def unanswered_support(now: datetime, *, uids: list[int] | None = None, thread_ids: list[int] | None = None) -> int:
+    """Someone waiting a day for an answer: the superadmins, once (until it's 3 days old: then it's in the summary)."""
+    admins = [u for u in _managers(uids) if u["user_type"] == "superadmin"]
+    rows = fetch_all(
+        "select t.thread_id, t.subject, t.asked_at, o.full_name as opener, h.full_name as handler "
+        "from support_threads t join users o on o.uid = t.opened_by left join users h on h.uid = t.handled_by "
+        "where t.status = 'waiting' and t.asked_at <= %(now)s - interval '1 day' "
+        "and t.asked_at > %(now)s - interval '3 days' and (%(ids)s::int[] is null or t.thread_id = any(%(ids)s))",
+        {"now": now, "ids": thread_ids},
+    )
+    sent = 0
+    for r in rows:
+        for u in admins:
+            if _claim("escalation", f"support:{r['thread_id']}:{r['asked_at'].isoformat()}", u["uid"]):
+                title = f"No answer for a day · {r['subject']}"
+                body = f"{r['opener']} has been waiting a day for an answer ({r['handler'] or 'no project manager'})."
+                _send(u, "escalation", title, body, f"/support/{r['thread_id']}", "Open the conversation")
+                sent += 1
+    return sent
 
 
 def requests_waiting() -> int:
@@ -213,7 +246,8 @@ def summaries(now: datetime, *, uids: list[int] | None = None) -> int:
             "where %(all)s or m.run_by = %(me)s",
             {"all": superadmin, "me": u["uid"]},
         )
-        lines = summary_lines(d, an.maintenance(rows, today), requests, superadmin=superadmin, today=today)
+        lines = summary_lines(d, an.maintenance(rows, today), requests, superadmin=superadmin, today=today,
+                              support=support_waiting(u["uid"], superadmin))  # fmt: skip
         if not lines or not _claim("daily_summary", today.isoformat(), u["uid"]):
             continue
         title = "Your morning summary"
@@ -225,4 +259,9 @@ def summaries(now: datetime, *, uids: list[int] | None = None) -> int:
 def run(now: datetime | None = None) -> dict[str, int]:
     now = now or datetime.now(SG)
     today = now.astimezone(SG).date()
-    return {"late": late_projects(today), "checks": overdue_checks(today), "summaries": summaries(now)}
+    return {
+        "late": late_projects(today),
+        "checks": overdue_checks(today),
+        "support": unanswered_support(now),
+        "summaries": summaries(now),
+    }

@@ -32,6 +32,7 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
     "maintenance": ("maintenance_due",),
     "warnings": ("project_late", "escalation"),
     "summary": ("daily_summary",),
+    "support": ("support_request", "support_message", "support_added", "support_settled"),
     "account": (
         "account_created",
         "account_approved",

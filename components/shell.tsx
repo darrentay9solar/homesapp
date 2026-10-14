@@ -12,6 +12,7 @@ import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
+import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import Badge from "@mui/material/Badge";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
@@ -48,10 +49,13 @@ type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
 const CALENDAR: Tab = { href: "/calendar", label: "Calendar", icon: <CalendarMonthRoundedIcon /> };
 const ALERTS: Tab = { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> };
 const ACCOUNT: Tab = { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false };
+// A homeowner's Help is on their bar (it's theirs to ask); everyone else answers or helps from Support, under More.
+const HELP: Tab = { href: "/support", label: "Help", icon: <SupportAgentRoundedIcon /> };
+const SUPPORT: Tab = { href: "/support", label: "Support", icon: <SupportAgentRoundedIcon />, phone: false };
 
 /** Tabs per role, from the prototype. Audit is project managers' and the superadmin's only. */
 const TABS: Record<Role, Tab[]> = {
-  homeowner: [{ href: "/", label: "My Project", icon: <HomeRoundedIcon /> }, CALENDAR, ALERTS, ACCOUNT],
+  homeowner: [{ href: "/", label: "My Project", icon: <HomeRoundedIcon /> }, CALENDAR, HELP, ALERTS, ACCOUNT],
   project_manager: [
     // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
@@ -61,6 +65,7 @@ const TABS: Record<Role, Tab[]> = {
     { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
+    SUPPORT,
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
     ACCOUNT,
   ],
@@ -73,6 +78,7 @@ const TABS: Record<Role, Tab[]> = {
     { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
+    SUPPORT,
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
     ACCOUNT,
   ],
@@ -80,6 +86,7 @@ const TABS: Record<Role, Tab[]> = {
     { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
     CALENDAR,
     ALERTS,
+    SUPPORT,
     { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon />, phone: false },
     ACCOUNT,
   ],
@@ -88,6 +95,7 @@ const TABS: Record<Role, Tab[]> = {
     { href: "/sites", label: "Sites", icon: <PlaceRoundedIcon /> },
     CALENDAR,
     ALERTS,
+    SUPPORT,
     { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon />, phone: false },
     ACCOUNT,
   ],
@@ -125,6 +133,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const tabs = TABS[me.role];
   const current = activeHref(pathname, tabs);
   const unread = (state?.unread ?? 0) > 0;
+  // A dot on Alerts for unread alerts, on Help or Support for a new answer or someone waiting.
+  const support = (state?.supportUnread ?? 0) + (state?.supportWaiting ?? 0) > 0;
+  const dot = (href: string) => (href === "/alerts" && unread) || (href === "/support" && support);
   const bar = tabs.filter((t) => t.phone !== false);
   const extra = tabs.filter((t) => t.phone === false);
   const inMore = extra.some((t) => t.href === current);
@@ -171,7 +182,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 "&.Mui-selected": { bgcolor: "action.selected", "& .MuiListItemIcon-root": { color: "primary.main" } },
               }}
             >
-              <ListItemIcon sx={{ minWidth: 40 }}>{withBadge(t.icon, t.href === "/alerts" && unread)}</ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 40 }}>{withBadge(t.icon, dot(t.href))}</ListItemIcon>
               <ListItemText primary={TR(t.label)} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: 14.5 } } }} />
             </ListItemButton>
           ))}
@@ -227,7 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               key={t.href}
               value={t.href}
               label={TR(t.label)}
-              icon={withBadge(t.icon, t.href === "/alerts" && unread)}
+              icon={withBadge(t.icon, dot(t.href))}
             />
           ))}
           {extra.length > 0 && (
@@ -235,7 +246,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               value="more"
               label={T("More")}
               data-testid="nav-more"
-              icon={withBadge(<MoreHorizRoundedIcon />, extra.some((t) => t.href === "/alerts") && unread)}
+              icon={withBadge(<MoreHorizRoundedIcon />, extra.some((t) => dot(t.href)))}
             />
           )}
         </BottomNavigation>
@@ -259,7 +270,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={() => setMore(false)}
               sx={{ minHeight: 52, "&.Mui-selected": { bgcolor: "action.selected", "& .MuiListItemIcon-root": { color: "primary.main" } } }}
             >
-              <ListItemIcon sx={{ minWidth: 44 }}>{withBadge(t.icon, t.href === "/alerts" && unread)}</ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 44 }}>{withBadge(t.icon, dot(t.href))}</ListItemIcon>
               <ListItemText primary={TR(t.label)} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: 15.5 } } }} />
             </ListItemButton>
           ))}

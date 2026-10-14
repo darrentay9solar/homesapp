@@ -52,6 +52,23 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             actor_uid=u["uid"],
         )
         out["unread"] = unread["n"] if unread else 0
+        # Support conversations with something new from someone else: the Help and Support badges.
+        waiting = fetch_one(
+            "select count(distinct m.thread_id)::int as n from support_members x "
+            "join support_messages m on m.thread_id = x.thread_id and m.message_id > x.last_read_id "
+            "where x.user_id = %s and m.sender_uid is distinct from %s and m.kind <> 'event'",
+            (u["uid"], u["uid"]),
+        )
+        out["supportUnread"] = waiting["n"] if waiting else 0
+        # Managers: people waiting for a first answer from them (a superadmin: anyone waiting).
+        if u["user_type"] in ("project_manager", "superadmin"):
+            asked = fetch_one(
+                "select count(*)::int as n from support_threads t left join projects p on p.project_id = t.project_id "
+                "where t.status = 'waiting' and (%(sa)s or t.handled_by = %(me)s "
+                "or (t.handled_by is null and p.project_manager_id = %(me)s))",
+                {"sa": u["user_type"] == "superadmin", "me": u["uid"]},
+            )
+            out["supportWaiting"] = asked["n"] if asked else 0
         rr = fetch_one(
             "select requested_type, reason, created_at from role_change_requests where uid = %s and status = 'pending'",
             (u["uid"],),

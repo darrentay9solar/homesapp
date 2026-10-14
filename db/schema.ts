@@ -131,6 +131,11 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "project_late",
   "escalation",
   "daily_summary",
+  // Support (0036): someone asked for a person, a new message, you were brought in, it was settled.
+  "support_request",
+  "support_message",
+  "support_added",
+  "support_settled",
 ]);
 
 /**
@@ -1246,6 +1251,104 @@ export const watchAlerts = pgTable(
   (table) => [
     primaryKey({ name: "watch_alerts_pk", columns: [table.kind, table.subject, table.recipientUid] }),
     check("watch_alerts_kind", sql`${table.kind} in ('project_late', 'escalation', 'daily_summary')`),
+  ]
+);
+
+/**
+ * A support conversation (0036): a homeowner asks; the assistant answers
+ * what it can; a project manager settles the rest, bringing in anyone who
+ * can help. status: assistant, waiting (for a person), open, settled.
+ */
+export const supportThreads = pgTable(
+  "support_threads",
+  {
+    threadId: serial("thread_id").primaryKey(),
+    subject: text("subject").notNull(),
+    openedBy: integer("opened_by")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    projectId: integer("project_id").references(() => projects.projectId, { onDelete: "set null" }),
+    handledBy: integer("handled_by").references(() => users.uid, { onDelete: "set null" }),
+    status: text("status").notNull().default("assistant"),
+    askedAt: timestamp("asked_at", { withTimezone: true }),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    settledAt: timestamp("settled_at", { withTimezone: true }),
+    settledBy: integer("settled_by").references(() => users.uid, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("support_threads_opened_by_idx").on(table.openedBy),
+    index("support_threads_handled_by_idx").on(table.handledBy),
+    check(
+      "support_threads_values",
+      sql`${table.status} in ('assistant', 'waiting', 'open', 'settled') and btrim(${table.subject}) <> '' and length(${table.subject}) <= 120`
+    ),
+  ]
+);
+
+/** Who is in a support conversation, and how far each has read. */
+export const supportMembers = pgTable(
+  "support_members",
+  {
+    threadId: integer("thread_id")
+      .notNull()
+      .references(() => supportThreads.threadId, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.uid, { onDelete: "cascade" }),
+    addedBy: integer("added_by"),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+    lastReadId: bigint("last_read_id", { mode: "number" }).notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ name: "support_members_pk", columns: [table.threadId, table.userId] }),
+    index("support_members_user_idx").on(table.userId),
+  ]
+);
+
+/** What was said in a support conversation. Insert only. kind: text, assistant, event. */
+export const supportMessages = pgTable(
+  "support_messages",
+  {
+    messageId: bigserial("message_id", { mode: "number" }).primaryKey(),
+    threadId: integer("thread_id")
+      .notNull()
+      .references(() => supportThreads.threadId, { onDelete: "cascade" }),
+    senderUid: integer("sender_uid").references(() => users.uid, { onDelete: "cascade" }),
+    kind: text("kind").notNull().default("text"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("support_messages_thread_idx").on(table.threadId, table.messageId),
+    check(
+      "support_messages_values",
+      sql`${table.kind} in ('text', 'assistant', 'event') and btrim(${table.body}) <> '' and length(${table.body}) <= 4000 and ((${table.kind} = 'assistant') = (${table.senderUid} is null))`
+    ),
+  ]
+);
+
+/** The assistant's answers to common questions, kept by project managers. Turned off, never deleted. */
+export const supportFaq = pgTable(
+  "support_faq",
+  {
+    faqId: serial("faq_id").primaryKey(),
+    question: text("question").notNull(),
+    answer: text("answer").notNull(),
+    questionZh: text("question_zh"),
+    answerZh: text("answer_zh"),
+    position: integer("position").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    updatedBy: integer("updated_by").references(() => users.uid, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "support_faq_values",
+      sql`btrim(${table.question}) <> '' and length(${table.question}) <= 300 and btrim(${table.answer}) <> '' and length(${table.answer}) <= 3000 and (${table.questionZh} is null or length(${table.questionZh}) <= 300) and (${table.answerZh} is null or length(${table.answerZh}) <= 3000)`
+    ),
   ]
 );
 

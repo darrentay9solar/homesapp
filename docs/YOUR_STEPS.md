@@ -248,6 +248,24 @@ mode" badge and have sign-up limits.
 
 The demo keeps the development keys; that's what they're for.
 
+## 11. The support assistant (Claude)
+
+Help works without this: the assistant gives the closest of your managers'
+answers, and anything else goes to a project manager. With a key, Claude
+answers in its own words, in English or Chinese, from those answers and the
+homeowner's own project (see [support.md](support.md)).
+
+1. <https://console.anthropic.com> → sign in with the company account →
+   **Billing**: add a card and a monthly limit (a few dollars is plenty to start).
+2. **API keys** → **Create key**, name it `gethomeapps-live`.
+3. Vercel → **homesapp** (not the demo) → Environment Variables
+   (Production): `ANTHROPIC_API_KEY` = the key (Sensitive). Redeploy.
+4. In the app, **Support → Answers**: add your own answers (warranty,
+   billing, cleaning, low generation, outages). The assistant only says
+   what's written there.
+
+The demo never uses it: anyone can type there.
+
 ## 10. Your own address (optional, but needed for step 9)
 
 1. Vercel → **homesapp** → **Settings** → **Domains** → add e.g.

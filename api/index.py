@@ -37,6 +37,7 @@ from _routes import (
     projects,
     settings,
     sites,
+    support,
 )
 
 app = FastAPI(
@@ -66,6 +67,7 @@ app.include_router(meetings.router, prefix=PREFIX)
 app.include_router(exports.router, prefix=PREFIX)
 app.include_router(profile.router, prefix=PREFIX)
 app.include_router(location.router, prefix=PREFIX)
+app.include_router(support.router, prefix=PREFIX)
 app.include_router(demo.router, prefix=PREFIX)
 
 

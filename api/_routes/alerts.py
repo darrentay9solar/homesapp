@@ -51,6 +51,10 @@ KIND_LABEL = {
     "project_late": "Project late",
     "escalation": "Escalation",
     "daily_summary": "Summary",
+    "support_request": "Support",
+    "support_message": "Support",
+    "support_added": "Support",
+    "support_settled": "Support",
 }
 
 
