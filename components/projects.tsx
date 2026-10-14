@@ -15,9 +15,11 @@ import AvatarGroup from "@mui/material/AvatarGroup";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CardActionArea from "@mui/material/CardActionArea";
+import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import InputAdornment from "@mui/material/InputAdornment";
 import LinearProgress from "@mui/material/LinearProgress";
 import MenuItem from "@mui/material/MenuItem";
@@ -35,7 +37,7 @@ import { EdgeCard, gradText } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { pickerFilter } from "@/lib/client/search";
-import { useApp } from "@/lib/client/app-state";
+import { useApp, useMe } from "@/lib/client/app-state";
 import { type Options, planDates, type ProjectRow, STATUS_TONE } from "@/lib/client/projects";
 
 import { T, TR } from "@/lib/client/i18n";
@@ -188,6 +190,9 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
   const href = useProjectHref();
   const { toast } = useApp();
   const { data: opts } = useApi<Options>("/projects/options");
+  // Whoever creates a project chooses who runs it; one with no manager yet can be taken on.
+  // Handing over a running project is a superadmin's.
+  const chooses = useMe()?.role === "superadmin" || !p || !p.pm.uid;
   // Editing starts from the project as it is; creating starts empty.
   const [f, setF] = useState(() => ({
     name: p?.name ?? "",
@@ -198,7 +203,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
     end: p?.endDate ?? "",
     ctrText: p?.contractor.type === "text" ? p.contractor.label : "",
     groupId: p?.contractor.groupId ? String(p.contractor.groupId) : "",
-    // Superadmins only: who runs it. Empty means "me" (or, editing, unchanged).
+    // Who runs it. Empty means "me" (or, editing, unchanged).
     manager: p?.pm.uid ? String(p.pm.uid) : "",
   }));
   const [homeowner, setHomeowner] = useState<Homeowner | string | null>(() =>
@@ -214,7 +219,15 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
     p?.postalCode ? { postal: p.postalCode, ok: true, text: p.address } : null
   );
   const [busy, setBusy] = useState(false);
-  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
+  // What the server refused as already in the system (an address, a postal code, a number),
+  // under its field until that field changes. A shared postal code can be confirmed as another home.
+  const [clash, setClash] = useState<{ field: string; message: string } | null>(null);
+  const [samePostal, setSamePostal] = useState(false);
+  const unclash = (...fields: string[]) => setClash((c) => (c && fields.includes(c.field) ? null : c));
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => {
+    setF((x) => ({ ...x, [k]: e.target.value }));
+    unclash(k);
+  };
 
   // A complete postal code is looked up once; the address it finds fills an
   // empty address box (or one OneMap filled before), never one typed by hand.
@@ -255,7 +268,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
   };
   const ok = !firstProblem(...Object.values(problem));
   const [tried, setTried] = useState(false);
-  const shown = (k: keyof typeof problem) => (tried ? problem[k] : null);
+  const shown = (k: keyof typeof problem) => (tried ? problem[k] : null) ?? (clash?.field === k ? clash.message : null);
   const linked = homeowner !== null && typeof homeowner !== "string";
 
   async function submit() {
@@ -273,7 +286,8 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           contractor: { type: ctr, groupId: f.groupId ? Number(f.groupId) : null, userIds: crew.map((c) => c.uid), text: f.ctrText },
           startDate: f.start || null,
           endDate: f.end || null,
-          ...(opts?.managers?.length && f.manager ? { projectManagerId: Number(f.manager) } : {}),
+          ...(chooses && opts?.managers?.length && f.manager ? { projectManagerId: Number(f.manager) } : {}),
+          samePostalOk: samePostal,
         },
       });
       toast(res.message);
@@ -281,6 +295,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
       if (p) await onSaved?.();
       else if (res.id) router.push(href(res.id));
     } catch (err) {
+      if (err instanceof ApiError && err.field && ["postal", "address", "contact"].includes(err.field)) setClash({ field: err.field, message: err.message });
       toast(err instanceof ApiError ? err.message : "Couldn't create the project.", "bad");
       setBusy(false);
     }
@@ -302,7 +317,11 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           icon={<PlaceOutlinedIcon />}
           placeholder={T("6 digits — finds the address and site location")}
           value={f.postal}
-          onChange={(e) => setF((x) => ({ ...x, postal: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
+          onChange={(e) => {
+            setF((x) => ({ ...x, postal: e.target.value.replace(/\D/g, "").slice(0, 6) }));
+            unclash("postal", "address");
+            setSamePostal(false);
+          }}
           error={Boolean(geo && geo.postal === f.postal && !geo.ok) || Boolean(shown("postal"))}
           helperText={
             shown("postal") ??
@@ -320,6 +339,13 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           }}
         />
         <Field label={T("Project address")} required icon={<HomeOutlinedIcon />} multiline minRows={2} placeholder={T("Filled in from the postal code")} value={f.address} onChange={set("address")} error={Boolean(shown("address"))} helperText={shown("address") ?? undefined} />
+        {(clash?.field === "postal" || samePostal) && (
+          <FormControlLabel
+            sx={{ mt: -1.5 }}
+            control={<Checkbox checked={samePostal} onChange={(e) => { setSamePostal(e.target.checked); unclash("postal"); }} data-testid="same-postal" />}
+            label={T("This is a different home at the same postal code")}
+          />
+        )}
 
         <Autocomplete
           freeSolo
@@ -328,6 +354,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           value={homeowner}
           onChange={(_, v) => {
             setHomeowner(v);
+            unclash("contact");
             if (v && typeof v !== "string" && v.contactNo) setF((x) => ({ ...x, contact: v.contactNo ?? x.contact }));
           }}
           onInputChange={(_, text, reason) => {
@@ -375,7 +402,10 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
             />
           )}
         />
-        <PhoneField required label={T("Homeowner contact no.")} value={f.contact} onChange={(v) => setF((x) => ({ ...x, contact: v }))} error={Boolean(shown("contact"))} helperText={shown("contact") ?? undefined} />
+        <PhoneField required label={T("Homeowner contact no.")} value={f.contact} onChange={(v) => {
+          setF((x) => ({ ...x, contact: v }));
+          unclash("contact");
+        }} error={Boolean(shown("contact"))} helperText={shown("contact") ?? undefined} />
 
         <Box>
           <Typography variant="caption" sx={{ color: "primary.main", fontWeight: 500, display: "block", mb: 0.75 }}>
@@ -445,14 +475,14 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           )}
         </Box>
 
-        {Boolean(opts?.managers?.length) && (
+        {chooses && Boolean(opts?.managers?.length) && (
           <Field
             select
             label={T("Project manager")}
             icon={<ShieldOutlinedIcon />}
             value={f.manager}
             onChange={set("manager")}
-            helperText={T("Who runs this project. Only a superadmin chooses; they see it in their projects and audit log.")}
+            helperText={T("Who runs this project: you or another project manager. They're told, and it's in the audit log.")}
             slotProps={{ htmlInput: { "data-testid": "project-manager" } }}
           >
             <MenuItem value="">{T("Me")}</MenuItem>

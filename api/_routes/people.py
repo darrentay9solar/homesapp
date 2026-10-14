@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from _lib import clerk, demo, notify
+from _lib import clerk, demo, duplicates, notify
 from _lib.account import ROLE_LABEL, SG, Account, apply_schedule
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.i18n import LANGS
@@ -198,6 +198,8 @@ def create_user(body: NewUserIn, acct: Account = Depends(pm_only)) -> dict[str, 
         raise FieldProblem(409, "An account with that email already exists.", "email")
     if mobile_taken(p["contact_no"]):
         raise FieldProblem(409, MOBILE_TAKEN, "mobile")
+    duplicates.request_clash(email, p["contact_no"])
+    duplicates.person_clash(p["full_name"], p["postal_code"])
 
     with transaction(acct.uid) as cur:
         cur.execute(

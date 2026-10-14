@@ -82,6 +82,7 @@ def test_every_alert_title_the_server_sends_is_translated() -> None:
         "Milestone 2 complete",
         "Ready for handover",
         "New project assigned",
+        "New project to run",
         "Test notification",
         "A change of yours was undone",
     ]

@@ -304,9 +304,12 @@ def test_a_superadmin_hands_a_project_to_another_pm(flow, world) -> None:
     assert flow.post("pm2", "/approve").status_code == 200
 
 
-def test_a_pm_cant_create_a_project_for_another_pm(flow) -> None:
-    r = flow.create(by="pm", manager="pm2")
-    assert r.status_code == 403
+def test_a_pm_creates_a_project_for_another_pm(flow) -> None:
+    assert flow.create(by="pm", manager="pm2").status_code == 200
+    assert flow.get("pm2").status_code == 200
+    assert flow.get("pm").status_code == 404, "pm2 runs it, not the pm who made it"
+    assert flow.post("ho", "/approve").status_code == 200
+    assert flow.post("pm2", "/approve").status_code == 200
 
 
 @pytest.mark.parametrize("actor", ["crew_admin", "crew_epc", "ho", "out_admin", "inactive"])

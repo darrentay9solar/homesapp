@@ -288,6 +288,20 @@
       "when": 1792010000000,
       "tag": "0040_audit_language",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792020000000,
+      "tag": "0041_pm_chooses_manager",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1792030000000,
+      "tag": "0042_calendar_options",
+      "breakpoints": true
     }
   ]
 }

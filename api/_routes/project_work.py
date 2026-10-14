@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
-from _lib import notify, onemap, project_fields, storage, sweep
+from _lib import duplicates, notify, onemap, project_fields, storage, sweep
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.project_fields import FIELDS, GROUPS, MILESTONES, Field
@@ -626,9 +626,13 @@ def remind(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
 
 @router.patch("/projects/{pid}")
 def edit_details(pid: int, body: proj.ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
-    """A project manager changes the project's details or dates. Every change is in the audit log."""
-    p = _run(pid, acct)
+    """A project manager changes the project's details or dates. Every change is in the audit log.
+    One with no manager yet (from the project list) any project manager can take on here."""
+    p = _project(pid)
+    if not (acct.role == "project_manager" and p["project_manager_id"] is None):
+        p = _run(pid, acct)
     v = proj._validate(body)
+    duplicates.project_clash(v, pid=pid, before=p, same_postal_ok=body.samePostalOk)
     manager = proj.manager_for(body, acct, current=p["project_manager_id"])
     geo: dict[str, Any] = {}
     note = ""

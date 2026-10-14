@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from _lib import notify, onemap, project_fields, records
+from _lib import duplicates, notify, onemap, project_fields, records
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.profile import clean_phone
@@ -233,8 +233,8 @@ def projects(acct: Account = Depends(active)) -> dict[str, Any]:
 
 
 @router.get("/projects/options")
-def options(acct: Account = Depends(pm_only)) -> dict[str, Any]:
-    """What Create Project offers: homeowner accounts, contractor groups, crews (and, to a superadmin, managers)."""
+def options(_acct: Account = Depends(pm_only)) -> dict[str, Any]:
+    """What Create Project offers: homeowner accounts, contractor groups, crews and managers."""
     users = fetch_all(
         "select uid, full_name, email, contact_no, user_type from users where active "
         "and user_type in ('homeowner', 'contractor', 'epc_team') order by full_name nulls last, email"
@@ -263,16 +263,14 @@ def options(acct: Account = Depends(pm_only)) -> dict[str, Any]:
         "groups": [
             {"id": g["group_id"], "name": g["name"], "members": by_group.get(g["group_id"], [])} for g in groups
         ],
-        # Only a superadmin chooses who runs a project.
+        # Who can run a project: whoever creates one chooses.
         "managers": [
             {"uid": u["uid"], "name": u["full_name"] or u["email"], "role": u["user_type"]}
             for u in fetch_all(
                 "select uid, full_name, email, user_type from users where active "
                 "and user_type in ('project_manager', 'superadmin') order by user_type, full_name nulls last"
             )
-        ]
-        if acct.role == "superadmin"
-        else [],
+        ],
     }
 
 
@@ -314,17 +312,21 @@ class ProjectIn(BaseModel):
     contractor: ContractorIn = ContractorIn()
     startDate: date | None = None
     endDate: date | None = None
-    # Superadmins only: who runs the project. A project manager's projects are their own.
+    # Who runs the project: chosen when it's created (or taken on while it has no manager);
+    # after that only a superadmin hands it to someone else.
     projectManagerId: int | None = None
+    # They've confirmed it's a different home at a postal code already in the system.
+    samePostalOk: bool = False
 
 
 def manager_for(body: ProjectIn, acct: Account, current: int | None = None) -> int:
-    """Who runs the project: a project manager's own projects are theirs; a superadmin chooses."""
+    """Who runs the project. Whoever creates it chooses (themselves or another project manager);
+    one with no manager yet can be taken on; handing over a running project is a superadmin's."""
     want = body.projectManagerId
-    if acct.role != "superadmin":
-        if want is not None and want != (current or acct.uid):
+    if acct.role != "superadmin" and current is not None:
+        if want is not None and want != current:
             raise HTTPException(403, "Only a superadmin can hand a project to another project manager.")
-        return current or acct.uid
+        return current
     if want is None:
         return current or acct.uid
     runs = "select 1 from users where uid = %s and active and user_type in ('project_manager', 'superadmin')"
@@ -399,6 +401,7 @@ def _validate(body: ProjectIn) -> dict[str, Any]:
 @router.post("/projects")
 def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     v = _validate(body)
+    duplicates.project_clash(v, same_postal_ok=body.samePostalOk)
 
     # The site's GPS point, for check-in. A postal code OneMap doesn't know is
     # a mistake to fix now; OneMap being down shouldn't block the project.
@@ -413,6 +416,7 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
         geo_note = " The site's GPS location couldn't be looked up yet, so check-in is off until it is."
 
     status = "awaiting_homeowner" if v["homeowner_id"] else "draft"
+    manager = manager_for(body, acct)
     with transaction(acct.uid) as cur:
         cur.execute(
             """
@@ -433,7 +437,7 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
                 "geo_addr": v["address"] if located else None,
                 "geo_src": "onemap" if located else None,
                 "me": acct.uid,
-                "manager": manager_for(body, acct),
+                "manager": manager,
                 "status": status,
             },  # fmt: skip
         )
@@ -445,6 +449,8 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
             )
 
     _announce(pid, v, acct)
+    if manager != acct.uid:
+        notify.notify(manager, "assignment", "New project to run", f"{v['name']} — {v['address']}", project_id=pid)
     if v["homeowner_id"]:
         msg = f"Created {v['name']}. The homeowner has been asked to approve it."
     else:

@@ -930,9 +930,11 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
     expiry: expiryProblem(expiry),
   };
   const ok = !firstProblem(...Object.values(problem));
-  // What the server refused (that email or mobile is already on an account), under its field until it changes.
-  const [taken, setTaken] = useState<{ email?: string; mobile?: string }>({});
-  const shown = (k: keyof typeof problem) => (tried ? problem[k] : null) ?? (k === "email" || k === "mobile" ? taken[k] ?? null : null);
+  // What the server refused (that email or mobile is already on an account, or this person already
+  // has one at that postal code), under its field until it changes.
+  const [taken, setTaken] = useState<{ email?: string; mobile?: string; fullName?: string }>({});
+  const shown = (k: keyof typeof problem) =>
+    (tried ? problem[k] : null) ?? (k === "email" || k === "mobile" ? taken[k] ?? null : k === "name" ? taken.fullName ?? null : null);
 
   return (
     <MDialog
@@ -942,7 +944,10 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
       onClose={onClose}
     >
       <Stack sx={{ gap: 2.5 }}>
-        <Field label={T("Full name")} required icon={<PersonOutlineRoundedIcon />} placeholder={T("e.g. Aisha Rahman")} value={f.fullName} onChange={set("fullName")} autoComplete="off" error={Boolean(shown("name"))} helperText={shown("name") ?? undefined} />
+        <Field label={T("Full name")} required icon={<PersonOutlineRoundedIcon />} placeholder={T("e.g. Aisha Rahman")} value={f.fullName} onChange={(e) => {
+          set("fullName")(e);
+          setTaken((t) => ({ ...t, fullName: undefined }));
+        }} autoComplete="off" error={Boolean(shown("name"))} helperText={shown("name") ?? undefined} />
         <Field label={T("Email")} required type="email" icon={<MailOutlineRoundedIcon />} placeholder={T("name@example.com")} value={f.email} onChange={(e) => {
           set("email")(e);
           setTaken((t) => ({ ...t, email: undefined }));
@@ -969,7 +974,10 @@ function NewUserDialog({ groups, reload, onClose }: { groups: Group[]; reload: (
           </Field>
         )}
         <Stack direction="row" sx={{ gap: 1.5 }}>
-          <Field label={T("Postal code")} icon={<PlaceOutlinedIcon />} placeholder={T("6 digits")} value={f.postalCode} onChange={set("postalCode")} error={Boolean(shown("postal"))} helperText={shown("postal") ?? undefined} slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }} />
+          <Field label={T("Postal code")} icon={<PlaceOutlinedIcon />} placeholder={T("6 digits")} value={f.postalCode} onChange={(e) => {
+            set("postalCode")(e);
+            setTaken((t) => ({ ...t, fullName: undefined }));
+          }} error={Boolean(shown("postal"))} helperText={shown("postal") ?? undefined} slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 6 } }} />
           {f.role === "homeowner" && (
             <Field label={T("NRIC last 4")} icon={<FingerprintRoundedIcon />} placeholder="567D" value={f.icLast4} onChange={set("icLast4")} error={Boolean(shown("ic"))} helperText={shown("ic") ?? undefined} slotProps={{ htmlInput: { maxLength: 4 } }} />
           )}

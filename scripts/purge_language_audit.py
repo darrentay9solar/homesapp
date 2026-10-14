@@ -45,7 +45,8 @@ def main() -> None:
             print("Nothing deleted." if n else "Nothing to do.")
             return
     print("Taking a restore point first…")
-    done = subprocess.run([sys.executable, str(ROOT / "scripts" / "backup.py"), "--target", a.target, "--reason", "before removing language-only audit entries"])
+    backup = [sys.executable, str(ROOT / "scripts" / "backup.py"), "--target", a.target]
+    done = subprocess.run([*backup, "--reason", "before removing language-only audit entries"])
     if done.returncode:
         sys.exit("The restore point failed, so nothing was deleted.")
     with psycopg.connect(url) as conn, conn.transaction():

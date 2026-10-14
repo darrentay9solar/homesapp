@@ -69,6 +69,14 @@ def _fake_clerk_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(auth, "_jwks_client", lambda: _FakeJwks())
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Most tests create the same made-up project at the same address again and again
+    (some in module-wide fixtures), so the project duplicate check starts off."""
+    from _lib import duplicates
+
+    duplicates.CHECK_PROJECTS = False
+
+
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--r2-live", action="store_true", help="also run the tests that send requests to the real R2 dev bucket"
@@ -91,6 +99,15 @@ def _no_real_push(monkeypatch: pytest.MonkeyPatch) -> None:
     from _lib import push
 
     monkeypatch.setattr(push, "send", lambda sub, message, urgent=False: push.PushResult("skipped", "tests"))
+
+
+@pytest.fixture(autouse=True)
+def _one_made_up_address(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests marked duplicates (test_duplicates.py) turn the project duplicate check back on."""
+    if request.node.get_closest_marker("duplicates"):
+        from _lib import duplicates
+
+        monkeypatch.setattr(duplicates, "CHECK_PROJECTS", True)
 
 
 @pytest.fixture(autouse=True)

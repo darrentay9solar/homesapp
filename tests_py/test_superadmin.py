@@ -2,8 +2,8 @@
 """The superadmin, and project managers limited to the projects they run (migration 0028).
 
 exists      a superadmin only exists by being put in the database; the app can't make one
-projects    a superadmin sees and edits every project and chooses who runs it;
-            a project manager sees and edits only their own
+projects    a superadmin sees and edits every project and hands it over; a project manager
+            sees and edits only their own, and chooses who runs one they create (0041)
 accounts    project managers manage everyone except project managers (and superadmins);
             a superadmin manages project managers too
 audit       homeowners and crews can't read it; a project manager reads their own projects'
@@ -156,10 +156,57 @@ def test_a_superadmin_creates_a_project_for_a_project_manager(client, boss, pm2)
     assert r.json()["id"] in {p["id"] for p in client.get("/api/py/projects", headers=h(pm2)).json()["projects"]}
 
 
-def test_only_a_superadmin_is_offered_the_managers(client, team, boss) -> None:  # noqa: F811
-    assert client.get("/api/py/projects/options", headers=h(team["pm"])).json()["managers"] == []
-    names = {m["uid"] for m in client.get("/api/py/projects/options", headers=h(boss)).json()["managers"]}
-    assert team["pm"]["uid"] in names
+def test_every_project_manager_is_offered_the_managers(client, team, boss, pm2) -> None:  # noqa: F811
+    for who in (team["pm"], boss):
+        names = {m["uid"] for m in client.get("/api/py/projects/options", headers=h(who)).json()["managers"]}
+        assert {team["pm"]["uid"], pm2["uid"], boss["uid"]} <= names
+
+
+def test_a_project_manager_creates_a_project_for_another(client, fx, team, pm2) -> None:  # noqa: F811
+    r = client.post("/api/py/projects", headers=h(team["pm"]), json=body(
+        projectManagerId=pm2["uid"], contractor={"type": "users", "userIds": [team["admin"]["uid"], team["epc"]["uid"]]}))  # fmt: skip
+    assert r.status_code == 200, r.text
+    pid = r.json()["id"]
+    team["projects"].append(pid)
+    assert pid in {p["id"] for p in client.get("/api/py/projects", headers=h(pm2)).json()["projects"]}
+    assert pid not in {p["id"] for p in client.get("/api/py/projects", headers=h(team["pm"])).json()["projects"]}
+    crew = {r["user_id"] for r in fx.conn.execute("select user_id from project_assignments where project_id = %s", (pid,)).fetchall()}
+    assert crew == {team["admin"]["uid"], team["epc"]["uid"]}, "the crew chosen at creation is on it"
+    told = fx.conn.execute("select 1 from notifications where recipient_uid = %s and project_id = %s and title = 'New project to run'", (pm2["uid"], pid)).fetchone()
+    assert told, "the chosen manager is told"
+    created = fx.conn.execute("select actor_uid from audit_log where entity_table = 'projects' and entity_id = %s and action = 'insert'", (str(pid),)).fetchone()
+    assert created and created["actor_uid"] == team["pm"]["uid"]
+
+
+def test_a_project_is_run_by_an_active_manager(client, fx, team) -> None:  # noqa: F811
+    for who in (team["admin"], team["ho"]):
+        r = client.post("/api/py/projects", headers=h(team["pm"]), json=body(projectManagerId=who["uid"]))
+        assert r.status_code == 400
+    with pytest.raises(psycopg.Error, match=r"run by an? (active )?project manager"), transaction(team["pm"]["uid"]) as cur:
+        cur.execute(
+            "insert into projects (name, address, postal_code, project_manager_id, created_by, installation_start_date, target_end_date, status) "
+            "values ('X', 'Y Street', '569933', %s, %s, current_date, current_date + 7, 'draft')", (team["admin"]["uid"], team["pm"]["uid"]))  # fmt: skip
+
+
+def test_crew_is_added_only_while_creating(client, fx, team, pm2) -> None:  # noqa: F811
+    r = client.post("/api/py/projects", headers=h(team["pm"]), json=body(projectManagerId=pm2["uid"]))
+    pid = r.json()["id"]
+    team["projects"].append(pid)
+    with pytest.raises(psycopg.Error, match="Only a project manager can assign"), transaction(team["pm"]["uid"]) as cur:
+        cur.execute("insert into project_assignments (project_id, user_id, assigned_by) values (%s, %s, %s)", (pid, team["admin"]["uid"], team["pm"]["uid"]))
+
+
+def test_a_project_manager_takes_on_a_project_with_no_manager(client, fx, team, pm2) -> None:  # noqa: F811
+    pid = fx.conn.execute(
+        "insert into projects (name, address, postal_code, homeowner_name, homeowner_contact_no, contractor_text, "
+        "installation_start_date, target_end_date, status) values ('Imported', '53 Ang Mo Kio Ave 3', '569933', 'Typed Owner', "
+        "'+65 9123 4567', 'Some Contractor', current_date, current_date + 21, 'draft') returning project_id"
+    ).fetchone()["project_id"]
+    team["projects"].append(pid)
+    with transaction(pm2["uid"]) as cur:
+        cur.execute("update projects set project_manager_id = %s where project_id = %s", (team["pm"]["uid"], pid))
+    assert fx.conn.execute("select project_manager_id from projects where project_id = %s", (pid,)).fetchone()["project_manager_id"] == team["pm"]["uid"]
+    assert client.patch(f"/api/py/projects/{pid}", headers=h(pm2), json=body(projectManagerId=pm2["uid"])).status_code in (403, 404), "now it's someone's"
 
 
 # ------------------------------------------------------------------ accounts
