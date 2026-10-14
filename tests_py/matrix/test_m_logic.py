@@ -1,3 +1,4 @@
+# ruff: noqa: E501  (case tables read better whole)
 """Matrix: the rules that decide what people are told and when, case by case.
 
   check states     every check due from 400 days ago to 400 days ahead, done or not, on 25 days
@@ -25,7 +26,7 @@ from _lib import maintenance_reminders, meeting_reminders, prefs
 from _routes import maintenance, support
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-import import_client_list as icl  # noqa: E402
+import import_client_list as icl
 
 SG = ZoneInfo("Asia/Singapore")
 
@@ -76,7 +77,7 @@ def test_meeting_reminder_stage(mins, lead) -> None:
 
 # ------------------------------------------------------------------ quiet hours, pause, mute
 
-KINDS = sorted(prefs.CATEGORY_OF) + ["unknown_kind"]
+KINDS = [*sorted(prefs.CATEGORY_OF), "unknown_kind"]
 PREF_CASES = [
     (kind, hour, quiet, paused, urgent, muted)
     for kind in KINDS

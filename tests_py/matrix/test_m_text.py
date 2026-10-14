@@ -1,4 +1,4 @@
-# ruff: noqa: RUF001  (Chinese text)
+# ruff: noqa: RUF001, E501  (Chinese text; case tables read better whole)
 """Matrix: every translation, and the mobile and email rules, case by case.
 
   translations  every entry in zh.json: Simplified characters only (GB2312),

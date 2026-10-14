@@ -1,3 +1,4 @@
+# ruff: noqa: E501  (case tables read better whole)
 """Matrix: who may do what in a support conversation, through the real API and database.
 
 Six people (the asker, someone brought in, the handling manager, another

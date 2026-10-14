@@ -1,3 +1,4 @@
+# ruff: noqa: E501  (case tables read better whole)
 """Matrix: properties that must hold whatever the data.
 
   assistant     each starter question asked 300 ways finds its own answer; 900 unrelated
@@ -99,7 +100,7 @@ def test_maintenance_numbers_add_up(seed) -> None:
     pending = [(r[f"{k}_due"]) for r in rows for k in ("six_month", "one_year") if not r[f"{k}_done_on"]]
     assert u["overdueChecks"]["six"] + u["overdueChecks"]["year"] == sum(1 for d in pending if d < TODAY)
     ahead = sum(m["six"] + m["year"] for m in u["upcoming"])
-    assert ahead == sum(1 for d in pending if TODAY <= d and (d.year, d.month) <= ((TODAY.year * 12 + TODAY.month + 10) // 12, (TODAY.month + 10) % 12 + 1))
+    assert ahead == sum(1 for d in pending if d >= TODAY and (d.year, d.month) <= ((TODAY.year * 12 + TODAY.month + 10) // 12, (TODAY.month + 10) % 12 + 1))
     assert sum(g["count"] for g in u["ppaEnds"]) == sum(1 for r in rows if r["ppa_kind"] == "ppa" and r["ppa_years"] and r["turned_on_on"])
     sizes = sorted(float(r["kwp"]) for r in rows if r["kwp"] is not None)
     if sizes:
