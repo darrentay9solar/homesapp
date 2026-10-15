@@ -39,7 +39,8 @@ from _routes import projects as proj
 router = APIRouter()
 pm_only = role("project_manager")
 
-Relation = Literal["pm", "crew", "homeowner"]
+# "viewer": Admin (finance), and a project manager looking at a project nobody runs yet; read-only.
+Relation = Literal["pm", "crew", "homeowner", "viewer"]
 SECTION_MILESTONE = {g: n for n, gs in MILESTONES.items() for g in gs}
 BEFORE_APPROVAL = {"draft", "awaiting_homeowner", "homeowner_declined", "homeowner_approved"}
 FILE_CATEGORIES = {f.key for f in FIELDS if f.kind in project_fields.FILE_KINDS}
@@ -78,6 +79,8 @@ def relation(acct: Account, p: dict[str, Any]) -> Relation | None:
     # Runs the project: a superadmin always, a project manager when it's theirs.
     if acct.role == "superadmin" or (acct.role == "project_manager" and p["project_manager_id"] == acct.uid):
         return "pm"
+    if acct.role == "finance" or (acct.role == "project_manager" and p["project_manager_id"] is None):
+        return "viewer"
     if acct.role == "project_manager":
         return None
     if acct.role == "homeowner":
@@ -132,6 +135,10 @@ def section_lock(p: dict[str, Any], section: str, reached: int) -> str | None:
 
 
 def why_not_editable(rel: Relation, p: dict[str, Any], f: Field, reached: int, recorded: set[int]) -> str | None:
+    if rel == "viewer":
+        if not p["project_manager_id"]:
+            return "Take on the project first."
+        return "Only the project's manager and crew change it."
     if rel == "homeowner":
         return "Filled in by 9 Solar Home and the contractor."
     if f.kind == "auto":
@@ -243,6 +250,8 @@ def fields(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
             "decline": rel == "homeowner" and s == "awaiting_homeowner",
             "remind": rel == "pm" and s in ("awaiting_homeowner", "homeowner_declined"),
             "editDetails": rel == "pm",
+            # A project nobody runs yet (from the project list): a project manager takes it on.
+            "takeOn": rel == "viewer" and acct.role == "project_manager" and not p["project_manager_id"],
             "reopen": sorted(recorded) if rel == "pm" and s not in ("signed", "maintenance") else [],
         },
     }
@@ -622,6 +631,23 @@ def remind(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------ details
+
+
+@router.post("/projects/{pid}/take-on")
+def take_on(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
+    """A project manager runs a project nobody runs yet (one from the project list)."""
+    p = _project(pid)
+    if p["project_manager_id"] is not None:
+        raise HTTPException(409, "Someone already runs this project.")
+    with transaction(acct.uid) as cur:
+        cur.execute(
+            "update projects set project_manager_id = %s, updated_at = now() "
+            "where project_id = %s and project_manager_id is null",
+            (acct.uid, pid),
+        )
+        if not cur.rowcount:
+            raise HTTPException(409, "Someone took it on just now.")
+    return {"message": f"You now run {p['name']}. It's in your projects."}
 
 
 @router.patch("/projects/{pid}")

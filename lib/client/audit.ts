@@ -8,12 +8,12 @@ import type { Role } from "./app-state";
 import { locale, translate } from "./i18n";
 import { matchesAll } from "./search";
 
-export type Page = "projects" | "milestones" | "files" | "sites" | "signatures" | "people" | "groups" | "maintenance" | "meetings" | "exports" | "support";
+export type Page = "projects" | "milestones" | "files" | "sites" | "signatures" | "people" | "groups" | "maintenance" | "meetings" | "exports" | "support" | "payments";
 export type LineState = "current" | "reverted" | "superseded" | "locked";
 
 export type AuditChange = { field: string; from: unknown; to: unknown; state: LineState; note: string | null };
 export type AuditActor = { uid: number | null; name: string; role: Role | null; roleLabel: string };
-export type AuditLocation = { key: string; kind: "project" | "person" | "request" | "group" | "retailer" | "system" | "meeting" | "calendar" | "export" | "support" | "support-answers" | "other"; id: number | null; label: string };
+export type AuditLocation = { key: string; kind: "project" | "person" | "request" | "group" | "retailer" | "system" | "meeting" | "calendar" | "export" | "support" | "support-answers" | "payments" | "other"; id: number | null; label: string };
 
 export type AuditEntry = {
   id: number;
@@ -102,6 +102,7 @@ export const PAGES: Array<[Page, string]> = [
   ["meetings", "Meetings"],
   ["exports", "Exports"],
   ["support", "Support"],
+  ["payments", "Payments"],
 ];
 export const PAGE_LABEL = Object.fromEntries(PAGES) as Record<Page, string>;
 

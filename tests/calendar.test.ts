@@ -4,7 +4,8 @@
  *   time      Singapore days and minutes, whatever the device's time zone; weeks start Monday
  *   layout    meetings that overlap sit side by side
  *   busy      who is busy when, a day's load for the mini month, and which start times are free
- *   links     Google Calendar, Outlook, Teams and .ics carry the right times and nothing personal
+ *   links     Google Calendar, Outlook, Teams, Meet, Zoom and .ics carry the right times and nothing personal
+ *   options   end times, repeats and reminders worded as the API counts them
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -16,14 +17,21 @@ import {
   busyNames,
   dayLoad,
   durationText,
+  endOptions,
   googleCalendarUrl,
   icsFile,
   layoutDay,
   linkKind,
   type Meeting,
+  meetScheduleUrl,
   monthGrid,
   nextSlot,
+  nthWeekday,
   outlookUrl,
+  reminderParts,
+  reminderWords,
+  repeatWords,
+  scheduleUrl,
   sgDay,
   sgMinutes,
   sortUpcoming,
@@ -47,6 +55,11 @@ function meeting(over: Partial<Meeting> = {}): Meeting {
     endsAt: at("2026-10-12", "10:30"),
     place: "online",
     location: null,
+    postalCode: null,
+    reminders: [60],
+    repeat: null,
+    seriesId: null,
+    laterInSeries: 0,
     onlineLink: "https://teams.microsoft.com/l/meetup-join/abc",
     notes: "Bring the drawings",
     organiser: { uid: 1, name: "Wei Ming Tan" },
@@ -158,5 +171,44 @@ describe("links", () => {
     assert.match(ics, /SUMMARY:Site walk\\, roof\r\n/);
     assert.match(ics, /DTSTART:20261012T013000Z/);
     assert.match(ics, /STATUS:CANCELLED/);
+  });
+});
+
+describe("options", () => {
+  it("ends every half hour up to 12 hours on, past midnight too", () => {
+    const e = endOptions(22 * 60);
+    assert.equal(e[0], 22 * 60 + 30);
+    assert.equal(e[e.length - 1], 34 * 60);
+    assert.equal(e.length, 24);
+    assert.equal(wallTime("2026-10-12", 25 * 60), "2026-10-13T01:00");
+  });
+  it("counts the weekday of the month as the API does: a fifth is the last", () => {
+    assert.equal(nthWeekday("2026-10-06"), 1);
+    assert.equal(nthWeekday("2026-10-13"), 2);
+    assert.equal(nthWeekday("2026-10-28"), 4);
+    assert.equal(nthWeekday("2026-10-29"), -1);
+  });
+  it("words each repeat", () => {
+    assert.deepEqual(repeatWords("weekly", "2026-10-13", "en"), ["Weekly on {day}", { day: "Tuesday" }]);
+    assert.deepEqual(repeatWords("monthly_weekday", "2026-10-29", "en"), ["Monthly on the {nth} {day}", { nth: "last", day: "Thursday" }]);
+    assert.deepEqual(repeatWords("monthly_day", "2026-10-09", "en"), ["Monthly on day {n}", { n: "9" }]);
+  });
+  it("words a reminder in its largest whole unit", () => {
+    assert.deepEqual(reminderParts(60), [1, "hours"]);
+    assert.deepEqual(reminderParts(90), [90, "minutes"]);
+    assert.deepEqual(reminderParts(2880), [2, "days"]);
+    assert.deepEqual(reminderParts(10080), [1, "weeks"]);
+    assert.deepEqual(reminderWords(0), ["At the start", {}]);
+    assert.deepEqual(reminderWords(60), ["1 hour before", {}]);
+    assert.deepEqual(reminderWords(180), ["{n} hours before", { n: "3" }]);
+  });
+  it("schedules Meet for the meeting's time (not a meeting now), with nothing personal", () => {
+    const u = new URL(meetScheduleUrl("Roof check", at("2026-10-12", "09:30"), at("2026-10-12", "10:00")));
+    assert.equal(u.hostname, "calendar.google.com");
+    assert.equal(u.searchParams.get("dates"), "20261012T013000Z/20261012T020000Z");
+    assert.deepEqual([...u.searchParams.keys()].sort(), ["action", "ctz", "dates", "text", "vcon"]);
+    assert.notEqual(new URL(scheduleUrl("meet", "x", at("2026-10-12", "09:30"), at("2026-10-12", "10:00"))).hostname, "meet.google.com");
+    assert.equal(new URL(scheduleUrl("zoom", "x", at("2026-10-12", "09:30"), at("2026-10-12", "10:00"))).pathname, "/meeting/schedule");
+    assert.equal(linkKind("https://us02web.zoom.us/j/123"), "zoom");
   });
 });

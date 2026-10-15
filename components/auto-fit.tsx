@@ -9,7 +9,7 @@ import { useEffect } from "react";
  * enlarge text in their phone's settings (Android goes to 200%), so a line
  * that fits on one phone runs out of room on another. Every single-line
  * piece of text that would otherwise be cut short with "…" (names, dates,
- * chips, the bottom bar's labels, anything marked data-fit) is watched here:
+ * chips, the bottom bar's labels, main buttons, anything marked data-fit) is watched here:
  *
  *   1. it fits: nothing changes;
  *   2. it doesn't: its font shrinks just enough to fit the whole text,
@@ -27,6 +27,7 @@ const TARGETS = [
   ".MuiBottomNavigationAction-label",
   ".MuiListItemText-primary",
   ".MuiInputLabel-root",
+  ".MuiButton-sizeLarge",
   "[data-fit]",
 ].join(",");
 const MIN = 0.7; // never below 70% of the designed size
@@ -59,6 +60,9 @@ function reset(el: HTMLElement) {
 
 export function fit(el: HTMLElement) {
   if (el.closest("[data-nofit]") || !el.isConnected) return;
+  // Sizes are measured as they are now: an animated font size (the bottom bar's
+  // selected label grows) would be measured half-way and fit wrongly.
+  el.style.setProperty("transition", "none", "important");
   reset(el);
   if (!el.clientWidth || !overflows(el)) return;
   const base = parseFloat(getComputedStyle(el).fontSize);

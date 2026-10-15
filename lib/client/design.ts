@@ -116,5 +116,6 @@ export const DESIGN = {
     epc_team: { light: "#7C3AED", dark: "#A78BFA" },
     project_manager: { light: "#0A9A63", dark: "#3DDC97" },
     superadmin: { light: "#BE123C", dark: "#FB7185" },
+    finance: { light: "#0F766E", dark: "#5EEAD4" },
   },
 } as const;

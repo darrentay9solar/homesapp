@@ -87,7 +87,7 @@ def test_press(api, world, actor, state, name) -> None:
     pid = world.project(state, name=f"UAT fresh {name}") if fresh else world.pid[state]
     json = _details(world, pid) if body == "details" else body
     url = f"/api/py/projects/{pid}" + (f"/{path}" if path else "")
-    r = getattr(api, method)(url, headers=world.h(actor), **({"json": json} if json is not None else {}))
+    r = getattr(api, method)(url, headers=world.h(actor, pid), **({"json": json} if json is not None else {}))
     assert r.status_code == expect, r.text
     if fresh:
         assert world.status(pid) == after(name, actor, state)
@@ -115,19 +115,19 @@ def test_schedule_a_visit(api, world, actor, state) -> None:
     pid = world.pid[state]
     day = (date.today() + timedelta(days=30)).isoformat()
     r = api.post(
-        f"/api/py/projects/{pid}/visits", headers=world.h(actor), json={"date": day, "time": "09:00", "note": "UAT"}
+        f"/api/py/projects/{pid}/visits", headers=world.h(actor, pid), json={"date": day, "time": "09:00", "note": "UAT"}
     )
     assert r.status_code == spec.schedule_visit(actor, state), r.text
     if r.status_code == 200:
         # And it can be cancelled again, by the same people.
-        gone = api.delete(f"/api/py/projects/{pid}/visits/{r.json()['id']}", headers=world.h(actor))
+        gone = api.delete(f"/api/py/projects/{pid}/visits/{r.json()['id']}", headers=world.h(actor, pid))
         assert gone.status_code == 200, gone.text
 
 
 @pytest.mark.parametrize(("actor", "state"), VISIT_GRID, ids=[f"{a}-{s}" for a, s in VISIT_GRID])
 def test_check_in(api, world, actor, state) -> None:
     pid = world.pid[state]
-    r = api.post(f"/api/py/projects/{pid}/check-ins", headers=world.h(actor), json={**world_mod.NEAR, "crew": 3})
+    r = api.post(f"/api/py/projects/{pid}/check-ins", headers=world.h(actor, pid), json={**world_mod.NEAR, "crew": 3})
     assert r.status_code == spec.check_in(actor, state), r.text
     if r.status_code == 200:
         cid = world.conn.execute(
@@ -135,10 +135,10 @@ def test_check_in(api, world, actor, state) -> None:
             (pid, world.uid(actor)),
         ).fetchone()["check_in_id"]
         again = api.post(
-            f"/api/py/projects/{pid}/check-ins", headers=world.h(actor), json={**world_mod.NEAR, "crew": 3}
+            f"/api/py/projects/{pid}/check-ins", headers=world.h(actor, pid), json={**world_mod.NEAR, "crew": 3}
         )
         assert again.status_code == 409, "one open check-in per person per site"
-        out = api.post(f"/api/py/check-ins/{cid}/check-out", headers=world.h(actor), json={**world_mod.NEAR, "crew": 0})
+        out = api.post(f"/api/py/check-ins/{cid}/check-out", headers=world.h(actor, pid), json={**world_mod.NEAR, "crew": 0})
         assert out.status_code == 200, out.text
 
 
@@ -153,7 +153,7 @@ def test_only_the_person_who_checked_in_checks_out(api, world, actor) -> None:
     ).fetchone()["check_in_id"]
     try:
         other = api.post(
-            f"/api/py/check-ins/{cid}/check-out", headers=world.h(actor), json={**world_mod.NEAR, "crew": 0}
+            f"/api/py/check-ins/{cid}/check-out", headers=world.h(actor, pid), json={**world_mod.NEAR, "crew": 0}
         )
         assert other.status_code == 404
     finally:

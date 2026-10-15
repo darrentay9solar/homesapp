@@ -12,6 +12,7 @@ import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import Badge from "@mui/material/Badge";
 import BottomNavigation from "@mui/material/BottomNavigation";
@@ -52,10 +53,13 @@ const ACCOUNT: Tab = { href: "/account", label: "Account", icon: <AccountCircleR
 // Help (a homeowner asks) and Support (everyone else answers or helps): both under More on a phone.
 const HELP: Tab = { href: "/support", label: "Help", icon: <SupportAgentRoundedIcon />, phone: false };
 const SUPPORT: Tab = { href: "/support", label: "Support", icon: <SupportAgentRoundedIcon />, phone: false };
+// Payments: a homeowner's invoices and the QR; for managers, whether each month is issued and paid.
+const PAYMENTS: Tab = { href: "/payments", label: "Payments", icon: <ReceiptLongRoundedIcon /> };
+const FINANCE: Tab = { href: "/finance", label: "Payments", icon: <ReceiptLongRoundedIcon /> };
 
 /** Tabs per role, from the prototype. Audit is project managers' and the superadmin's only. */
 const TABS: Record<Role, Tab[]> = {
-  homeowner: [{ href: "/", label: "My Project", icon: <HomeRoundedIcon /> }, CALENDAR, HELP, ALERTS, ACCOUNT],
+  homeowner: [{ href: "/", label: "My Project", icon: <HomeRoundedIcon /> }, PAYMENTS, CALENDAR, HELP, ALERTS, ACCOUNT],
   project_manager: [
     // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
@@ -64,6 +68,7 @@ const TABS: Record<Role, Tab[]> = {
     ALERTS,
     { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    { ...FINANCE, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     SUPPORT,
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
@@ -77,7 +82,19 @@ const TABS: Record<Role, Tab[]> = {
     ALERTS,
     { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    { ...FINANCE, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
+    SUPPORT,
+    { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
+    ACCOUNT,
+  ],
+  // Admin (finance): payments first; every project and system to look at, read-only.
+  finance: [
+    FINANCE,
+    { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
+    CALENDAR,
+    ALERTS,
+    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
     SUPPORT,
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
     ACCOUNT,

@@ -56,11 +56,12 @@ def today() -> date:
 
 
 def _visible_clause(acct: Account) -> tuple[str, dict[str, Any]]:
-    # A superadmin sees every project; a project manager the ones they run.
-    if acct.role == "superadmin":
+    # A superadmin and Admin (read-only) see every project; a project manager the ones they run,
+    # and the ones nobody runs yet (from the project list), to take one on.
+    if acct.role in ("superadmin", "finance"):
         return "true", {}
     if acct.role == "project_manager":
-        return "p.project_manager_id = %(me)s", {"me": acct.uid}
+        return "(p.project_manager_id = %(me)s or p.project_manager_id is null)", {"me": acct.uid}
     if acct.role == "homeowner":
         return "p.homeowner_id = %(me)s", {"me": acct.uid}
     return (

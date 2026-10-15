@@ -25,6 +25,7 @@ from _routes import (
     demo,
     exports,
     files,
+    finance,
     handover,
     location,
     maintenance,
@@ -68,6 +69,7 @@ app.include_router(exports.router, prefix=PREFIX)
 app.include_router(profile.router, prefix=PREFIX)
 app.include_router(location.router, prefix=PREFIX)
 app.include_router(support.router, prefix=PREFIX)
+app.include_router(finance.router, prefix=PREFIX)
 app.include_router(demo.router, prefix=PREFIX)
 
 

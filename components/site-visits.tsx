@@ -168,7 +168,7 @@ function ScheduleDialog({ pid, onClose, onDone }: { pid: number; onClose: () => 
   return (
     <MDialog title={T("Schedule Visit")} heading={T("When must the EPC team be on site?")} subtitle={T("The crew is told now, reminded an hour before, and you're alerted if nobody checks in.")} onClose={onClose} maxWidth="xs">
       <Stack sx={{ gap: 2.5 }}>
-        <Stack direction="row" sx={{ gap: 1.5 }}>
+        <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
           <Field label={T("Date")} required type="date" icon={<CalendarMonthRoundedIcon />} value={f.date} onChange={(e) => setF((x) => ({ ...x, date: e.target.value }))} error={tried && Boolean(dateProblem)} helperText={tried ? (dateProblem ?? undefined) : undefined} slotProps={{ htmlInput: { min: todayIso } }} />
           <Field label={T("Start time")} type="time" icon={<ScheduleRoundedIcon />} value={f.time} onChange={(e) => setF((x) => ({ ...x, time: e.target.value }))} helperText={T("Optional")} />
         </Stack>

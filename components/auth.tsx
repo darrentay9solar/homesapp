@@ -43,6 +43,8 @@ import { LangButton, ThemeButton } from "./theme-button";
  */
 
 const DESK = `@media (min-width: ${DESIGN.layout.desktopFrom}px)`;
+/** A phone made very narrow by a big font setting: the title goes under the buttons. */
+const NARROW = "@media (max-width: 299.95px)";
 const TABLET = "@media (min-width: 560px)";
 const PANEL_TEXT = "rgba(255,255,255,0.8)";
 
@@ -133,16 +135,16 @@ export function AuthShell({
                 </defs>
                 <path d="M0 0H440V96C380 132 320 118 244 122C156 127 76 140 0 172Z" fill="url(#authBandFill)" />
               </Box>
-              <Stack direction="row" sx={{ position: "relative", alignItems: "center", gap: 1.25, px: 1.5, pt: "calc(12px + env(safe-area-inset-top))" }}>
+              <Stack direction="row" sx={{ position: "relative", alignItems: "center", gap: 1.25, px: 1.5, pt: "calc(12px + env(safe-area-inset-top))", [NARROW]: { flexWrap: "wrap", rowGap: 0.5, gap: 0.5 } }}>
                 {/* As wide as the two buttons on the right, so the title stays centred. */}
-                <Box sx={{ width: 88, flex: "0 0 auto" }}>
+                <Box sx={{ width: 88, flex: "0 0 auto", [NARROW]: { width: "auto", flex: "1 1 auto" } }}>
                   {goBack && (
                     <IconButton aria-label={T("Back")} onClick={goBack} sx={{ color: "#fff" }}>
                       <ArrowBackRoundedIcon />
                     </IconButton>
                   )}
                 </Box>
-                <Typography component="h1" sx={{ flex: 1, textAlign: "center", fontSize: DESIGN.type.dialogTitle, fontWeight: 600, letterSpacing: "0.01em" }}>
+                <Typography component="h1" sx={{ flex: 1, minWidth: 0, textAlign: "center", fontSize: DESIGN.type.dialogTitle, fontWeight: 600, letterSpacing: "0.01em", overflowWrap: "anywhere", [NARROW]: { order: 3, flexBasis: "100%" } }}>
                   {TR(title)}
                 </Typography>
                 <Stack direction="row" sx={{ gap: 1, flex: "0 0 auto" }}>
@@ -563,7 +565,7 @@ export function ResendCode({ onResend }: { onResend: () => Promise<void> }) {
 /** A grid of choices (Request Access's role picker): two per row, the chosen one outlined. */
 export function AuthChoices<V extends string>({ value, onChange, options, label }: { value: V | null; onChange: (v: V) => void; options: Array<{ value: V; label: string; desc: string; icon: ReactNode }>; label: string }) {
   return (
-    <Box role="radiogroup" aria-label={TR(label)} sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, mb: 2.75 }}>
+    <Box role="radiogroup" aria-label={TR(label)} sx={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 1, mb: 2.75, [NARROW]: { gridTemplateColumns: "minmax(0, 1fr)" } }}>
       {options.map((o) => {
         const on = o.value === value;
         return (

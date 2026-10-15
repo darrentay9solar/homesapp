@@ -108,12 +108,46 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Calendar · upcoming", path: "/dev-preview/calendar?view=list", kind: "app" },
   { name: "New Meeting dialog", path: "/dev-preview/calendar", kind: "app", click: "[data-testid=new-meeting]" },
   { name: "Meeting dialog", path: "/dev-preview/calendar?view=list", kind: "app", click: "[data-testid=meeting-row]" },
+  { name: "New Meeting, physical", path: "/dev-preview/calendar", kind: "app", click: "[data-testid=new-meeting] >> [data-testid=place-physical]" },
+  { name: "Payments (Admin)", path: "/dev-preview/finance?as=finance", kind: "app" },
+  { name: "Payments: invoices (Admin)", path: "/dev-preview/finance?as=finance&tab=invoices", kind: "app" },
+  { name: "Payments: invoice (Admin)", path: "/dev-preview/finance?as=finance&tab=invoices", kind: "app", click: "[data-testid=invoice-row]" },
+  { name: "Payments: mark paid (Admin)", path: "/dev-preview/finance?as=finance&tab=invoices", kind: "app", click: "[data-testid=invoice-row] >> [data-testid=mark-paid]" },
+  { name: "Payments: issue a month (Admin)", path: "/dev-preview/finance?as=finance&tab=issue", kind: "app" },
+  { name: "Payments: bank statement (Admin)", path: "/dev-preview/finance?as=finance&tab=statement", kind: "app" },
+  { name: "Payments: invoice design (Admin)", path: "/dev-preview/finance?as=finance&tab=design", kind: "app" },
+  { name: "Payments (project manager)", path: "/dev-preview/finance", kind: "app" },
+  { name: "Payments (homeowner)", path: "/dev-preview/payments?as=homeowner", kind: "app" },
+  { name: "Payments: pay an invoice (homeowner)", path: "/dev-preview/payments?as=homeowner", kind: "app", click: "[data-testid=pay-next]" },
+  { name: "Repeating meeting", path: "/dev-preview/calendar?meeting=308", kind: "app", click: "[data-testid=meeting-details]" },
   { name: "Block Out Time dialog", path: "/dev-preview/calendar?view=list", kind: "app", click: "[data-testid=block-time]" },
 ];
-const SIZES: Array<[string, number, number]> = [
-  ["Phone", 375, 812],
-  ["Tablet", 820, 1180],
-  ["Desktop", 1440, 900],
+/**
+ * Real phones by their screen in CSS pixels, and the same phones with a bigger font setting
+ * (Chrome on Android applies it as page zoom, so the page gets narrower). The first three
+ * are checked in both themes; the rest in Black only, since the theme doesn't move anything.
+ */
+const SIZES: Array<[string, number, number, boolean?]> = [
+  ["Phone", 375, 812, true],
+  ["Tablet", 820, 1180, true],
+  ["Desktop", 1440, 900, true],
+  ["iPhone SE", 375, 667],
+  ["iPhone 15 / 16", 393, 852],
+  ["iPhone 16 Pro", 402, 874],
+  ["iPhone 16 Plus / 15 Pro Max", 430, 932],
+  ["iPhone 16 Pro Max", 440, 956],
+  ["iPhone SE (1st)", 320, 568],
+  ["Pixel 9", 412, 923],
+  ["Pixel 9, font 130%", 317, 710],
+  ["Pixel 9, font 150%", 275, 615],
+  ["Pixel 9, font 200%", 206, 461],
+  ["Galaxy S24", 360, 780],
+  ["Galaxy S24, font 150%", 240, 520],
+  ["Galaxy S24, font 200%", 180, 390],
+  ["Galaxy S24 Ultra / A55", 384, 832],
+  ["Galaxy Z Fold, closed", 344, 882],
+  ["Galaxy Z Fold, open", 673, 841],
+  ["Phone on its side", 852, 393],
 ];
 const THEMES = ["dark", "light"] as const;
 const LANGS: Lang[] = ["en", "zh"];
@@ -133,7 +167,9 @@ async function until(test: () => boolean, ms: number): Promise<boolean> {
   return test();
 }
 
-async function measure(path: string, kind: Kind, w: number, h: number, lang: Lang, click?: string, opens = true): Promise<Finding[]> {
+async function measure(path: string, kind: Kind, w: number, h: number, lang: Lang, clicks?: string, opens = true): Promise<Finding[]> {
+  // "A >> B": open with A, then press B inside what opened (a choice in a dialog).
+  const [click, ...then] = clicks ? clicks.split(" >> ") : [];
   const f = document.createElement("iframe");
   f.style.cssText = `position:fixed;left:-${w + 50}px;top:0;width:${w}px;height:${h}px;border:0;pointer-events:none`;
   f.src = path;
@@ -147,7 +183,7 @@ async function measure(path: string, kind: Kind, w: number, h: number, lang: Lan
     const seen = (sel: string) => [...doc.querySelectorAll(sel)].some((e) => e.getClientRects().length > 0);
     const ready = () =>
       kind === "auth" ? seen("[data-auth=content] > *") : seen("header h1") && seen("nav, .MuiBottomNavigation-root") && !seen(".MuiSkeleton-root");
-    if (!(await until(ready, 20000))) return [{ rule: "Page loads", detail: "didn't finish drawing in 20 seconds" }];
+    if (!(await until(ready, 45000))) return [{ rule: "Page loads", detail: "didn't finish drawing in 45 seconds" }];
     await new Promise((r) => setTimeout(r, 500)); // fonts and transitions settle
     if (click) {
       const words = translate(click, lang);
@@ -171,6 +207,12 @@ async function measure(path: string, kind: Kind, w: number, h: number, lang: Lan
       if (opens) {
         if (!(await until(() => Boolean(doc.querySelector(".MuiDialog-paper")), 8000))) return [{ rule: "Dialog opens", detail: `couldn't open "${click}"` }];
         await new Promise((r) => setTimeout(r, 700)); // the slide-in finishes
+        for (const sel of then) {
+          const el = () => [...doc.querySelectorAll<HTMLElement>(sel)].find((e) => e.getClientRects().length > 0);
+          if (!(await until(() => Boolean(el()), 8000))) return [{ rule: "Dialog opens", detail: `couldn't press "${sel}"` }];
+          el()?.click();
+          await new Promise((r) => setTimeout(r, 500));
+        }
       } else {
         await new Promise((r) => setTimeout(r, 1500));
         await until(() => !seen(".MuiSkeleton-root"), 8000);
@@ -192,7 +234,7 @@ export default function DesignCheckPage() {
   const [results, setResults] = useState<Result[]>([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(0);
-  const total = SCREENS.length * SIZES.length * THEMES.length * LANGS.length;
+  const total = SCREENS.length * LANGS.length * SIZES.reduce((n, [, , , both]) => n + (both ? THEMES.length : 1), 0);
 
   async function run() {
     setRunning(true);
@@ -218,7 +260,10 @@ export default function DesignCheckPage() {
         // ?only=signed checks just the screens whose name contains "signed".
         const only = new URLSearchParams(window.location.search).get("only")?.toLowerCase();
         const screens = only ? SCREENS.filter((s) => s.name.toLowerCase().includes(only)) : SCREENS;
-        const jobs = screens.flatMap((s) => SIZES.map(([size, w, h]) => ({ s, size, w, h })));
+        // ?size=pixel checks just the sizes whose name contains "pixel".
+        const sizeOnly = new URLSearchParams(window.location.search).get("size")?.toLowerCase();
+        const sizes = SIZES.filter(([name, , , both]) => (both || theme === "dark") && (!sizeOnly || name.toLowerCase().includes(sizeOnly)));
+        const jobs = screens.flatMap((s) => sizes.map(([size, w, h]) => ({ s, size, w, h })));
         // A few at a time: fast, without starving the page of CPU.
         for (let i = 0; i < jobs.length; i += 4) {
           const batch = await Promise.all(
@@ -260,7 +305,7 @@ export default function DesignCheckPage() {
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
           <Typography variant="body2" sx={{ color: "text.secondary", mt: 1 }}>
-            {SCREENS.length} screens × phone, tablet and desktop × Black and Light × English and Chinese = {total} checks. Rules come from docs/design/TEMPLATE.md; numbers from lib/client/design.ts.
+            {SCREENS.length} screens × {SIZES.length - 2} phones (real models, and larger font settings), tablet and desktop × Black and Light × English and Chinese = {total} checks. Rules come from docs/design/TEMPLATE.md; numbers from lib/client/design.ts.
           </Typography>
           {running && <LinearProgress variant="determinate" value={(done / total) * 100} sx={{ mt: 2, height: 6, borderRadius: 3 }} />}
           {!running && results.length === total && (

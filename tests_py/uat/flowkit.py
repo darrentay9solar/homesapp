@@ -69,6 +69,16 @@ class Flow:
     def status(self) -> str:
         return self.w.status(self.pid)
 
+    def release(self) -> None:
+        """One homeowner, one project (0043): the next flow's project is "ho"'s again, so this one lets go."""
+        ho = self.w.uid("ho")
+        self.w.conn.execute(
+            "update projects set homeowner_name = coalesce(homeowner_name, 'UAT flow homeowner'), homeowner_id = null "
+            "where homeowner_id = %s and project_id = any(%s)",
+            (ho, self.w.made_pids),
+        )
+        self.w.conn.execute("update maintenance_systems set homeowner_id = null where homeowner_id = %s", (ho,))
+
     def told(self, kind: str) -> set[int]:
         rows = self.w.conn.execute(
             "select recipient_uid from notifications where project_id = %s and kind = %s", (self.pid, kind)
@@ -108,6 +118,7 @@ class Flow:
     def approve_both(self, pm: str = "pm") -> None:
         assert self.post("ho", "/approve").status_code == 200
         assert self.post(pm, "/approve").status_code == 200
+        self.w.pay_fee(self.pid)
 
     def save(self, actor: str, key: str, value: Any) -> Any:
         return self.api.patch(

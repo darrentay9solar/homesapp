@@ -76,7 +76,7 @@ class World:
     def __init__(self) -> None:
         self.c = owner_conn()
         tag = uuid.uuid4().hex[:6]
-        mk = lambda role, name: self.c.execute(  # noqa: E731
+        self.mk = mk = lambda role, name: self.c.execute(
             "insert into users (email, user_type, full_name, clerk_user_id) values (%s, %s, %s, %s) returning *",
             (f"pytest-up-{role}-{uuid.uuid4().hex[:6]}@example.com", role, name, f"user_up_{uuid.uuid4().hex[:10]}"),
         ).fetchone()
@@ -117,6 +117,12 @@ class World:
     def _project(self, state: str) -> int:
         status = {"m1": "in_progress", "m2": "in_progress", "work": "pm_approved"}.get(state, state)
         draft = state == "draft"
+        # One homeowner, one project (0043): "own_ho" has the one the work is on; each other stage its own,
+        # as "own_ho@<stage>".
+        if not draft and state != "work":
+            self.u[f"own_ho@{state}"] = self.mk("homeowner", f"Up Homeowner {state}")
+            self.c.execute("update users set ic_last4 = '567D' where uid = %s", (self.u[f"own_ho@{state}"]["uid"],))
+        ho = None if draft else self.u["own_ho" if state == "work" else f"own_ho@{state}"]["uid"]
         pid = self.c.execute(
             "insert into projects (name, address, postal_code, site_lat, site_lng, homeowner_id, homeowner_name, "
             "homeowner_contact_no, contractor_group_id, project_manager_id, installation_start_date, target_end_date, "
@@ -124,7 +130,7 @@ class World:
             "current_date, current_date + 21, %s) returning project_id",
             (
                 f"pytest up {state}",
-                None if draft else self.u["own_ho"]["uid"],
+                ho,
                 "Typed Name" if draft else None,
                 self.group,
                 self.u["pm"]["uid"],
@@ -614,7 +620,9 @@ def expected(role: str, state: str, section: str) -> int:
 
 @pytest.mark.parametrize(("role", "state", "section"), list(product(ROLES, STATES, SLOT_OF)))
 def test_who_may_upload(api, world, role, state, section) -> None:
-    r = link(api, world, role, world.p[state], SLOT_OF[section][0])
+    # The stage's own homeowner (one homeowner, one project).
+    who = f"own_ho@{state}" if role == "own_ho" and f"own_ho@{state}" in world.u else role
+    r = link(api, world, who, world.p[state], SLOT_OF[section][0])
     assert r.status_code == expected(role, state, section), r.text
 
 

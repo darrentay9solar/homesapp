@@ -2,6 +2,7 @@
 
 import EngineeringRoundedIcon from "@mui/icons-material/EngineeringRounded";
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 import Box from "@mui/material/Box";
@@ -24,6 +25,7 @@ const ICON: Record<Role, ReactNode> = {
   contractor: <WorkOutlineRoundedIcon />,
   epc_team: <EngineeringRoundedIcon />,
   homeowner: <HomeOutlinedIcon />,
+  finance: <ReceiptLongRoundedIcon />,
 };
 
 /**

@@ -22,6 +22,11 @@ function meeting(id: number, over: Partial<Meeting>): Meeting {
     endsAt: at(1, 11),
     place: "online",
     location: null,
+    postalCode: null,
+    reminders: [60],
+    repeat: null,
+    seriesId: null,
+    laterInSeries: 0,
     onlineLink: "https://teams.microsoft.com/l/meetup-join/sample",
     notes: null,
     organiser: { uid: 1, name: ME.name },
@@ -42,10 +47,11 @@ function meeting(id: number, over: Partial<Meeting>): Meeting {
 
 const MEETINGS: Meeting[] = [
   meeting(301, { title: "Design review, Siglap Garden House", startsAt: at(0, 9, 30), endsAt: at(0, 10, 30), project: { id: 107, name: "Siglap Garden House" }, notes: "Bring the roof layout and the inverter spec." }),
-  meeting(302, { title: "Crew briefing", startsAt: at(0, 14), endsAt: at(0, 15), place: "office", location: "9 Solar Home office, 10 Ubi Crescent", onlineLink: null, people: [{ ...ME, response: "accepted" }, { ...PRIYA, response: "accepted" }] }),
-  meeting(303, { title: "Scaffolding plan", startsAt: at(0, 14, 30), endsAt: at(0, 16), status: "waiting", place: "site", location: "40 Siglap Hill", onlineLink: null, people: [{ ...ME, response: "accepted" }, { ...PRIYA, response: "pending" }] }),
+  meeting(302, { title: "Crew briefing", startsAt: at(0, 14), endsAt: at(0, 15), place: "physical", location: "9 Solar Home office, 10 Ubi Crescent", onlineLink: null, people: [{ ...ME, response: "accepted" }, { ...PRIYA, response: "accepted" }] }),
+  meeting(303, { title: "Scaffolding plan", startsAt: at(0, 14, 30), endsAt: at(0, 16), status: "waiting", place: "physical", location: "40 Siglap Hill", onlineLink: null, people: [{ ...ME, response: "accepted" }, { ...PRIYA, response: "pending" }] }),
   meeting(304, { title: "Handover walk-through", startsAt: at(1, 11), endsAt: at(1, 12), organiser: { uid: 2, name: CHARLOTTE.name }, status: "waiting", myResponse: "pending", canEdit: false, canRespond: true, onlineLink: "https://meet.google.com/abc-defg-hij", people: [{ ...CHARLOTTE, response: "accepted" }, { ...ME, response: "pending" }, { ...JASMINE, response: "accepted" }] }),
-  meeting(305, { title: "6-month check · 7 Example Avenue", kind: "maintenance_check", startsAt: at(2, 9), endsAt: at(2, 11), place: "site", location: "7 Example Avenue, Singapore 466001", onlineLink: null, system: { id: 201, address: "7 Example Avenue" }, checkKey: "six_month" }),
+  meeting(305, { title: "6-month check · 7 Example Avenue", kind: "maintenance_check", startsAt: at(2, 9), endsAt: at(2, 11), place: "physical", location: "7 Example Avenue, Singapore 466001", onlineLink: null, system: { id: 201, address: "7 Example Avenue" }, checkKey: "six_month" }),
+  meeting(308, { title: "Weekly site sync", startsAt: at(2, 15), endsAt: at(2, 15, 30), repeat: "weekly", seriesId: 308, laterInSeries: 11, reminders: [1440, 30], organiser: { uid: 2, name: CHARLOTTE.name }, status: "waiting", myResponse: "pending", canEdit: false, canRespond: true, onlineLink: "https://us02web.zoom.us/j/1234567890", people: [{ ...CHARLOTTE, response: "accepted" }, { ...ME, response: "pending" }] }),
   meeting(306, { title: "Quick call", startsAt: at(3, 16), endsAt: at(3, 16, 30), place: "phone", location: "+65 9123 4477", onlineLink: null }),
   meeting(307, { title: "Retailer contract", startsAt: at(4, 10), endsAt: at(4, 11), status: "declined", people: [{ ...ME, response: "accepted" }, { ...JASMINE, response: "declined" }] }),
 ];
@@ -74,12 +80,14 @@ export function mockContacts(): Contacts {
       { ...CHARLOTTE, roleLabel: "Project Manager" },
       { ...PRIYA, roleLabel: "Contractor Admin" },
       { uid: 4, name: "Ravi Kumar", role: "epc_team", roleLabel: "EPC Team" },
-      { ...JASMINE, roleLabel: "Homeowner" },
+      { ...JASMINE, roleLabel: "Homeowner", address: "7 Example Avenue", postalCode: "466001" },
     ],
     projects: [
-      { id: 101, name: "Tampines Terrace", address: "22 Tampines Ave 5" },
-      { id: 107, name: "Siglap Garden House", address: "40 Siglap Hill" },
+      { id: 101, name: "Tampines Terrace", address: "22 Tampines Ave 5", postalCode: "529653" },
+      { id: 107, name: "Siglap Garden House", address: "40 Siglap Hill", postalCode: "456123" },
     ],
+    me: { address: "10 Ubi Crescent", postalCode: "408564" },
+    video: [],
   };
 }
 

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from _lib import onemap
 from _lib.db import fetch_one
 
-ROLES = ("homeowner", "project_manager", "contractor", "epc_team")
+ROLES = ("homeowner", "project_manager", "contractor", "epc_team", "finance")
 
 
 class ProfileIn(BaseModel):

@@ -1,7 +1,8 @@
 # ruff: noqa: E501  (each message on one line, as it is in zh.json)
 """Saying so when what someone is adding is already in the system.
 
-Projects   the same address as another project or a system in Maintenance; the
+Projects   a homeowner already on another project (one each); the same address as
+           another project or a system in Maintenance; the
            same postal code (unless they confirm it's another home there, such
            as another unit in the block); a homeowner's number that is already
            another homeowner's.
@@ -60,6 +61,16 @@ def project_clash(
 ) -> None:
     """Refuses a project that is already in the system. ``v`` is projects._validate's result;
     ``before`` the project as it was, when editing (only what changed is checked)."""
+    # One homeowner, one project (migration 0043): this one always holds.
+    if v["homeowner_id"]:
+        other = fetch_one(
+            "select name, project_code from projects where homeowner_id = %(h)s and project_id is distinct from %(pid)s "
+            "union all select coalesce(s.address, 'a system'), s.project_code from maintenance_systems s "
+            "where s.homeowner_id = %(h)s and (%(pid)s::int is null or s.project_id is distinct from %(pid)s) limit 1",
+            {"h": v["homeowner_id"], "pid": pid},
+        )
+        if other:
+            raise FieldProblem(409, f"This homeowner is already on {_label(other)}. Each homeowner is on one project.", "homeowner")
     if not CHECK_PROJECTS:
         return
     postal, address = v["postal"], v["address"]

@@ -3,13 +3,23 @@
 import { locale, T } from "./i18n";
 import type { ProjectStatus } from "./projects";
 
-export type Period = "30d" | "90d" | "12m" | "all";
+/** A preset, or any number of days ("45d", 1 to 3650). */
+export type Period = "30d" | "60d" | "90d" | "12m" | "all" | `${number}d`;
 export const PERIODS: Array<[Period, string]> = [
   ["30d", "Last 30 days"],
+  ["60d", "Last 60 days"],
   ["90d", "Last 90 days"],
   ["12m", "Last 12 months"],
   ["all", "All time"],
 ];
+export const MOST_DAYS = 3650;
+
+/** The number of days a custom period asks for, or null when it isn't one ("1" to "3650"). */
+export function customDays(text: string): number | null {
+  if (!/^\d{1,4}$/.test(text.trim())) return null;
+  const n = Number(text);
+  return n >= 1 && n <= MOST_DAYS ? n : null;
+}
 
 export type TileKey = "ongoing" | "late" | "noShow" | "awaitingHomeowner" | "awaitingPm" | "handover" | "closed" | "new";
 export type Tile = { count: number; ids: number[]; delta?: number | null };
@@ -133,10 +143,11 @@ export function bucketLabel(key: string): string {
 /** "+12% vs the previous 90 days": up is good for these figures; up null means no change. */
 export function deltaText(d: number | null | undefined, period: Period): { text: string; up: boolean | null } | null {
   if (d === null || d === undefined || period === "all") return null;
-  const label = { "30d": "the previous 30 days", "90d": "the previous 90 days", "12m": "the previous 12 months" }[period];
+  const days = /^(\d+)d$/.exec(period)?.[1];
+  const label = period === "12m" ? T("the previous 12 months") : days === "1" ? T("the day before") : T("the previous {n} days", { n: days ?? "90" });
   const n = Math.round(d * 100);
-  if (n === 0) return { text: T("Same as {period}", { period: T(label) }), up: null };
-  return { text: T("{change} vs {period}", { change: `${n > 0 ? "+" : ""}${n}%`, period: T(label) }), up: n > 0 };
+  if (n === 0) return { text: T("Same as {period}", { period: label }), up: null };
+  return { text: T("{change} vs {period}", { change: `${n > 0 ? "+" : ""}${n}%`, period: label }), up: n > 0 };
 }
 
 /** Nice round axis ticks from 0 to at least max: 0, 5, 10, 15. */

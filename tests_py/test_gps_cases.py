@@ -71,7 +71,7 @@ class World:
     def __init__(self) -> None:
         self.owner = conftest.owner_conn()
         self.app = psycopg.connect(conftest.TEST_APP_URL, row_factory=dict_row, autocommit=True)
-        mk = lambda role, name: self.owner.execute(  # noqa: E731
+        self.mk = mk = lambda role, name: self.owner.execute(
             "insert into users (email, user_type, full_name) values (%s, %s, %s) returning uid",
             (f"pytest-gps-{role}-{uuid.uuid4().hex[:6]}@example.com", role, name),
         ).fetchone()["uid"]
@@ -92,18 +92,23 @@ class World:
                 "insert into contractor_group_members (group_id, user_id) values (%s, %s)", (self.group, self.u[r])
             )
         self.ids: list[int] = []
+        self.homeowners: list[int] = []
         self.main = self.project("main", *SITE)
 
     def project(
         self, name: str, lat: float | None, lng: float | None, radius: int = 100, status: str = "in_progress"
     ) -> int:
+        # One homeowner, one project (migration 0043): the first is "ho", each other its own.
+        ho = self.u["ho"] if not self.ids else self.mk("homeowner", f"GPS Homeowner {name}")
+        if self.ids:
+            self.homeowners.append(ho)
         pid = self.owner.execute(
             "insert into projects (name, address, postal_code, site_lat, site_lng, check_in_radius_m, homeowner_id, "
             "homeowner_contact_no, contractor_group_id, installation_start_date, target_end_date, status, "
             "project_manager_id) values "
             "(%s, 'GPS Road', '569933', %s, %s, %s, %s, '+65 9000 0000', %s, current_date, current_date + 21, %s, %s) "
             "returning project_id",
-            (f"pytest gps {name}", lat, lng, radius, self.u["ho"], self.group, status, self.u["pm"]),
+            (f"pytest gps {name}", lat, lng, radius, ho, self.group, status, self.u["pm"]),
         ).fetchone()["project_id"]
         self.ids.append(pid)
         return pid
@@ -124,7 +129,7 @@ class World:
         self.owner.execute("delete from projects where project_id = any(%s)", (self.ids,))
         self.owner.execute("delete from contractor_group_members where group_id = %s", (self.group,))
         self.owner.execute("delete from contractor_groups where group_id = %s", (self.group,))
-        self.owner.execute("delete from users where uid = any(%s)", (list(self.u.values()),))
+        self.owner.execute("delete from users where uid = any(%s)", ([*self.u.values(), *self.homeowners],))
         self.owner.close()
 
 

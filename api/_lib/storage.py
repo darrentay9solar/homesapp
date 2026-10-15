@@ -272,6 +272,24 @@ def head(key: str) -> tuple[int, str | None] | None:
         raise
 
 
+def get(key: str, most: int = 2 * 1024 * 1024) -> bytes | None:
+    """A small stored file's bytes (an invoice's logo or QR, to draw into its PDF), or None if it isn't there."""
+    m = mode()
+    if m == "local":
+        p = local_path(key)
+        return p.read_bytes()[: most + 1] if p.exists() else None
+    cfg = _r2()
+    if not cfg:
+        raise StorageNotConfiguredError
+    try:
+        with urllib.request.urlopen(urllib.request.Request(_sign(cfg, "GET", key, 60, {}, {})), timeout=15) as res:
+            return res.read(most + 1)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise
+
+
 def check() -> dict[str, object]:
     """Is storage usable here, and is it the right bucket for this environment?
 

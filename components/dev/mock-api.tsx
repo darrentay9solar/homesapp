@@ -2,6 +2,7 @@
 
 import { mockAnalytics } from "./mock-analytics";
 import { mockBusy, mockCalendar, mockContacts, mockMeeting, mockUpcoming } from "./mock-calendar";
+import { asFinance, MOCK_SETTINGS, mockFinanceMe, mockInvoice, mockInvoices, mockMyPayments, mockOverview, mockProjectPayments, mockRun } from "./mock-finance";
 import { mockMaintenance, mockProjectMaintenance, mockRecord, mockSystem } from "./mock-maintenance";
 import { asHomeowner, mockAnswers, mockAssistantThread, mockInbox, mockSupportMe, mockSupportPeople, mockThread } from "./mock-support";
 import { usePathname } from "next/navigation";
@@ -668,6 +669,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "GET /calendar/upcoming") return mockUpcoming();
   if (key === "GET /calendar/contacts") return mockContacts();
   if (key === "GET /calendar/busy") return mockBusy(search);
+  if (key === "GET /calendar/geocode") return { address: "10 UBI CRESCENT SINGAPORE 408564", postalCode: search.get("postal") ?? "408564" };
   const meetingId = path.match(/^\/meetings\/(\d+)$/);
   if (method === "GET" && meetingId) return mockMeeting(Number(meetingId[1]));
   if (method !== "GET" && (path.startsWith("/meetings") || path.startsWith("/calendar/"))) return { message: "Preview only — nothing was saved.", meeting: mockMeeting(301) };
@@ -695,6 +697,24 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (method === "GET" && /^\/projects\/\d+\/record$/.test(path)) {
     const r = mockRecord();
     return { record: { ...r.record, ppa: { kind: "ppa", years: 7 }, phase: 3, dongleSerial: "DG7Q2201", note: null }, feedback: r.feedback, warranties: r.warranties };
+  }
+  // Payments: Admin with ?as=finance, a homeowner with ?as=homeowner, otherwise a project manager (statuses only).
+  const money = asFinance();
+  if (key === "GET /finance/overview") return mockOverview(money);
+  if (key === "GET /finance/invoices") return mockInvoices(search);
+  if (key === "GET /finance/run") return mockRun(search.get("month") ?? "2026-09");
+  if (key === "GET /finance/settings") return MOCK_SETTINGS;
+  if (key === "GET /payments") return mockMyPayments();
+  const invoiceId = path.match(/^\/invoices\/(\d+)$/);
+  if (method === "GET" && invoiceId) return mockInvoice(Number(invoiceId[1]), money || asHomeowner());
+  const payFor = path.match(/^\/projects\/(\d+)\/payments$/);
+  if (method === "GET" && payFor) return mockProjectPayments(money || asHomeowner());
+  if (key === "POST /finance/statements") {
+    return { id: 1, lines: [
+      { date: "2026-10-01", amount: "215.29", words: "PAYNOW INV-2026-00042 J LEE", invoiceId: 42, number: "INV-2026-00042", result: "match" },
+      { date: "2026-10-02", amount: "140.00", words: "PAYNOW INV-2026-00043 D KOH", invoiceId: 43, number: "INV-2026-00043", result: "amount differs" },
+      { date: "2026-10-03", amount: "88.00", words: "GIRO SALARY", invoiceId: null, number: null, result: "no invoice number" },
+    ] };  // prettier-ignore
   }
   const upkeepFor = path.match(/^\/projects\/(\d+)\/maintenance$/);
   if (method === "GET" && upkeepFor) return mockProjectMaintenance(Number(upkeepFor[1]));
@@ -724,6 +744,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   }
   // /dev-preview/support?as=homeowner shows Help as a homeowner sees it.
   if (key === "GET /me" && asHomeowner()) return mockSupportMe(me());
+  if (key === "GET /me" && asFinance()) return mockFinanceMe(me());
   if (key === "GET /me") return me();
   if (key in FIXTURES) return FIXTURES[key];
   if (/^GET \/people\/\d+\/projects$/.test(key)) {

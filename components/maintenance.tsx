@@ -363,7 +363,7 @@ export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail
         <Typography component="h3" sx={{ fontWeight: 600, mt: 1 }}>
           {T("Contract")}
         </Typography>
-        <Stack direction="row" sx={{ gap: 1.5 }}>
+        <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
           <Field select label={T("PPA")} icon={<DescriptionOutlinedIcon />} value={f.ppaKind} onChange={set("ppaKind")} slotProps={blank}>
             <MenuItem value="">{T("Not recorded")}</MenuItem>
             <MenuItem value="ppa">{T("PPA")}</MenuItem>
@@ -371,7 +371,7 @@ export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail
           </Field>
           {f.ppaKind === "ppa" && <Field label={T("Years")} value={f.ppaYears} onChange={set("ppaYears")} slotProps={{ htmlInput: { inputMode: "numeric" } }} sx={{ maxWidth: 120 }} />}
         </Stack>
-        <Stack direction="row" sx={{ gap: 1.5 }}>
+        <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
           <Field select label={T("Maintenance plan")} icon={<CalendarMonthRoundedIcon />} value={f.planKind} onChange={set("planKind")}>
             <MenuItem value="free">{T("Free")}</MenuItem>
             <MenuItem value="excl">{T("Excluding the 1st year")}</MenuItem>
@@ -396,7 +396,7 @@ export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail
         <Button size="small" startIcon={<AddRoundedIcon />} sx={{ alignSelf: "flex-start" }} onClick={() => setF((x) => ({ ...x, panels: [...x.panels, { count: "", wp: "" }] }))}>
           {T("Another panel type")}
         </Button>
-        <Stack direction="row" sx={{ gap: 1.5 }}>
+        <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
           <Field label={T("System size (kWp)")} icon={<SolarPowerRoundedIcon />} value={f.kwp} onChange={set("kwp")} slotProps={{ htmlInput: { inputMode: "decimal" } }} />
           <Field select label={T("Supply")} value={f.phase} onChange={set("phase")} slotProps={blank} sx={{ maxWidth: 180 }}>
             <MenuItem value="">{T("Not recorded")}</MenuItem>
@@ -428,7 +428,7 @@ export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail
             setF((x) => ({ ...x, turnedOn: on, ...(on ? { sixMonthDue: addMonths(on, 6), oneYearDue: addMonths(on, 12) } : {}) }));
           }}
         />
-        <Stack direction="row" sx={{ gap: 1.5 }}>
+        <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
           <Field label={T("6-month check due")} type="date" value={f.sixMonthDue} onChange={set("sixMonthDue")} />
           <Field label={T("1-year check due")} type="date" value={f.oneYearDue} onChange={set("oneYearDue")} />
         </Stack>
@@ -509,11 +509,11 @@ export function ChecksCard({
       <Stack sx={{ mt: 1.5 }} divider={<Divider />}>
         {s.checks.map((c) => (
           <Box key={c.key} sx={{ py: 1.25 }} data-testid={`check-${c.key}`}>
-            <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
+            <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, rowGap: 1, flexWrap: "wrap" }}>
               <Box sx={{ color: c.state === "done" ? "success.main" : c.state === "overdue" ? "error.main" : "text.secondary", display: "grid" }}>
                 {c.state === "done" ? <CheckCircleRoundedIcon /> : <EventRoundedIcon />}
               </Box>
-              <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
                 <Typography noWrap sx={{ fontWeight: 600 }}>
                   {TR(c.label)}
                 </Typography>
@@ -568,8 +568,9 @@ export function ChecksCard({
             people: d.bookWith ?? [],
             systemId: s.id,
             checkKey: booking.key,
-            place: "site",
-            location: [s.address, s.postalCode ? `Singapore ${s.postalCode}` : null].filter(Boolean).join(", "),
+            place: "physical",
+            location: s.address ?? "",
+            postalCode: s.postalCode ?? undefined,
             duration: 120,
             day: booking.due && booking.due > today ? booking.due : undefined,
           }}

@@ -19,6 +19,7 @@ SG = ZoneInfo("Asia/Singapore")
 
 PERIODS = {
     "30d": ("Last 30 days", 30),
+    "60d": ("Last 60 days", 60),
     "90d": ("Last 90 days", 90),
     "12m": ("Last 12 months", 365),
     "all": ("All time", None),
@@ -77,9 +78,25 @@ class Window:
         return self.prev_start <= d < self.start
 
 
+MOST_DAYS = 3650  # a custom period: 1 day to 10 years
+
+
+def period(key: str) -> tuple[str, int | None] | None:
+    """A period's label and length in days (None: all time): one of PERIODS, or any number of days ("45d")."""
+    if key in PERIODS:
+        return PERIODS[key]
+    m = re.fullmatch(r"([1-9]\d{0,3})d", key or "")
+    if m and int(m.group(1)) <= MOST_DAYS:
+        n = int(m.group(1))
+        return ("Last day" if n == 1 else f"Last {n} days"), n
+    return None
+
+
 def window(key: str, today: date) -> Window:
-    label, days = PERIODS.get(key, PERIODS["90d"])
-    key = key if key in PERIODS else "90d"
+    found = period(key)
+    if not found:
+        key, found = "90d", PERIODS["90d"]
+    label, days = found
     if days is None:
         return Window(key, label, None, today, None)
     start = today - timedelta(days=days - 1)
@@ -94,9 +111,11 @@ def delta(now: int, before: int | None) -> float | None:
 
 
 def buckets(w: Window, today: date) -> list[tuple[str, date, date]]:
-    """The trend charts' columns: weeks for the shorter periods, months otherwise (12 at most)."""
-    if w.key in ("30d", "90d"):
-        n = 5 if w.key == "30d" else 13
+    """The trend charts' columns: weeks for periods up to 120 days (enough to cover it), months otherwise
+    (12, or as many as a longer custom period covers, up to 24)."""
+    days = (w.end - w.start).days + 1 if w.start else None
+    if days is not None and days <= 120:
+        n = max(1, -(-days // 7))
         monday = today - timedelta(days=today.weekday())
         out = []
         for i in range(n - 1, -1, -1):
@@ -105,7 +124,8 @@ def buckets(w: Window, today: date) -> list[tuple[str, date, date]]:
         return out
     out = []
     y, m = today.year, today.month
-    for i in range(11, -1, -1):
+    months = 12 if days is None or days <= 366 else min(24, -(-days * 100 // 3044))
+    for i in range(months - 1, -1, -1):
         mm, yy = m - i, y
         while mm <= 0:
             mm += 12

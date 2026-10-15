@@ -25,6 +25,8 @@ ROLE_LABEL = {
     "contractor": "Contractor Admin",
     "epc_team": "EPC Team",
     "superadmin": "Superadmin",
+    # Payments and invoices; read-only everywhere else (migration 0043).
+    "finance": "Admin",
 }
 
 

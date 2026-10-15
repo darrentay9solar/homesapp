@@ -56,7 +56,12 @@ TABLES: dict[str, tuple[tuple[str, ...], str]] = {
     "system_billing": (("system_id", "month"), "maintenance"),
     "client_feedback": (("feedback_id",), "maintenance"),
     "inverter_models": (("model_key",), "maintenance"),
+    # Payments (0043): amounts, so a superadmin's to read here (project managers see statuses in Payments).
+    "invoices": (("invoice_id",), "payments"),
+    "finance_settings": (("id",), "payments"),
+    "bank_statements": (("statement_id",), "payments"),
 }
+PAYMENT_TABLES = [t for t, (_k, page) in TABLES.items() if page == "payments"]
 PAGES = (
     "projects",
     "milestones",
@@ -69,6 +74,7 @@ PAGES = (
     "meetings",
     "exports",
     "support",
+    "payments",
 )
 
 # A person switching the app's language isn't a change worth showing (and since 0040 isn't recorded).
@@ -89,6 +95,9 @@ NO_REVERT: dict[str, str] = {
     "data_exports": "An export is a record of who took a copy of the data.",
     "support_threads": "A support conversation is changed in Support, by the people in it.",
     "support_members": "Who is in a support conversation is changed in Support.",
+    "invoices": "An invoice is changed in Payments: marked paid, or voided and issued again.",
+    "finance_settings": "The invoice's design is changed in Payments.",
+    "bank_statements": "A bank statement is a record of what was matched.",
 }
 # Link rows can be removed again or put back; anything else created or deleted can't.
 LINK_TABLES = ("contractor_group_members", "project_assignments")
@@ -219,6 +228,20 @@ def _summary(a: dict[str, Any], names: dict[str, dict[int, str]]) -> str:
     if t == "data_exports":
         what = (ch.get("what") or {}).get("to")
         return "Exported people to Excel" if what == "people" else "Exported projects to Excel"
+    if t == "invoices":
+        number = (ch.get("number") or {}).get("to") or ""
+        status = (ch.get("status") or {}).get("to")
+        if act == "insert":
+            return f"Issued invoice {number}".strip()
+        if status == "paid":
+            return "Marked an invoice paid"
+        if status == "void":
+            return "Voided an invoice"
+        return "Sent proof of payment" if "proof_key" in ch else "Updated an invoice"
+    if t == "finance_settings":
+        return "Changed the invoice's design"
+    if t == "bank_statements":
+        return "Confirmed a bank statement" if "confirmed_at" in ch else "Uploaded a bank statement"
     if t == "support_threads":
         if act == "insert":
             return "Asked for help"
@@ -401,6 +424,10 @@ def _location(a: dict[str, Any], names: dict[str, dict[int, str]]) -> dict[str, 
                 "label": f"Support · {was('subject') or f'#{eid}'}"}  # fmt: skip
     if t == "support_faq":
         return {"key": "support-answers", "kind": "support-answers", "id": None, "label": "Assistant answers"}
+    if t in ("finance_settings", "bank_statements"):
+        return {"key": "payments", "kind": "payments", "id": None, "label": "Payments"}
+    if t == "invoices" and not _project_of(a):
+        return {"key": "payments", "kind": "payments", "id": None, "label": f"Invoice {was('number') or eid}"}
     pid = _project_of(a)
     if pid:
         return {"key": f"project:{pid}", "kind": "project", "id": pid,
@@ -554,6 +581,8 @@ def log(
         params["tables"] = [t for t, (_, p) in TABLES.items() if p == page]
     else:
         params["tables"] = list(TABLES)
+    if acct.role != "superadmin":
+        params["tables"] = [t for t in params["tables"] if t not in PAYMENT_TABLES]
     if uid is not None:
         where.append("actor_uid = %(uid)s")
         params["uid"] = uid
@@ -597,7 +626,7 @@ def log(
         {"uid": uid},
         actor_uid=acct.uid,
     ):
-        if r["entity_table"] in TABLES:
+        if r["entity_table"] in TABLES and (acct.role == "superadmin" or r["entity_table"] not in PAYMENT_TABLES):
             counts[TABLES[r["entity_table"]][1]] += r["n"]
 
     return {

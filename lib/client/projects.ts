@@ -235,7 +235,7 @@ export type ProjectFields = {
   recordedMilestones: number[];
   retailers: Array<{ id: number; name: string }>;
   storage: "r2" | "local" | null;
-  actions: { approve: boolean; decline: boolean; remind: boolean; editDetails: boolean; reopen: number[] };
+  actions: { approve: boolean; decline: boolean; remind: boolean; editDetails: boolean; reopen: number[]; takeOn?: boolean };
 };
 
 export const SP_STATUS: Record<number, string> = { 1: "Submitted to LEW", 2: "LEW submitted to SP", 3: "Not yet" };

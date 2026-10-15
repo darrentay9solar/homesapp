@@ -29,7 +29,7 @@ def _body(f: spec.F, ctype: str | None = None, size: int = 1200) -> dict:
 @pytest.mark.parametrize(("actor", "state", "f"), GRID, ids=[f"{a}-{s}-{f.key}" for a, s, f in GRID])
 def test_upload_link(api, world, actor, state, f) -> None:
     pid = world.pid[state]
-    r = api.post(f"/api/py/projects/{pid}/files/upload-link", headers=world.h(actor), json=_body(f))
+    r = api.post(f"/api/py/projects/{pid}/files/upload-link", headers=world.h(actor, pid), json=_body(f))
     expect = spec.upload_link(actor, state, f)
     assert r.status_code == expect, r.text
     if expect == 200:
@@ -62,7 +62,7 @@ def test_only_photos_and_pdfs_under_the_limit(api, world, actor, ctype, size, ex
     # Milestone 1 is recorded on in_progress_m1, so the crew uses the project where it's still open.
     state = "in_progress_m0" if actor in spec.CREW else "in_progress_m1"
     r = api.post(
-        f"/api/py/projects/{world.pid[state]}/files/upload-link", headers=world.h(actor), json=_body(f, ctype, size)
+        f"/api/py/projects/{world.pid[state]}/files/upload-link", headers=world.h(actor, world.pid[state]), json=_body(f, ctype, size)
     )
     assert r.status_code == expect, r.text
 

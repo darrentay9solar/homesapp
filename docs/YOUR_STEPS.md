@@ -248,6 +248,14 @@ mode" badge and have sign-up limits.
 
 The demo keeps the development keys; that's what they're for.
 
+**Why sign-up codes land in junk until then:** development keys send the
+email-verification codes from Clerk's shared address, which mail services
+don't trust for your app, so Gmail and Outlook often file them as junk. The
+production instance sends from your own domain; the DNS records it lists in
+step 2 (the `clkmail` and `clk._domainkey` records) are what tell mail
+services those emails are really yours (SPF and DKIM). Add all of them, then
+**Verify** in Clerk; codes then reach the inbox.
+
 ## 11. The support assistant (Claude)
 
 Help works without this: the assistant gives the closest of your managers'
@@ -265,6 +273,33 @@ homeowner's own project (see [support.md](support.md)).
    what's written there.
 
 The demo never uses it: anyone can type there.
+
+## 12. Video meetings made for the meeting's time (optional)
+
+In a meeting, the **Teams**, **Google Meet** and **Zoom** buttons open that
+service's own scheduling page with the title and time filled in: set it up
+there, then paste its link back. Connect the company's account and the
+button makes the meeting itself, for that date and time, and fills in the
+link. Do any of these; each is independent. Vercel → **homesapp** →
+Environment Variables (Production), all Sensitive, then redeploy.
+
+- **Zoom** (simplest): <https://marketplace.zoom.us> → Develop → Build App →
+  **Server-to-Server OAuth**, scope `meeting:write:meeting:admin` (or
+  `meeting:write:admin`). Set `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`,
+  `ZOOM_CLIENT_SECRET`, and `ZOOM_MEETING_ORGANISER` (the Zoom user's email
+  the meetings are made under).
+- **Microsoft Teams**: Microsoft Entra admin centre → App registrations → New;
+  API permission **OnlineMeetings.ReadWrite.All** (Application), grant admin
+  consent; a client secret. Then, once, in Teams PowerShell, an
+  *application access policy* allowing the app for the organiser account.
+  Set `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`,
+  `MS_MEETING_ORGANISER` (that account's email).
+- **Google Meet** (Google Workspace): Google Cloud console → a service account
+  with a JSON key, Calendar API enabled; Workspace admin → Security → API
+  controls → **Domain-wide delegation**: the service account's client ID with
+  scope `https://www.googleapis.com/auth/calendar.events`. Set
+  `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and
+  `GOOGLE_MEETING_ORGANISER` (the account whose calendar holds the events).
 
 ## 10. Your own address (optional, but needed for step 9)
 

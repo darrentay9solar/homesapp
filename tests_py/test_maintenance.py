@@ -449,7 +449,7 @@ def test_an_import_ref_is_imported_once(fx, systems) -> None:
 
 
 def test_the_projects_list_leaves_handed_over_projects_to_maintenance(client, fx, team, cleanup_converted) -> None:  # noqa: F811
-    done, going = new_project(client, team), new_project(client, team)
+    done, going = new_project(client, team), new_project(client, team, account=False)
     cleanup_converted.append(done)
     close_project(fx, done)
     d = client.get("/api/py/projects", headers=h(team["pm"])).json()

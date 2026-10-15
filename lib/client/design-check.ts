@@ -41,9 +41,33 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
   const desktop = w >= DESIGN.layout.desktopFrom;
   const out: Finding[] = [];
   const fail = (rule: string, detail: string) => out.push({ rule, detail });
+  // Text the auto-fit shrank to fit a narrow phone (components/auto-fit.tsx) is judged by its designed size.
+  const designed = (e: Element) => Number((e as HTMLElement).dataset.fitBase) || px(cs(e).fontSize);
 
   // ---- everywhere
   if (doc.documentElement.scrollWidth > w + 1) fail("No sideways scrolling", `page is ${doc.documentElement.scrollWidth}px wide in a ${w}px window`);
+
+  // On a phone, at whatever width (a font-size setting makes the page narrower), no text is cut
+  // short or runs off the screen: one-line text is shrunk to fit (components/auto-fit.tsx), the
+  // rest wraps. Text in something that scrolls sideways on purpose (tabs, a wide table) is fine.
+  if (!desktop) {
+    (win as unknown as { __ghaFit?: () => void }).__ghaFit?.();
+    const scrolls = (e: Element) => {
+      for (let p = e.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(cs(p).overflowX) && p.scrollWidth > p.clientWidth + 1) return true;
+      return false;
+    };
+    const said = (e: Element) => `"${(e.textContent ?? "").trim().slice(0, 40)}"`;
+    const cut = all(".MuiTypography-noWrap, .MuiChip-label, .MuiBottomNavigationAction-label, .MuiListItemText-primary, .MuiButton-root, [data-fit]")
+      .filter((e) => (e.textContent ?? "").trim() && cs(e).overflow !== "visible" && e.scrollWidth > e.clientWidth + 1 && !scrolls(e));
+    if (cut.length) fail("Text fits", `${cut.length} cut short, e.g. ${said(cut[0])}`);
+    const off = all("p,span,h1,h2,h3,h4,h5,h6,label,button,a,li")
+      .filter((e) => (e.textContent ?? "").trim() && !e.children.length && !scrolls(e))
+      .filter((e) => {
+        const r = e.getBoundingClientRect();
+        return r.right > w + 1 || r.left < -1;
+      });
+    if (off.length) fail("Text fits", `${off.length} run off the screen, e.g. ${said(off[0])}`);
+  }
 
   const fonts = new Set(
     all("h1,h2,h3,p,span,button,input,textarea,label,li")
@@ -66,7 +90,7 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
       else if ((h1 as HTMLElement).dataset.titleHidden) {
         // A screen whose tabs name it (Account) keeps its title for screen readers only.
       }
-      else if (!near(px(cs(h1).fontSize), size) || cs(h1).fontWeight !== "600") fail("Page title", `${px(cs(h1).fontSize)}px/${cs(h1).fontWeight}, should be ${size}px/600`);
+      else if (!near(designed(h1), size) || cs(h1).fontWeight !== "600") fail("Page title", `${designed(h1)}px/${cs(h1).fontWeight}, should be ${size}px/600`);
     }
 
     // ---- section titles
@@ -134,7 +158,7 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
   for (const d of all(".MuiDialog-paper")) {
     if (!d.querySelector("svg linearGradient")) fail("Dialog: green wave header", "dialog has no header-green wave");
     const title = d.querySelector("svg + div p, svg ~ div .MuiTypography-root");
-    if (title && !near(px(cs(title).fontSize), DESIGN.type.dialogTitle)) fail("Dialog title", `${label(title)} is ${px(cs(title).fontSize)}px, should be ${DESIGN.type.dialogTitle}px`);
+    if (title && !near(designed(title), DESIGN.type.dialogTitle)) fail("Dialog title", `${label(title)} is ${designed(title)}px, should be ${DESIGN.type.dialogTitle}px`);
     const r = d.getBoundingClientRect();
     if (w < 600 && (r.width < w - 1 || r.left > 1)) fail("Dialog: full screen on phones", `dialog is ${Math.round(r.width)}px wide in a ${w}px window`);
     if (w >= 600 && !near(px(cs(d).borderRadius), DESIGN.radius.dialog)) fail("Dialog corners", `${cs(d).borderRadius}, should be ${DESIGN.radius.dialog}px`);
@@ -148,7 +172,8 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
     if (!near(px(cs(c).borderRadius), DESIGN.radius.chip)) fail("Chip corners", `${label(c)} has ${cs(c).borderRadius}`);
   }
   for (const b of all(".MuiButton-sizeLarge.MuiButton-contained")) {
-    if (!near(px(cs(b).height), DESIGN.height.buttonLarge)) fail("Main button height", `${label(b)} is ${px(cs(b).height)}px`);
+    // Taller only when its words had to wrap to fit a narrow phone.
+    if (!near(px(cs(b).height), DESIGN.height.buttonLarge) && !(b as HTMLElement).dataset.fitWrapped) fail("Main button height", `${label(b)} is ${px(cs(b).height)}px`);
     if (!near(px(cs(b).borderRadius), DESIGN.radius.buttonLarge)) fail("Main button shape", `${label(b)} has ${cs(b).borderRadius} corners`);
     // On the desktop sign-in panel the main button is white, dimmed when disabled (template §2).
     const onPanel = desktop && kind === "auth" && b.closest("[data-auth=card]");

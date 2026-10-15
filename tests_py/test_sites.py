@@ -50,7 +50,8 @@ def t(fx):
                 f"pytest site {uuid.uuid4().hex[:6]}",
                 SITE[0] if located else None,
                 SITE[1] if located else None,
-                w["ho"]["uid"],
+                # One homeowner, one project (0043): "ho" has the first; each other its own.
+                w["ho"]["uid"] if not w.get("pids") else fx.user("homeowner")["uid"],
                 g,
                 w["pm"]["uid"],
                 status,

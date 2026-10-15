@@ -13,7 +13,7 @@
  *    typed: "+65 9123 4567", "91234567", "9123 4567" and "4567" all work.
  */
 
-export type Role = "homeowner" | "project_manager" | "contractor" | "epc_team" | "superadmin";
+export type Role = "homeowner" | "project_manager" | "contractor" | "epc_team" | "superadmin" | "finance";
 export type Status = "active" | "invited" | "disabled";
 
 export type SearchablePerson = {
@@ -37,6 +37,7 @@ export const ROLE_WORDS: Record<Role, string[]> = {
   epc_team: ["epc team", "epc", "crew", "installer", "technician", "site team", "epc团队", "安装团队", "施工队"],
   project_manager: ["project manager", "pm", "manager", "staff", "项目经理", "经理"],
   superadmin: ["superadmin", "super admin", "administrator", "owner", "超级管理员", "管理员"],
+  finance: ["admin", "finance", "accounts", "billing", "payments", "财务", "管理员", "账务"],
 };
 
 export const STATUS_WORDS: Record<Status, string[]> = {

@@ -104,6 +104,7 @@ def test_a_file_taken_off_a_project_stays_restorable(api, world) -> None:
     assert api.delete(f"/api/py/projects/{f.pid}/files/{fid}", headers=world.h("crew_epc")).status_code == 200
     sweep.sweep()
     assert _stored(key), "removed from the project, not from storage"
+    f.release()
 
 
 def test_a_finished_upload_crosses_its_note_off(api, world) -> None:
@@ -124,6 +125,7 @@ def test_a_finished_upload_crosses_its_note_off(api, world) -> None:
     )
     assert done.status_code == 200
     assert not world.conn.execute("select 1 from upload_intents where key = %s", (link["key"],)).fetchone()
+    f.release()
 
 
 def test_the_scheduled_job_runs_the_sweep(api, world, monkeypatch) -> None:

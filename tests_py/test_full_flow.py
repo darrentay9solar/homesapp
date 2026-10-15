@@ -74,6 +74,7 @@ def team():
         "admin": user("contractor", "Flow Admin"),
         "epc": user("epc_team", "Flow EPC"),
         "outsider": user("epc_team", "Flow Outsider"),
+        "fin": user("finance", "Flow Finance"),
     }
     t["group"] = c.execute(
         "insert into contractor_groups (name) values (%s) returning group_id", (f"pytest flow {tag}",)
@@ -85,10 +86,11 @@ def team():
     pids = [s["pid"] for s in STATE.values() if "pid" in s]
     for pid in pids:
         shutil.rmtree(storage.LOCAL_DIR / "projects" / str(pid), ignore_errors=True)
+    c.execute("delete from invoices where project_id = any(%s)", (pids,))
     c.execute("delete from projects where project_id = any(%s)", (pids,))
     c.execute("delete from contractor_group_members where group_id = %s", (t["group"],))
     c.execute("delete from contractor_groups where group_id = %s", (t["group"],))
-    uids = [t[r]["uid"] for r in ("pm", "ho", "admin", "epc", "outsider")]
+    uids = [t[r]["uid"] for r in ("pm", "ho", "admin", "epc", "outsider", "fin")]
     c.execute(
         "delete from users u where uid = any(%s) and not exists (select 1 from audit_log a where a.actor_uid = u.uid)",
         (uids,),
@@ -597,6 +599,18 @@ def test_21_a_project_manager_closes_it_and_everyone_is_told(client, team, s, ba
     assert client.post(f"/api/py/projects/{pid}/close", headers=h(team, "ho")).status_code == 403
     assert client.post(f"/api/py/projects/{pid}/close", headers=h(team, "admin")).status_code == 403
     assert client.post(f"/api/py/projects/{pid}/milestones/3/reopen", headers=h(team, "pm")).status_code == 409
+    # The admin fee is paid first: Admin issues it, the homeowner pays, Admin confirms.
+    r = client.post(f"/api/py/projects/{pid}/close", headers=h(team, "pm"))
+    assert r.status_code == 409 and "admin fee" in r.json()["error"]
+    assert client.get(f"/api/py/projects/{pid}/handover", headers=h(team, "pm")).json()["feePaid"] is False
+    fee = client.post("/api/py/finance/admin-fee", headers=h(team, "fin"), json={"projectId": pid})
+    assert fee.status_code == 200, fee.text
+    assert client.post("/api/py/finance/admin-fee", headers=h(team, "pm"), json={"projectId": pid}).status_code == 403
+    iid = fee.json()["invoice"]["id"]
+    issued = fee.json()["invoice"]
+    paid = client.post(f"/api/py/finance/invoices/{iid}/paid", headers=h(team, "fin"),
+                       json={"paidOn": issued["issuedOn"], "amount": issued["amount"]})  # fmt: skip
+    assert paid.status_code == 200, paid.text
     r = client.post(f"/api/py/projects/{pid}/close", headers=h(team, "pm"))
     assert r.status_code == 200, r.text
     assert status(team, pid) == "maintenance"

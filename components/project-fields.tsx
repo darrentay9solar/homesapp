@@ -51,7 +51,7 @@ export function SectionPanel({ ctx, section: s, index, open, onToggle }: { ctx: 
   const shown = s.fields.filter((f) => f.shown);
   return (
     <Card sx={{ opacity: s.lockedReason ? 0.72 : 1 }} data-testid="project-section" data-locked={Boolean(s.lockedReason) || undefined}>
-      <ButtonBase onClick={onToggle} sx={{ width: "100%", textAlign: "left", fontFamily: "inherit", p: 1.75, gap: 1.5, alignItems: "center", borderRadius: `${DESIGN.radius.card}px` }} aria-expanded={open}>
+      <ButtonBase onClick={onToggle} sx={{ width: "100%", textAlign: "left", fontFamily: "inherit", p: 1.75, gap: 1.5, rowGap: 0.75, flexWrap: "wrap", alignItems: "center", borderRadius: `${DESIGN.radius.card}px` }} aria-expanded={open}>
         <Box
           sx={(t) => ({
             width: 32,
@@ -68,7 +68,7 @@ export function SectionPanel({ ctx, section: s, index, open, onToggle }: { ctx: 
         >
           {s.complete ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : s.lockedReason ? <LockOutlinedIcon sx={{ fontSize: 16 }} /> : index + 1}
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere" }}>
           <Typography sx={[{ fontWeight: 600, fontSize: 15 }, gradText()]}>{TR(s.name)}</Typography>
           <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
             {s.lockedReason ? TR(s.lockedReason) : T("{done} of {total} required · {sub}", { done: s.done, total: s.total, sub: TR(s.sub) })}

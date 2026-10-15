@@ -4,7 +4,7 @@
  * describing the current state in a line.
  */
 
-export type Category = "approvals" | "visits" | "late" | "milestones" | "meetings" | "maintenance" | "warnings" | "summary" | "support" | "people" | "account";
+export type Category = "approvals" | "visits" | "late" | "milestones" | "meetings" | "maintenance" | "warnings" | "summary" | "support" | "payments" | "people" | "account";
 export type Prefs = {
   pausedUntil: string | null;
   quiet: { on: boolean; from: string; to: string };
@@ -27,11 +27,12 @@ export const CATEGORIES: Array<{ key: Category; label: string; sub: string; pm?:
   { key: "visits", label: "Site visits", sub: "Visits scheduled for you, and the reminder an hour before" },
   { key: "late", label: "Crews running late", sub: "No check-in an hour after a visit's start, or a late arrival" },
   { key: "milestones", label: "Milestones and handover", sub: "A milestone completed, or a project ready for handover" },
-  { key: "meetings", label: "Meetings", sub: "Meeting requests, answers, meetings moved or cancelled, and reminders a day and 30 minutes before" },
+  { key: "meetings", label: "Meetings", sub: "Meeting requests, answers, meetings moved or cancelled, and reminders at the times chosen" },
   { key: "maintenance", label: "Maintenance checks", sub: "A 6-month or 1-year check coming up, due, or overdue" },
   { key: "warnings", label: "Late and overdue", sub: "A project gone past its target date; to superadmins, anything two weeks late or a check a month overdue", pm: true },
   { key: "summary", label: "Morning summary", sub: "At 8 am, Monday to Saturday: what needs you today. Only sent when something does", pm: true },
   { key: "support", label: "Support", sub: "Answers to your questions, people asking for help, and conversations you're added to" },
+  { key: "payments", label: "Payments", sub: "Invoices issued to you, payments received, and proof of payment to check" },
   { key: "people", label: "People to review", sub: "New account and role requests", pm: true },
   { key: "account", label: "Your account", sub: "Your account or role approved, and changes reverted" },
 ];

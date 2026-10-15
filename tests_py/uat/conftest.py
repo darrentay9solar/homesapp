@@ -161,7 +161,7 @@ class Cached:
     def get(self, path: str, actor: str, state: str) -> tuple[int, Any]:
         key = (path, actor, state)
         if key not in self.store:
-            r = self.api.get(path.format(pid=self.w.pid[state]), headers=self.w.h(actor), follow_redirects=False)
+            r = self.api.get(path.format(pid=self.w.pid[state]), headers=self.w.h(actor, self.w.pid[state]), follow_redirects=False)
             body = r.json() if r.headers.get("content-type", "").startswith("application/json") else None
             self.store[key] = (r.status_code, body)
         return self.store[key]

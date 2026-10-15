@@ -36,6 +36,8 @@ def request_account(body: RequestIn, acct: Account = Depends(account)) -> dict[s
         raise HTTPException(400, "Verify your email address first.")
 
     p = clean_profile(body, require_mobile=True)
+    if p["user_type"] == "finance":
+        raise HTTPException(400, "Admin accounts are made by a superadmin. Choose another role.")
     # One mobile number, one account: not one already on an account, nor on someone else's request waiting.
     waiting = fetch_one(
         "select 1 from account_requests where status = 'pending' and clerk_user_id is distinct from %s "

@@ -31,6 +31,8 @@ from _routes import projects as proj
 
 router = APIRouter()
 pm_only = role("project_manager")
+# Admin (finance) looks at every system, read-only.
+looks = role("project_manager", "finance")
 
 # A check is "due soon" this many days ahead.
 SOON = timedelta(days=30)
@@ -46,7 +48,7 @@ SELECT = (
 
 
 def _visible(acct: Account) -> tuple[str, dict[str, Any]]:
-    if acct.role == "superadmin":
+    if acct.role in ("superadmin", "finance"):
         return "true", {}
     return "(m.run_by is null or m.run_by = %(me)s)", {"me": acct.uid}
 
@@ -158,7 +160,7 @@ def _one(acct: Account, sid: int) -> dict[str, Any]:
 
 
 @router.get("/maintenance")
-def systems(acct: Account = Depends(pm_only)) -> dict[str, Any]:
+def systems(acct: Account = Depends(looks)) -> dict[str, Any]:
     where, params = _visible(acct)
     today = proj.today()
     rows = fetch_all(f"{SELECT} where {where} order by m.address", params)  # type: ignore[arg-type]
@@ -173,7 +175,7 @@ def systems(acct: Account = Depends(pm_only)) -> dict[str, Any]:
 
 
 @router.get("/maintenance/{sid}")
-def system(sid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
+def system(sid: int, acct: Account = Depends(looks)) -> dict[str, Any]:
     return detail(acct, _one(acct, sid))
 
 

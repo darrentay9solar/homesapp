@@ -3,9 +3,10 @@
 
   check states     every check due from 400 days ago to 400 days ahead, done or not, on 25 days
   check reminders  14 days before, on the day, and overdue (up to 90 days), on 20 days
-  meeting reminders a day before and 30 minutes before, across 26 hours and six lead times
+  meeting reminders the times chosen, across 26 hours, six lead times and five sets of times
   quiet and mute   every alert kind at every hour, quiet hours, pause and urgent on and off
   call links       5,000 links: only Google Meet, Teams and Zoom pass
+  repeats          6,000 repeating meetings: every rule, ending on a date, after a count, or never
   the list import  dates written as text, inverter spellings, months later, PPA and phase
 
 Each case is checked against the rule as written in the docs, not against the code.
@@ -17,12 +18,13 @@ from __future__ import annotations
 import random
 import sys
 from datetime import date, datetime, time, timedelta
+from itertools import pairwise
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from _lib import maintenance_reminders, meeting_reminders, prefs
+from _lib import maintenance_reminders, meeting_reminders, prefs, repeat
 from _routes import maintenance, support
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
@@ -59,20 +61,23 @@ def test_check_reminder_stage(today, off) -> None:
 
 NOW = datetime(2026, 10, 14, 9, 0, tzinfo=SG)
 LEADS = [timedelta(minutes=30), timedelta(hours=2), timedelta(hours=6), timedelta(hours=23), timedelta(hours=30), timedelta(days=3)]
-MEETING_CASES = [(m, lead) for m in range(-30, 26 * 60 + 1, 5) for lead in LEADS]
+OFFSETS = [[60], [1440, 60], [30, 10], [0], [10080, 1440, 60, 30, 0]]
+MEETING_CASES = [(m, lead, offs) for m in range(-30, 26 * 60 + 1, 5) for lead in LEADS for offs in OFFSETS]
 
 
-@pytest.mark.parametrize(("mins", "lead"), MEETING_CASES, ids=[f"meeting:{i}" for i in range(len(MEETING_CASES))])
-def test_meeting_reminder_stage(mins, lead) -> None:
+@pytest.mark.parametrize(("mins", "lead", "offsets"), MEETING_CASES, ids=[f"meeting:{i}" for i in range(len(MEETING_CASES))])
+def test_meeting_reminders_due(mins, lead, offsets) -> None:
     start = NOW + timedelta(minutes=mins)
     made = start - lead
-    if 0 < mins <= 30:
-        want = "soon"
-    elif 30 < mins <= 24 * 60 and lead >= timedelta(hours=30):
-        want = "day"
-    else:
-        want = None
-    assert meeting_reminders.stage_for(start, made, NOW) == want
+    want = []
+    for o in offsets:
+        moment = start - timedelta(minutes=o)
+        # From its moment until the meeting starts (or a quarter of an hour, for one at the start),
+        # and only when that moment wasn't already past when the meeting was arranged.
+        open_until = max(start, moment + timedelta(minutes=15))
+        if moment <= NOW < open_until and moment >= made - timedelta(minutes=15):
+            want.append(o)
+    assert meeting_reminders.due(start, made, NOW, offsets) == sorted(want)
 
 
 # ------------------------------------------------------------------ quiet hours, pause, mute
@@ -148,6 +153,60 @@ LINKS = [link_case(RNG) for _ in range(5000)]
 @pytest.mark.parametrize(("link", "ok"), LINKS, ids=[f"link:{i}" for i in range(len(LINKS))])
 def test_call_link(link, ok) -> None:
     assert bool(support.CALL_LINK.match(link)) is ok
+
+
+# ------------------------------------------------------------------ repeating meetings
+
+
+def repeat_case(rng: random.Random) -> tuple[date, str, date | None, int | None]:
+    first = date(2026, 1, 1) + timedelta(days=rng.randrange(0, 800))
+    rule = rng.choice(repeat.RULES)
+    end = rng.randrange(3)
+    until = first + timedelta(days=rng.randrange(0, 500)) if end == 0 else None
+    count = rng.randrange(1, 260) if end == 1 else None
+    return first, rule, until, count
+
+
+RNG5 = random.Random(1410)
+REPEATS = [repeat_case(RNG5) for _ in range(6000)]
+
+
+@pytest.mark.parametrize(("first", "rule", "until", "count"), REPEATS, ids=[f"repeat:{i}" for i in range(len(REPEATS))])
+def test_repeat_dates(first, rule, until, count) -> None:
+    got = repeat.dates(first, rule, until=until, count=count)
+    last = min(until or first + timedelta(days=182), first + timedelta(days=366))
+    assert got == sorted(set(got)), "in order, each once"
+    assert all(first <= d <= last for d in got), "between the first and the end"
+    assert len(got) <= min(count or 200, 200)
+    if rule != "weekdays" or first.weekday() < 5:
+        assert got and got[0] == first, "the first meeting is the one chosen"
+    gaps = {(b - a).days for a, b in pairwise(got)}
+    if rule == "daily":
+        assert gaps <= {1}
+    elif rule == "weekdays":
+        assert all(d.weekday() < 5 for d in got) and gaps <= {1, 3}
+    elif rule == "weekly":
+        assert gaps <= {7}
+    elif rule == "fortnightly":
+        assert gaps <= {14}
+    elif rule == "monthly_day":
+        assert all(d.day == first.day for d in got)
+        assert all((b.year * 12 + b.month) - (a.year * 12 + a.month) >= 1 for a, b in pairwise(got))
+    elif rule == "monthly_weekday":
+        nth = (first.day - 1) // 7 + 1
+        for d in got:
+            assert d.weekday() == first.weekday()
+            if nth == 5:
+                assert (d + timedelta(days=7)).month != d.month, "the last one of the month"
+            else:
+                assert (d.day - 1) // 7 + 1 == nth
+        assert len({(d.year, d.month) for d in got}) == len(got), "once a month"
+    else:
+        assert all((d.month, d.day) == (first.month, first.day) for d in got)
+    # Nothing left out: had the end been later, nothing new would come before the last one given.
+    if got and (count is None or len(got) < count) and len(got) < 200:
+        more = repeat.dates(first, rule, until=last + timedelta(days=400), count=None)
+        assert [d for d in more if d <= last] == got or len(more) >= 200 or last >= first + timedelta(days=366)
 
 
 # ------------------------------------------------------------------ the list import

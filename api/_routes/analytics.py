@@ -1,6 +1,6 @@
 """The dashboard: a high-level view of the projects for quick decisions.
 
-  GET /analytics?period=30d|90d|12m|all&pm=<uid>
+  GET /analytics?period=30d|60d|90d|12m|all|<n>d&pm=<uid>    (<n>d: any number of days, 1 to 3650)
 
 Project managers see the projects they run; a superadmin sees every project
 and may narrow it to one project manager. The numbers are worked out in
@@ -26,13 +26,16 @@ pm_only = role("project_manager")
 
 @router.get("/analytics")
 def dashboard(period: str = "90d", pm: int | None = None, acct: Account = Depends(pm_only)) -> dict[str, Any]:
-    if period not in an.PERIODS:
-        raise HTTPException(400, "Choose a period: 30d, 90d, 12m or all.")
+    if not an.period(period):
+        raise HTTPException(400, "Choose a period: 30d, 60d, 90d, 12m, all, or a number of days up to 3650 (like 45d).")
     superadmin = acct.role == "superadmin"
     if pm is not None and not superadmin:
         raise HTTPException(403, "Only a superadmin can look at another project manager's projects.")
 
     rows = proj._load(acct)
+    # A project manager's dashboard is the projects they run (their list also shows ones nobody runs yet).
+    if acct.role == "project_manager":
+        rows = [r for r in rows if r["pm"]["uid"] == acct.uid]
     if pm is not None:
         rows = [r for r in rows if r["pm"]["uid"] == pm]
     ids = [r["id"] for r in rows]

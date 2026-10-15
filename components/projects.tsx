@@ -113,7 +113,7 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
             <Chip size="small" variant="outlined" label={p.milestone === 3 ? T("All milestones") : T("Milestone {n}", { n: p.currentMilestone })} />
           </Stack>
 
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1, mt: 1.5 }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(72px, 1fr))", gap: 1, mt: 1.5 }}>
             <Meta k="Start" v={p.startDate ? d2s(p.startDate) : "—"} />
             <Meta k="Target end" v={p.endDate ? d2s(p.endDate) : "—"} bad={overdue} />
             <Meta k="Elapsed" v={p.daysElapsed === 1 ? T("1 day") : T("{n} days", { n: p.daysElapsed })} />
@@ -495,7 +495,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
         )}
 
         <Box>
-          <Stack direction="row" sx={{ gap: 1.5 }}>
+          <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
             <Field label={T("Start date")} type="date" icon={<CalendarMonthRoundedIcon />} value={f.start} onChange={set("start")} />
             <Field label={T("End date")} type="date" icon={<CalendarMonthRoundedIcon />} value={f.end} onChange={set("end")} />
           </Stack>

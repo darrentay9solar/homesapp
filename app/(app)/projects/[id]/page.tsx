@@ -29,6 +29,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { ClientRecord, FeedbackCard, recordRows, WarrantyCard } from "@/components/client-record";
 import { atHandover, HandoverPanel } from "@/components/handover";
+import { InvoiceDialog, ProjectPayments } from "@/components/finance";
 import { ProjectMaintenance } from "@/components/maintenance";
 import { Field, MDialog, RoleChip } from "@/components/m";
 import { SectionPanel } from "@/components/project-fields";
@@ -38,7 +39,7 @@ import { Page } from "@/components/shell";
 import { SegTabs, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
-import { isAdmin, useApp, useMe } from "@/lib/client/app-state";
+import { handlesPayments, isAdmin, useApp, useMe } from "@/lib/client/app-state";
 import { firstOpenSection, type ProjectFields, type ProjectRow, SECTIONS } from "@/lib/client/projects";
 import { useTab } from "@/lib/client/tabs";
 import type { ProjectRecord } from "@/lib/client/records";
@@ -132,9 +133,11 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
             ))}
           </Alert>
         )}
+        {fields?.actions.takeOn && <TakeOn pid={p.id} reload={reload} />}
         <ActionBanner p={p} fields={fields} reload={reload} />
         {atHandover(p) && <HandoverPanel p={p} reload={reload} />}
         <Summary p={p} />
+        <PaymentsCard pid={p.id} />
       </Stack>
       <Box sx={{ minWidth: 0 }} data-testid={`project-${tab}`}>
         {tab === "maintenance" && <ProjectMaintenance pid={p.id} />}
@@ -310,9 +313,9 @@ function DeclineDialog({ name, busy, onClose, onDecline }: { name: string; busy:
 function Summary({ p }: { p: ProjectRow }) {
   return (
     <Card sx={{ p: { xs: 2, sm: 2.5 } }}>
-      <Stack direction="row" sx={{ gap: { xs: 2, sm: 3 }, alignItems: "center" }}>
+      <Stack direction="row" sx={{ gap: { xs: 2, sm: 3 }, alignItems: "center", flexWrap: "wrap" }}>
         <ProgressRing value={p.progress} color={p.attention ? "error" : "primary"} />
-        <Stack sx={{ gap: 1.25, minWidth: 0, flex: 1 }}>
+        <Stack sx={{ gap: 1.25, minWidth: 0, flex: "1 1 120px" }}>
           <Box>
             <Typography variant="overline" sx={{ color: "text.secondary", lineHeight: 1.6 }}>
               {T("Status")}
@@ -390,9 +393,9 @@ function MilestoneTrack({ p }: { p: ProjectRow }) {
   });
   const labels = [T("Installation"), T("Grid connection"), T("Handover")];
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 1 }}>
       {parts.map((pc, i) => (
-        <Box key={i}>
+        <Box key={i} sx={{ minWidth: 0, overflowWrap: "anywhere" }}>
           <Box sx={(t) => ({ height: 6, borderRadius: 3, bgcolor: alpha(t.palette.text.primary, 0.08), overflow: "hidden" })}>
             <Box sx={{ height: "100%", width: `${pc}%`, bgcolor: p.milestone > i ? "primary.main" : "primary.light", transition: "width .6s" }} />
           </Box>
@@ -434,5 +437,47 @@ function ProjectRecordCards({ pid }: { pid: number }) {
       <WarrantyCard warranties={data.warranties} />
       <FeedbackCard feedback={data.feedback} />
     </Stack>
+  );
+}
+
+/** A project nobody runs yet (from the project list): a project manager takes it on. */
+function TakeOn({ pid, reload }: { pid: number; reload: () => Promise<void> | void }) {
+  const fetcher = useFetcher();
+  const { toast } = useApp();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Alert severity="info" data-testid="take-on" action={
+      <Button size="small" color="inherit" disabled={busy} onClick={async () => {
+        setBusy(true);
+        try {
+          const r = await fetcher<{ message: string }>(`/projects/${pid}/take-on`, { method: "POST" });
+          toast(r.message);
+          await reload();
+        } catch (e) {
+          toast(e instanceof ApiError ? e.message : T("Something went wrong. Please try again."), "bad");
+        } finally {
+          setBusy(false);
+        }
+      }}>
+        {T("Take on this project")}
+      </Button>
+    }>
+      {T("Nobody runs this project yet. Take it on to run it.")}
+    </Alert>
+  );
+}
+
+/** The admin fee and the months: Admin opens each invoice; the homeowner goes to Payments; managers see statuses. */
+function PaymentsCard({ pid }: { pid: number }) {
+  const me = useMe();
+  const router = useRouter();
+  const [open, setOpen] = useState<number | null>(null);
+  if (!me || !["project_manager", "superadmin", "finance", "homeowner"].includes(me.role)) return null;
+  const admin = handlesPayments(me.role);
+  return (
+    <>
+      <ProjectPayments pid={pid} onOpen={admin ? setOpen : me.role === "homeowner" ? (id) => router.push(`/payments?invoice=${id}`) : undefined} />
+      {open !== null && <InvoiceDialog id={open} admin onClose={() => setOpen(null)} onChanged={() => undefined} />}
+    </>
   );
 }

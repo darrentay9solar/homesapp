@@ -500,6 +500,9 @@ def test_every_number_adds_up(views, actor, period) -> None:
 @pytest.mark.parametrize(("actor", "period"), INV, ids=[f"{a}-{p}" for a, p in INV])
 def test_the_dashboard_matches_the_projects_list(api, world, views, actor, period) -> None:
     listed = {p["id"]: p for p in api.get("/api/py/projects", headers=world.h(actor)).json()["projects"]}
+    if spec.ROLE[actor] == "project_manager":
+        # A manager's list also shows projects nobody runs yet, to take one on; their dashboard is what they run.
+        listed = {k: p for k, p in listed.items() if p["pm"]["uid"] is not None}
     d = views[(actor, period)]
     # The dashboard counts handed-over projects too; the list leaves them to Maintenance.
     assert {int(k) for k, m in d["projects"].items() if m["status"] != "maintenance"} == set(listed)

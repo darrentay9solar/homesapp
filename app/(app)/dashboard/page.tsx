@@ -43,7 +43,7 @@ import { StatusChip, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { alarmSx, GRID, SegTabs, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
-import { type Analytics, bucketLabel, days, deltaText, kwp, type MiniProject, num, type Period, PERIODS, pct } from "@/lib/client/analytics";
+import { type Analytics, bucketLabel, customDays, days, deltaText, kwp, type MiniProject, MOST_DAYS, num, type Period, PERIODS, pct } from "@/lib/client/analytics";
 import { useApi } from "@/lib/client/api";
 import { isAdmin, type Role, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
@@ -63,7 +63,11 @@ export default function DashboardPage() {
   const me = useMe();
   const router = useRouter();
   const admin = isAdmin(me?.role);
-  const [period, setPeriod] = useState<Period>("90d");
+  // A preset, or "custom": any number of days, typed.
+  const [choice, setChoice] = useState<Period | "custom">("90d");
+  const [daysText, setDaysText] = useState("45");
+  const typed = customDays(daysText);
+  const period: Period = choice === "custom" ? (typed ? `${typed}d` : "90d") : choice;
   const [pm, setPm] = useState("");
   const { data, error } = useApi<Analytics>(admin ? `/analytics?period=${period}${pm ? `&pm=${pm}` : ""}` : null);
   // No projects in the app yet, but systems to look after: the dashboard opens where the numbers are.
@@ -114,20 +118,33 @@ export default function DashboardPage() {
           {/* One row of filters above everything they scope. */}
           <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1.5, mt: 1.5, mb: 2 }}>
             {/* Maintenance looks ahead at the checks, not back over a period. */}
-            {tab !== "maintenance" && <Field select label={T("Period")} value={period} onChange={(e) => setPeriod(e.target.value as Period)} sx={{ minWidth: 200 }} data-testid="dashboard-period">
+            {tab !== "maintenance" && <Field select label={T("Period")} value={choice} onChange={(e) => setChoice(e.target.value as Period | "custom")} sx={{ minWidth: { sm: 200 } }} data-testid="dashboard-period">
               {PERIODS.map(([k, l]) => (
                 <MenuItem key={k} value={k}>
                   {TR(l)}
                 </MenuItem>
               ))}
+              <MenuItem value="custom">{T("Custom: a number of days")}</MenuItem>
             </Field>}
+            {tab !== "maintenance" && choice === "custom" && (
+              <Field
+                label={T("Days")}
+                type="number"
+                value={daysText}
+                onChange={(e) => setDaysText(e.target.value)}
+                error={typed === null}
+                helperText={typed === null ? T("1 to {n} days", { n: String(MOST_DAYS) }) : T("The last {n} days, today included", { n: String(typed) })}
+                sx={{ width: { xs: "100%", sm: 200 } }}
+                slotProps={{ htmlInput: { min: 1, max: MOST_DAYS, inputMode: "numeric", "data-testid": "dashboard-days" } }}
+              />
+            )}
             {data?.scope.superadmin && (
               <Field
                 select
                 label={T("Project manager")}
                 value={pm}
                 onChange={(e) => setPm(e.target.value)}
-                sx={{ minWidth: 240 }}
+                sx={{ minWidth: { sm: 240 } }}
                 data-testid="dashboard-pm"
                 slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
               >
@@ -197,13 +214,13 @@ function UpkeepSummary({ d, onOpen }: { d: Analytics; onOpen: () => void }) {
       <ButtonBase
         onClick={onOpen}
         aria-label={T("Open Maintenance")}
-        sx={(th) => ({ width: "100%", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr)) auto", gap: { xs: 1, sm: 3 }, alignItems: "center", px: 1, py: 1, borderRadius: `${DESIGN.radius.listItem}px`, "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) } })}
+        sx={(th) => ({ width: "100%", display: "grid", gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr)) auto" }, gap: { xs: 1, sm: 3 }, alignItems: "center", px: 1, py: 1, borderRadius: `${DESIGN.radius.listItem}px`, "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) } })}
       >
         <Figure n={u.tiles.systems.count} label="systems" />
         <Figure n={attention} label="need attention" bad={attention > 0} />
         <Figure n={u.tiles.dueSoon.count} label="checks in 30 days" />
         <Figure n={u.tiles.unassigned.count} label="unassigned" />
-        <ChevronRightRoundedIcon sx={{ color: "text.secondary" }} />
+        <ChevronRightRoundedIcon sx={{ color: "text.secondary", display: { xs: "none", sm: "block" } }} />
       </ButtonBase>
     </ChartCard>
   );
@@ -302,8 +319,8 @@ function Overview({ d, open, toggle, onPm, onMaintenance }: Props & { onPm: (uid
         <ChartCard title="By project manager" sub={T("Tap a project manager to see only their projects.")} testId="chart-team">
           <Stack sx={{ gap: 0.5 }}>
             {d.team.map((m) => (
-              <ButtonBase key={m.uid} onClick={() => onPm(m.uid)} sx={(th) => ({ display: "grid", gridTemplateColumns: "minmax(0, 1fr) repeat(4, auto)", gap: { xs: 1.25, sm: 3 }, alignItems: "center", textAlign: "left", px: 1, py: 1, borderRadius: `${DESIGN.radius.listItem}px`, "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) } })}>
-                <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
+              <ButtonBase key={m.uid} onClick={() => onPm(m.uid)} sx={(th) => ({ display: "grid", gridTemplateColumns: { xs: "repeat(4, minmax(0, 1fr))", sm: "minmax(0, 1fr) repeat(4, auto)" }, gap: { xs: 1.25, sm: 3 }, alignItems: "center", textAlign: "left", px: 1, py: 1, borderRadius: `${DESIGN.radius.listItem}px`, "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) } })}>
+                <Typography variant="body2" noWrap sx={{ fontWeight: 600, gridColumn: { xs: "1 / -1", sm: "auto" } }}>
                   {m.name}
                 </Typography>
                 <Figure n={m.ongoing} label="ongoing" />
@@ -321,7 +338,7 @@ function Overview({ d, open, toggle, onPm, onMaintenance }: Props & { onPm: (uid
 
 function Figure({ n, text, label, bad }: { n?: number; text?: string; label: string; bad?: boolean }) {
   return (
-    <Box sx={{ textAlign: "right", minWidth: 44 }}>
+    <Box sx={{ textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>
       <Typography sx={{ fontWeight: 700, fontSize: 15, color: bad ? "error.main" : "text.primary", fontVariantNumeric: "tabular-nums" }}>{text ?? num(n)}</Typography>
       <Typography variant="caption" sx={{ color: "text.secondary", display: "block", lineHeight: 1.2 }}>
         {TR(label)}

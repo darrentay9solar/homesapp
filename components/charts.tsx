@@ -75,8 +75,8 @@ export function ChartCard({
   const [asTable, setAsTable] = useState(false);
   return (
     <Card sx={{ p: { xs: 2, sm: 2.5 }, minWidth: 0 }} data-testid={testId}>
-      <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1 }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1, flexWrap: "wrap" }}>
+        <Box sx={{ flex: "1 1 140px", minWidth: 0, overflowWrap: "anywhere" }}>
           <Typography component="h3" sx={[{ fontWeight: 600, fontSize: 15.5 }, gradText()]}>
             {TR(title)}
           </Typography>
@@ -516,7 +516,7 @@ export function Heatmap({ days, hours, counts }: { days: string[]; hours: number
         ))}
       </Box>
       <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 1.25, flexWrap: "wrap" }}>
-        <Typography variant="caption" sx={{ color: "text.secondary", flex: 1, minWidth: 0 }}>
+        <Typography variant="caption" sx={{ color: "text.secondary", flex: "1 1 160px", minWidth: 0 }}>
           {hover ? T("{day} {hour}: {n} check-ins", { day: TR(days[hover.d]), hour: hourLabel(hours[hover.h]), n: counts[hover.d][hover.h] }) : T("Hover or tap a square for its count.")}
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>

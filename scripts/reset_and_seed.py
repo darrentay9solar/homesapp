@@ -67,6 +67,8 @@ URLS = {"dev": "MIGRATION_DATABASE_URL", "test": "TEST_MIGRATION_DATABASE_URL", 
 # Everything a project or a person owns. TRUNCATE skips row triggers (no audit
 # entry per row) and CASCADE takes anything else that points at these.
 WIPE = [
+    "bank_statements",
+    "invoices",
     "support_messages",
     "support_members",
     "support_threads",
@@ -101,6 +103,8 @@ PEOPLE = [
     # The superadmin: only ever put in by the database owner, which this script is.
     ("sam", "Sam Tan", "superadmin", "+65 9001 2200", []),
     ("charlotte", "Charlotte Sim", "project_manager", "+65 9001 2201", []),
+    # Admin: payments and invoices; every project, read-only.
+    ("wendy", "Wendy Loh", "finance", "+65 9001 2206", []),
     # A second project manager, running two projects of their own: each PM sees only theirs.
     ("marcus", "Marcus Lim", "project_manager", "+65 9001 2205", []),
     ("priya", "Priya Nair", "contractor", "+65 9001 2202", ["apex", "kim"]),
@@ -953,6 +957,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     maintenance(c, u)
     meetings(c, u)
     support(c, u)
+    payments(c, u, bucket)
 
 
 # Sample systems from before the app, as the project listing import brings them in:
@@ -1040,10 +1045,10 @@ def meetings(c: psycopg.Connection, u: dict[str, int]) -> None:
             place="online", online_link="https://teams.microsoft.com/l/meetup-join/demo-design-review",
             notes="Roof layout and the inverter position.", project_id=jk["project_id"] if jk else None)  # fmt: skip
     meeting("Crew briefing", "charlotte", {"priya": "accepted", "ravi": "accepted"}, at(2, 14), 1,
-            place="office", location="9 Solar Home office", project_id=jk["project_id"] if jk else None)  # fmt: skip
+            place="physical", location="9 Solar Home office", project_id=jk["project_id"] if jk else None)  # fmt: skip
     meeting("Monthly review", "sam", {"charlotte": "accepted", "marcus": "pending"}, at(3, 9, 30), 1.5,
             place="online", online_link="https://meet.google.com/demo-monthly-review")  # fmt: skip
-    meeting("Scaffolding plan", "priya", {"charlotte": "pending"}, at(3, 10), 1, place="site", location="Jalan Kayu")
+    meeting("Scaffolding plan", "priya", {"charlotte": "pending"}, at(3, 10), 1, place="physical", location="Jalan Kayu")
     # Siglap Garden House is in maintenance: its homeowner has asked for the 6-month visit.
     sg = c.execute(
         "select m.system_id, m.run_by, m.address from maintenance_systems m join projects p using (project_id) "
@@ -1052,7 +1057,19 @@ def meetings(c: psycopg.Connection, u: dict[str, int]) -> None:
     if sg and sg["run_by"]:
         manager = next(k for k, v in u.items() if v == sg["run_by"])
         meeting("6-month check · Siglap Garden House", "ethan", {manager: "pending"}, at(6, 9), 2, kind="maintenance_check",
-                place="site", location=sg["address"], system_id=sg["system_id"], check_key="six_month")  # fmt: skip
+                place="physical", location=sg["address"], system_id=sg["system_id"], check_key="six_month")  # fmt: skip
+    # A weekly site sync, six times, reminded a day and half an hour before (each time is its own meeting).
+    first = None
+    for week in range(6):
+        mid = meeting("Weekly site sync", "charlotte", {"priya": "accepted" if week < 2 else "pending", "ravi": "accepted"},
+                      at(1 + 7 * week, 8, 30), 0.5, place="online", online_link="https://teams.microsoft.com/l/meetup-join/demo-weekly-sync",
+                      reminders=[1440, 30])  # fmt: skip
+        first = first or mid
+        c.execute("update meetings set series_id = %s, repeat = 'weekly' where meeting_id = %s", (first, mid))
+    # In person, its address found from the postal code.
+    meeting("Roof inspection with the homeowner", "charlotte", {"jasmine": "accepted", "ravi": "pending"}, at(2, 9), 1.5,
+            place="physical", location="23 Jalan Kayu, Singapore 799000", postal_code="799000", reminders=[1440, 60],
+            project_id=jk["project_id"] if jk else None)  # fmt: skip
     # A cancelled one stays on record.
     mid = meeting("Retailer contract call", "charlotte", {"daniel": "accepted"}, at(4, 16), 0.5, place="phone", location="+65 8877 2210")
     c.execute("update meetings set cancelled_at = now(), cancelled_by = %s where meeting_id = %s", (u["charlotte"], mid))
@@ -1164,9 +1181,6 @@ def main() -> None:
             print(f"Seeded: {n['p']} projects, {n['u']} accounts, {n['f']} files.")
 
 
-if __name__ == "__main__":
-    main()
-
 
 def support(c: psycopg.Connection, u: dict[str, int]) -> None:
     """Help and Support: the starter answers, a conversation a manager is on (with a crew lead brought in), and one waiting."""
@@ -1210,3 +1224,155 @@ def support(c: psycopg.Connection, u: dict[str, int]) -> None:
         (None, "assistant", "I'm not sure about that one. Your project manager can help: tap Talk to a person.", 69),
         ("aisha", "event", "Asked for a person.", 65),
     ], ["aisha"])  # fmt: skip
+
+
+def payments(c: psycopg.Connection, u: dict[str, int], bucket: Bucket | None) -> None:
+    """Payments as they'd look: the company's details and a sample QR, admin fees (paid, waiting, one holding a
+    handover back), a year of monthly invoices from each system's kWh, one overdue with proof sent, a void one,
+    and a bank statement matched."""
+    import uuid as _uuid
+    from decimal import ROUND_HALF_UP, Decimal
+
+    c.execute("select set_config('app.actor_uid', '', false)")
+    assets = Path(__file__).resolve().parent / "demo_assets"
+    if bucket:
+        for key in bucket.keys("finance/"):
+            bucket.delete(key)
+    keys = {}
+    for which, name in (("qr", "sample-paynow-qr.jpg"), ("logo", "sample-logo.jpg")):
+        key = f"finance/{which}/{_uuid.uuid4()}.jpg"
+        data = (assets / name).read_bytes()
+        if bucket:
+            bucket.put(key, data, "image/jpeg")
+        else:
+            path = storage.LOCAL_DIR / key
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+            path.with_suffix(path.suffix + ".type").write_text("image/jpeg")
+        keys[which] = key
+    c.execute(
+        "update finance_settings set company_name = '9 Solar Home', company_address = %s, company_uen = '202000000X', "
+        "company_email = 'billing.demo@example.com', company_phone = '+65 6000 0000', logo_key = %s, qr_key = %s, "
+        "pay_note = %s, admin_fee = 3500, plan_years = 8, due_days = 14, accent = '#0B8A5A', invoice_title = 'INVOICE', "
+        "intro = null, footer = %s, terms = %s, "
+        "show = '{\"logo\": true, \"qr\": true, \"uen\": true, \"kwh\": true, \"terms\": true}'::jsonb where id = 1",
+        ("10 Example Crescent\n#05-01\nSingapore 400000", keys["logo"], keys["qr"],
+         "Scan the QR with your banking app (PayNow) and put the invoice number as the reference. This is a sample QR for the demo: don't pay it.",
+         "Thank you for choosing solar with 9 Solar Home.",
+         "Payment is due within 14 days of the invoice date. Monthly amounts are the solar power your system generated that month times the rate in your contract."),
+    )  # fmt: skip
+
+    cent = Decimal("0.01")
+
+    def invoice(kind: str, issued: date, amount: Decimal, *, bill: dict, status: str = "issued", paid_after: int = 5,
+                via: str = "manual", proof: bool = False, void: str | None = None, **cols: object) -> int:
+        iid = c.execute("select nextval(pg_get_serial_sequence('invoices', 'invoice_id')) as id").fetchone()["id"]
+        paid_on = issued + timedelta(days=paid_after) if status == "paid" else None
+        row = {
+            "invoice_id": iid, "number": f"INV-{issued.year}-{iid:05d}", "kind": kind, "amount": amount,
+            "issued_on": issued, "due_on": issued + timedelta(days=14), "status": status,
+            "bill_to": bill["name"], "bill_address": bill["address"], "bill_email": bill["email"], "homeowner_id": bill["uid"],
+            "paid_on": paid_on, "paid_amount": amount if status == "paid" else None,
+            "paid_via": via if status == "paid" else None, "paid_ref": f"PAYNOW {iid:05d}" if status == "paid" else None,
+            "confirmed_by": u["wendy"] if status == "paid" else None, "created_by": u["wendy"],
+            "proof_key": f"payments/{iid}/{_uuid.uuid4()}.jpg" if proof else None,
+            "proof_at": datetime.combine(issued + timedelta(days=9), datetime.min.time(), SG) if proof else None,
+            "proof_note": "Paid by PayNow, screenshot attached." if proof else None,
+            "void_reason": void, "created_at": datetime.combine(issued, datetime.min.time().replace(hour=9), SG), **cols,
+        }  # fmt: skip
+        if proof:
+            data = (assets / "sample-logo.jpg").read_bytes()
+            if bucket:
+                bucket.put(row["proof_key"], data, "image/jpeg")
+            else:
+                path = storage.LOCAL_DIR / row["proof_key"]
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                path.with_suffix(path.suffix + ".type").write_text("image/jpeg")
+        c.execute(f"insert into invoices ({', '.join(row)}) values ({', '.join(['%s'] * len(row))})", tuple(row.values()))
+        return iid
+
+    # The admin fee: paid for every project handed over or under way; one signed project is held back
+    # by it (its handover waits for Admin), one awaiting its signature has proof sent.
+    held = False
+    for r in c.execute(
+        "select p.project_id, p.status::text as status, p.created_at, p.address, p.postal_code, p.homeowner_id, "
+        "coalesce(h.full_name, p.homeowner_name) as name, h.email from projects p left join users h on h.uid = p.homeowner_id "
+        "where p.status::text not in ('draft', 'awaiting_homeowner', 'homeowner_declined') order by p.project_id"
+    ).fetchall():  # fmt: skip
+        bill = {"name": r["name"] or "Homeowner", "address": f"{r['address']}", "email": r["email"], "uid": r["homeowner_id"]}
+        issued = min(r["created_at"].astimezone(SG).date() + timedelta(days=3), TODAY)
+        if r["status"] == "signed" and not held:
+            held = True
+            invoice("admin_fee", issued, Decimal("3500.00"), bill=bill, project_id=r["project_id"])
+        elif r["status"] == "awaiting_signature":
+            invoice("admin_fee", issued, Decimal("3500.00"), bill=bill, project_id=r["project_id"], proof=True)
+        else:
+            invoice("admin_fee", issued, Decimal("3500.00"), bill=bill, status="paid", project_id=r["project_id"])
+
+    # Monthly: each system's kWh for the months since it was turned on (the last 12), times its rate.
+    names = ["Mr & Mrs Lim", "Mdm Tan", "Mr Goh", "Ms Ong", "Mr Rahman", "Mrs Chandra"]
+    this_month = TODAY.replace(day=1)
+    statement: list[dict] = []
+    for i, m in enumerate(c.execute(
+        "select m.system_id, m.project_id, m.address, m.postal_code, m.homeowner_id, m.kwp, m.turned_on_on, "
+        "coalesce(h.full_name, m.homeowner_name) as name, h.email from maintenance_systems m "
+        "left join users h on h.uid = m.homeowner_id where m.turned_on_on is not null order by m.system_id"
+    ).fetchall()):  # fmt: skip
+        rate = Decimal("0.2400") + Decimal(i % 5) / 100
+        name = m["name"] or names[i % len(names)]
+        c.execute("update maintenance_systems set rate_per_kwh = %s, homeowner_name = coalesce(homeowner_name, %s) where system_id = %s",
+                  (rate, name, m["system_id"]))  # fmt: skip
+        bill = {"name": name, "address": f"{m['address']}, Singapore {m['postal_code']}" if m["postal_code"] else m["address"],
+                "email": m["email"], "uid": m["homeowner_id"]}  # fmt: skip
+        first = max(m["turned_on_on"].replace(day=1), add_months(this_month, -12))
+        months = []
+        mo = first
+        while mo < this_month:
+            months.append(mo)
+            mo = add_months(mo, 1)
+        for k, mo in enumerate(months):
+            kwp = Decimal(str(m["kwp"] or 8))
+            # Sunnier months generate more; each system a little differently.
+            kwh = (kwp * Decimal(105 + (mo.month * 7 + i * 13) % 30)).quantize(cent)
+            c.execute("insert into system_output (system_id, month, kwh) values (%s, %s, %s) on conflict (system_id, month) do update set kwh = excluded.kwh",
+                      (m["system_id"], mo, kwh))  # fmt: skip
+            amount = (kwh * rate).quantize(cent, ROUND_HALF_UP)
+            issued = min(add_months(mo, 1) + timedelta(days=1), TODAY)
+            last = k == len(months) - 1
+            before_last = k == len(months) - 2
+            common = {"bill": bill, "system_id": m["system_id"], "project_id": m["project_id"], "period": mo, "kwh": kwh, "rate": rate}
+            if last:
+                invoice("monthly", issued, amount, **common)  # this month's to pay
+            elif before_last and i % 4 == 1:
+                invoice("monthly", issued, amount, proof=i % 8 == 1, **common)  # overdue (one with proof sent)
+            elif before_last and i % 4 == 2:
+                invoice("monthly", issued, amount, status="void", void="Wrong kWh reading; reissued.", **common)
+                invoice("monthly", issued + timedelta(days=2), amount - Decimal("12.40"), status="paid", via="statement", **common)
+            else:
+                via = "statement" if k % 2 else "manual"
+                iid = invoice("monthly", issued, amount, status="paid", via=via, **common)
+                if before_last and via == "statement":
+                    statement.append({"date": (issued + timedelta(days=5)).isoformat(), "amount": str(amount),
+                                      "words": f"PAYNOW INV-{issued.year}-{iid:05d} {name.upper()}", "invoiceId": iid,
+                                      "number": f"INV-{issued.year}-{iid:05d}", "result": "match"})  # fmt: skip
+    statement.append({"date": TODAY.isoformat(), "amount": "88.00", "words": "GIRO TRANSFER", "invoiceId": None, "number": None, "result": "no invoice number"})
+    c.execute(
+        "insert into bank_statements (file_name, lines, matched, uploaded_by, uploaded_at, confirmed_at) values (%s, %s::jsonb, %s, %s, now() - interval '3 days', now() - interval '3 days')",
+        ("bank-statement-sample.csv", json.dumps(statement), len(statement) - 1, u["wendy"]),
+    )  # fmt: skip
+    # What the people on the demo see in their alerts.
+    for r in c.execute("select invoice_id, number, homeowner_id, amount, due_on, kind from invoices where status = 'issued' and homeowner_id is not null").fetchall():
+        c.execute(
+            "insert into notifications (recipient_uid, kind, title, body, link, created_at) values (%s, 'invoice_issued', %s, %s, %s, now() - interval '1 day')",
+            (r["homeowner_id"], f"Invoice {r['number']}", f"S${r['amount']:,.2f} due {r['due_on']:%d %b %Y}. Pay with the QR in Payments.", f"/payments?invoice={r['invoice_id']}"),
+        )  # fmt: skip
+    for r in c.execute("select invoice_id, number, bill_to, amount from invoices where proof_key is not null and status = 'issued'").fetchall():
+        c.execute(
+            "insert into notifications (recipient_uid, kind, title, body, link, created_at) values (%s, 'payment_proof', %s, %s, %s, now() - interval '5 hours')",
+            (u["wendy"], f"Payment proof · {r['number']}", f"{r['bill_to']} sent proof of paying S${r['amount']:,.2f}. Check it and mark the invoice paid.", f"/finance?invoice={r['invoice_id']}"),
+        )  # fmt: skip
+
+
+if __name__ == "__main__":
+    main()

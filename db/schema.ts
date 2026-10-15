@@ -42,6 +42,8 @@ export const userTypeEnum = pgEnum("user_type", [
   "epc_team",
   // Unfettered access; only ever put straight into the database (migration 0028).
   "superadmin",
+  // Shown as "Admin": payments and invoices; read-only everywhere else (migration 0043).
+  "finance",
 ]);
 
 /**
@@ -136,8 +138,12 @@ export const notificationKindEnum = pgEnum("notification_kind", [
   "support_message",
   "support_added",
   "support_settled",
-  // A meeting coming up: a day before, and within 30 minutes of the start (0039).
+  // A meeting coming up, at the times its organiser chose (0039, 0042).
   "meeting_reminder",
+  // Payments (0043): an invoice issued to you, your payment received, proof of payment to check.
+  "invoice_issued",
+  "payment_received",
+  "payment_proof",
 ]);
 
 /**
@@ -604,7 +610,10 @@ export const projects = pgTable("projects", {
 
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  // One homeowner, one project (0043).
+  uniqueIndex("projects_one_per_homeowner").on(table.homeownerId).where(sql`${table.homeownerId} IS NOT NULL`),
+]);
 
 // ---------------------------------------------------------- project files
 
@@ -1050,6 +1059,8 @@ export const maintenanceSystems = pgTable(
   (table) => [
     uniqueIndex("maintenance_systems_project_idx").on(table.projectId),
     uniqueIndex("maintenance_systems_import_idx").on(table.importRef),
+    // One homeowner, one system (0043).
+    uniqueIndex("systems_one_per_homeowner").on(table.homeownerId).where(sql`${table.homeownerId} IS NOT NULL`),
     index("maintenance_systems_run_by_idx").on(table.runBy),
   ]
 );
@@ -1200,10 +1211,18 @@ export const meetings = pgTable(
     kind: text("kind").notNull().default("meeting"),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-    /** 'online' (a Teams or Google Meet link), 'site', 'office' or 'phone'. */
+    /** 'online', 'physical' (an address; 'site' and 'office' before 0042) or 'phone'; any can carry a video link. */
     place: text("place").notNull().default("online"),
     location: text("location"),
+    /** A physical meeting's postal code, which found its address (0042). */
+    postalCode: text("postal_code"),
     onlineLink: text("online_link"),
+    /** When everyone is reminded, in minutes before the start: up to five, up to four weeks; an hour unless chosen (0042). */
+    reminders: integer("reminders").array().notNull().default(sql`'{60}'::integer[]`),
+    /** A repeating meeting: each time is its own meeting, sharing the first one's meeting_id (0042). */
+    seriesId: integer("series_id"),
+    /** How it repeats: 'daily', 'weekdays', 'weekly', 'fortnightly', 'monthly_day', 'monthly_weekday' or 'yearly'. */
+    repeat: text("repeat"),
     notes: text("notes"),
     organiserId: integer("organiser_id")
       .notNull()
@@ -1220,6 +1239,7 @@ export const meetings = pgTable(
   (table) => [
     index("meetings_time_idx").on(table.startsAt, table.endsAt),
     index("meetings_system_idx").on(table.systemId, table.checkKey),
+    index("meetings_series_idx").on(table.seriesId, table.startsAt),
   ]
 );
 
@@ -1440,7 +1460,7 @@ export const inverterModels = pgTable("inverter_models", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Which meeting reminder (a day before, or soon) went to whom, for which start time (0039). */
+/** Which meeting reminder went to whom, for which start time: its minutes before ('day' and 'soon' before 0042). */
 export const meetingReminders = pgTable(
   "meeting_reminders",
   {
@@ -1467,4 +1487,103 @@ export const dataExports = pgTable("data_exports", {
     .notNull()
     .references(() => users.uid, { onDelete: "cascade" }),
   exportedAt: timestamp("exported_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------- payments (0043)
+
+/**
+ * The company's details for the invoice's header, its PayNow QR, the admin
+ * fee, the plan's length and days to pay, and the invoice's design. One row.
+ * Written by Admin and superadmins only.
+ */
+export const financeSettings = pgTable(
+  "finance_settings",
+  {
+    id: integer("id").primaryKey().default(1),
+    companyName: text("company_name").notNull().default("9 Solar Home"),
+    companyAddress: text("company_address"),
+    companyUen: text("company_uen"),
+    companyEmail: text("company_email"),
+    companyPhone: text("company_phone"),
+    logoKey: text("logo_key"),
+    qrKey: text("qr_key"),
+    payNote: text("pay_note").notNull(),
+    adminFee: numeric("admin_fee", { precision: 12, scale: 2 }).notNull().default("3500"),
+    planYears: integer("plan_years").notNull().default(8),
+    dueDays: integer("due_days").notNull().default(14),
+    accent: text("accent").notNull().default("#0B8A5A"),
+    invoiceTitle: text("invoice_title").notNull().default("INVOICE"),
+    intro: text("intro"),
+    footer: text("footer"),
+    terms: text("terms"),
+    /** Which parts the invoice shows: logo, qr, uen, kwh, terms. */
+    show: jsonb("show").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: integer("updated_by"),
+  },
+  (table) => [check("finance_settings_one", sql`${table.id} = 1`)]
+);
+
+/**
+ * What a homeowner owes: the admin fee (a project's, paid before its
+ * handover) or a month's solar power (a system's: kWh x the contract's rate).
+ * Issued, then paid (marked by Admin, or matched from the bank's statement)
+ * or voided; never deleted.
+ */
+export const invoices = pgTable(
+  "invoices",
+  {
+    invoiceId: serial("invoice_id").primaryKey(),
+    /** 'INV-2026-00042'. */
+    number: text("number").notNull(),
+    /** 'admin_fee' or 'monthly'. */
+    kind: text("kind").notNull(),
+    projectId: integer("project_id").references(() => projects.projectId, { onDelete: "set null" }),
+    systemId: integer("system_id").references(() => maintenanceSystems.systemId, { onDelete: "set null" }),
+    homeownerId: integer("homeowner_id").references(() => users.uid, { onDelete: "set null" }),
+    billTo: text("bill_to").notNull(),
+    billAddress: text("bill_address"),
+    billEmail: text("bill_email"),
+    /** The month a monthly invoice is for (its first day). */
+    period: date("period"),
+    kwh: numeric("kwh", { precision: 10, scale: 2 }),
+    rate: numeric("rate", { precision: 10, scale: 4 }),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    issuedOn: date("issued_on").notNull().defaultNow(),
+    dueOn: date("due_on").notNull(),
+    /** 'issued', 'paid' or 'void'. */
+    status: text("status").notNull().default("issued"),
+    paidOn: date("paid_on"),
+    paidAmount: numeric("paid_amount", { precision: 12, scale: 2 }),
+    /** 'manual' (marked by Admin) or 'statement' (matched from the bank's statement). */
+    paidVia: text("paid_via"),
+    paidRef: text("paid_ref"),
+    confirmedBy: integer("confirmed_by"),
+    /** Proof of payment the homeowner attached. */
+    proofKey: text("proof_key"),
+    proofAt: timestamp("proof_at", { withTimezone: true }),
+    proofNote: text("proof_note"),
+    voidReason: text("void_reason"),
+    notes: text("notes"),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("invoices_number_idx").on(table.number),
+    uniqueIndex("invoices_one_fee_idx").on(table.projectId).where(sql`${table.kind} = 'admin_fee' AND ${table.status} <> 'void'`),
+    uniqueIndex("invoices_one_month_idx").on(table.systemId, table.period).where(sql`${table.kind} = 'monthly' AND ${table.status} <> 'void'`),
+    index("invoices_homeowner_idx").on(table.homeownerId),
+  ]
+);
+
+/** Each bank statement uploaded: its credits, what each matched, and when Admin confirmed them. */
+export const bankStatements = pgTable("bank_statements", {
+  statementId: serial("statement_id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  lines: jsonb("lines").notNull().default(sql`'[]'::jsonb`),
+  matched: integer("matched").notNull().default(0),
+  uploadedBy: integer("uploaded_by"),
+  uploadedAt: timestamp("uploaded_at", { withTimezone: true }).notNull().defaultNow(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
 });

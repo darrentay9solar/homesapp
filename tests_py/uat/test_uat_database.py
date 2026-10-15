@@ -49,12 +49,10 @@ STATUS_GRID = [(a, s, to) for a in spec.ACTORS for s in spec.STATE_KEYS for to i
 @pytest.mark.parametrize(("actor", "state", "to"), STATUS_GRID, ids=[f"{a}-{s}-to-{t}" for a, s, t in STATUS_GRID])
 def test_status_change(app_db, world, actor, state, to) -> None:
     pid = world.pid[state]
-    got = attempt(app_db, world.uid(actor), "update projects set status = %s where project_id = %s", (to, pid))
+    got = attempt(app_db, world.uid(actor, pid), "update projects set status = %s where project_id = %s", (to, pid))
     signed = spec.STATUS[state] in ("signed", "maintenance")
-    allowed = spec.db_status_change(actor, state, to, homeowner_signed=signed)
-    assert (got is None) == allowed, got
-    if not allowed:
-        assert got == "42501", "refused as not allowed, not as a crash"
+    refusal = spec.db_status_refusal(actor, state, to, homeowner_signed=signed)
+    assert got == refusal, "refused as not allowed (or for the unpaid admin fee), not as a crash"
 
 
 @pytest.mark.parametrize(("actor", "state"), [(a, s) for a in spec.ACTORS for s in spec.STATE_KEYS])
@@ -62,9 +60,9 @@ def test_signing_in_the_database(app_db, world, actor, state) -> None:
     pid = world.pid[state]
     got = attempt(
         app_db,
-        world.uid(actor),
+        world.uid(actor, pid),
         "insert into project_signatures (project_id, signed_by, signature_url, certificate_hash) values (%s, %s, 'k', 'h')",
-        (pid, world.uid(actor)),
+        (pid, world.uid(actor, pid)),
     )
     if spec.db_signature_insert(actor, state):
         assert got is None
@@ -82,7 +80,7 @@ def test_a_signature_is_never_changed_or_removed(app_db, world, actor, state, op
         if op == "update"
         else "delete from project_signatures where project_id = %s"
     )
-    assert attempt(app_db, world.uid(actor), sql, (pid,)) == "42501"
+    assert attempt(app_db, world.uid(actor, pid), sql, (pid,)) == "42501"
 
 
 @pytest.mark.parametrize("actor", spec.ACTORS)
@@ -90,9 +88,9 @@ def test_nobody_signs_as_someone_else(app_db, world, actor) -> None:
     pid = world.pid["awaiting_signature"]
     got = attempt(
         app_db,
-        world.uid(actor),
+        world.uid(actor, pid),
         "insert into project_signatures (project_id, signed_by, signature_url, certificate_hash) values (%s, %s, 'k', 'h')",
-        (pid, world.uid("ho") if actor != "ho" else world.uid("ho2")),
+        (pid, world.uid("ho", pid) if actor != "ho" else world.uid("ho2")),
     )
     assert got == "42501"
 
@@ -105,11 +103,11 @@ def test_adding_a_file_in_the_database(app_db, world, actor, state) -> None:
     pid = world.pid[state]
     got = attempt(
         app_db,
-        world.uid(actor),
+        world.uid(actor, pid),
         "insert into project_files (project_id, category, url, file_name, content_type, size_bytes, uploaded_by, kind) "
         "values (%s, 'handover_docs', 'projects/x/documents/handover_docs/x.pdf', 'x.pdf', 'application/pdf', 10, %s, "
         "'document')",
-        (pid, world.uid(actor)),
+        (pid, world.uid(actor, pid)),
     )
     rel = spec.relation(actor, state)
     allowed = rel == "pm" or (rel == "crew" and spec.STATUS[state] not in spec.AT_HANDOVER)
@@ -119,7 +117,7 @@ def test_adding_a_file_in_the_database(app_db, world, actor, state) -> None:
 @pytest.mark.parametrize(("actor", "state"), FILE_GRID, ids=[f"{a}-{s}" for a, s in FILE_GRID])
 def test_changing_a_field_in_the_database(app_db, world, actor, state) -> None:
     pid = world.pid[state]
-    got = attempt(app_db, world.uid(actor), "update projects set sales = 'UAT' where project_id = %s", (pid,))
+    got = attempt(app_db, world.uid(actor, pid), "update projects set sales = 'UAT' where project_id = %s", (pid,))
     rel = spec.relation(actor, state)
     allowed = rel == "pm" or (rel == "crew" and spec.STATUS[state] not in spec.AT_HANDOVER)
     assert (got is None) == allowed, got
@@ -129,7 +127,7 @@ def test_changing_a_field_in_the_database(app_db, world, actor, state) -> None:
 def test_closing_stamps_who_and_when(app_db, world, actor, state) -> None:
     """Only from signed, only by whoever runs the project; the database records who closed it and when."""
     pid = world.pid[state]
-    uid = world.uid(actor)
+    uid = world.uid(actor, pid)
     try:
         with app_db.transaction():
             app_db.execute("select set_config('app.actor_uid', %s, true)", (str(uid),))
@@ -143,8 +141,7 @@ def test_closing_stamps_who_and_when(app_db, world, actor, state) -> None:
         if spec.STATUS[state] != "maintenance":
             assert row["closed_by"] == uid and row["closed_at"] is not None
     except psycopg.Error as exc:
-        assert not spec.db_status_change(actor, state, "maintenance", homeowner_signed=True), exc
-        assert exc.sqlstate == "42501"
+        assert exc.sqlstate == spec.db_status_refusal(actor, state, "maintenance", homeowner_signed=True), exc
 
 
 @pytest.mark.parametrize("actor", spec.ACTORS)
@@ -152,7 +149,7 @@ def test_closing_stamps_who_and_when(app_db, world, actor, state) -> None:
 def test_asking_for_the_signature_in_the_database(app_db, world, actor, state) -> None:
     """request_handover_signature(): only someone on the project, only with Milestone 3 recorded."""
     pid = world.pid[state]
-    got = attempt(app_db, world.uid(actor), "select request_handover_signature(%s)", (pid,))
+    got = attempt(app_db, world.uid(actor, pid), "select request_handover_signature(%s)", (pid,))
     rel = spec.relation(actor, state)
     if rel not in ("pm", "crew"):
         assert got == "42501"

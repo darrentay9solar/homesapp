@@ -142,7 +142,7 @@ def test_save(api, world, cached, actor, state, f) -> None:
     pid = world.pid[state]
     value = _current(cached, state, f) if spec.sees("pm", state) == 200 else f.sample
     expect = save_expect(actor, state, f)
-    r = api.patch(f"/api/py/projects/{pid}/fields", headers=world.h(actor), json={"key": f.key, "value": value})
+    r = api.patch(f"/api/py/projects/{pid}/fields", headers=world.h(actor, pid), json={"key": f.key, "value": value})
     assert r.status_code == expect, r.text
     if expect == 200 and spec.STATUS[state] == "pm_approved":
         # The brief: the first piece of work starts an approved project.

@@ -16,7 +16,7 @@ import { currentLang, type Lang, T, takeLangPicked, translate, useLang } from ".
 import type { Prefs } from "./prefs";
 import { registration, setBadge } from "./push";
 
-export type Role = "homeowner" | "project_manager" | "contractor" | "epc_team" | "superadmin";
+export type Role = "homeowner" | "project_manager" | "contractor" | "epc_team" | "superadmin" | "finance";
 
 /** Project managers and the superadmin: People, Audit, Everyone's files, creating projects. */
 export function isAdmin(role: Role | null | undefined): boolean {
@@ -25,14 +25,19 @@ export function isAdmin(role: Role | null | undefined): boolean {
 
 /** The roles an account can be given in the app: a superadmin gives any; a project manager every one but project manager. Superadmin is never given in the app. */
 export function grantableRoles(by: Role | null | undefined): Role[] {
-  const all: Role[] = ["homeowner", "contractor", "epc_team", "project_manager"];
-  return by === "superadmin" ? all : all.filter((r) => r !== "project_manager");
+  const all: Role[] = ["homeowner", "contractor", "epc_team", "project_manager", "finance"];
+  return by === "superadmin" ? all : all.filter((r) => r !== "project_manager" && r !== "finance");
+}
+
+/** Admin (finance) and the superadmin: issuing invoices, marking them paid, the invoice's design. */
+export function handlesPayments(role: Role | null | undefined): boolean {
+  return role === "finance" || role === "superadmin";
 }
 
 /** Whether `by` may change an account that has role `target` (People → Profile). */
 export function canManage(by: Role | null | undefined, target: Role): boolean {
   if (target === "superadmin") return false;
-  if (target === "project_manager") return by === "superadmin";
+  if (target === "project_manager" || target === "finance") return by === "superadmin";
   return isAdmin(by);
 }
 

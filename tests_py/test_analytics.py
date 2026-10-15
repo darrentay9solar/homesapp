@@ -233,6 +233,35 @@ def test_an_unknown_period_falls_back_to_90_days() -> None:
     assert an.window("week", TODAY).key == "90d"
 
 
+@pytest.mark.parametrize(("key", "label", "weeks_or_months"), [
+    ("60d", "Last 60 days", 9), ("45d", "Last 45 days", 7), ("1d", "Last day", 1), ("120d", "Last 120 days", 18),
+    ("121d", "Last 121 days", 12), ("400d", "Last 400 days", 14), ("3650d", "Last 3650 days", 24),
+])  # fmt: skip
+def test_a_custom_number_of_days(key, label, weeks_or_months) -> None:
+    w = an.window(key, TODAY)
+    n = int(key[:-1])
+    assert (w.key, w.label) == (key, label)
+    assert w.start == TODAY - timedelta(days=n - 1) and w.prev_start == w.start - timedelta(days=n)
+    b = an.buckets(w, TODAY)
+    assert len(b) == weeks_or_months and b[-1][1] <= TODAY <= b[-1][2]
+    if n <= 120:
+        assert b[0][1] <= w.start, "the weeks cover the whole period"
+
+
+@pytest.mark.parametrize("key", ["0d", "3651d", "12d3", "-5d", "d", "45", "45 d"])
+def test_not_a_period(key) -> None:
+    assert an.period(key) is None
+
+
+@pytest.mark.parametrize(("period", "code"), [("45d", 200), ("60d", 200), ("3650d", 200), ("0d", 400), ("3651d", 400), ("week", 400)])
+def test_the_dashboard_takes_any_number_of_days(client, fx, period, code) -> None:
+    pm = fx.user("project_manager")
+    r = client.get(f"/api/py/analytics?period={period}", headers=bearer(pm["clerk_user_id"]))
+    assert r.status_code == code, r.text
+    if code == 200:
+        assert r.json()["period"]["key"] == period
+
+
 # ------------------------------------------------------------------ places
 
 

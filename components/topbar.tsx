@@ -173,13 +173,14 @@ function HeaderLang() {
 export function Heading({ title, count, action }: { title: string; count?: number; action?: ReactNode }) {
   const { tr } = useLang();
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 2.5, mb: 1.25 }}>
-      <Typography component="h2" sx={[{ fontWeight: 600, fontSize: { xs: DESIGN.type.sectionTitle.phone, lg: DESIGN.type.sectionTitle.desktop } }, gradText()]}>
+    // On a narrow phone the action goes under the title rather than off the screen.
+    <Stack direction="row" sx={{ alignItems: "center", gap: 1, rowGap: 0.75, flexWrap: "wrap", mt: 2.5, mb: 1.25 }}>
+      <Typography component="h2" sx={[{ fontWeight: 600, fontSize: { xs: DESIGN.type.sectionTitle.phone, lg: DESIGN.type.sectionTitle.desktop }, minWidth: 0, overflowWrap: "anywhere" }, gradText()]}>
         {tr(title)}
       </Typography>
       {count !== undefined && <Chip size="small" label={count} sx={{ height: 20, fontSize: 11 }} />}
       <Box sx={{ flex: 1 }} />
-      {action}
+      {action && <Box sx={{ maxWidth: "100%", minWidth: 0, display: "flex" }}>{action}</Box>}
     </Stack>
   );
 }

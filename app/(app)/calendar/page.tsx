@@ -161,7 +161,7 @@ export default function CalendarPage() {
                 <UpcomingList meetings={upcoming.data?.meetings ?? null} onOpen={(m) => setOpen({ kind: "meeting", m })} />
               ) : (
                 <>
-                  <Stack direction="row" sx={{ alignItems: "center", gap: 1, mb: 1.5 }}>
+                  <Stack direction="row" sx={{ alignItems: "center", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
                     <Button variant="outlined" size="small" onClick={() => pick(today())} startIcon={<EventAvailableRoundedIcon />}>
                       {T("Today")}
                     </Button>
@@ -171,7 +171,7 @@ export default function CalendarPage() {
                     <IconButton size="small" aria-label={view === "week" ? T("Next week") : T("Next day")} onClick={() => step(1)}>
                       <ChevronRightRoundedIcon />
                     </IconButton>
-                    <Typography noWrap sx={{ fontWeight: 600, fontSize: { xs: 15, lg: 17 }, flex: 1, minWidth: 0 }} data-testid="calendar-range">
+                    <Typography noWrap sx={{ fontWeight: 600, fontSize: { xs: 15, lg: 17 }, flex: "1 1 110px", minWidth: 0 }} data-testid="calendar-range">
                       {label}
                     </Typography>
                     <Button size="small" sx={{ display: { xs: "inline-flex", lg: "none" } }} startIcon={<EventBusyRoundedIcon />} onClick={() => setOpen({ kind: "block", day: anchor })}>

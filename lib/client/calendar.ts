@@ -11,7 +11,9 @@ import { currentLang, type Lang, locale } from "./i18n";
 
 export type Response = "pending" | "accepted" | "declined";
 export type MeetingStatus = "waiting" | "confirmed" | "declined" | "cancelled";
-export type Place = "online" | "site" | "office" | "phone";
+export type Place = "online" | "physical" | "phone";
+export type Repeat = "daily" | "weekdays" | "weekly" | "fortnightly" | "monthly_day" | "monthly_weekday" | "yearly";
+export type VideoProvider = "teams" | "meet" | "zoom";
 
 export type MeetingPerson = { uid: number; name: string; role: Role; response: Response };
 export type Meeting = {
@@ -22,7 +24,14 @@ export type Meeting = {
   endsAt: string;
   place: Place;
   location: string | null;
+  postalCode: string | null;
   onlineLink: string | null;
+  /** Minutes before the start that everyone is reminded. */
+  reminders: number[];
+  repeat: Repeat | null;
+  seriesId: number | null;
+  /** Meetings after this one in its series, not cancelled. */
+  laterInSeries: number;
   notes: string | null;
   organiser: { uid: number; name: string };
   project: { id: number; name: string | null } | null;
@@ -36,8 +45,15 @@ export type Meeting = {
 };
 export type Block = { id: number; startsAt: string; endsAt: string; note: string | null };
 export type CalendarData = { me: number; from: string; to: string; meetings: Meeting[]; blocks: Block[]; toAnswer: number };
-export type Contact = { uid: number; name: string; role: Role; roleLabel: string };
-export type Contacts = { people: Contact[]; projects: Array<{ id: number; name: string; address: string | null }> };
+/** Address and postal code only come to managers (to meet someone at their address). */
+export type Contact = { uid: number; name: string; role: Role; roleLabel: string; address?: string | null; postalCode?: string | null };
+export type Contacts = {
+  people: Contact[];
+  projects: Array<{ id: number; name: string; address: string | null; postalCode?: string | null }>;
+  me?: { address: string | null; postalCode: string | null };
+  /** Video services connected, which make a link for the meeting's time. */
+  video?: VideoProvider[];
+};
 export type Span = { startsAt: string; endsAt: string };
 export type BusyPerson = { uid: number; name: string | null; busy: Span[] };
 
@@ -258,7 +274,7 @@ export const STATUS_LABEL: Record<MeetingStatus, string> = {
   cancelled: "Cancelled",
 };
 export const RESPONSE_LABEL: Record<Response, string> = { pending: "Not answered", accepted: "Accepted", declined: "Declined" };
-export const PLACE_LABEL: Record<Place, string> = { online: "Online", site: "On site", office: "At the office", phone: "Phone call" };
+export const PLACE_LABEL: Record<Place, string> = { online: "Online", physical: "Physical", phone: "Phone call" };
 
 /** Meetings that are mine to answer first, then the rest by time. */
 export function sortUpcoming(ms: Meeting[]): Meeting[] {
@@ -305,8 +321,23 @@ export function teamsNewUrl(title: string, startsAt: string, endsAt: string): st
   return `https://teams.microsoft.com/l/meeting/new?${q}`;
 }
 
-/** A new Google Meet room, to paste its link back. */
-export const GOOGLE_MEET_NEW = "https://meet.google.com/new";
+/** Schedule a Google Meet for these times: Google Calendar's new event, filled in, with Meet added. */
+export function meetScheduleUrl(title: string, startsAt: string, endsAt: string): string {
+  const q = new URLSearchParams({ action: "TEMPLATE", text: title, dates: `${utcStamp(startsAt)}/${utcStamp(endsAt)}`, ctz: "Asia/Singapore", vcon: "meet" });
+  return `https://calendar.google.com/calendar/render?${q}`;
+}
+
+/** Schedule a Zoom meeting (Zoom's own page; it can't be filled in from outside). */
+export const ZOOM_SCHEDULE = "https://zoom.us/meeting/schedule";
+
+/** Where each service sets up a meeting for a given time, when its account isn't connected here. */
+export function scheduleUrl(provider: VideoProvider, title: string, startsAt: string, endsAt: string): string {
+  if (provider === "teams") return teamsNewUrl(title, startsAt, endsAt);
+  if (provider === "meet") return meetScheduleUrl(title, startsAt, endsAt);
+  return ZOOM_SCHEDULE;
+}
+
+export const VIDEO_NAME: Record<VideoProvider, string> = { teams: "Teams", meet: "Google Meet", zoom: "Zoom" };
 
 /** Which service a pasted link is, for its button. */
 export function linkKind(link: string | null): "teams" | "meet" | "zoom" | "other" | null {
@@ -343,4 +374,73 @@ export function icsFile(m: Meeting, now: number = Date.now()): string {
   ]
     .filter(Boolean)
     .join("\r\n");
+}
+
+// ------------------------------------------------------------------ repeating
+
+/** Which of its weekday in the month a day is: 1 to 4, or -1 for the last (a 5th is the last), as the API counts. */
+export function nthWeekday(day: string): number {
+  const n = Math.floor((Number(day.slice(8, 10)) - 1) / 7) + 1;
+  return n === 5 ? -1 : n;
+}
+
+export const ORDINAL: Record<number, string> = { 1: "first", 2: "second", 3: "third", 4: "fourth", [-1]: "last" };
+export const REPEATS: Repeat[] = ["daily", "weekdays", "weekly", "fortnightly", "monthly_day", "monthly_weekday", "yearly"];
+
+/** The words for a repeat starting on a day, as a phrase and what fills it (for T()). */
+export function repeatWords(rule: Repeat, day: string, lang: Lang = currentLang()): [string, Record<string, string>] {
+  const weekdayName = dayText(day, lang, { weekday: "long" });
+  switch (rule) {
+    case "daily":
+      return ["Daily", {}];
+    case "weekdays":
+      return ["Every weekday (Monday to Friday)", {}];
+    case "weekly":
+      return ["Weekly on {day}", { day: weekdayName }];
+    case "fortnightly":
+      return ["Every 2 weeks on {day}", { day: weekdayName }];
+    case "monthly_day":
+      return ["Monthly on day {n}", { n: String(Number(day.slice(8, 10))) }];
+    case "monthly_weekday":
+      return ["Monthly on the {nth} {day}", { nth: ORDINAL[nthWeekday(day)], day: weekdayName }];
+    case "yearly":
+      return ["Annually on {date}", { date: dayText(day, lang, { day: "numeric", month: "long" }) }];
+  }
+}
+
+// ------------------------------------------------------------------ reminders
+
+export type ReminderUnit = "minutes" | "hours" | "days" | "weeks";
+export const UNIT_MINUTES: Record<ReminderUnit, number> = { minutes: 1, hours: 60, days: 1440, weeks: 10080 };
+export const DEFAULT_REMINDERS = [60];
+export const MAX_REMINDERS = 5;
+export const MAX_REMINDER = 4 * 10080;
+
+/** 90 → [90, "minutes"], 120 → [2, "hours"], 1440 → [1, "days"]: the largest unit it's a whole number of. */
+export function reminderParts(minutes: number): [number, ReminderUnit] {
+  for (const u of ["weeks", "days", "hours"] as ReminderUnit[]) {
+    if (minutes > 0 && minutes % UNIT_MINUTES[u] === 0) return [minutes / UNIT_MINUTES[u], u];
+  }
+  return [minutes, "minutes"];
+}
+
+/** "1 hour before", "2 days before", "At the start": the phrase, and its number. */
+export function reminderWords(minutes: number): [string, Record<string, string>] {
+  if (minutes === 0) return ["At the start", {}];
+  const [n, u] = reminderParts(minutes);
+  const one = { minutes: "1 minute before", hours: "1 hour before", days: "1 day before", weeks: "1 week before" }[u];
+  const many = { minutes: "{n} minutes before", hours: "{n} hours before", days: "{n} days before", weeks: "{n} weeks before" }[u];
+  return n === 1 ? [one, {}] : [many, { n: String(n) }];
+}
+
+// ------------------------------------------------------------------ choosing a time
+
+/** Every half hour of a day, for the start time. */
+export const DAY_TIMES = slots(0, 1440);
+
+/** End times after a start: each half hour up to 12 hours later (past midnight reads as minutes above 1440). */
+export function endOptions(start: number): number[] {
+  const out: number[] = [];
+  for (let m = start + SLOT; m <= start + 12 * 60; m += SLOT) out.push(m);
+  return out;
 }

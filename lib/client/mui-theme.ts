@@ -80,7 +80,8 @@ export const theme = createTheme({
             opacity: 0.38,
           },
         }),
-        sizeLarge: { minHeight: H.buttonLarge, borderRadius: R.buttonLarge, fontSize: "0.95rem" },
+        // One line, no wider than its place: on a narrow phone its words shrink to fit (components/auto-fit).
+        sizeLarge: { minHeight: H.buttonLarge, borderRadius: R.buttonLarge, fontSize: "0.95rem", whiteSpace: "nowrap", maxWidth: "100%" },
       },
     },
     MuiCard: {
@@ -101,7 +102,8 @@ export const theme = createTheme({
     },
     MuiChip: {
       styleOverrides: {
-        root: { fontWeight: 600, borderRadius: R.chip },
+        // Never wider than its place: a long label shrinks, then wraps (components/auto-fit).
+        root: { fontWeight: 600, borderRadius: R.chip, maxWidth: "100%" },
         sizeSmall: { height: 24, fontSize: "0.72rem" },
       },
     },
@@ -182,9 +184,18 @@ export const theme = createTheme({
     MuiAlert: {
       // The summary above a form's button reads as firmly as the fields it points at.
       styleOverrides: {
-        root: ({ theme: t, ownerState }) =>
-          ownerState.severity === "error" && (ownerState.variant ?? "standard") === "standard" ? { fontWeight: 600, border: `1.5px solid ${(t.vars ?? t).palette.error.main}` } : {},
+        // On a narrow phone, a button beside the message goes under it instead of off the screen.
+        root: ({ theme: t, ownerState }) => ({
+          flexWrap: "wrap",
+          ...(ownerState.severity === "error" && (ownerState.variant ?? "standard") === "standard" ? { fontWeight: 600, border: `1.5px solid ${(t.vars ?? t).palette.error.main}` } : {}),
+        }),
+        message: { minWidth: 0, flex: "1 1 160px", overflowWrap: "anywhere" },
+        action: { marginLeft: "auto", maxWidth: "100%" },
       },
+    },
+    // Words in a divider ("or sign in with …") wrap rather than widen the page.
+    MuiDivider: {
+      styleOverrides: { wrapper: { whiteSpace: "normal", textAlign: "center" } },
     },
     MuiDialogTitle: {
       styleOverrides: { root: { fontWeight: 600 } },
@@ -198,6 +209,8 @@ export const theme = createTheme({
           paddingLeft: 2,
           paddingRight: 2,
           "& .MuiBottomNavigationAction-label": { fontSize: "0.68rem", fontWeight: 500, maxWidth: "100%", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
+          // The chosen tab stands out by colour and weight, not size, so five labels fit a narrow phone.
+          "& .MuiBottomNavigationAction-label.Mui-selected": { fontSize: "0.68rem", fontWeight: 700 },
         },
       },
     },

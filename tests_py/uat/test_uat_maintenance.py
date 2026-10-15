@@ -89,7 +89,7 @@ def scratch(world) -> Any:
 def test_the_handed_over_project_became_a_maintenance_record(world) -> None:
     m = world.conn.execute("select * from maintenance_systems where project_id = %s", (world.pid["closed"],)).fetchone()
     assert m is not None
-    assert (m["run_by"], m["homeowner_id"]) == (world.uid("pm"), world.uid("ho"))
+    assert (m["run_by"], m["homeowner_id"]) == (world.uid("pm"), world.uid("ho", world.pid["closed"]))
     assert m["address"] == "53 Ang Mo Kio Avenue 3" and m["postal_code"] == "569933"
     assert m["panels"] == [{"count": 20, "wp": 610}] and float(m["kwp"]) == 12.2
     assert m["inverters"] == ["Huawei SUN2000-10KTL-M1"]
@@ -110,7 +110,7 @@ def test_the_converted_record_shows_its_project_and_certificate(api, world, recs
 
 @pytest.mark.parametrize("actor", spec.ACTORS)
 def test_the_handover_points_managers_to_maintenance(api, world, recs, actor) -> None:
-    r = api.get(f"/api/py/projects/{world.pid['closed']}/handover", headers=world.h(actor))
+    r = api.get(f"/api/py/projects/{world.pid['closed']}/handover", headers=world.h(actor, world.pid["closed"]))
     if r.status_code != 200:
         assert r.status_code == spec.sees(actor, "closed")
         return
@@ -122,7 +122,7 @@ def test_the_handover_points_managers_to_maintenance(api, world, recs, actor) ->
 
 @pytest.mark.parametrize("actor", spec.ACTORS)
 def test_the_list_says_how_many_were_handed_over(api, world, actor) -> None:
-    r = api.get("/api/py/projects", headers=world.h(actor))
+    r = api.get("/api/py/projects", headers=world.h(actor, world.pid["closed"]))
     if actor == "inactive":
         assert r.status_code == 403
         return
@@ -169,19 +169,19 @@ def test_opening_a_record(api, world, recs, actor, kind) -> None:
     r = api.get(f"/api/py/maintenance/{recs[kind]}", headers=world.h(actor))
     assert r.status_code == spec.maintenance_sees(actor, OWNER[kind]), r.text
     if r.status_code == 200:
-        assert r.json()["canEdit"] is True and r.json()["canAssign"] == (actor == "sa")
+        assert r.json()["canEdit"] is (spec.maintenance_edit(actor, OWNER[kind]) == 200) and r.json()["canAssign"] == (actor == "sa")
 
 
 @pytest.mark.parametrize(("actor", "kind"), GRID, ids=IDS)
 def test_changing_a_record(api, world, recs, actor, kind) -> None:
     r = api.patch(f"/api/py/maintenance/{recs[kind]}", headers=world.h(actor), json={"notes": f"Seen by {actor}"})
-    assert r.status_code == spec.maintenance_sees(actor, OWNER[kind]), r.text
+    assert r.status_code == spec.maintenance_edit(actor, OWNER[kind]), r.text
 
 
 @pytest.mark.parametrize(("actor", "kind"), GRID, ids=IDS)
 def test_reopening_a_check(api, world, recs, actor, kind) -> None:
     r = api.post(f"/api/py/maintenance/{recs[kind]}/checks/one_year", headers=world.h(actor), json={"doneOn": None})
-    assert r.status_code == spec.maintenance_sees(actor, OWNER[kind]), r.text
+    assert r.status_code == spec.maintenance_edit(actor, OWNER[kind]), r.text
 
 
 @pytest.mark.parametrize(("actor", "kind"), GRID, ids=IDS)
@@ -189,7 +189,7 @@ def test_assigning_a_record(api, world, recs, actor, kind) -> None:
     owner = OWNER[kind]
     keep = None if owner == "none" else world.uid(owner)
     r = api.patch(f"/api/py/maintenance/{recs[kind]}", headers=world.h(actor), json={"runBy": keep})
-    seen = spec.maintenance_sees(actor, owner)
+    seen = spec.maintenance_edit(actor, owner)
     assert r.status_code == (seen if seen != 200 else 200 if actor == "sa" else 403), r.text
 
 

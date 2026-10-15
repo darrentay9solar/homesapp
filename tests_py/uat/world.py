@@ -87,12 +87,24 @@ class World:
     retailer: int = 0
     made_pids: list[int] = field(default_factory=list)
     made_uids: list[int] = field(default_factory=list)
+    # One homeowner, one project (migration 0043): each project's own homeowner, by project.
+    ho_of: dict[int, str] = field(default_factory=dict)
 
-    def h(self, actor: str) -> dict[str, str]:
-        return bearer(self.people[actor]["clerk_user_id"])
+    def key(self, actor: str, pid: int | None = None) -> str:
+        """Who ``actor`` is on project ``pid``: "ho" is that project's own homeowner."""
+        return self.ho_of.get(pid, actor) if actor == "ho" and pid is not None else actor
 
-    def uid(self, actor: str) -> int:
-        return int(self.people[actor]["uid"])
+    def h(self, actor: str, pid: int | None = None) -> dict[str, str]:
+        return bearer(self.people[self.key(actor, pid)]["clerk_user_id"])
+
+    def uid(self, actor: str, pid: int | None = None) -> int:
+        return int(self.people[self.key(actor, pid)]["uid"])
+
+    def homeowner(self, key: str) -> str:
+        """A homeowner of their own, like "ho" (NRIC last 4 recorded), for one project."""
+        self.people[key] = self.person(key, "homeowner", name="UAT Ho")
+        self.conn.execute("update users set ic_last4 = '567D' where uid = %s", (self.people[key]["uid"],))
+        return key
 
     def status(self, pid: int) -> str:
         return self.conn.execute("select status from projects where project_id = %s", (pid,)).fetchone()["status"]
@@ -122,6 +134,7 @@ class World:
         status, recorded = spec.STATUS[state], spec.RECORDED[state]
         c = self.conn
         draft = state == "draft"
+        ho = None if draft else self.homeowner(f"ho@{state}@{len(self.made_pids)}")
         pid = c.execute(
             "insert into projects (name, address, postal_code, site_lat, site_lng, homeowner_id, homeowner_name, "
             "homeowner_contact_no, contractor_group_id, installation_start_date, target_end_date, status, "
@@ -133,7 +146,7 @@ class World:
                 "53 Ang Mo Kio Avenue 3",
                 SITE[0],
                 SITE[1],
-                None if draft else self.uid("ho"),
+                None if draft else self.uid(ho),
                 "Typed Homeowner" if draft else None,
                 self.group,
                 date.today() - timedelta(days=10),
@@ -144,6 +157,8 @@ class World:
             ),
         ).fetchone()["project_id"]
         self.made_pids.append(pid)
+        if ho:
+            self.ho_of[pid] = ho
         c.execute(
             "insert into project_assignments (project_id, user_id, assigned_by) values (%s, %s, %s)",
             (pid, self.uid("assigned_epc"), self.uid(manager)),
@@ -164,7 +179,21 @@ class World:
         c.execute("update projects set status = %s where project_id = %s", (status, pid))
         if status in ("signed", "maintenance"):
             self._sign(pid)
+        # Admin issues and confirms the admin fee once the work is approved (it's paid before the handover).
+        if status not in spec.BEFORE_APPROVAL:
+            self.pay_fee(pid)
         return pid
+
+    def pay_fee(self, pid: int) -> None:
+        """The project's admin fee, issued and paid, as Admin would record it (0043)."""
+        c = self.conn
+        iid = c.execute("select nextval(pg_get_serial_sequence('invoices', 'invoice_id')) as id").fetchone()["id"]
+        c.execute(
+            "insert into invoices (invoice_id, number, kind, project_id, bill_to, amount, issued_on, due_on, status, "
+            "paid_on, paid_amount, paid_via) values (%s, %s, 'admin_fee', %s, 'UAT Ho', 3500, current_date, current_date + 14, "
+            "'paid', current_date, 3500, 'manual') on conflict do nothing",
+            (iid, f"INV-UAT-{self.tag}-{iid}", pid),
+        )
 
     def _fill(self, pid: int, values: dict[str, Any]) -> None:
         sets = ", ".join(f"{k} = %({k})s" for k in values)
@@ -202,7 +231,7 @@ class World:
         row = self.conn.execute(
             "insert into project_signatures (project_id, signed_by, signature_url, certificate_hash, certificate_url, "
             "signer_name, certificate) values (%s, %s, %s, %s, %s, %s, %s) returning signed_at",
-            (pid, self.uid("ho"), sig_key, fp, pdf_key, "UAT Ho", json.dumps(cert)),
+            (pid, self.uid("ho", pid), sig_key, fp, pdf_key, "UAT Ho", json.dumps(cert)),
         ).fetchone()
         doc = certificate.pdf(
             cert, signature=SIGNATURE, signer="UAT Ho", signed_at=row["signed_at"], fingerprint_hex=fp
@@ -223,6 +252,7 @@ class World:
             "delete from maintenance_systems where project_id = any(%s) or run_by = any(%s) or import_ref like %s",
             (pids, uids, f"uat-{self.tag}%"),
         )
+        c.execute("delete from invoices where project_id = any(%s)", (pids,))
         c.execute("delete from projects where project_id = any(%s)", (pids,))
         c.execute("delete from contractor_group_members where group_id = any(%s)", ([self.group, self.other_group],))
         c.execute("delete from contractor_groups where group_id = any(%s)", ([self.group, self.other_group],))

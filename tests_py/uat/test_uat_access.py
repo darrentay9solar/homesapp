@@ -60,7 +60,7 @@ def test_signed_certificate_pdf(cached, actor, state) -> None:
 
 @pytest.mark.parametrize(("actor", "state"), GRID, ids=IDS)
 def test_projects_list(api, world, actor, state) -> None:
-    r = api.get("/api/py/projects", headers=world.h(actor))
+    r = api.get("/api/py/projects", headers=world.h(actor, world.pid[state]))
     if actor == "inactive":
         assert r.status_code == 403
         return
@@ -77,7 +77,7 @@ def test_files_open_for_the_project_only(api, world, actor, state) -> None:
     row = world.conn.execute(
         "select file_id from project_files where project_id = %s order by file_id limit 1", (world.pid[state],)
     ).fetchone()
-    r = api.get(f"/api/py/files/{row['file_id']}", headers=world.h(actor), follow_redirects=False)
+    r = api.get(f"/api/py/files/{row['file_id']}", headers=world.h(actor, world.pid[state]), follow_redirects=False)
     expect = spec.sees(actor, state)
     assert r.status_code == (302 if expect == 200 else expect), r.text
 
@@ -100,7 +100,7 @@ def dashboard(actor: str) -> int:
     return 200 if spec.ROLE[actor] in ("project_manager", "superadmin") else 403
 
 
-@pytest.mark.parametrize("period", ["30d", "90d", "12m", "all"])
+@pytest.mark.parametrize("period", ["30d", "60d", "90d", "12m", "all", "45d", "400d"])
 @pytest.mark.parametrize("actor", spec.ACTORS)
 def test_dashboard(api, world, actor, period) -> None:
     r = api.get(f"/api/py/analytics?period={period}", headers=world.h(actor))

@@ -30,16 +30,19 @@ import { T } from "@/lib/client/i18n";
  * Projects. Project managers see every project and can create one; contractor
  * admins and EPC crew see the projects they're on; a homeowner goes straight
  * to their own project. Project managers and superadmins open on the
- * dashboard instead: "/" takes them there, and their list is /projects.
+ * dashboard instead: "/" takes them there, and their list is /projects. Admin
+ * (finance) opens on Payments.
  */
 export default function ProjectsPage() {
   const me = useMe();
   const router = useRouter();
   const pathname = usePathname();
-  const toDashboard = isAdmin(me?.role) && pathname === "/";
+  // Managers open on the dashboard, Admin (finance) on Payments.
+  const opening = pathname !== "/" ? null : isAdmin(me?.role) ? "/dashboard" : me?.role === "finance" ? "/finance" : null;
+  const toDashboard = opening !== null;
   useEffect(() => {
-    if (toDashboard) router.replace("/dashboard");
-  }, [toDashboard, router]);
+    if (opening) router.replace(opening);
+  }, [opening, router]);
   const href = useProjectHref();
   const maintenance = useMaintenanceHref();
   const { data, error } = useApi<ProjectList>(me && !toDashboard ? "/projects" : null);

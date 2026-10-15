@@ -21,8 +21,10 @@ pytestmark = pytest.mark.uat
 
 
 @pytest.fixture
-def flow(api, world) -> flowkit.Flow:
-    return flowkit.Flow(api, world)
+def flow(api, world):
+    f = flowkit.Flow(api, world)
+    yield f
+    f.release()
 
 
 # ------------------------------------------------------------ the whole way
@@ -62,6 +64,7 @@ def test_start_to_finish(flow, world, m1, m2, m3) -> None:
     assert flow.sign().status_code == 200
     assert flow.status() == "signed"
     assert flow.told("signed") == {world.uid("pm")}
+    world.pay_fee(flow.pid)  # Admin confirms the admin fee before the handover
     assert flow.post("pm", "/close").status_code == 200
     assert flow.status() == "maintenance"
     told = flow.told("project_closed")

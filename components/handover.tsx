@@ -39,6 +39,8 @@ export type Handover = {
   /** Handed over: its maintenance record, for a project manager. */
   maintenance?: number | null;
   actions: { sign: boolean; request: boolean; remind: boolean; close: boolean };
+  /** The admin fee is paid: Admin confirms it before the project moves to Maintenance. */
+  feePaid?: boolean;
 };
 
 const SHOWN = new Set(["awaiting_signature", "signed", "maintenance"]);
@@ -133,11 +135,16 @@ export function HandoverPanel({ p, reload }: { p: ProjectRow; reload: () => Prom
         <Stack direction="row" sx={{ gap: 1, mt: 1.5, flexWrap: "wrap" }}>
           {pdf}
           {a.close && (
-            <Button variant="contained" startIcon={<TaskAltRoundedIcon />} disabled={busy} onClick={() => setDialog("close")}>
+            <Button variant="contained" startIcon={<TaskAltRoundedIcon />} disabled={busy || h.feePaid === false} onClick={() => setDialog("close")}>
               {T("Close project")}
             </Button>
           )}
         </Stack>
+        {a.close && h.feePaid === false && (
+          <Typography variant="body2" sx={{ mt: 1, fontWeight: 600 }} data-testid="fee-unpaid">
+            {T("The admin fee isn't paid yet. Admin confirms it before the project moves to Maintenance.")}
+          </Typography>
+        )}
       </Alert>
     );
   } else if (h.status === "maintenance") {

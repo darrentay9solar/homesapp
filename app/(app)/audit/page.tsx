@@ -3,6 +3,7 @@
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import BuildRoundedIcon from "@mui/icons-material/BuildRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
@@ -440,6 +441,7 @@ const KIND_ICON: Record<AuditLocation["kind"], ReactNode> = {
   export: <FileDownloadRoundedIcon />,
   support: <SupportAgentRoundedIcon />,
   "support-answers": <QuizRoundedIcon />,
+  payments: <ReceiptLongRoundedIcon />,
   other: <DescriptionOutlinedIcon />,
 };
 

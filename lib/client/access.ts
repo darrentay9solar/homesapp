@@ -43,6 +43,7 @@ export const ACCESS: Record<Role, { yes: string[]; no: string[] }> = {
     ],
     no: [
       "See or change projects run by other project managers",
+      "See invoice amounts, or issue invoices and mark them paid (Admin does; you see whether each month is issued and paid)",
       "Create, approve or change project manager accounts (a superadmin does)",
     ],
   },
@@ -55,5 +56,14 @@ export const ACCESS: Record<Role, { yes: string[]; no: string[] }> = {
       "Everything a project manager can do, on every project",
     ],
     no: ["Superadmin accounts themselves are added and changed only in the database"],
+  },
+  finance: {
+    yes: [
+      "Issue the admin fee and the monthly invoices, and mark them paid or void",
+      "Match payments from the bank's statement, and check the proof homeowners send",
+      "Design the invoice and set the company's details, the QR and the admin fee",
+      "See every project and system, read-only",
+    ],
+    no: ["Change projects, accounts or maintenance records", "Create Admin accounts (a superadmin does)"],
   },
 };

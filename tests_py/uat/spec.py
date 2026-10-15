@@ -16,6 +16,9 @@ Who (ACTORS), in relation to every project in the test world:
   ho            the projects' homeowner (not on the draft, which has a typed name only)
   ho2           another homeowner
   inactive      an EPC crew member in the group whose account is switched off
+  fin           Admin (finance): payments and invoices; every project and system, read-only
+
+"ho" is each project's own homeowner: one homeowner, one project (migration 0043).
 
 Where (STATES): one project at each point of the flow.
 """
@@ -36,6 +39,7 @@ ACTORS = [
     "ho",
     "ho2",
     "inactive",
+    "fin",
 ]
 ROLE = {
     "sa": "superadmin",
@@ -49,6 +53,7 @@ ROLE = {
     "ho": "homeowner",
     "ho2": "homeowner",
     "inactive": "epc_team",
+    "fin": "finance",
 }
 ADMINS = {"sa", "pm", "pm2"}
 CREW = {"crew_admin", "crew_epc", "assigned_epc"}
@@ -87,9 +92,11 @@ WORKING = {"pm_approved", "in_progress"}
 
 
 def relation(actor: str, state: str) -> str | None:
-    """'pm', 'crew', 'homeowner', None (not on the project), or 'inactive'."""
+    """'pm', 'crew', 'homeowner', 'viewer' (Admin: looks, changes nothing), None (not on the project), or 'inactive'."""
     if actor == "inactive":
         return "inactive"
+    if actor == "fin":
+        return "viewer"
     if actor in ("sa", "pm"):
         return "pm"
     if actor in CREW:
@@ -126,7 +133,9 @@ OWNERS = ["pm", "pm2", "none"]
 
 
 def maintenance_sees(actor: str, owner: str) -> int:
-    """GET /maintenance/{id}: a superadmin every record; a project manager theirs and unassigned ones."""
+    """GET /maintenance/{id}: a superadmin and Admin every record; a project manager theirs and unassigned ones."""
+    if actor == "fin":
+        return 200
     if actor == "inactive" or ROLE[actor] not in ("project_manager", "superadmin"):
         return 403
     if actor == "sa" or owner == "none" or owner == actor:
@@ -135,9 +144,16 @@ def maintenance_sees(actor: str, owner: str) -> int:
 
 
 def maintenance_list(actor: str) -> int:
+    if actor == "fin":
+        return 200
     if actor == "inactive" or ROLE[actor] not in ("project_manager", "superadmin"):
         return 403
     return 200
+
+
+def maintenance_edit(actor: str, owner: str) -> int:
+    """Changing a record: as for seeing it, except Admin, who only looks."""
+    return 403 if actor == "fin" else maintenance_sees(actor, owner)
 
 
 def check_state(due_in: int | None, done_ago: int | None) -> str:
@@ -248,8 +264,13 @@ def section_lock(state: str, section: str) -> str | None:
     return None
 
 
+LOCK_VIEWER = "Only the project's manager and crew change it."
+
+
 def field_lock(rel: str, state: str, f: F) -> str | None:
     """Why this person can't change this field at this point, or None if they can."""
+    if rel == "viewer":
+        return LOCK_VIEWER
     if rel == "homeowner":
         return LOCK_HOMEOWNER
     if f.kind == "auto":
@@ -418,8 +439,24 @@ def handover_actions(actor: str, state: str) -> dict[str, bool]:
 # -------------------------------------------------------- the database's rules
 
 
+def fee_unpaid(state: str, to: str) -> bool:
+    """Into Maintenance only with the admin fee paid (0043); the world's projects have it once approved."""
+    return to == "maintenance" and STATUS[state] != "maintenance" and STATUS[state] in BEFORE_APPROVAL
+
+
+def db_status_refusal(actor: str, state: str, to: str, *, homeowner_signed: bool) -> str | None:
+    """None if the database lets it through; 42501 (not theirs to do) or P0001 (the admin fee isn't paid)."""
+    if not _db_status_change(actor, state, to, homeowner_signed=homeowner_signed):
+        return "42501"
+    return "P0001" if fee_unpaid(state, to) else None
+
+
 def db_status_change(actor: str, state: str, to: str, *, homeowner_signed: bool) -> bool:
-    """May this person move this project from its status to ``to`` straight in the database?"""
+    return db_status_refusal(actor, state, to, homeowner_signed=homeowner_signed) is None
+
+
+def _db_status_change(actor: str, state: str, to: str, *, homeowner_signed: bool) -> bool:
+    """May this person move this project from its status to ``to`` straight in the database (the fee aside)?"""
     s = STATUS[state]
     if actor == "sa":
         return True

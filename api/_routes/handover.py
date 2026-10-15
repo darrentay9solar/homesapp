@@ -28,6 +28,7 @@ from _lib import certificate, notify, storage
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.web import active, role
+from _routes import finance
 from _routes import projects as proj
 from _routes.project_work import _audience, _need, _pms, _project, _run, _state, ask_to_sign, request_signature
 
@@ -82,6 +83,8 @@ def handover(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
         else None,
         # Handed over, the project lives on as a maintenance record (migration 0031).
         "maintenance": _maintenance_id(pid) if s == "maintenance" and rel in ("pm", "homeowner") else None,
+        # The admin fee is paid (Admin confirms it) before the project moves to Maintenance.
+        "feePaid": finance.fee_paid(pid),
         "actions": {
             "sign": rel == "homeowner" and s == "awaiting_signature",
             "request": rel == "pm"
@@ -207,6 +210,10 @@ def close(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
         raise HTTPException(409, "The project is already handed over.")
     if p["status"] != "signed":
         raise HTTPException(409, "A project closes once the homeowner has signed its handover certificate.")
+    if not finance.fee_paid(pid):
+        raise HTTPException(
+            409, "The admin fee isn't paid yet. Admin confirms it before the project moves to Maintenance."
+        )
     with transaction(acct.uid) as cur:
         cur.execute("update projects set status = 'maintenance', updated_at = now() where project_id = %s", (pid,))
 
