@@ -82,11 +82,11 @@ export function SettingRow({
   const { tr } = useLang();
   return (
     <Card sx={{ px: 2, py: 1.5 }}>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 1.75 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1.75, rowGap: 1, flexWrap: "wrap" }}>
         <Box sx={{ width: 38, height: 38, borderRadius: `${DESIGN.radius.iconTile}px`, display: "grid", placeItems: "center", flex: "0 0 auto", color: tint, bgcolor: alpha(tint, 0.14) }}>
           {icon}
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere" }}>
           <Typography sx={{ fontWeight: 500 }}>{tr(label)}</Typography>
           {sub && (
             <Typography variant="caption" component="div" sx={{ color: "text.secondary" }}>
@@ -94,7 +94,7 @@ export function SettingRow({
             </Typography>
           )}
         </Box>
-        {right}
+        {right && <Box sx={{ ml: "auto", maxWidth: "100%", flex: "0 0 auto" }}>{right}</Box>}
       </Stack>
       {children && <Box sx={{ mt: 1.5 }}>{children}</Box>}
     </Card>
@@ -223,6 +223,15 @@ export function openPicker(root: Element | null) {
   }
 }
 
+const NARROW_PICKER = {
+  containerType: "inline-size",
+  "@container (max-width: 150px)": {
+    "& .MuiInputAdornment-positionStart": { display: "none" },
+    "& .MuiInputBase-root": { paddingLeft: 0 },
+    "& input": { paddingLeft: "10px", paddingRight: "6px" },
+  },
+} as const;
+
 export function Field({ icon, ...props }: TextFieldProps & { icon?: ReactNode }) {
   // Labels, placeholders and help text are translated here, so every form follows the language setting.
   const { tr } = useLang();
@@ -234,6 +243,8 @@ export function Field({ icon, ...props }: TextFieldProps & { icon?: ReactNode })
   return (
     <TextField
       {...props}
+      // A date or time too narrow for its icon and its value (large text on a phone): the icon steps aside.
+      sx={picker ? [NARROW_PICKER, ...(Array.isArray(props.sx) ? props.sx : [props.sx])] : props.sx}
       slotProps={{
         ...props.slotProps,
         inputLabel: { shrink: true, ...(props.slotProps?.inputLabel as object) },

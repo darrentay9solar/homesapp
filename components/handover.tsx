@@ -236,11 +236,12 @@ export function Certificate({ h }: { h: Handover }) {
   return (
     <Card variant="outlined" sx={{ px: 2, py: 1, mt: 1 }} data-testid="certificate">
       {h.certificate.rows.map(([label, value]) => (
-        <Stack key={label} direction="row" sx={{ gap: 2, py: 0.9, borderBottom: 1, borderColor: "divider", "&:last-of-type": { borderBottom: 0 } }}>
-          <Typography variant="body2" sx={{ color: "text.secondary", flex: "0 0 42%", minWidth: 0 }}>
+        // With large text the value goes under its label rather than over it.
+        <Stack key={label} direction="row" sx={{ gap: 2, rowGap: 0.25, flexWrap: "wrap", py: 0.9, borderBottom: 1, borderColor: "divider", "&:last-of-type": { borderBottom: 0 } }}>
+          <Typography variant="body2" sx={{ color: "text.secondary", flex: "0 1 42%", minWidth: "min(100%, 96px)", overflowWrap: "anywhere" }}>
             {TR(label)}
           </Typography>
-          <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, flex: "1 1 120px", minWidth: 0, overflowWrap: "anywhere" }}>
             {TR(value)}
           </Typography>
         </Stack>

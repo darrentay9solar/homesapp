@@ -38,7 +38,7 @@ def main() -> None:
     url = _from_env_file(URLS[a.target])
     if not url:
         sys.exit(f"{URLS[a.target]} isn't set in .env.local.")
-    with psycopg.connect(url) as conn:
+    with psycopg.connect(url, prepare_threshold=None) as conn:
         n = conn.execute(f"select count(*) from audit_log where {WHERE}").fetchone()[0]
         print(f"{a.target}: {n} audit entries only record a language switch.")
         if not a.confirm or not n:
@@ -49,7 +49,7 @@ def main() -> None:
     done = subprocess.run([*backup, "--reason", "before removing language-only audit entries"])
     if done.returncode:
         sys.exit("The restore point failed, so nothing was deleted.")
-    with psycopg.connect(url) as conn, conn.transaction():
+    with psycopg.connect(url, prepare_threshold=None) as conn, conn.transaction():
         conn.execute("alter table audit_log disable trigger audit_log_no_delete")
         gone = conn.execute(f"delete from audit_log where {WHERE}").rowcount
         conn.execute("alter table audit_log enable trigger audit_log_no_delete")

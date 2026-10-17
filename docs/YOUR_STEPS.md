@@ -301,6 +301,28 @@ Environment Variables (Production), all Sensitive, then redeploy.
   `GOOGLE_SERVICE_ACCOUNT_JSON` (the whole key file) and
   `GOOGLE_MEETING_ORGANISER` (the account whose calendar holds the events).
 
+## 13. Personal data (PDPA)
+
+The app records each person's agreement to the privacy notice, asks anyone
+who hasn't agreed, and lets everyone download their own data. What only
+9 Solar Home can do (details in [pdpa.md](pdpa.md)):
+
+1. **Appoint a Data Protection Officer** (it can be you) and give them an
+   address, e.g. `privacy@9solarhome.com`. Vercel → **homesapp** →
+   Environment Variables (Production): `NEXT_PUBLIC_DPO_EMAIL` = that
+   address, then redeploy. The notice shows it under *Contact us*.
+2. **Read the notice** at `/privacy` and tell me anything to change. It's
+   written from what the app actually does; it isn't legal advice. Changing
+   it asks everyone to agree again.
+3. **Decide how long to keep data** (the proposal is in pdpa.md, under
+   *Retention*). Once decided, I'll add a nightly job that applies it.
+4. **Accept each provider's data processing agreement** in its dashboard:
+   Clerk, Resend, Meta (WhatsApp), Twilio, Anthropic, Cloudflare, Neon,
+   Vercel. This is what makes sending data outside Singapore lawful.
+5. **The laptop's backups**: `backups/` holds unencrypted copies of the
+   production database (real customers). Turn on BitLocker for that disk,
+   and delete restore points you no longer need.
+
 ## 10. Your own address (optional, but needed for step 9)
 
 1. Vercel → **homesapp** → **Settings** → **Domains** → add e.g.

@@ -619,7 +619,7 @@ def main() -> None:
     url = _from_env_file(URLS[a.target])
     if not url:
         sys.exit(f"{URLS[a.target]} isn't set in .env.local.")
-    with psycopg.connect(url, row_factory=dict_row) as conn:
+    with psycopg.connect(url, row_factory=dict_row, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
             cur.execute("select set_config('app.actor_uid', '', false)")
             try:

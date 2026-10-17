@@ -110,7 +110,7 @@ export default function SitesPage() {
                   disabled={where.busy}
                   onClick={() => void where.locate()}
                   data-testid="locate-me"
-                  sx={{ position: "absolute", left: 12, top: 12, zIndex: 500, bgcolor: "background.paper", color: "text.primary", boxShadow: 3, "&:hover": { bgcolor: "background.paper" } }}
+                  sx={{ position: "absolute", left: 12, top: 12, zIndex: 500, maxWidth: "calc(100% - 76px)", whiteSpace: "normal", textAlign: "left", bgcolor: "background.paper", color: "text.primary", boxShadow: 3, "&:hover": { bgcolor: "background.paper" } }}
                 >
                   {where.busy ? T("Finding you…") : where.pos ? T("Update my location") : T("Show my location")}
                 </Button>

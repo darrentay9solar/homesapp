@@ -351,7 +351,9 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     for key, name, role, mobile, groups in PEOPLE:
         u[key] = one(
             # is_demo: a sample person visitors can try the demo site as (only the owner can set it).
-            "insert into users (full_name, user_type, email, contact_no, mobile_verified_at, is_demo) values (%s, %s, %s, %s, now(), true) returning uid",
+            # They've agreed to the privacy notice, so visitors aren't asked for sample people (api/_lib/privacy.py VERSION).
+            "insert into users (full_name, user_type, email, contact_no, mobile_verified_at, is_demo, privacy_accepted_at, privacy_version) "
+            "values (%s, %s, %s, %s, now(), true, now(), '2026-10-15') returning uid",
             name,
             role,
             f"{key}.demo@example.com",
@@ -852,7 +854,8 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
         closed_on = NOW - timedelta(days=30 * months_ago + (n % 4) * 3)
         created_on = closed_on - timedelta(days=took)
         ho = one(
-            "insert into users (full_name, user_type, email, contact_no) values (%s, 'homeowner', %s, %s) returning uid",
+            "insert into users (full_name, user_type, email, contact_no, privacy_accepted_at, privacy_version) "
+            "values (%s, 'homeowner', %s, %s, now(), '2026-10-15') returning uid",
             f"{name.split()[0]} Homeowner",
             f"past{n}.demo@example.com",
             f"+65 9{n:03d} 7{n:03d}",
@@ -1156,7 +1159,7 @@ def main() -> None:
             "Production's R2 keys aren't in .env.local (PROD_R2_ACCESS_KEY_ID, PROD_R2_SECRET_ACCESS_KEY). Nothing was changed."
         )
 
-    with psycopg.connect(url, row_factory=dict_row, autocommit=True) as c:
+    with psycopg.connect(url, row_factory=dict_row, autocommit=True, prepare_threshold=None) as c:
         print(f"Resetting {a.target} ({host(url).split('.')[0]})")
         keep = wipe(c, a.target)
         print("  kept: " + (", ".join(f"{k['full_name']} (PM)" for k in keep) or "no accounts"))

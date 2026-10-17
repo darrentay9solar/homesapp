@@ -11,6 +11,8 @@ const isPublic = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/forgot-password",
+  // The privacy notice: read before there's an account.
+  "/privacy",
   // The health checks must stay reachable: an uptime monitor cannot sign in,
   // and they deliberately expose no project data.
   "/api/health",

@@ -26,7 +26,7 @@ function Row({ label, sub, checked, onChange, testId }: { label: string; sub?: s
   return (
     <FormControlLabel
       labelPlacement="start"
-      sx={{ mx: 0, py: 0.75, gap: 2, width: "100%", justifyContent: "space-between", alignItems: "center" }}
+      sx={{ mx: 0, py: 0.75, gap: 2, width: "100%", justifyContent: "space-between", alignItems: "center", "& .MuiFormControlLabel-label": { flex: 1, minWidth: 0, overflowWrap: "anywhere" } }}
       control={<Switch checked={checked} onChange={(e) => onChange(e.target.checked)} slotProps={{ input: { "aria-label": label, ...(testId ? { "data-testid": testId } : {}) } as object }} />}
       label={
         <Box>
@@ -104,7 +104,7 @@ export function NotificationsDialog({ onClose }: { onClose: () => void }) {
       <Card sx={{ px: 2, py: 1.5, mt: 2 }}>
         <Row label={t("Quiet hours")} sub={t("Every day, Singapore time")} checked={p.quiet.on} onChange={(on) => set("quiet", { ...p.quiet, on })} testId="quiet-on" />
         {p.quiet.on && (
-          <Stack direction="row" sx={{ gap: 1.5, mt: 1.5 }}>
+          <Stack direction="row" sx={{ gap: 1.5, mt: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 130px", minWidth: 0 } }}>
             <Field label="From" type="time" icon={<BedtimeRoundedIcon />} value={p.quiet.from} onChange={(e) => set("quiet", { ...p.quiet, from: e.target.value || "22:00" })} slotProps={{ htmlInput: { "data-testid": "quiet-from" } }} />
             <Field label="To" type="time" icon={<ScheduleRoundedIcon />} value={p.quiet.to} onChange={(e) => set("quiet", { ...p.quiet, to: e.target.value || "07:00" })} slotProps={{ htmlInput: { "data-testid": "quiet-to" } }} />
           </Stack>

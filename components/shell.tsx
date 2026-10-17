@@ -12,12 +12,15 @@ import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
+import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
+import Alert from "@mui/material/Alert";
 import Badge from "@mui/material/Badge";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
@@ -30,9 +33,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
-import { ACT_AS_KEY } from "@/lib/client/api";
+import { ACT_AS_KEY, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
+import { needsPrivacyAgreement } from "@/lib/client/privacy";
 
 import { Logo } from "./icons";
 import { RoleAvatar } from "./m";
@@ -226,6 +230,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         {state?.actingAs && <ActingBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} by={state.actingAs.byName} />}
         {state?.demo && <DemoBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} />}
+        {!state?.actingAs && needsPrivacyAgreement(state?.settings?.privacy) && <PrivacyBanner />}
         {children}
       </Box>
 
@@ -293,6 +298,48 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </List>
       </Drawer>
+    </Box>
+  );
+}
+
+/**
+ * Someone who hasn't agreed to the current privacy notice: added by a manager,
+ * there before the notice, or the notice has changed since. Asked here, once,
+ * until they agree (PDPA).
+ */
+function PrivacyBanner() {
+  const { reloadMe, toast } = useApp();
+  const fetcher = useFetcher();
+  const [busy, setBusy] = useState(false);
+  const agree = async () => {
+    setBusy(true);
+    try {
+      await fetcher("/me/privacy", { method: "POST" });
+      await reloadMe();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : T("Something went wrong. Please try again."), "bad");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Box sx={{ px: PAGE_GUTTER, pt: 1.5 }} data-testid="privacy-banner">
+      <Alert
+        severity="info"
+        icon={<PrivacyTipOutlinedIcon />}
+        action={
+          <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
+            <Button size="small" component={Link} href="/privacy" target="_blank" rel="noopener" color="inherit">
+              {T("Read it")}
+            </Button>
+            <Button size="small" variant="contained" disabled={busy} onClick={() => void agree()}>
+              {T("I agree")}
+            </Button>
+          </Stack>
+        }
+      >
+        {T("Please read our privacy notice: how 9 Solar Home uses your details to run your account and projects.")}
+      </Alert>
     </Box>
   );
 }

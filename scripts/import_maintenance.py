@@ -267,7 +267,7 @@ def main() -> None:
     url = _from_env_file(URLS[a.target])
     if not url:
         sys.exit(f"{URLS[a.target]} isn't set in .env.local.")
-    with psycopg.connect(url) as conn:
+    with psycopg.connect(url, prepare_threshold=None) as conn:
         with conn.cursor() as cur:
             # A pooled session may carry an earlier run's actor; this is a script, recorded as one.
             cur.execute("select set_config('app.actor_uid', '', false)")

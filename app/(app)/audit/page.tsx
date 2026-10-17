@@ -261,6 +261,8 @@ function ViewSwitch({ value, onChange }: { value: View; onChange: (v: View) => v
 
 /** Rail widths: the date column, then the line with its dots. */
 const RAIL = { xs: 46, lg: 92 } as const;
+/** A phone made very narrow by a big font setting. */
+const NARROW = "@media (max-width: 299.95px)";
 const DOTCOL = { xs: 18, lg: 28 } as const;
 
 function Timeline({
@@ -392,9 +394,11 @@ function RailRow({ rail, dot, children }: { rail: ReactNode; dot: ReactNode; chi
         display: "grid",
         gridTemplateColumns: { xs: `${RAIL.xs}px ${DOTCOL.xs}px minmax(0, 1fr)`, lg: `${RAIL.lg}px ${DOTCOL.lg}px minmax(0, 1fr)` },
         pb: { xs: 3, lg: 4 },
+        // A very narrow phone (a big font setting): the time goes above the entry, which keeps the width.
+        [NARROW]: { gridTemplateColumns: `${DOTCOL.xs}px minmax(0, 1fr)` },
       }}
     >
-      <Box sx={{ textAlign: "right", pr: { xs: 0.75, lg: 1.5 }, pt: 0.25 }}>{rail}</Box>
+      <Box sx={{ textAlign: "right", pr: { xs: 0.75, lg: 1.5 }, pt: 0.25, [NARROW]: { gridColumn: "1 / -1", textAlign: "left", pr: 0, pb: 0.5 } }}>{rail}</Box>
       <Box sx={{ display: "flex", justifyContent: "center", pt: { xs: 0.9, lg: 1.25 } }}>{dot}</Box>
       <Box sx={{ minWidth: 0, pl: { xs: 0.5, lg: 1 } }}>{children}</Box>
     </Box>
@@ -469,7 +473,7 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
         borderColor: shared ? alpha(t.palette.warning.main, 0.55) : "transparent",
       })}
     >
-      <Stack direction="row" sx={{ alignItems: "center", gap: 1.25, px: { xs: 1, lg: 1.25 }, pt: 0.75, pb: 1.25 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1.25, rowGap: 0.75, flexWrap: "wrap", px: { xs: 1, lg: 1.25 }, pt: 0.75, pb: 1.25 }}>
         <Box
           sx={(t) => ({
             width: 38,
@@ -485,7 +489,7 @@ function PlaceCardView({ card, refs, onRevert }: { card: PlaceCard; refs: Refs; 
         >
           {KIND_ICON[card.location.kind]}
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
           <Typography noWrap sx={[{ fontWeight: 600, fontSize: { xs: 15, lg: 16 } }, gradText()]}>
             {TR(card.location.label)}
           </Typography>
@@ -585,7 +589,7 @@ function EntryRow({
         <Box sx={(t) => ({ width: 8, height: 8, mt: 0.85, flex: "0 0 auto", borderRadius: "50%", bgcolor: tone(role)(t) })} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" sx={{ gap: 1, alignItems: "baseline", flexWrap: "wrap" }}>
-            <Typography sx={{ fontWeight: 600, fontSize: 14.5 }}>{TR(e.summary)}</Typography>
+            <Typography sx={{ fontWeight: 600, fontSize: 14.5, minWidth: 0, overflowWrap: "anywhere" }}>{TR(e.summary)}</Typography>
             <LinkChips entry={e} />
             {latest && !expanded && <Typography variant="caption" sx={{ color: "text.secondary" }}>{T("latest")}</Typography>}
           </Stack>
@@ -596,6 +600,7 @@ function EntryRow({
             {" · "}
             {timeOf(e.at)}
             {e.changes.length > 0 && ` · ${e.changes.length} field${e.changes.length === 1 ? "" : "s"}`}
+            <Box component="span" sx={{ display: { sm: "none" } }}>{` · #${e.id}`}</Box>
           </Typography>
           <ReasonLine reason={e.reason} />
           {!expanded && e.changes.length > 0 && (
@@ -605,7 +610,7 @@ function EntryRow({
             </Typography>
           )}
         </Box>
-        <Typography variant="caption" sx={{ color: "text.disabled", flex: "0 0 auto", mt: 0.25 }}>
+        <Typography variant="caption" sx={{ color: "text.disabled", flex: "0 0 auto", mt: 0.25, display: { xs: "none", sm: "block" } }}>
           #{e.id}
         </Typography>
       </ButtonBase>

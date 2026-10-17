@@ -13,6 +13,7 @@ import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import NotificationsActiveRoundedIcon from "@mui/icons-material/NotificationsActiveRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
+import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
 import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import TranslateRoundedIcon from "@mui/icons-material/TranslateRounded";
@@ -34,7 +35,7 @@ import { Page } from "@/components/shell";
 import { LangButton, ThemeButton } from "@/components/theme-button";
 import { SegTabs, TopBar, gradText } from "@/components/topbar";
 import { ACCESS } from "@/lib/client/access";
-import { ACT_AS_KEY, useApi, useFetcher } from "@/lib/client/api";
+import { ACT_AS_KEY, useApi, useDownload, useFetcher } from "@/lib/client/api";
 import { isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
 import { leaveDemo } from "@/lib/client/demo";
 import { type Lang, locale, T, TR, useLang } from "@/lib/client/i18n";
@@ -149,6 +150,7 @@ function ProfileTab({ change }: { change: Change }) {
         }
         right={change("mobile", me.contactNo ? "Change" : "Add")}
       />
+      <YourData />
       {me.role !== "homeowner" && (
         <SettingRow
           icon={<FolderOpenRoundedIcon />}
@@ -163,6 +165,46 @@ function ProfileTab({ change }: { change: Change }) {
         />
       )}
     </>
+  );
+}
+
+/** The privacy notice they agreed to, and a copy of everything held about them (PDPA). */
+function YourData() {
+  const { me: state, toast } = useApp();
+  const download = useDownload();
+  const [busy, setBusy] = useState(false);
+  const p = state?.settings?.privacy;
+  const get = async () => {
+    setBusy(true);
+    try {
+      await download("/me/data", "my-data.json");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : T("Something went wrong. Please try again."), "bad");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <SettingRow
+      icon={<PrivacyTipOutlinedIcon />}
+      tint="#475569"
+      label={T("Your data")}
+      sub={
+        <>
+          {p?.acceptedAt ? T("You agreed to the privacy notice on {date}.", { date: when(p.acceptedAt) }) : T("How we use your details is in the privacy notice.")}{" "}
+          <Box component={Link} href="/privacy" sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}>
+            {T("Read it")}
+          </Box>
+        </>
+      }
+      right={
+        state?.actingAs ? undefined : (
+          <Button size="small" variant="outlined" disabled={busy} onClick={() => void get()} data-testid="download-my-data">
+            {busy ? T("Preparing…") : T("Download my data")}
+          </Button>
+        )
+      }
+    />
   );
 }
 

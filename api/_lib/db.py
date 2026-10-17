@@ -71,6 +71,11 @@ def _from_env_file(key: str) -> str:
     return ""
 
 
+# prepare_threshold=None: psycopg otherwise prepares a query on the server once it has run
+# five times on a connection, and Neon's pooler can send the next run to a backend that
+# never saw it ("prepared statement _pg3_N does not exist", a 500). Never prepare.
+
+
 @contextmanager
 def connect(actor_uid: int | None = None) -> Iterator[psycopg.Connection]:
     """Opens a connection, optionally identifying who is acting.
@@ -79,7 +84,7 @@ def connect(actor_uid: int | None = None) -> Iterator[psycopg.Connection]:
     session rather than a transaction, which matches how the triggers and
     policies expect to find it.
     """
-    with psycopg.connect(_database_url(), row_factory=dict_row) as conn:
+    with psycopg.connect(_database_url(), row_factory=dict_row, prepare_threshold=None) as conn:
         if actor_uid is not None:
             with conn.cursor() as cur:
                 cur.execute("select set_config('app.actor_uid', %s, false)", (str(actor_uid),))
@@ -97,7 +102,7 @@ def transaction(actor_uid: int | None) -> Iterator[psycopg.Cursor]:
     guards (only a PM may create accounts, the geofence, ...) judge it.
     """
     with (
-        psycopg.connect(_database_url(), row_factory=dict_row) as conn,
+        psycopg.connect(_database_url(), row_factory=dict_row, prepare_threshold=None) as conn,
         conn.transaction(),
         conn.cursor() as cur,
     ):

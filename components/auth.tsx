@@ -9,6 +9,8 @@ import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button, { type ButtonProps } from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
+import FormHelperText from "@mui/material/FormHelperText";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import MuiLink from "@mui/material/Link";
@@ -456,6 +458,42 @@ export function AuthRules({ rules, center }: { rules: Array<{ ok?: boolean; text
         </Box>
       ))}
     </Stack>
+  );
+}
+
+/**
+ * "I've read the privacy notice and agree": a tick box, with the notice a tap
+ * away. The notice opens in a new tab, so nothing typed is lost.
+ */
+export function AuthConsent({ checked, onChange, error }: { checked: boolean; onChange: (v: boolean) => void; error?: string | null }) {
+  const compact = useContext(Compact);
+  return (
+    <Box sx={{ mb: 2, mx: 0.25 }} data-testid="privacy-consent">
+      <Stack
+        component="label"
+        direction="row"
+        sx={{ gap: 1, alignItems: "flex-start", cursor: "pointer", fontSize: 13.5, lineHeight: 1.5, color: "text.primary", [DESK]: { color: "#fff", fontSize: compact ? 13.5 : 15 } }}
+      >
+        <Checkbox
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          sx={{ p: 0.25, flex: "0 0 auto", [DESK]: { color: "rgba(255,255,255,0.8)", "&.Mui-checked": { color: "#fff" } } }}
+        />
+        <Box component="span" sx={{ minWidth: 0, overflowWrap: "anywhere", pt: 0.25 }}>
+          {T("I've read the privacy notice and agree to 9 Solar Home using my details as it describes.")}
+        </Box>
+      </Stack>
+      <Box sx={{ pl: 4.25, mt: 0.5 }}>
+        <MuiLink href="/privacy" target="_blank" rel="noopener" underline="none" sx={{ fontWeight: 600, fontSize: 13, color: "primary.main", [DESK]: { color: "#fff", textDecoration: "underline", textUnderlineOffset: "3px" } }}>
+          {T("Read the privacy notice")}
+        </MuiLink>
+      </Box>
+      {error && (
+        <FormHelperText error role="alert">
+          {error}
+        </FormHelperText>
+      )}
+    </Box>
   );
 }
 

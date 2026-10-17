@@ -99,7 +99,7 @@ def ask(client, who, number: str):
     return client.post(
         "/api/py/account-requests",
         headers=bearer(who.id),
-        json={"fullName": "Aisha Rahman", "role": "homeowner", "contactNo": number},
+        json={"privacyAccepted": True, "fullName": "Aisha Rahman", "role": "homeowner", "contactNo": number},
     )
 
 

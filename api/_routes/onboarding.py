@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from _lib import notify
+from _lib import notify, privacy
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.i18n import LANGS
@@ -20,11 +20,15 @@ from _lib.web import account
 
 router = APIRouter()
 
+PRIVACY_NEEDED = "Agree to the privacy notice to continue."
+
 
 class RequestIn(ProfileIn):
     note: str | None = None
     # The language the app was in when they asked; their messages follow it.
     language: str = "en"
+    # They've read the privacy notice (/privacy) and agree to it: needed before we keep their details.
+    privacyAccepted: bool = False
 
 
 @router.post("/account-requests")
@@ -35,6 +39,8 @@ def request_account(body: RequestIn, acct: Account = Depends(account)) -> dict[s
     if not cu or not cu.primary_email or cu.primary_email not in cu.verified_emails:
         raise HTTPException(400, "Verify your email address first.")
 
+    if not body.privacyAccepted:
+        raise FieldProblem(400, PRIVACY_NEEDED, "privacy")
     p = clean_profile(body, require_mobile=True)
     if p["user_type"] == "finance":
         raise HTTPException(400, "Admin accounts are made by a superadmin. Choose another role.")
@@ -52,7 +58,8 @@ def request_account(body: RequestIn, acct: Account = Depends(account)) -> dict[s
     with transaction(None) as cur:
         cur.execute(
             "insert into account_requests (clerk_user_id, email, full_name, requested_type, contact_no, "
-            "ic_last4, address, postal_code, note, language) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "ic_last4, address, postal_code, note, language, privacy_accepted_at, privacy_version) "
+            "values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),%s)",
             (
                 acct.identity.clerk_user_id,
                 cu.primary_email,
@@ -64,6 +71,7 @@ def request_account(body: RequestIn, acct: Account = Depends(account)) -> dict[s
                 p["postal_code"],
                 note,
                 body.language if body.language in LANGS else "en",
+                privacy.VERSION,
             ),
         )
 

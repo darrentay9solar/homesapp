@@ -70,10 +70,9 @@ export default function DashboardPage() {
   const period: Period = choice === "custom" ? (typed ? `${typed}d` : "90d") : choice;
   const [pm, setPm] = useState("");
   const { data, error } = useApi<Analytics>(admin ? `/analytics?period=${period}${pm ? `&pm=${pm}` : ""}` : null);
-  // No projects in the app yet, but systems to look after: the dashboard opens where the numbers are.
+  // No projects in the app yet: Overview says so, with a way to Maintenance. It always opens on Overview.
   const noProjects = Boolean(data && data.pipeline.every((x) => x.count === 0));
-  const quiet = noProjects && (data?.maintenance?.tiles.systems.count ?? 0) > 0;
-  const [tab, setTab] = useTab<Tab>(["overview", "delivery", "site", "sales", "maintenance"], quiet ? "maintenance" : "overview");
+  const [tab, setTab] = useTab<Tab>(["overview", "delivery", "site", "sales", "maintenance"], "overview");
   // The open list belongs to the tab and filters it was opened under.
   const [opened, setOpened] = useState<(NonNullable<Open> & { ctx: string }) | null>(null);
   useEffect(() => {

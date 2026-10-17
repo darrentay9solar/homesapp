@@ -55,11 +55,11 @@ export function StateChip({ state, small }: { state: Cell["state"]; small?: bool
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <Stack direction="row" sx={{ justifyContent: "space-between", gap: 2, py: 0.75, alignItems: "baseline" }}>
-      <Typography variant="body2" sx={{ color: "text.secondary", flexShrink: 0 }}>
+    <Stack direction="row" sx={{ justifyContent: "space-between", gap: 2, rowGap: 0.25, py: 0.75, alignItems: "baseline", flexWrap: "wrap" }}>
+      <Typography variant="body2" sx={{ color: "text.secondary", minWidth: 0, overflowWrap: "anywhere" }}>
         {label}
       </Typography>
-      <Typography variant="body2" sx={{ fontWeight: 600, textAlign: "right", overflowWrap: "anywhere", minWidth: 0 }}>
+      <Typography variant="body2" component="div" sx={{ fontWeight: 600, textAlign: "right", overflowWrap: "anywhere", minWidth: 0, ml: "auto" }}>
         {children}
       </Typography>
     </Stack>
@@ -364,7 +364,7 @@ export function StatusBoard({ data, onOpen, onIssueFee, busyFee }: { data: Overv
                 <Typography noWrap variant="body2" sx={{ color: "text.secondary", mb: 1 }}>
                   {[s.code, s.address, s.rate ? `S$${s.rate}/kWh` : null].filter(Boolean).join(" · ")}
                 </Typography>
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(6, minmax(0, 1fr))", sm: "repeat(12, minmax(0, 1fr))" }, gap: 0.5 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(auto-fill, minmax(2.75rem, 1fr))", sm: "repeat(12, minmax(0, 1fr))" }, gap: 0.5 }}>
                   {s.months.map((c, i) => (
                     <MonthCell key={data.months[i]} cell={c} month={data.months[i]} onOpen={onOpen} />
                   ))}
@@ -449,7 +449,7 @@ export function IssuePanel({ onIssued }: { onIssued: () => void | Promise<void> 
                 </Typography>
               </Box>
               {r.invoice ? (
-                <Stack direction="row" sx={{ gap: 1, alignItems: "center" }}>
+                <Stack direction="row" sx={{ gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                   <Typography variant="body2">{r.invoice.number}</Typography>
                   <StateChip state={r.invoice.state} small />
                 </Stack>
@@ -458,8 +458,8 @@ export function IssuePanel({ onIssued }: { onIssued: () => void | Promise<void> 
                   {TR(r.problem)}
                 </Typography>
               ) : (
-                <Stack direction="row" sx={{ gap: 1, alignItems: "center", flex: "0 1 220px" }}>
-                  <TextField size="small" label="kWh" value={kwh[r.systemId] ?? ""} onChange={(e) => setKwh(r.systemId, e.target.value)} slotProps={{ htmlInput: { inputMode: "decimal", "data-testid": "run-kwh" } }} sx={{ width: 110 }} />
+                <Stack direction="row" sx={{ gap: 1, alignItems: "center", flex: "0 1 220px", flexWrap: "wrap", maxWidth: "100%" }}>
+                  <TextField size="small" label="kWh" value={kwh[r.systemId] ?? ""} onChange={(e) => setKwh(r.systemId, e.target.value)} slotProps={{ htmlInput: { inputMode: "decimal", "data-testid": "run-kwh" } }} sx={{ width: 110, maxWidth: "100%" }} />
                   <Typography sx={{ fontWeight: 700, minWidth: 0 }}>{amount ? money(amount) : "—"}</Typography>
                 </Stack>
               )}
@@ -522,7 +522,7 @@ export function StatementPanel({ onConfirmed }: { onConfirmed: () => void | Prom
       <Typography variant="body2" sx={{ color: "text.secondary" }}>
         {T("Export the account's statement from your bank as CSV and upload it. Each payment that carries an invoice number as its reference is matched to that invoice; you confirm which to mark paid.")}
       </Typography>
-      <Button component="label" variant="outlined" size="large" startIcon={<UploadFileRoundedIcon />} disabled={busy} data-testid="statement-upload">
+      <Button component="label" variant="outlined" size="large" startIcon={<UploadFileRoundedIcon />} disabled={busy} data-testid="statement-upload" sx={{ whiteSpace: "normal", textAlign: "center" }}>
         {T("Upload a bank statement (CSV)")}
         <input hidden type="file" accept=".csv,text/csv" onChange={(e) => e.target.files?.[0] && void load(e.target.files[0])} />
       </Button>
@@ -594,16 +594,16 @@ export function InvoicePreview({ s }: { s: Settings }) {
         </Stack>
         {s.intro && <Typography sx={{ fontSize: 11, mt: 1.5, whiteSpace: "pre-line" }}>{s.intro}</Typography>}
         <Box sx={{ mt: 1.5, bgcolor: "#eef2f0", px: 1, py: 0.75, display: "flex", fontSize: 9, fontWeight: 700, color: grey }}>
-          <Box sx={{ flex: 1 }}>DESCRIPTION</Box>
-          {s.show.kwh && <Box sx={{ width: 70, textAlign: "right" }}>KWH</Box>}
-          <Box sx={{ width: 80, textAlign: "right" }}>AMOUNT</Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>DESCRIPTION</Box>
+          {s.show.kwh && <Box sx={{ flex: "0 1 70px", minWidth: 0, textAlign: "right" }}>KWH</Box>}
+          <Box sx={{ flex: "0 1 80px", minWidth: "fit-content", pl: 1, textAlign: "right" }}>AMOUNT</Box>
         </Box>
         <Box sx={{ display: "flex", px: 1, py: 1, borderBottom: "1px solid #ddd" }}>
-          <Box sx={{ flex: 1, fontWeight: 700 }}>Solar power generated, October 2026</Box>
-          {s.show.kwh && <Box sx={{ width: 70, textAlign: "right" }}>{sample.kwh}</Box>}
-          <Box sx={{ width: 80, textAlign: "right" }}>{money(amount)}</Box>
+          <Box sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", fontWeight: 700 }}>Solar power generated, October 2026</Box>
+          {s.show.kwh && <Box sx={{ flex: "0 1 70px", minWidth: 0, pl: 1, textAlign: "right" }}>{sample.kwh}</Box>}
+          <Box sx={{ flex: "0 1 80px", minWidth: "fit-content", pl: 1, textAlign: "right", whiteSpace: "nowrap" }}>{money(amount)}</Box>
         </Box>
-        <Stack direction="row" sx={{ justifyContent: "flex-end", gap: 2, mt: 1, alignItems: "baseline" }}>
+        <Stack direction="row" sx={{ justifyContent: "flex-end", gap: 2, rowGap: 0, mt: 1, alignItems: "baseline", flexWrap: "wrap" }}>
           <Typography sx={{ fontSize: 10, fontWeight: 700, color: grey }}>TOTAL DUE</Typography>
           <Typography sx={{ fontWeight: 800, fontSize: 16, color: s.accent }}>{money(amount)}</Typography>
         </Stack>

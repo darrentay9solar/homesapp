@@ -226,6 +226,9 @@ function SignUpFlow() {
       <AuthAlt>
         {T("Already have an account?")} <Link href="/sign-in">{T("Sign in")}</Link>
       </AuthAlt>
+      <AuthAlt>
+        {T("How we look after your data:")} <Link href="/privacy">{T("Privacy notice")}</Link>
+      </AuthAlt>
     </AuthShell>
   );
 }

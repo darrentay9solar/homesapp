@@ -97,7 +97,7 @@ import {
   whenText,
 } from "@/lib/client/calendar";
 import { DESIGN } from "@/lib/client/design";
-import { T, TR, useLang } from "@/lib/client/i18n";
+import { type Lang, T, TR, useLang } from "@/lib/client/i18n";
 import { FIX_FIELDS } from "@/lib/client/rules";
 
 /**
@@ -107,7 +107,6 @@ import { FIX_FIELDS } from "@/lib/client/rules";
  * lib/client/calendar.ts; this file only draws it.
  */
 
-const WEEK_LETTERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** The time now, kept fresh each minute (for the now line, and what's over). */
 export function useNow(every = 60_000): number {
@@ -156,10 +155,10 @@ export function MiniMonth({
           <ChevronRightRoundedIcon />
         </IconButton>
       </Stack>
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", rowGap: 0.25, textAlign: "center" }}>
-        {WEEK_LETTERS.map((w) => (
-          <Typography key={w} variant="caption" sx={{ color: "text.secondary", fontWeight: 600, fontSize: 11, py: 0.5 }}>
-            {TR(w)}
+      <Box sx={{ ...DAY_NAMES_FIT, display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", rowGap: 0.25, textAlign: "center" }}>
+        {days.slice(0, 7).map((d) => (
+          <Typography key={d} variant="caption" sx={{ color: "text.secondary", fontWeight: 600, fontSize: 11, py: 0.5 }}>
+            <DayName d={d} lang={lang} />
           </Typography>
         ))}
         {days.map((d) => {
@@ -201,12 +200,32 @@ export function MiniMonth({
   );
 }
 
+/**
+ * A day's name in a row of seven: "Mon", or "M" when the row is too tight for
+ * three letters (large text on a phone). Needs a container (DAY_NAMES_FIT) around the row.
+ */
+function DayName({ d, lang }: { d: string; lang: Lang }) {
+  return (
+    <>
+      <span className="day-short">{dayText(d, lang, { weekday: "short" })}</span>
+      <span className="day-narrow" aria-hidden>
+        {dayText(d, lang, { weekday: "narrow" })}
+      </span>
+    </>
+  );
+}
+const DAY_NAMES_FIT = {
+  containerType: "inline-size",
+  "& .day-narrow": { display: "none" },
+  "@container (max-width: 330px)": { "& .day-short": { display: "none" }, "& .day-narrow": { display: "inline" } },
+} as const;
+
 /** For a phone: the week as a strip of days to tap, with a dot on days that have something. */
 export function WeekStrip({ days, selected, onSelect, busyDays }: { days: string[]; selected: string; onSelect: (d: string) => void; busyDays: Set<string> }) {
   const { lang } = useLang();
   const now = today();
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 0.5 }} data-testid="week-strip">
+    <Box sx={{ ...DAY_NAMES_FIT, display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 0.5 }} data-testid="week-strip">
       {days.map((d) => {
         const sel = d === selected;
         return (
@@ -226,7 +245,7 @@ export function WeekStrip({ days, selected, onSelect, busyDays }: { days: string
             })}
           >
             <Box component="span" sx={{ fontSize: 11, fontWeight: 600, opacity: 0.8 }}>
-              {dayText(d, lang, { weekday: "short" })}
+              <DayName d={d} lang={lang} />
             </Box>
             <Box component="span" sx={{ fontSize: 17, fontWeight: 700, lineHeight: 1.3 }}>
               {Number(d.slice(8))}
@@ -322,14 +341,14 @@ export function TimeGrid({
   return (
     <Box sx={{ border: 1, borderColor: "divider", borderRadius: `${DESIGN.radius.card}px`, overflow: "hidden", bgcolor: "background.paper" }} data-testid="time-grid">
       {many && (
-        <Box sx={{ display: "grid", gridTemplateColumns: `52px repeat(${days.length}, minmax(0, 1fr))`, borderBottom: 1, borderColor: "divider" }}>
+        <Box sx={{ ...DAY_NAMES_FIT, display: "grid", gridTemplateColumns: `52px repeat(${days.length}, minmax(0, 1fr))`, borderBottom: 1, borderColor: "divider" }}>
           <Box />
           {days.map((d) => {
             const isToday = d === nowDay;
             return (
               <Stack key={d} sx={{ alignItems: "center", py: 1, borderLeft: 1, borderColor: "divider" }}>
                 <Typography variant="caption" sx={{ color: isToday ? "primary.main" : "text.secondary", fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>
-                  {dayText(d, lang, { weekday: "short" })}
+                  <DayName d={d} lang={lang} />
                 </Typography>
                 <Box sx={(t) => ({ width: 32, height: 32, borderRadius: "50%", display: "grid", placeItems: "center", fontWeight: 700, fontSize: 16, bgcolor: isToday ? pal(t).primary.main : "transparent", color: isToday ? pal(t).primary.contrastText : pal(t).text.primary })}>
                   {Number(d.slice(8))}
@@ -753,6 +772,11 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
           <Field label={T("Title")} icon={<TitleRoundedIcon />} value={title} onChange={(e) => setTitle(e.target.value)} error={tried && Boolean(problem.title)} helperText={tried ? (problem.title ?? undefined) : undefined} placeholder={T("What's it about?")} slotProps={{ htmlInput: { maxLength: 120, "data-testid": "meeting-title" } }} />
           <Autocomplete
             multiple
+            // Each invitee has its own ✕ and typing opens the list: without the clear and arrow
+            // buttons, a name keeps the field's whole width on a narrow phone.
+            disableClearable
+            forcePopupIcon={false}
+            sx={{ "& .MuiAutocomplete-tag": { height: "auto", minHeight: 24 }, "& .MuiAutocomplete-tag .MuiChip-label": { whiteSpace: "normal", overflowWrap: "anywhere", py: 0.25 } }}
             options={contactList.map((c) => c.uid)}
             value={people}
             onChange={(_, v) => setPeople(v)}
@@ -873,10 +897,10 @@ export function MeetingDialog({ draft = {}, edit, onClose, onSaved }: { draft?: 
                 const [n, unit] = reminderParts(r);
                 const set = (v: number) => setReminders((xs) => xs.map((x, j) => (j === i ? v : x)));
                 return (
-                  <Stack key={i} direction="row" sx={{ gap: 1, alignItems: "center" }}>
+                  <Stack key={i} direction="row" sx={{ gap: 1, alignItems: "center", flexWrap: "wrap" }}>
                     <NotificationsRoundedIcon sx={{ color: "text.secondary" }} fontSize="small" />
                     <TextField size="small" type="number" value={n} onChange={(e) => set(Math.max(0, Math.floor(Number(e.target.value) || 0)) * UNIT_MINUTES[unit])} sx={{ width: 84 }} slotProps={{ htmlInput: { min: 0, inputMode: "numeric", "aria-label": T("How long before") } }} />
-                    <TextField size="small" select value={unit} onChange={(e) => set(n * UNIT_MINUTES[e.target.value as ReminderUnit])} sx={{ flex: 1, minWidth: 0 }} slotProps={{ htmlInput: { "aria-label": T("Unit") } }}>
+                    <TextField size="small" select value={unit} onChange={(e) => set(n * UNIT_MINUTES[e.target.value as ReminderUnit])} sx={{ flex: "1 1 110px", minWidth: 0 }} slotProps={{ htmlInput: { "aria-label": T("Unit") } }}>
                       {UNITS.map((u) => (
                         <MenuItem key={u} value={u}>
                           {unitText(u)}

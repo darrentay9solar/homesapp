@@ -375,8 +375,12 @@ def approve(request_id: int, body: DecisionIn, acct: Account = Depends(pm_only))
             (request_id, body.role, (body.note or "").strip() or None),
         )
         uid = cur.fetchone()["uid"]
-        # Their account starts in the language they signed up in.
-        cur.execute("update users set language = %s where uid = %s", (req["language"], uid))
+        # Their account starts in the language they signed up in, with the privacy notice they agreed to then.
+        cur.execute(
+            "update users u set language = r.language, privacy_accepted_at = r.privacy_accepted_at, "
+            "privacy_version = r.privacy_version from account_requests r where r.request_id = %s and u.uid = %s",
+            (request_id, uid),
+        )
         if expires:
             cur.execute("update users set disable_on = %s where uid = %s", (expires, uid))
         if body.groupId and body.role in CREW_ROLES:

@@ -17,6 +17,10 @@ import { useEffect } from "react";
  *   3. still too long at that size: it wraps onto another line instead,
  *      so the whole sentence is always there.
  *
+ * And when its neighbours (a picture, buttons) leave it only a sliver of a
+ * very narrow phone, its row wraps and it keeps at least 120px (or the whole
+ * line), so it's read on a line of its own rather than a letter at a time.
+ *
  * It runs again when the screen turns or resizes, when fonts arrive, and
  * when anything on the page changes. data-nofit opts an element out.
  */
@@ -31,7 +35,7 @@ const TARGETS = [
   "[data-fit]",
 ].join(",");
 const MIN = 0.7; // never below 70% of the designed size
-const MIN_SHORT = 0.5; // the bottom bar's one-word labels can go further: five must share the width
+const MIN_SHORT = 0.45; // the bottom bar's one-word labels can go further: five must share the width (180px at 200% text)
 const BASE = "fitBase";
 
 function isShort(el: HTMLElement): boolean {
@@ -89,8 +93,45 @@ export function fit(el: HTMLElement) {
   }
 }
 
+// Rows and items changed to make room, so a wider screen can put them back.
+const roomed: HTMLElement[] = [];
+
+function squeezed(el: HTMLElement): boolean {
+  const size = parseFloat(getComputedStyle(el).fontSize) || 14;
+  return el.getClientRects().length > 0 && el.clientWidth < Math.max(48, size * 4) && overflows(el);
+}
+
+/** Lets the row holding a squeezed text wrap, and the text's place in it keep enough width. */
+function makeRoom(el: HTMLElement) {
+  // A chip's own row (its icon and label) isn't the one to wrap: start from the chip.
+  const start = el.closest<HTMLElement>(".MuiChip-root") ?? el;
+  for (let item: HTMLElement = start, row = start.parentElement; row && row !== document.body; item = row, row = row.parentElement) {
+    const cs = getComputedStyle(row);
+    if (cs.display.includes("flex") && cs.flexDirection.startsWith("row")) {
+      if (cs.flexWrap === "nowrap") {
+        row.style.setProperty("flex-wrap", "wrap", "important");
+        roomed.push(row);
+      }
+      item.style.setProperty("min-width", "min(100%, 120px)", "important");
+      roomed.push(item);
+      return;
+    }
+  }
+}
+
+function putBack() {
+  for (const e of roomed.splice(0)) {
+    e.style.removeProperty("flex-wrap");
+    e.style.removeProperty("min-width");
+  }
+}
+
 export function fitAll(root: ParentNode = document) {
-  root.querySelectorAll<HTMLElement>(TARGETS).forEach(fit);
+  putBack();
+  const els = [...root.querySelectorAll<HTMLElement>(TARGETS)];
+  els.forEach(reset);
+  for (const el of els) if (!el.closest("[data-nofit]") && !isShort(el) && squeezed(el)) makeRoom(el);
+  els.forEach(fit);
 }
 
 export function AutoFit() {

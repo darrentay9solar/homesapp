@@ -36,6 +36,8 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Forgot Password", path: "/forgot-password", kind: "auth" },
   { name: "Request Access", path: "/dev-preview/onboarding", kind: "auth" },
   { name: "Demo sign-in", path: "/dev-preview/demo", kind: "auth" },
+  { name: "Privacy notice", path: "/privacy", kind: "page" },
+  { name: "Request Access · privacy not agreed", path: "/dev-preview/onboarding", kind: "auth", click: "Request Access", opens: false },
   { name: "Projects", path: "/dev-preview/projects", kind: "app" },
   { name: "Dashboard", path: "/dev-preview/dashboard", kind: "app" },
   { name: "Dashboard · late list", path: "/dev-preview/dashboard", kind: "app", click: "[data-testid=tile-late]", opens: false },
@@ -75,6 +77,7 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Account · security", path: "/dev-preview/account?tab=security", kind: "app" },
   { name: "Account · settings", path: "/dev-preview/account?tab=settings", kind: "app" },
   { name: "Account · access", path: "/dev-preview/account?tab=access", kind: "app" },
+  { name: "Asked to agree to the privacy notice", path: "/dev-preview/projects?privacy=ask", kind: "app" },
   { name: "Alerts", path: "/dev-preview/alerts", kind: "app" },
   { name: "Sites", path: "/dev-preview/sites", kind: "app" },
   { name: "Check Out dialog", path: "/dev-preview/sites", kind: "app", click: "Check Out" },
@@ -182,7 +185,7 @@ async function measure(path: string, kind: Kind, w: number, h: number, lang: Lan
     // Only what's showing counts: Next keeps a hidden copy of a nearby page drawn.
     const seen = (sel: string) => [...doc.querySelectorAll(sel)].some((e) => e.getClientRects().length > 0);
     const ready = () =>
-      kind === "auth" ? seen("[data-auth=content] > *") : seen("header h1") && seen("nav, .MuiBottomNavigation-root") && !seen(".MuiSkeleton-root");
+      kind === "auth" ? seen("[data-auth=content] > *") : kind === "page" ? seen("h1") : seen("header h1") && seen("nav, .MuiBottomNavigation-root") && !seen(".MuiSkeleton-root");
     if (!(await until(ready, 45000))) return [{ rule: "Page loads", detail: "didn't finish drawing in 45 seconds" }];
     await new Promise((r) => setTimeout(r, 500)); // fonts and transitions settle
     if (click) {
@@ -257,9 +260,9 @@ export default function DesignCheckPage() {
         } catch {
           /* storage blocked */
         }
-        // ?only=signed checks just the screens whose name contains "signed".
-        const only = new URLSearchParams(window.location.search).get("only")?.toLowerCase();
-        const screens = only ? SCREENS.filter((s) => s.name.toLowerCase().includes(only)) : SCREENS;
+        // ?only=signed checks just the screens whose name contains "signed"; ?only=people,audit either.
+        const only = new URLSearchParams(window.location.search).get("only")?.toLowerCase().split(",").filter(Boolean);
+        const screens = only?.length ? SCREENS.filter((s) => only.some((o) => s.name.toLowerCase().includes(o))) : SCREENS;
         // ?size=pixel checks just the sizes whose name contains "pixel".
         const sizeOnly = new URLSearchParams(window.location.search).get("size")?.toLowerCase();
         const sizes = SIZES.filter(([name, , , both]) => (both || theme === "dark") && (!sizeOnly || name.toLowerCase().includes(sizeOnly)));
@@ -323,7 +326,7 @@ export default function DesignCheckPage() {
                   <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
                     {bad.length ? <ErrorOutlineRoundedIcon color="error" /> : <CheckCircleRoundedIcon color="success" />}
                     <Typography sx={{ fontWeight: 600, flex: 1 }}>{s.name}</Typography>
-                    <Chip size="small" label={s.kind === "auth" ? "Account screen" : "App screen"} variant="outlined" />
+                    <Chip size="small" label={s.kind === "auth" ? "Account screen" : s.kind === "page" ? "Page" : "App screen"} variant="outlined" />
                   </Stack>
                   <Typography variant="caption" sx={{ color: "text.secondary" }}>
                     {s.path} · {rows.length - bad.length} of {rows.length} match

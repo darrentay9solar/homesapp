@@ -348,9 +348,9 @@ export function Conversation({ t, me, staff, reload }: { t: Thread; me: number; 
         <Typography sx={{ fontWeight: 600 }}>{T("In this conversation")}</Typography>
         <Stack sx={{ gap: 1, mt: 1.25 }}>
           {t.members.map((m) => (
-            <Stack key={m.uid} direction="row" sx={{ alignItems: "center", gap: 1.25 }}>
+            <Stack key={m.uid} direction="row" sx={{ alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
               <RoleAvatar name={m.name} role={m.role} size={34} />
-              <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Box sx={{ flex: "1 1 100px", minWidth: 0 }}>
                 <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
                   {m.name}
                 </Typography>

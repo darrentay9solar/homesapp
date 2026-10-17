@@ -326,11 +326,11 @@ export default function PeoplePage() {
 
           {data && section === "groups" && (
             <>
-              <Stack direction="row" sx={{ alignItems: "center", mt: 1.5 }}>
-                <Typography variant="body2" sx={{ color: "text.secondary", flex: 1 }}>
+              <Stack direction="row" sx={{ alignItems: "center", mt: 1.5, gap: 1, rowGap: 0.5, flexWrap: "wrap" }}>
+                <Typography variant="body2" sx={{ color: "text.secondary", flex: "1 1 160px", minWidth: 0 }}>
                   {T("Contractor admins and EPC crew. A person can be in more than one group.")}
                 </Typography>
-                <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDialog({ kind: "newgroup" })} sx={{ flex: "0 0 auto" }}>
+                <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setDialog({ kind: "newgroup" })} sx={{ flex: "0 0 auto", ml: "auto" }}>
                   {T("New group")}
                 </Button>
               </Stack>
@@ -510,13 +510,15 @@ function PersonCard({ person: u, groupNames, onOpen }: { person: Person; groupNa
           </Stack>
         </Box>
         <Divider />
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pl: 2.25, py: 1 }}>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1, rowGap: 0.75, flexWrap: "wrap", px: 1.5, pl: 2.25, py: 1 }}>
           <RoleChip role={u.role} />
           <ScheduleChip person={u} />
-          <Typography variant="caption" noWrap sx={{ color: "text.secondary", flex: 1, minWidth: 0 }}>
+          <Typography variant="caption" noWrap sx={{ color: "text.secondary", flex: "1 1 60px", minWidth: 0 }}>
             {groupNames.join(", ")}
           </Typography>
-          <StatusBadge status={status} />
+          <Box sx={{ ml: "auto", maxWidth: "100%" }}>
+            <StatusBadge status={status} />
+          </Box>
         </Stack>
       </CardActionArea>
     </EdgeCard>
@@ -542,13 +544,12 @@ function RequestCard({ r, onReview }: { r: Request; onReview: () => void }) {
         </Stack>
       </Box>
       <Divider />
-      <Stack direction="row" sx={{ alignItems: "center", gap: 1, px: 1.5, pl: 2.25, py: 0.75 }}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, rowGap: 0.75, flexWrap: "wrap", px: 1.5, pl: 2.25, py: 0.75 }}>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
           {T("Asked for")}
         </Typography>
         <RoleChip role={r.role} />
-        <Box sx={{ flex: 1 }} />
-        <Button size="small" variant="contained" onClick={onReview} data-testid="request-review">
+        <Button size="small" variant="contained" onClick={onReview} data-testid="request-review" sx={{ ml: "auto", maxWidth: "100%" }}>
           {T("Review")}
         </Button>
       </Stack>
@@ -585,8 +586,7 @@ function RoleRequestCard({ r, onReview }: { r: RoleRequest; onReview: () => void
           {T("to")}
         </Typography>
         <RoleChip role={r.role} />
-        <Box sx={{ flex: 1 }} />
-        <Button size="small" variant="contained" onClick={onReview} data-testid="role-review">
+        <Button size="small" variant="contained" onClick={onReview} data-testid="role-review" sx={{ ml: "auto", maxWidth: "100%" }}>
           {T("Review")}
         </Button>
       </Stack>
@@ -599,15 +599,15 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
   const members = group.members.map((id) => byId.get(id)).filter((u): u is Person => Boolean(u));
   return (
     <EdgeCard color={(t) => t.palette.primary.main}>
-      <Stack direction="row" sx={{ gap: 1.5, alignItems: "center", p: 1.5, pl: 2.25 }}>
+      <Stack direction="row" sx={{ gap: 1.5, rowGap: 1, flexWrap: "wrap", alignItems: "center", p: 1.5, pl: 2.25 }}>
         <Box sx={{ width: 42, height: 42, flex: "0 0 auto", borderRadius: `${DESIGN.radius.iconTile}px`, display: "grid", placeItems: "center", fontWeight: 700, color: "#fff", background: HERO_BG }}>
           {initials(group.name)}
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ flex: "1 1 100px", minWidth: 0 }}>
           <Typography noWrap sx={[{ fontWeight: 600, fontSize: 16 }, gradText()]}>
             {group.name}
           </Typography>
-          <Stack direction="row" sx={{ gap: 1.5, color: "text.secondary", mt: 0.25 }}>
+          <Stack direction="row" sx={{ gap: 1.5, rowGap: 0.25, flexWrap: "wrap", color: "text.secondary", mt: 0.25 }}>
             <Stack direction="row" sx={{ gap: 0.5, alignItems: "center" }}>
               <GroupsRoundedIcon sx={{ fontSize: 15 }} />
               <Typography variant="caption">{members.length}</Typography>
@@ -648,7 +648,7 @@ function GroupCard({ group, byId, reload, onAdd }: { group: Group; byId: Map<num
                 <ListItemAvatar sx={{ minWidth: 42 }}>
                   <RoleAvatar name={u.fullName ?? u.email} role={u.role} size={30} />
                 </ListItemAvatar>
-                <ListItemText primary={u.fullName ?? u.email} secondary={TR(ROLE_NAME[u.role])} slotProps={{ primary: { noWrap: true } }} />
+                <ListItemText primary={u.fullName ?? u.email} secondary={TR(ROLE_NAME[u.role])} sx={{ minWidth: 0 }} slotProps={{ primary: { noWrap: true }, secondary: { sx: { overflowWrap: "anywhere" } } }} />
               </ListItem>
             ))}
           </List>
@@ -1092,8 +1092,9 @@ function AccountSchedule({ person: u, busy, run }: { person: Person; busy: boole
       right={<Switch checked={u.active} disabled={busy || expired} onChange={() => save({ active: !u.active })} slotProps={{ input: { "aria-label": T("Account enabled") } }} />}
     >
       <Stack sx={{ gap: 2 }} data-testid="account-schedule">
-        <Stack direction="row" sx={{ gap: 1, alignItems: "flex-start" }}>
+        <Stack direction="row" sx={{ gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
           <Field
+            sx={{ flex: "1 1 170px", minWidth: 0 }}
             label={T("Expires on")}
             type="date"
             icon={<EventBusyRoundedIcon />}
@@ -1113,8 +1114,9 @@ function AccountSchedule({ person: u, busy, run }: { person: Person; busy: boole
           </Button>
         )}
         {!u.active && (
-          <Stack direction="row" sx={{ gap: 1, alignItems: "flex-start" }}>
+          <Stack direction="row" sx={{ gap: 1, alignItems: "flex-start", flexWrap: "wrap" }}>
             <Field
+              sx={{ flex: "1 1 170px", minWidth: 0 }}
               label={T("Enable again on")}
               type="date"
               icon={<EventAvailableRoundedIcon />}

@@ -61,7 +61,7 @@ def main() -> None:
     http = httpx.Client(timeout=60)
 
     moved = skipped = 0
-    with psycopg.connect(url, row_factory=dict_row, autocommit=True) as c:
+    with psycopg.connect(url, row_factory=dict_row, autocommit=True, prepare_threshold=None) as c:
         c.execute("select set_config('app.actor_uid', '', false)")
         for f in c.execute("select file_id, url, content_type from project_files order by file_id").fetchall():
             m = OLD.match(f["url"])

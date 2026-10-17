@@ -76,7 +76,7 @@ def backup(url: str, label: str, out_dir: Path, reason: str | None = None) -> Pa
         "takenAt": datetime.now(SG).isoformat(),
         "tables": {},
     }
-    with psycopg.connect(url, row_factory=dict_row) as conn:
+    with psycopg.connect(url, row_factory=dict_row, prepare_threshold=None) as conn:
         # One consistent, read-only moment for every table.
         conn.isolation_level = psycopg.IsolationLevel.REPEATABLE_READ
         conn.read_only = True

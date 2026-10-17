@@ -79,7 +79,7 @@ def main() -> None:
         manifest = json.loads(tar.extractfile("manifest.json").read())  # type: ignore[union-attr]
         data = {t: tar.extractfile(f"tables/{t}.csv").read() for t in manifest["tables"]}  # type: ignore[union-attr]
 
-    with psycopg.connect(url, row_factory=dict_row) as conn, conn.cursor() as cur:
+    with psycopg.connect(url, row_factory=dict_row, prepare_threshold=None) as conn, conn.cursor() as cur:
         have = migrations(cur)
         if have != manifest["migrations"]:
             sys.exit(

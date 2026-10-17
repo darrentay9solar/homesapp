@@ -8,7 +8,8 @@
 
 import { DESIGN } from "./design";
 
-export type Kind = "app" | "auth";
+// "page": a page of its own (the privacy notice), with neither the app's frame nor the account screens'.
+export type Kind = "app" | "auth" | "page";
 export type Finding = { rule: string; detail: string };
 
 const px = (v: string) => Math.round(parseFloat(v) * 10) / 10;
@@ -58,6 +59,8 @@ export function checkPage(win: Window, kind: Kind): Finding[] {
     };
     const said = (e: Element) => `"${(e.textContent ?? "").trim().slice(0, 40)}"`;
     const cut = all(".MuiTypography-noWrap, .MuiChip-label, .MuiBottomNavigationAction-label, .MuiListItemText-primary, .MuiButton-root, [data-fit]")
+      // Text kept for screen readers only (a visually hidden title) isn't on the screen to fit.
+      .filter((e) => !(e as HTMLElement).closest("[data-title-hidden]") && e.getBoundingClientRect().width > 1)
       .filter((e) => (e.textContent ?? "").trim() && cs(e).overflow !== "visible" && e.scrollWidth > e.clientWidth + 1 && !scrolls(e));
     if (cut.length) fail("Text fits", `${cut.length} cut short, e.g. ${said(cut[0])}`);
     const off = all("p,span,h1,h2,h3,h4,h5,h6,label,button,a,li")

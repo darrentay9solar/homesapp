@@ -11,6 +11,7 @@ import { type ReactNode, useState } from "react";
 import { AppShell } from "@/components/shell";
 import { AppProvider } from "@/lib/client/app-state";
 import { currentLang } from "@/lib/client/i18n";
+import { PRIVACY_VERSION } from "@/lib/client/privacy";
 
 /**
  * DEVELOPMENT ONLY. Renders real screens against sample data, without
@@ -167,7 +168,9 @@ const LOCATIONS = {
  */
 function me() {
   const m = FIXTURES["GET /me"] as { settings: Record<string, unknown> };
-  return { ...m, settings: { ...m.settings, language: currentLang() } };
+  const ask = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("privacy") === "ask";
+  const privacy = { acceptedAt: ask ? null : iso(60 * 24 * 30), version: ask ? null : PRIVACY_VERSION, current: PRIVACY_VERSION };
+  return { ...m, settings: { ...m.settings, language: currentLang(), privacy } };
 }
 
 // ------------------------------------------------------------ projects

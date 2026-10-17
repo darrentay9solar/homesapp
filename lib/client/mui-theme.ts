@@ -210,7 +210,7 @@ export const theme = createTheme({
           paddingRight: 2,
           "& .MuiBottomNavigationAction-label": { fontSize: "0.68rem", fontWeight: 500, maxWidth: "100%", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" },
           // The chosen tab stands out by colour and weight, not size, so five labels fit a narrow phone.
-          "& .MuiBottomNavigationAction-label.Mui-selected": { fontSize: "0.68rem", fontWeight: 700 },
+          "& .MuiBottomNavigationAction-label.Mui-selected": { fontSize: "0.68rem", fontWeight: 600 },
         },
       },
     },

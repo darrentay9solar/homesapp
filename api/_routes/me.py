@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 
-from _lib import prefs
+from _lib import prefs, privacy
 from _lib.account import ROLE_LABEL, Account
-from _lib.db import fetch_all, fetch_one
-from _lib.web import account, act_as_allowed, role
+from _lib.db import fetch_all, fetch_one, transaction
+from _lib.web import account, act_as_allowed, active, role
 from _routes.people import avatar_url
 
 router = APIRouter()
@@ -78,6 +79,12 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             "notificationPrefs": prefs.normalise(u.get("notification_prefs")),
             "mobileVerifiedAt": u["mobile_verified_at"].isoformat() if u.get("mobile_verified_at") else None,
             "passwordChangedAt": u["password_changed_at"].isoformat() if u.get("password_changed_at") else None,
+            # The privacy notice they agreed to; asked again when it's not the current one.
+            "privacy": {
+                "acceptedAt": u["privacy_accepted_at"].isoformat() if u.get("privacy_accepted_at") else None,
+                "version": u.get("privacy_version"),
+                "current": privacy.VERSION,
+            },
             "roleRequest": {
                 "role": rr["requested_type"],
                 "roleLabel": ROLE_LABEL[rr["requested_type"]],
@@ -105,6 +112,38 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             "phone": acct.clerk_user.phone,
         }
     return out
+
+
+def _signed_in_self(acct: Account) -> dict[str, Any]:
+    """Only the person, with an account that's on: not a manager acting as them (development)."""
+    assert acct.user is not None
+    if acct.acting_pm:
+        raise HTTPException(403, "Only the person can do this, from their own account.")
+    return acct.user
+
+
+@router.post("/me/privacy")
+def agree_to_privacy(acct: Account = Depends(active)) -> dict[str, Any]:
+    u = _signed_in_self(acct)
+    with transaction(u["uid"]) as cur:
+        cur.execute(
+            "update users set privacy_accepted_at = now(), privacy_version = %s where uid = %s "
+            "returning privacy_accepted_at",
+            (privacy.VERSION, u["uid"]),
+        )
+        row = cur.fetchone()
+    return {"acceptedAt": row["privacy_accepted_at"].isoformat(), "version": privacy.VERSION}
+
+
+@router.get("/me/data")
+def my_data(acct: Account = Depends(active)) -> JSONResponse:
+    """A copy of their own personal data (PDPA access request), as a JSON file."""
+    u = _signed_in_self(acct)
+    body = privacy.my_data(u["uid"])
+    name = f"gethomeapps-my-data-{body['createdAt'][:10]}.json"
+    return JSONResponse(
+        body, headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"}
+    )
 
 
 @router.get("/dev/act-as")

@@ -289,6 +289,14 @@ export const users = pgTable(
      */
     isDemo: boolean("is_demo").notNull().default(false),
 
+    /**
+     * When they agreed to the privacy notice (/privacy), and which version
+     * (migration 0044). Only the person sets it, or the approval of their
+     * request carrying over what they agreed to when they asked.
+     */
+    privacyAcceptedAt: timestamp("privacy_accepted_at", { withTimezone: true }),
+    privacyVersion: text("privacy_version"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -395,6 +403,9 @@ export const accountRequests = pgTable(
     note: text("note"),
     /** The language they signed up in: the decision reaches them in it, and their account starts in it. */
     language: varchar("language", { length: 5 }).notNull().default("en"),
+    /** They agreed to the privacy notice when asking (migration 0044); carried to the account. */
+    privacyAcceptedAt: timestamp("privacy_accepted_at", { withTimezone: true }),
+    privacyVersion: text("privacy_version"),
 
     status: accountRequestStatusEnum("status").notNull().default("pending"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

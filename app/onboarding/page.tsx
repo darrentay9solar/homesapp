@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { FieldError } from "@/components/m";
-import { AuthAlt, AuthBadge, AuthButton, AuthChoices, AuthError, AuthField, AuthHeading, AuthPhoneField, AuthRules, AuthShell, AuthSteps, AuthSubtitle, Mark, PersonIcon } from "@/components/auth";
+import { AuthAlt, AuthBadge, AuthButton, AuthChoices, AuthConsent, AuthError, AuthField, AuthHeading, AuthPhoneField, AuthRules, AuthShell, AuthSteps, AuthSubtitle, Mark, PersonIcon } from "@/components/auth";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import type { Role } from "@/lib/client/app-state";
@@ -80,6 +80,9 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
   const [err, setErr] = useState<string | null>(null);
   // A number already on another account is said under the mobile field, until it changes.
   const [mobileErr, setMobileErr] = useState<string | null>(null);
+  // The privacy notice, agreed before we keep anyone's details (PDPA).
+  const [agreed, setAgreed] = useState(false);
+  const [privacyErr, setPrivacyErr] = useState<string | null>(null);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const problem = {
@@ -88,6 +91,7 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
     mobile: mobileProblem(form.contactNo),
     postal: postalProblem(form.postalCode),
     ic: role === "homeowner" ? icLast4Problem(form.icLast4) : null,
+    privacy: agreed ? null : T("Agree to the privacy notice to continue."),
   };
   const ready = !firstProblem(...Object.values(problem));
   // Pressing Request Access with something wrong marks it, instead of a grey button.
@@ -103,10 +107,11 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
     setBusy(true);
     setErr(null);
     try {
-      await fetcher("/account-requests", { method: "POST", json: { ...form, role, language: currentLang() } });
+      await fetcher("/account-requests", { method: "POST", json: { ...form, role, language: currentLang(), privacyAccepted: agreed } });
       await onDone();
     } catch (x) {
       if (x instanceof ApiError && x.field === "mobile") setMobileErr(x.message);
+      else if (x instanceof ApiError && x.field === "privacy") setPrivacyErr(x.message);
       else setErr(x instanceof ApiError ? x.message : T("Something went wrong. Please try again."));
     } finally {
       setBusy(false);
@@ -129,7 +134,7 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
       <form onSubmit={submit} noValidate>
         <AuthChoices label="Role" value={role} onChange={setRole} options={ROLES} />
         {shown("role") && (
-          <FieldError sx={{ mt: -2, mb: 2, mx: 0.25 }}>
+          <FieldError sx={{ mt: -2, mb: 3, mx: 0.25 }}>
             {shown("role")}
           </FieldError>
         )}
@@ -163,6 +168,14 @@ function RequestForm({ me, onDone }: { me: MeState; onDone: () => Promise<void> 
           value={form.note}
           onChange={set("note")}
           slotProps={{ htmlInput: { maxLength: 500 } }}
+        />
+        <AuthConsent
+          checked={agreed}
+          onChange={(v) => {
+            setAgreed(v);
+            setPrivacyErr(null);
+          }}
+          error={shown("privacy") ?? privacyErr}
         />
         <AuthError>{err ?? (tried && !ready ? T(FIX_FIELDS) : null)}</AuthError>
         <AuthButton disabled={busy}>{busy ? T("Sending…") : T("Request Access")}</AuthButton>

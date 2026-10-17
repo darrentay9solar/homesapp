@@ -67,6 +67,8 @@ export type Me = {
     shareLocation?: boolean;
     mobileVerifiedAt: string | null;
     passwordChangedAt: string | null;
+    /** The privacy notice they agreed to (version and when), and the current one. */
+    privacy?: { acceptedAt: string | null; version: string | null; current: string };
     roleRequest: { role: Role; roleLabel: string; reason: string | null; createdAt: string } | null;
   };
   /** A disabled account: expired on its date, or disabled by a PM (and maybe re-enabling on a date). */

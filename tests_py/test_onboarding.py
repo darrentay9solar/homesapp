@@ -14,6 +14,9 @@ from _lib import account as account_mod
 from _lib import clerk
 from conftest import bearer
 
+# They've ticked the privacy notice (tests_py/test_privacy.py covers not ticking it).
+AGREED = {"privacyAccepted": True}
+
 
 @pytest.fixture
 def newcomer(monkeypatch: pytest.MonkeyPatch, fx):
@@ -34,7 +37,7 @@ def test_no_account_then_request_then_pending(client, newcomer) -> None:
     r = client.post(
         "/api/py/account-requests",
         headers=h,
-        json={"fullName": "Aisha Rahman", "role": "contractor", "contactNo": "+65 9123 4567", "note": "Apex"},
+        json={**AGREED, "fullName": "Aisha Rahman", "role": "contractor", "contactNo": "+65 9123 4567", "note": "Apex"},
     )
     assert r.status_code == 200, r.text
 
@@ -45,7 +48,7 @@ def test_no_account_then_request_then_pending(client, newcomer) -> None:
     again = client.post(
         "/api/py/account-requests",
         headers=h,
-        json={"fullName": "Aisha Rahman", "role": "contractor", "contactNo": "+65 9123 4567"},
+        json={**AGREED, "fullName": "Aisha Rahman", "role": "contractor", "contactNo": "+65 9123 4567"},
     )
     assert again.status_code == 409
 
@@ -63,7 +66,7 @@ def test_no_account_then_request_then_pending(client, newcomer) -> None:
     ],
 )
 def test_validation(client, newcomer, payload, message) -> None:
-    r = client.post("/api/py/account-requests", headers=bearer(newcomer.id), json=payload)
+    r = client.post("/api/py/account-requests", headers=bearer(newcomer.id), json={**payload, **AGREED})
     assert r.status_code == 400
     assert message.lower() in r.json()["error"].lower()
 
@@ -73,6 +76,7 @@ def test_postal_code_fills_in_address(client, newcomer, fx) -> None:
         "/api/py/account-requests",
         headers=bearer(newcomer.id),
         json={
+            "privacyAccepted": True,
             "fullName": "Aisha Rahman",
             "role": "homeowner",
             "contactNo": "+65 9123 4567",
@@ -93,7 +97,7 @@ def test_postal_code_fills_in_address(client, newcomer, fx) -> None:
 
 def test_existing_account_cannot_request(client, fx) -> None:
     u = fx.user("homeowner")
-    body = {"fullName": "X Y", "role": "homeowner"}
+    body = {**AGREED, "fullName": "X Y", "role": "homeowner"}
     r = client.post("/api/py/account-requests", headers=bearer(u["clerk_user_id"]), json=body)
     assert r.status_code == 409
 
