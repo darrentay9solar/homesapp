@@ -1,0 +1,27 @@
+# What `vercel deploy` from this folder never uploads (the demo is deployed this way).
+# Secrets and real customers' data first.
+.env
+.env.local
+.env*.local
+backups/
+/.uploads/
+# Local tooling and builds
+node_modules/
+.next/
+out/
+build/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+*.tsbuildinfo
+build.log
+analyze.txt
+.claude/
+.DS_Store
+# Tests aren't part of the site
+tests/
+tests_py/
+tests_million/
