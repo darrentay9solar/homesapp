@@ -363,6 +363,8 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             c.execute("insert into contractor_group_members (group_id, user_id) values (%s, %s)", (gid[g], u[key]))
     for h in ("jasmine", "daniel", "farah", "aisha", "kumar", "grace", "benjamin", "lina", "ethan"):
         c.execute("update users set ic_last4 = %s where uid = %s", (f"{100 + u[h] % 900:03d}D", u[h]))
+    # Lina hasn't agreed to the privacy notice yet: trying the demo as her shows the app asking (PDPA).
+    c.execute("update users set privacy_accepted_at = null, privacy_version = null where uid = %s", (u["lina"],))
     # On dev (the demo site) the sample PM runs the projects, so a visitor trying
     # the app as Charlotte sees their alerts and approvals.
     pm = u["charlotte"] if target == "dev" or not keep else keep[0]["uid"]
@@ -483,6 +485,22 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
         contractor_text="Northline Roofing Pte Ltd",
         installation_start_date=D(14),
         target_end_date=D(35),
+        status="draft",
+    )
+
+    # 1b. Nobody runs it yet (a superadmin set it up): a project manager can take it on.
+    project(
+        "Tanjong Rhu Residence",
+        run_by=u["sam"],
+        project_manager_id=None,
+        address="9 Tanjong Rhu Road, Singapore 436000",
+        postal_code="436000",
+        site_lat=1.2970,
+        site_lng=103.8790,
+        homeowner_name="Rachel Goh",
+        homeowner_contact_no="+65 9330 7742",
+        installation_start_date=D(28),
+        target_end_date=D(56),
         status="draft",
     )
 

@@ -15,7 +15,7 @@ Protection Act 2012, what the app does for each obligation, and what
 | **Correction** | People change their own name, mobile, address and photo in Account; anything else through their project manager. Every change is in the audit log. |
 | **Accuracy** | Postal codes fill in the address from OneMap; mobile numbers are checked by a code; duplicates (mobile, email, address, postal code, project code) are refused. |
 | **Protection** | Sign-in by Clerk (passwords never reach us); every request is checked for role and project; the database itself refuses what a role may not do (row guards and row-level security); files are private in R2 and opened only through short-lived links; the NRIC is kept as the last 3 digits and letter only, per the PDPC's NRIC advisory, and never sent to the browser; nightly backups are encrypted. |
-| **Retention** | See *Retention* below: the rules are proposed, not yet switched on. |
+| **Retention** | Non-essential data is deleted a year after it stops being needed; see *Retention* below. |
 | **Transfer abroad** | See *Where data goes* below. |
 | **Accountability** | This document, the audit log, and the steps for 9 Solar Home below. |
 | **Breach notification** | See *If data leaks* below. |
@@ -52,21 +52,30 @@ comparable to the PDPA. These services' data processing agreements do that:
 [YOUR_STEPS.md](YOUR_STEPS.md)) and say so in the notice (it already
 names them).
 
-## Retention (proposed)
+## Retention
 
-Keep personal data only while it serves a purpose. Proposed, for
-9 Solar Home to decide before anything deletes itself:
+Non-essential data is kept for a year after it stops being needed, then
+deleted (9 Solar Home's decision, 18 Oct 2026). The database does it
+(`purge_old_data()`, migration 0045), once a day from the 15-minute job.
+The deletes aren't copied into the audit log; each run is recorded with
+how many of each it removed (`retention_runs`).
 
-| Data | Keep | Why |
+| Data | Kept | Then |
 |---|---|---|
-| Homeowner's contract, system, invoices, payments, signatures | The 8-year plan + 5 years | Contract, and IRAS's 5 years for business records |
-| Site check-ins and project files | As the project, above | Proof of work under the warranty |
-| Turned-down access requests | 12 months | Enough to answer "why was I refused?" |
-| Verification codes (stored hashed) | 30 days | Only needed for minutes |
-| Notifications | 2 years | Past that, nobody reads them |
-| Accounts switched off | Anonymise 2 years after the last project or contract ends | Name, mobile, email, address and photo cleared; the audit trail keeps the record of what happened |
-| Audit log | As the records it describes | Accountability |
-| Backups | 30 days (nightly, encrypted) | Recovery |
+| Notifications and their delivery records | 1 year from sending | Deleted |
+| Verification codes (stored hashed) | 1 year | Deleted |
+| Phones and browsers for notifications | 1 year since last reached | Deleted |
+| Access and role requests, once decided | 1 year from the decision | Deleted |
+| Busy times and meetings | 1 year after they end | Deleted, with who was invited and the reminders sent |
+| Support conversations, once settled | 1 year after settling | Deleted, with their messages |
+| Records of reminders and warnings sent | 1 year | Deleted |
+| Abandoned upload records | 1 year | Deleted |
+| **Essential:** contract, system, invoices, payments, bank statements, signatures, files, site visits and check-ins | The 8-year plan + 5 years (IRAS keeps business records 5 years) | Not yet automatic: decide with the DPO |
+| **Essential:** accounts, exports, the audit log | As the records they describe | Kept |
+| Backups | 30 days (nightly, encrypted) | Replaced |
+
+The audit log keeps the history of changes made before a record was
+deleted; it is append-only on purpose and isn't trimmed.
 
 ## If data leaks
 

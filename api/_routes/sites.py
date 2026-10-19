@@ -25,7 +25,7 @@ import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from _lib import maintenance_reminders, meeting_reminders, notify, sweep, watch
+from _lib import maintenance_reminders, meeting_reminders, notify, retention, sweep, watch
 from _lib.account import Account, apply_schedule
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
@@ -441,6 +441,12 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
         "maintenance": maintenance_reminders.run(datetime.now(SG)),
         "meetings": meeting_reminders.run(datetime.now(SG)),
     }
+    # Once a day: non-essential data more than a year old (_lib/retention, migration 0045).
+    try:
+        out["retention"] = retention.run()
+    except Exception as exc:  # never in the way of the reminders
+        print(f"[cron] retention failed: {exc}")
+        out["retention"] = {"error": "failed; see the logs"}
     try:
         out["warnings"] = watch.run(datetime.now(SG))
     except Exception as exc:  # the reminders above have gone; a summary that fails mustn't hide that

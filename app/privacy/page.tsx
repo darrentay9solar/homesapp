@@ -86,7 +86,7 @@ export default function PrivacyPage() {
 
         <Part title={T("How long we keep it")}>
           <Typography>
-            {T("Only as long as your contract and the law need: for homeowners, the 8-year plan and 5 years after it. Requests that weren't approved are kept for 12 months. After that we delete it, or remove what identifies you.")}
+            {T("What your contract and the law need (your contract, system, invoices, payments, signatures and site records) is kept for the 8-year plan and 5 years after it. Everything else, such as notifications, meetings, settled support conversations and requests, is deleted a year after it's no longer needed.")}
           </Typography>
         </Part>
 

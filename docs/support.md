@@ -55,8 +55,9 @@ about anyone else ever reaches it.
 
 ## Records
 
-Conversations are never deleted: they're settled. What was said can't be
-edited. Who asked, who was added or taken out, status changes and every
+Conversations aren't deleted by anyone: they're settled, and a settled
+conversation goes a year later with the rest of the non-essential data
+([pdpa.md](pdpa.md), migration 0045). What was said can't be edited. Who asked, who was added or taken out, status changes and every
 change to an answer are in the audit log (Support); answers are turned off,
 never deleted. The database enforces all of this (migration 0036) as well
 as the API (`api/_routes/support.py`).
