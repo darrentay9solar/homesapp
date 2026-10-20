@@ -79,9 +79,12 @@ export function checkColor(c: Pick<Check, "state">): "error" | "warning" | "succ
   return c.state === "overdue" ? "error" : c.state === "due_soon" ? "warning" : c.state === "done" ? "success" : "default";
 }
 
-/** "6-month check due 26 Nov 2026", "1-year check overdue since …", "All checks done". */
-export function nextCheckText(s: Pick<MaintenanceSystem, "next" | "checks">): string {
+/** "Year 2 check due 26 Nov 2027", "Year 3 check overdue since …", "All scheduled checks done". */
+export function nextCheckText(s: Pick<MaintenanceSystem, "next" | "checks"> & Partial<Pick<MaintenanceSystem, "checkYears" | "turnedOn">>): string {
   const n = s.next;
+  if (!n && s.checkYears === null) return T("No maintenance plan recorded: add the plan's years to schedule its checks.");
+  if (!n && typeof s.checkYears === "number" && s.checkYears < 2) return T("No yearly checks: the plan is one year, and the first year has none.");
+  if (!n && s.turnedOn === null) return T("No turn-on date yet: the checks are counted from it.");
   if (!n) return s.checks.some((c) => c.due) ? T("All scheduled checks done") : T("No checks scheduled yet");
   if (n.state === "overdue") return T("{check} overdue since {date}", { check: TR(n.label), date: d2s(n.due) });
   return T("{check} due {date}", { check: TR(n.label), date: d2s(n.due) });
@@ -226,8 +229,6 @@ type Form = {
   phase: "" | "1" | "3";
   inverters: string;
   turnedOn: string;
-  sixMonthDue: string;
-  oneYearDue: string;
   roof: "" | "yes" | "no";
   urgent: boolean;
   urgentNote: string;
@@ -250,8 +251,6 @@ function formOf(s: MaintenanceSystem): Form {
     phase: s.phase ? (String(s.phase) as "1" | "3") : "",
     inverters: s.inverters.join("\n"),
     turnedOn: s.turnedOn ?? "",
-    sixMonthDue: s.checks.find((c) => c.key === "six_month")?.due ?? "",
-    oneYearDue: s.checks.find((c) => c.key === "one_year")?.due ?? "",
     roof: s.roofAccess === null ? "" : s.roofAccess ? "yes" : "no",
     urgent: s.urgent,
     urgentNote: s.urgentNote ?? "",
@@ -260,6 +259,15 @@ function formOf(s: MaintenanceSystem): Form {
 }
 
 const whole = (v: string) => (/^\d+$/.test(v.trim()) ? Number(v) : null);
+
+/** The checks the form's dates and years make: yearly from 24 months after turn-on, for the plan's (else the PPA's) years. */
+function checkPlanText(f: Form): string {
+  const years = whole(f.planYears) ?? (f.ppaKind === "ppa" ? whole(f.ppaYears) : null);
+  if (!years || years < 2) return T("Checks are yearly from the second year, for the plan's years. Add the plan's years to schedule them.");
+  if (!f.turnedOn) return T("Checks are yearly from the second year. Add the turn-on date to schedule them.");
+  const n = years - 1;
+  return T(n === 1 ? "1 check: {first}." : "{n} checks, yearly from {first} to {last}.", { n, first: d2s(addMonths(f.turnedOn, 24)), last: d2s(addMonths(f.turnedOn, 12 * years)) });
+}
 
 /** What's wrong with the form, if anything, in words. */
 function problemOf(f: Form): string | null {
@@ -270,8 +278,6 @@ function problemOf(f: Form): string | null {
   if (f.planYears.trim() && !whole(f.planYears)) return T("The plan's years are a whole number.");
   if (panels.some((p) => !whole(p.count) || (p.wp.trim() !== "" && !whole(p.wp)))) return T("Panels are a count and a wattage, in whole numbers.");
   if (f.kwp.trim() && !(Number(f.kwp) >= 0)) return T("The system size is a number of kWp.");
-  if ((f.turnedOn && f.sixMonthDue && f.sixMonthDue < f.turnedOn) || (f.sixMonthDue && f.oneYearDue && f.oneYearDue < f.sixMonthDue))
-    return T("The checks come after the turn-on date: the 6-month check, then the 1-year one.");
   return null;
 }
 
@@ -308,8 +314,6 @@ export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail
             .map((x) => x.trim())
             .filter(Boolean),
           turnedOn: f.turnedOn || null,
-          sixMonthDue: f.sixMonthDue || null,
-          oneYearDue: f.oneYearDue || null,
           roofAccess: f.roof ? f.roof === "yes" : null,
           urgent: f.urgent,
           urgentNote: f.urgent ? f.urgentNote : null,
@@ -422,16 +426,9 @@ export function EditSystemDialog({ d, onClose, onSaved }: { d: MaintenanceDetail
           type="date"
           icon={<PowerSettingsNewRoundedIcon />}
           value={f.turnedOn}
-          onChange={(e) => {
-            const on = e.target.value;
-            // The checks follow the turn-on date, as the project listing counts them.
-            setF((x) => ({ ...x, turnedOn: on, ...(on ? { sixMonthDue: addMonths(on, 6), oneYearDue: addMonths(on, 12) } : {}) }));
-          }}
+          onChange={set("turnedOn")}
+          helperText={checkPlanText(f)}
         />
-        <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
-          <Field label={T("6-month check due")} type="date" value={f.sixMonthDue} onChange={set("sixMonthDue")} />
-          <Field label={T("1-year check due")} type="date" value={f.oneYearDue} onChange={set("oneYearDue")} />
-        </Stack>
         <Field select label={T("Roof access")} icon={<RoofingRoundedIcon />} value={f.roof} onChange={set("roof")} slotProps={blank}>
           <MenuItem value="">{T("Not recorded")}</MenuItem>
           <MenuItem value="yes">{T("Yes")}</MenuItem>
@@ -476,7 +473,7 @@ export const CHECK_STATE: Record<Check["state"], string> = {
 };
 
 /**
- * A system's 6-month and 1-year checks: when each is due or was done, the
+ * A system's yearly checks (from the second year, for the plan's years): when each is due or was done, the
  * visit booked for it (waiting for answers, or agreed), and booking one
  * through the calendar. The office also marks a check done (onMark, onUndo).
  */
@@ -505,6 +502,9 @@ export function ChecksCard({
       </Typography>
       <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.25 }}>
         {nextCheckText(s)}
+      </Typography>
+      <Typography variant="caption" component="p" sx={{ color: "text.secondary", mt: 0.25 }}>
+        {T("None in the first year; then one a year, the first 24 months after turn-on.")}
       </Typography>
       <Stack sx={{ mt: 1.5 }} divider={<Divider />}>
         {s.checks.map((c) => (

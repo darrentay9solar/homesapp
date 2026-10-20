@@ -139,6 +139,46 @@ function allFiles(search: URLSearchParams) {
   };
 }
 
+// ------------------------------------------------------------ the library (My Files, like a shared drive)
+
+const SECTION_OF: Record<string, [string, string]> = {
+  utility_bill: ["pre1", "Before Milestone 1"],
+  sp_forms_signed: ["pre1", "Before Milestone 1"],
+  panel_pictures: ["pre1b", "Pre-end of Milestone 1"],
+  inverter_pictures: ["pre1b", "Pre-end of Milestone 1"],
+  pvl_letter: ["m2", "Milestone 2"],
+};
+
+function library() {
+  return {
+    files: ALL_FILES.map((f) => ({ ...f, section: SECTION_OF[f.category][0], sectionLabel: SECTION_OF[f.category][1], mine: f.uploader.uid === 1 })),
+    projects: [
+      { id: 101, name: "Jalan Kayu Residence", status: "in_progress" },
+      { id: 102, name: "Sunbird Circle", status: "in_progress" },
+      { id: 105, name: "Punggol Waterway Terrace", status: "pm_approved" },
+    ],
+    sections: [
+      { key: "pre1", label: "Before Milestone 1" },
+      { key: "pre1b", label: "Pre-end of Milestone 1" },
+      { key: "m1", label: "Milestone 1" },
+      { key: "m2", label: "Milestone 2" },
+      { key: "m3", label: "Milestone 3" },
+      { key: "post", label: "Post Milestone 3" },
+    ],
+    slots: [
+      { key: "utility_bill", label: "Utility Bill", section: "pre1", kind: "file" },
+      { key: "sp_forms_signed", label: "SP Forms Signed by Homeowner", section: "pre1", kind: "file" },
+      { key: "panel_pictures", label: "Installed Panel Pictures", section: "pre1b", kind: "photos" },
+      { key: "inverter_pictures", label: "Installed Inverter Pictures", section: "pre1b", kind: "photos" },
+      { key: "pvl_letter", label: "PVL Letter", section: "m2", kind: "file" },
+    ],
+    unassigned: [
+      { id: 1301, name: "Quotation 9SH0142.pdf", contentType: "application/pdf", kind: "document", size: 184_220, note: "For the Bedok North lead", uploadedAt: iso(60 * 3), uploader: UPLOADERS.wei },
+      { id: 1302, name: "Site survey roof.jpg", contentType: "image/jpeg", kind: "photo", size: 2_400_118, note: null, uploadedAt: iso(60 * 27), uploader: UPLOADERS.wei },
+    ],
+  };
+}
+
 // ------------------------------------------------------------ demo site
 
 const DEMO_PEOPLE = {
@@ -659,7 +699,16 @@ function auditHistory(id: number, field: string) {
 
 function answer(method: string, path: string, search: URLSearchParams = new URLSearchParams(), body?: unknown): unknown {
   const key = `${method} ${path}`;
-  if (key === "GET /projects") return { projects: PROJECTS.filter((p) => p.status !== "maintenance"), canCreate: true, handedOver: 3, today: day(0) };
+  if (key === "GET /projects") {
+    // ?handed=1 (the Table tab): handed-over projects too, with when they were handed over.
+    const all = search.get("handed") === "1";
+    const rows = PROJECTS.filter((p) => all || p.status !== "maintenance").map((p, i) => ({
+      ...p,
+      projectCode: `9SH${String(101 + i).padStart(4, "0")}`,
+      closedAt: p.status === "maintenance" ? new Date(Date.now() - (30 + 20 * i) * 86_400_000).toISOString() : null,
+    }));
+    return { projects: rows, canCreate: true, handedOver: all ? 0 : 3, today: day(0) };
+  }
   if (key === "GET /analytics") return mockAnalytics(search);
   if (key === "GET /support") return mockInbox();
   if (key === "GET /support/answers") return mockAnswers();
@@ -690,6 +739,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "GET /sites") return SITES;
   if (key === "GET /my-files") return MY_FILES;
   if (key === "GET /all-files") return allFiles(search);
+  if (key === "GET /library") return library();
   if (key === "GET /people/locations") return LOCATIONS;
   if (key === "GET /demo/people") return DEMO_PEOPLE;
   if (key === "PATCH /me/settings") return { message: "Settings saved." };
@@ -748,6 +798,11 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   // /dev-preview/support?as=homeowner shows Help as a homeowner sees it.
   if (key === "GET /me" && asHomeowner()) return mockSupportMe(me());
   if (key === "GET /me" && asFinance()) return mockFinanceMe(me());
+  // ?as=superadmin: what only a superadmin has (Import from Excel on Projects).
+  if (key === "GET /me" && new URLSearchParams(window.location.search).get("as") === "superadmin") {
+    const base = me() as Record<string, unknown>;
+    return { ...base, user: { ...(base.user as Record<string, unknown>), uid: 11, fullName: "Sam Tan", role: "superadmin", roleLabel: "Superadmin" } };
+  }
   if (key === "GET /me") return me();
   if (key in FIXTURES) return FIXTURES[key];
   if (/^GET \/people\/\d+\/projects$/.test(key)) {

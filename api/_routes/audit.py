@@ -45,6 +45,7 @@ TABLES: dict[str, tuple[tuple[str, ...], str]] = {
     "contractor_groups": (("group_id",), "groups"),
     "contractor_group_members": (("group_id", "user_id"), "groups"),
     "maintenance_systems": (("system_id",), "maintenance"),
+    "maintenance_checks": (("system_id", "year"), "maintenance"),
     "meetings": (("meeting_id",), "meetings"),
     "meeting_people": (("meeting_id", "user_id"), "meetings"),
     "calendar_blocks": (("block_id",), "meetings"),
@@ -143,6 +144,11 @@ def _project_of(a: dict[str, Any]) -> int | None:
     return (p.get("to") or p.get("from")) if p else None
 
 
+def was_year(ch: dict[str, Any]) -> Any:
+    v = ch.get("year") or {}
+    return v.get("to") or v.get("from")
+
+
 def _summary(a: dict[str, Any], names: dict[str, dict[int, str]]) -> str:
     t, act, ch = a["entity_table"], a["action"], a["changes"] or {}
     verb = {"insert": "Created", "update": "Updated", "delete": "Deleted"}[act]
@@ -190,9 +196,15 @@ def _summary(a: dict[str, Any], names: dict[str, dict[int, str]]) -> str:
         return "Checked out" if "checked_out_at" in ch else "Updated check-in"
     if t == "project_signatures":
         return "Signed the handover" if act == "insert" else f"{verb} signature"
+    if t == "maintenance_checks":
+        n = (a["entity_key"] or {}).get("year") or was_year(ch)
+        check = f"year {n} check" if n else "yearly check"
+        said = {"insert": f"Recorded the {check} done", "delete": f"Reopened the {check}"}
+        return said.get(act, f"Changed when the {check} was done")
     if t == "maintenance_systems":
         if act != "update":
             return {"insert": "Added a system to maintenance", "delete": "Removed a system from maintenance"}[act]
+        # Before 0046 a system carried its 6-month and 1-year checks itself.
         if (ch.get("six_month_done_on") or {}).get("to"):
             return "Recorded the 6-month check"
         if (ch.get("one_year_done_on") or {}).get("to"):
@@ -227,7 +239,13 @@ def _summary(a: dict[str, Any], names: dict[str, dict[int, str]]) -> str:
         return {"insert": "Blocked out time", "delete": "Freed blocked-out time"}.get(act, "Changed blocked-out time")
     if t == "data_exports":
         what = (ch.get("what") or {}).get("to")
-        return "Exported people to Excel" if what == "people" else "Exported projects to Excel"
+        return {
+            "people": "Exported people to Excel",
+            "maintenance": "Exported maintenance to Excel",
+            "files": "Exported the file list to Excel",
+            "invoices": "Exported invoices to Excel",
+            "site_visits": "Exported site visits to Excel",
+        }.get(what, "Exported projects to Excel")
     if t == "invoices":
         number = (ch.get("number") or {}).get("to") or ""
         status = (ch.get("status") or {}).get("to")
@@ -337,6 +355,8 @@ def _names(entries: list[dict[str, Any]], reader: int) -> dict[str, dict[int, st
             role_requests.add(int(a["entity_id"]))
         if t == "maintenance_systems" and a["entity_id"]:
             systems.add(int(a["entity_id"]))
+        if t == "maintenance_checks" and isinstance((a["entity_key"] or {}).get("system_id"), int):
+            systems.add(a["entity_key"]["system_id"])
         if t in ("meetings", "meeting_people") and a["entity_id"]:
             meetings.add(int(a["entity_id"]))
         for f, v in (a["changes"] or {}).items():
@@ -410,6 +430,10 @@ def _location(a: dict[str, Any], names: dict[str, dict[int, str]]) -> dict[str, 
     if t in ("meetings", "meeting_people"):
         return {"key": f"meeting:{eid}", "kind": "meeting", "id": eid,
                 "label": names["meetings"].get(eid) or was("title") or f"Meeting #{eid}"}  # fmt: skip
+    if t == "maintenance_checks":
+        sid = (a["entity_key"] or {}).get("system_id") or was("system_id")
+        return {"key": f"system:{sid}", "kind": "system", "id": sid,
+                "label": names["systems"].get(sid) or f"System #{sid}"}  # fmt: skip
     if t == "maintenance_systems":
         return {"key": f"system:{eid}", "kind": "system", "id": eid,
                 "label": names["systems"].get(eid) or was("address") or f"System #{eid}"}  # fmt: skip

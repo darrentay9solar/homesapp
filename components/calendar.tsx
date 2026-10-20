@@ -97,6 +97,7 @@ import {
   whenText,
 } from "@/lib/client/calendar";
 import { DESIGN } from "@/lib/client/design";
+import { type CheckKey, checkLabel } from "@/lib/client/maintenance";
 import { type Lang, T, TR, useLang } from "@/lib/client/i18n";
 import { FIX_FIELDS } from "@/lib/client/rules";
 
@@ -560,7 +561,7 @@ export type MeetingDraft = {
   postalCode?: string;
   projectId?: number | null;
   systemId?: number;
-  checkKey?: "six_month" | "one_year";
+  checkKey?: CheckKey;
 };
 
 const PLACE_ICON: Record<Place, ReactNode> = {
@@ -1150,7 +1151,7 @@ export function MeetingDetails({ m, onClose, onChanged, onEdit }: { m: Meeting; 
           <Typography sx={{ fontWeight: 600 }}>{m.system?.address ?? m.project?.name}</Typography>
           {m.checkKey && (
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              {m.checkKey === "six_month" ? T("6-month check") : T("1-year check")}
+              {checkLabel(m.checkKey)}
             </Typography>
           )}
         </Line>

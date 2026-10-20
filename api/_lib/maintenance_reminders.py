@@ -1,4 +1,4 @@
-"""Reminders for the 6-month and 1-year maintenance checks.
+"""Reminders for the yearly maintenance checks (_lib/checks.py).
 
 Run by the 15-minute job (POST /cron/visit-reminders). For each check not
 yet done, three reminders, each sent once (maintenance_reminders):
@@ -10,8 +10,9 @@ yet done, three reminders, each sent once (maintenance_reminders):
 
 They go to the system's project manager (the superadmins while it has
 none) and to its homeowner when they have an account, each linked to where
-they act on it: the manager to the system, the homeowner to their project's
-Maintenance tab, where they can book a time. A check already booked says so.
+they act on it: the manager to the system, to book a time with the homeowner;
+the homeowner to their project's Maintenance tab (the manager arranges the
+visit and invites them). A check already booked says so.
 """
 
 from __future__ import annotations
@@ -20,13 +21,13 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from _lib import checks as yearly
 from _lib import notify
 from _lib.db import fetch_all, transaction
 
 SG = ZoneInfo("Asia/Singapore")
 SOON = 14
 STALE = 90
-CHECKS = [("six_month", "6-month check"), ("one_year", "1-year check")]
 
 
 def stage_for(due: date, today: date) -> str | None:
@@ -53,10 +54,6 @@ def _claim(system_id: int, check: str, due: date, stage: str) -> bool:
 
 def run(now: datetime | None = None) -> int:
     today = (now or datetime.now(SG)).astimezone(SG).date()
-    systems = fetch_all(
-        "select system_id, project_id, address, run_by, homeowner_id, six_month_due, six_month_done_on, "
-        "one_year_due, one_year_done_on from maintenance_systems"
-    )
     booked: dict[tuple[int, str], datetime] = {
         (r["system_id"], r["check_key"]): r["starts_at"]
         for r in fetch_all(
@@ -67,15 +64,14 @@ def run(now: datetime | None = None) -> int:
     }
     admins = [r["uid"] for r in fetch_all("select uid from users where user_type = 'superadmin' and active")]
     sent = 0
-    for s in systems:
-        for key, label in CHECKS:
-            due, done = s[f"{key}_due"], s[f"{key}_done_on"]
-            if not due or done:
+    for s, checks in yearly.all_systems():
+        for c in checks:
+            if not c.due or c.done_on:
                 continue
-            stage = stage_for(due, today)
-            if not stage or not _claim(s["system_id"], key, due, stage):
+            stage = stage_for(c.due, today)
+            if not stage or not _claim(s["system_id"], c.key, c.due, stage):
                 continue
-            sent += _send(s, label, due, stage, booked.get((s["system_id"], key)), admins)
+            sent += _send(s, yearly.label(c.key), c.due, stage, booked.get((s["system_id"], c.key)), admins)
     return sent
 
 
@@ -95,7 +91,7 @@ def _send(s: dict[str, Any], label: str, due: date, stage: str, when: datetime |
                       link=f"/maintenance/{s['system_id']}", urgent=stage == "overdue")  # fmt: skip
         n += 1
     if s["homeowner_id"]:
-        body = what + (booking or " Book a time for the visit in the app.")
+        body = what + (booking or " Your project manager will arrange a time with you.")
         link = f"/projects/{s['project_id']}?tab=maintenance" if s["project_id"] else "/calendar"
         notify.notify(s["homeowner_id"], "maintenance_due", title, body, project_id=s["project_id"], link=link)
         n += 1

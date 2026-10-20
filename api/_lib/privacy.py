@@ -86,8 +86,11 @@ def my_data(uid: int) -> dict[str, Any]:
         ),
         "systems": _rows(
             "select project_code, address, postal_code, salutation, homeowner_name, homeowner_contact_no, "
-            "homeowner_email, solar_plan, rate_per_kwh, ppa_kind, ppa_years, panels, kwp, turned_on_on, "
-            "six_month_due, six_month_done_on, one_year_due, one_year_done_on, created_at "
+            "homeowner_email, solar_plan, rate_per_kwh, ppa_kind, ppa_years, plan_years, panels, kwp, "
+            "turned_on_on, (select coalesce(jsonb_agg(jsonb_build_object('year', c.year, 'doneOn', c.done_on) "
+            "order by c.year), '[]') "
+            "from maintenance_checks c where c.system_id = maintenance_systems.system_id) as yearly_checks_done, "
+            "created_at "
             "from maintenance_systems where homeowner_id = %(me)s order by created_at",
             p,
         ),
@@ -126,6 +129,12 @@ def my_data(uid: int) -> dict[str, Any]:
             "select pr.project_code, f.category, f.kind, f.file_name, f.content_type, f.size_bytes, f.uploaded_at "
             "from project_files f left join projects pr on pr.project_id = f.project_id "
             "where f.uploaded_by = %(me)s order by f.uploaded_at",
+            p,
+        ),
+        # Staff's uploads not on a project yet (My Files → Unassigned, migration 0048).
+        "filesNotOnAProject": _rows(
+            "select file_name, kind, content_type, size_bytes, note, uploaded_at from unassigned_files "
+            "where uploaded_by = %(me)s order by uploaded_at",
             p,
         ),
         "supportMessages": _rows(

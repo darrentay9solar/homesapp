@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
+from _lib import checks
 from _lib import maintenance_reminders as mr
 from _lib.db import transaction
 from conftest import bearer
@@ -258,17 +259,11 @@ def test_meetings_are_in_the_audit_log(client, fx, pm, pm2, tidy):
 def system(fx, pm):
     tag = f"pytest-{uuid.uuid4().hex[:8]}"
     today = datetime.now(SG).date()
+    # Turned on just under two years ago: its year 2 check falls due in about ten days.
     sid = fx.conn.execute(
-        "insert into maintenance_systems (import_ref, address, panels, turned_on_on, six_month_due, one_year_due, run_by) "
-        "values (%s, '9 Reminder Road', %s, %s, %s, %s, %s) returning system_id",
-        (
-            tag,
-            json.dumps([{"count": 10, "wp": 620}]),
-            today - timedelta(days=170),
-            today + timedelta(days=10),
-            today + timedelta(days=195),
-            pm["uid"],
-        ),
+        "insert into maintenance_systems (import_ref, address, panels, turned_on_on, plan_years, run_by) "
+        "values (%s, '9 Reminder Road', %s, %s, 5, %s) returning system_id",
+        (tag, json.dumps([{"count": 10, "wp": 620}]), checks.add_months(today + timedelta(days=10), -24), pm["uid"]),
     ).fetchone()["system_id"]
     yield sid
     fx.conn.execute("delete from maintenance_systems where system_id = %s", (sid,))
@@ -285,58 +280,36 @@ def test_stage_for():
 
 def test_a_check_is_booked_through_the_calendar(client, fx, pm, owner, system, tidy):
     fx.conn.execute("update maintenance_systems set homeowner_id = %s where system_id = %s", (owner["uid"], system))
-    # The office books with the homeowner; the homeowner with the manager looking after it.
+    # The office books, with the homeowner; the homeowner is invited and answers, never books.
     d = client.get(f"/api/py/maintenance/{system}", headers=h(pm)).json()
     assert d["canBook"] and d["bookWith"] == [owner["uid"]]
-    contacts = {p["uid"] for p in client.get("/api/py/calendar/contacts", headers=h(owner)).json()["people"]}
-    assert pm["uid"] in contacts
+    mine = client.get(f"/api/py/maintenance/{system}", headers=h(pm)).json()
+    assert mine["canBook"] is True
 
-    r = client.post(
-        "/api/py/meetings",
-        headers=h(owner),
-        json={
-            "title": "6-month check",
-            "people": [pm["uid"]],
-            "startsAt": slot(8, 10),
-            "endsAt": slot(8, 12),
-            "place": "site",
-            "systemId": system,
-            "checkKey": "six_month",
-        },
-    )
+    visit = {"title": "Year 2 check", "startsAt": slot(8, 10), "endsAt": slot(8, 12), "place": "physical",
+             "systemId": system, "checkKey": "year_2"}  # fmt: skip
+    r = client.post("/api/py/meetings", headers=h(owner), json={**visit, "people": [pm["uid"]]})
+    assert r.status_code == 403 and "arranges meetings" in r.json()["error"], "a homeowner doesn't book"
+
+    r = client.post("/api/py/meetings", headers=h(pm), json={**visit, "people": [owner["uid"]]})
     assert r.status_code == 200, r.text
     m = r.json()["meeting"]
-    assert m["kind"] == "maintenance_check" and m["system"]["id"] == system and m["checkKey"] == "six_month"
+    assert m["kind"] == "maintenance_check" and m["system"]["id"] == system and m["checkKey"] == "year_2"
 
-    six = next(
-        c
-        for c in client.get(f"/api/py/maintenance/{system}", headers=h(pm)).json()["system"]["checks"]
-        if c["key"] == "six_month"
-    )
-    assert six["booked"]["meetingId"] == m["id"] and six["booked"]["agreed"] is False
-    client.post(f"/api/py/meetings/{m['id']}/respond", headers=h(pm), json={"response": "accepted"})
-    six = next(
-        c
-        for c in client.get(f"/api/py/maintenance/{system}", headers=h(pm)).json()["system"]["checks"]
-        if c["key"] == "six_month"
-    )
-    assert six["booked"]["agreed"] is True
+    def year2() -> dict:
+        got = client.get(f"/api/py/maintenance/{system}", headers=h(pm)).json()["system"]["checks"]
+        return next(c for c in got if c["key"] == "year_2")
 
-    # Somebody else's system can't be booked.
-    stranger = fx.user("homeowner")
-    r = client.post(
-        "/api/py/meetings",
-        headers=h(stranger),
-        json={
-            "title": "x",
-            "people": [pm["uid"]],
-            "startsAt": slot(8, 14),
-            "endsAt": slot(8, 15),
-            "systemId": system,
-            "checkKey": "one_year",
-        },
-    )
-    assert r.status_code in (403, 404)
+    assert year2()["booked"]["meetingId"] == m["id"] and year2()["booked"]["agreed"] is False
+    r = client.post(f"/api/py/meetings/{m['id']}/respond", headers=h(owner), json={"response": "accepted"})
+    assert r.status_code == 200, "the homeowner answers"
+    assert year2()["booked"]["agreed"] is True
+
+    # Only the system's yearly checks: none in the first year, none past the plan's 5 years.
+    for key in ("year_1", "year_6", "six_month"):
+        r = client.post("/api/py/meetings", headers=h(pm),
+                        json={**visit, "people": [owner["uid"]], "checkKey": key, "startsAt": slot(9, 10), "endsAt": slot(9, 11)})  # fmt: skip
+        assert r.status_code == 400, key
     # The audit log says what happened.
     boss = fx.user("superadmin")
     log = client.get("/api/py/audit", headers=h(boss), params={"page": "meetings"}).json()
@@ -358,9 +331,8 @@ def test_each_reminder_goes_once(fx, pm, system):
     mr.run()
     assert len(mine()) == 1
     # On the day, once more; after it, once more.
-    due = fx.conn.execute("select six_month_due from maintenance_systems where system_id = %s", (system,)).fetchone()[
-        "six_month_due"
-    ]
+    on = fx.conn.execute("select turned_on_on from maintenance_systems where system_id = %s", (system,)).fetchone()
+    due = checks.due_on(on["turned_on_on"], 2)
     mr.run(datetime.combine(due, time(9), SG))
     mr.run(datetime.combine(due + timedelta(days=3), time(9), SG))
     mr.run(datetime.combine(due + timedelta(days=4), time(9), SG))
@@ -370,7 +342,7 @@ def test_each_reminder_goes_once(fx, pm, system):
         "Maintenance check overdue",
     ]
     # Done: nothing more.
-    fx.conn.execute("update maintenance_systems set six_month_done_on = %s where system_id = %s", (due, system))
+    fx.conn.execute("insert into maintenance_checks (system_id, year, done_on) values (%s, 2, %s)", (system, due))
     fx.conn.execute("delete from maintenance_reminders where system_id = %s", (system,))
     mr.run(datetime.combine(due + timedelta(days=5), time(9), SG))
     assert len(mine()) == 3
@@ -387,8 +359,13 @@ def test_project_managers_export_to_excel_and_it_is_audited(client, fx, pm, owne
     assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
     assert "attachment" in r.headers["content-disposition"]
     wb = load_workbook(io.BytesIO(r.content))
-    assert wb.sheetnames == ["Projects", "Maintenance"]
-    head = [c.value for c in wb["Projects"][1]]
+    # The company's client list first, sheet for sheet as it was sent; then the app's details.
+    assert wb.sheetnames == ["Clients List", "Actual Solar Output (kWh)", "Billing Period", "Feedback",
+                             "Inverter Warranties", "Project details", "Maintenance"]  # fmt: skip
+    clients = wb["Clients List"]
+    assert [c.value for c in clients[2]][:5] == ["Project Code", "Salutation", "Homeowner", "Address", "Postal Code"]
+    assert clients["A1"].value == clients.max_row - 2, "the count above the headings, as the list has it"
+    head = [c.value for c in wb["Project details"][1]]
     assert head[:3] == ["S/N", "Project", "Status"] and "Turn On Date (SP inspection)" in head
 
     r = client.get("/api/py/export/people.xlsx", headers=h(pm))

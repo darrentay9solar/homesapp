@@ -169,8 +169,62 @@ def check_state(due_in: int | None, done_ago: int | None) -> str:
     return "scheduled"
 
 
+def check_years(plan_years: int | None, ppa_years: int | None) -> list[int]:
+    """Which years have a maintenance check: none in the first; then every year to the end of the
+    maintenance plan (its years; without a plan, the PPA's). The user, 19 Oct 2026."""
+    term = plan_years or ppa_years or 0
+    return list(range(2, term + 1))
+
+
+def check_due(y: int, m: int, d: int, year: int) -> tuple[int, int, int]:
+    """Year n's check: n x 12 months after the turn-on (year 2's at 24 months)."""
+    return plus_months(y, m, d, 12 * year)
+
+
+def arranges_meetings(actor: str) -> bool:
+    """Everyone but a homeowner arranges meetings; a homeowner blocks out time and answers invitations."""
+    return ROLE[actor] != "homeowner"
+
+
+def sees_timing(actor: str) -> bool:
+    """On time, late or a no-show: the team's business. A homeowner never sees a timing verdict."""
+    return ROLE[actor] != "homeowner"
+
+
+def in_library(actor: str, state: str) -> bool:
+    """My Files is a shared drive: everyone who sees a project sees all its files (19 Oct 2026)."""
+    return sees(actor, state) == 200
+
+
+def keeps_unassigned(actor: str) -> int:
+    """Files with no project yet: project managers and superadmins (active) only; 403 for everyone else."""
+    if actor == "inactive":
+        return 403
+    return 200 if ROLE[actor] in ("project_manager", "superadmin") else 403
+
+
+# Lists a table downloads as (data_exports.what), and who may: project managers, superadmins, Admin (some).
+TABLE_EXPORTS = {
+    "projects": {"project_manager", "finance"},
+    "maintenance": {"project_manager", "finance"},
+    "files": {"project_manager"},
+    "invoices": {"finance"},
+    "site_visits": {"project_manager"},
+    "people": {"project_manager"},
+}
+
+
+def table_export(actor: str, what: str) -> int:
+    if actor == "inactive":
+        return 403
+    role = ROLE[actor]
+    if role not in ("project_manager", "superadmin", "finance"):
+        return 403
+    return 200 if role == "superadmin" or role in TABLE_EXPORTS[what] else 403
+
+
 def plus_months(y: int, m: int, d: int, n: int) -> tuple[int, int, int]:
-    """The project listing's 6 Months and 1 Year columns: the same day n months on, or that month's last day."""
+    """The same day n months on, or that month's last day when it's shorter."""
     total = y * 12 + (m - 1) + n
     year, month = divmod(total, 12)
     month += 1

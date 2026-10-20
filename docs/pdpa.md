@@ -11,7 +11,7 @@ Protection Act 2012, what the app does for each obligation, and what
 | **Consent** | Asking for access needs the privacy notice ticked (`/privacy`, version in `api/_lib/privacy.py`). People added by a manager, or there before the notice, are asked once when they next open the app. Each agreement is kept with its date and version (migration 0044); only the person can record it. |
 | **Notification** (purpose) | The notice at `/privacy` says what is collected, why, who it goes to, and how long it is kept. It's linked from sign-up, Request Access and Account. |
 | **Purpose limitation** | Data is used to run the installation, maintenance, payments and support of the person's own solar system. Messages are service messages only (no marketing), so the Do Not Call rules don't apply to them. |
-| **Access** | Account → *Download my data*: a JSON file of what the app holds about the person (profile, requests, homes, systems, invoices, meetings, signatures, site check-ins, uploads, support messages, notifications, devices). Sign-in ids and device keys are left out. Someone whose account is switched off asks the Data Protection Officer. |
+| **Access** | Account → *Download my data*: a JSON file of what the app holds about the person (profile, requests, homes, systems, invoices, meetings, signatures, site check-ins, uploads (on a project, or a staff member's not on one yet), support messages, notifications, devices). Sign-in ids and device keys are left out. Someone whose account is switched off asks the Data Protection Officer. |
 | **Correction** | People change their own name, mobile, address and photo in Account; anything else through their project manager. Every change is in the audit log. |
 | **Accuracy** | Postal codes fill in the address from OneMap; mobile numbers are checked by a code; duplicates (mobile, email, address, postal code, project code) are refused. |
 | **Protection** | Sign-in by Clerk (passwords never reach us); every request is checked for role and project; the database itself refuses what a role may not do (row guards and row-level security); files are private in R2 and opened only through short-lived links; the NRIC is kept as the last 3 digits and letter only, per the PDPC's NRIC advisory, and never sent to the browser; nightly backups are encrypted. |
@@ -29,6 +29,7 @@ Protection Act 2012, what the app does for each obligation, and what
 | Crew (contractors, EPC) | Site check-in and check-out location (GPS, accuracy) and time | Showing work was done at the site |
 | People who sign | Signature image, name, time, IP address, browser | A certificate the signature can be checked against |
 | Anyone who writes in | Support messages, meeting replies, feedback | Answering them |
+| Staff (project managers, superadmins) | Files uploaded before they're on a project (My Files → Unassigned): the file, its name, a note, who uploaded it and when | Keeping documents until they're filed on their project |
 | Everyone | The audit log of their changes | Accountability, undoing mistakes |
 
 ## Where data goes
@@ -70,7 +71,7 @@ how many of each it removed (`retention_runs`).
 | Support conversations, once settled | 1 year after settling | Deleted, with their messages |
 | Records of reminders and warnings sent | 1 year | Deleted |
 | Abandoned upload records | 1 year | Deleted |
-| **Essential:** contract, system, invoices, payments, bank statements, signatures, files, site visits and check-ins | The 8-year plan + 5 years (IRAS keeps business records 5 years) | Not yet automatic: decide with the DPO |
+| **Essential:** contract, system, yearly maintenance checks, invoices, payments, bank statements, signatures, files (on a project, or not yet: Unassigned), site visits and check-ins | The 8-year plan + 5 years (IRAS keeps business records 5 years) | Not yet automatic: decide with the DPO |
 | **Essential:** accounts, exports, the audit log | As the records they describe | Kept |
 | Backups | 30 days (nightly, encrypted) | Replaced |
 

@@ -35,6 +35,7 @@ import { Field, MDialog, RoleChip } from "@/components/m";
 import { SectionPanel } from "@/components/project-fields";
 import { SiteSchedule } from "@/components/site-visits";
 import { DetailRow, NewProjectDialog, ProgressRing, StatusChip, TimingChip } from "@/components/projects";
+import { SiteLog } from "@/components/site-log";
 import { Page } from "@/components/shell";
 import { SegTabs, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
@@ -175,6 +176,7 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
           (visits ? (
             <>
               <SiteSchedule pid={p.id} name={p.name} address={p.address} data={visits} reload={reload} />
+              {manager && <SiteLog data={visits} project={p.name} />}
               <ScrollToHash />
             </>
           ) : (

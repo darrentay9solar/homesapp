@@ -26,6 +26,7 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from _lib import checks as yearly
 from _lib import demo
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one
@@ -37,7 +38,6 @@ DEFAULT_MODEL = "claude-haiku-5-5"
 PERSON = "[[PERSON]]"
 DAILY_LIMIT = 30  # assistant answers per person per day
 HISTORY = 20  # messages of the conversation it reads
-CHECK_NAME = {"six_month": "6-month check", "one_year": "1-year check"}
 
 NOT_SURE = "I'm not sure about that one. Your project manager can help: tap Talk to a person."
 LIMIT_REACHED = (
@@ -115,13 +115,14 @@ def project_facts(project_id: int | None) -> list[str]:
                 f"Maintenance plan: {s['plan_years']} years"
                 + (" excluding the 1st year" if s["plan_excludes_first_year"] else " free")
             )
-        for key, name in CHECK_NAME.items():
-            due, done = s[f"{key}_due"], s[f"{key}_done_on"]
-            if done:
-                lines.append(f"{name}: done on {done.isoformat()}")
-            elif due:
-                state = "overdue since" if due < today else "due"
-                lines.append(f"{name}: {state} {due.isoformat()}")
+        lines.append("Maintenance checks: none in the first year, then one a year from 24 months after turn-on.")
+        for c in yearly.for_system(s, yearly.done([s["system_id"]]).get(s["system_id"])):
+            name = yearly.label(c.key)
+            if c.done_on:
+                lines.append(f"{name}: done on {c.done_on.isoformat()}")
+            elif c.due:
+                state = "overdue since" if c.due < today else "due"
+                lines.append(f"{name}: {state} {c.due.isoformat()}")
         if s["urgent"]:
             lines.append("An urgent issue is open on this system.")
     return lines

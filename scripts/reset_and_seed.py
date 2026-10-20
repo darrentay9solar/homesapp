@@ -983,14 +983,16 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
 
 # Sample systems from before the app, as the project listing import brings them in:
 # address, postal, PPA years (None: value buy), plan years, plan excludes the 1st year,
-# panels [(count, Wp)], phase, inverters, months since turn-on, urgent note, manager.
+# panels [(count, Wp)], phase, inverters, months since turn-on, urgent note, manager, yearly checks done.
+# Checks are yearly from 24 months after turn-on (api/_lib/checks.py), so the months are chosen to
+# show each state: due in a few weeks, overdue, done, and not started yet.
 LISTING = [
-    ("12 Sample Rise", "579001", 5, 5, False, [(22, 620)], 1, ["SUN2000-5KTL-L1", "SUN2000-5KTL-L1"], 4, None, "charlotte"),
-    ("7 Example Avenue", "466001", 7, 7, True, [(23, 635), (3, 620)], 1, ["SUN2000-10K-LC0"], 7, "Poor generation: need to check", "charlotte"),
-    ("30 Demo Crescent", "558001", None, 3, False, [(38, 620)], 3, ["SUN2000-25KTL-M5"], 5, None, None),
-    ("88 Showcase Road", "288001", 8, 8, True, [(62, 620)], 3, ["SUN2000-17KTL-MB0", "SUN2000-17KTL-MB0"], 12, None, "marcus"),
-    ("3 Trial Lane", "809001", 5, 5, True, [(18, 640)], 1, ["SUN2000-12K-MB0"], 2, None, None),
-    ("41 Preview Walk", "486001", 5, 5, False, [(20, 620)], 1, ["SUN2000-10KTL-MAP0"], 9, None, "charlotte"),
+    ("12 Sample Rise", "579001", 5, 5, False, [(22, 620)], 1, ["SUN2000-5KTL-L1", "SUN2000-5KTL-L1"], 23, None, "charlotte", ()),
+    ("7 Example Avenue", "466001", 7, 7, True, [(23, 635), (3, 620)], 1, ["SUN2000-10K-LC0"], 26, "Poor generation: need to check", "charlotte", ()),
+    ("30 Demo Crescent", "558001", None, 3, False, [(38, 620)], 3, ["SUN2000-25KTL-M5"], 30, None, None, (2,)),
+    ("88 Showcase Road", "288001", 8, 8, True, [(62, 620)], 3, ["SUN2000-17KTL-MB0", "SUN2000-17KTL-MB0"], 44, None, "marcus", (2, 3)),
+    ("3 Trial Lane", "809001", 5, 5, True, [(18, 640)], 1, ["SUN2000-12K-MB0"], 2, None, None, ()),
+    ("41 Preview Walk", "486001", 5, 5, False, [(20, 620)], 1, ["SUN2000-10KTL-MAP0"], 38, None, "charlotte", (2,)),
 ]
 
 
@@ -1003,36 +1005,32 @@ def maintenance(c: psycopg.Connection, u: dict[str, int]) -> None:
         "select m.system_id, p.closed_at, p.panel_capacity from maintenance_systems m join projects p using (project_id) order by m.system_id"
     ).fetchall()):  # fmt: skip
         on = m["closed_at"].astimezone(SG).date()
-        six, year = add_months(on, 6), add_months(on, 12)
+        # Their first yearly check is 24 months after turn-on: none has fallen due yet.
         c.execute(
-            "update maintenance_systems set turned_on_on = %s, six_month_due = %s, one_year_due = %s, "
-            "six_month_done_on = %s, one_year_done_on = %s, ppa_kind = %s, ppa_years = %s, plan_years = %s, "
+            "update maintenance_systems set turned_on_on = %s, ppa_kind = %s, ppa_years = %s, plan_years = %s, "
             "plan_excludes_first_year = %s, phase = %s, roof_access = false where system_id = %s",
             (
-                on, six, year,
-                # Most checks that fell due were done a few days after; one in five is still waiting.
-                six + timedelta(days=3) if six + timedelta(days=3) < TODAY and i % 5 else None,
-                year + timedelta(days=5) if year + timedelta(days=5) < TODAY and i % 5 else None,
+                on,
                 "value_buy" if i % 4 == 3 else "ppa", None if i % 4 == 3 else (5, 7, 8)[i % 3],
                 (5, 7, 8)[i % 3], i % 2 == 1, 3 if i % 3 == 0 else 1, m["system_id"],
             ),
         )  # fmt: skip
-    for n, (addr, postal, ppa, plan, excl, panels, phase, inverters, months, urgent, pm) in enumerate(LISTING, 1):
+    for n, (addr, postal, ppa, plan, excl, panels, phase, inverters, months, urgent, pm, done) in enumerate(LISTING, 1):
         on = add_months(TODAY, -months)
-        c.execute(
+        sid = c.execute(
             "insert into maintenance_systems (import_ref, address, postal_code, run_by, ppa_kind, ppa_years, plan_years, "
-            "plan_excludes_first_year, panels, kwp, phase, inverters, turned_on_on, six_month_due, one_year_due, "
-            "six_month_done_on, roof_access, urgent, urgent_note) "
-            "values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, false, %s, %s)",
+            "plan_excludes_first_year, panels, kwp, phase, inverters, turned_on_on, roof_access, urgent, urgent_note) "
+            "values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, false, %s, %s) returning system_id",
             (
                 f"demo-listing#{n}", addr, postal, u[pm] if pm else None, "ppa" if ppa else "value_buy", ppa, plan, excl,
                 json.dumps([{"count": k, "wp": w} for k, w in panels]), sum(k * w for k, w in panels) / 1000, phase,
-                inverters, on, add_months(on, 6), add_months(on, 12),
-                # The 6-month check done where it fell due over a month ago; 7 Example Avenue's is overdue.
-                add_months(on, 6) + timedelta(days=4) if months >= 8 and n != 2 else None,
-                urgent is not None, urgent,
+                inverters, on, urgent is not None, urgent,
             ),
-        )  # fmt: skip
+        ).fetchone()["system_id"]  # fmt: skip
+        # Each check done a few days after it fell due.
+        for year in done:
+            c.execute("insert into maintenance_checks (system_id, year, done_on) values (%s, %s, %s)",
+                      (sid, year, add_months(on, 12 * year) + timedelta(days=4)))  # fmt: skip
 
 
 def meetings(c: psycopg.Connection, u: dict[str, int]) -> None:
@@ -1070,15 +1068,15 @@ def meetings(c: psycopg.Connection, u: dict[str, int]) -> None:
     meeting("Monthly review", "sam", {"charlotte": "accepted", "marcus": "pending"}, at(3, 9, 30), 1.5,
             place="online", online_link="https://meet.google.com/demo-monthly-review")  # fmt: skip
     meeting("Scaffolding plan", "priya", {"charlotte": "pending"}, at(3, 10), 1, place="physical", location="Jalan Kayu")
-    # Siglap Garden House is in maintenance: its homeowner has asked for the 6-month visit.
+    # Siglap Garden House is in maintenance: its manager has asked its homeowner for the year 2 visit.
     sg = c.execute(
         "select m.system_id, m.run_by, m.address from maintenance_systems m join projects p using (project_id) "
         "where p.name = 'Siglap Garden House'"
     ).fetchone()
     if sg and sg["run_by"]:
         manager = next(k for k, v in u.items() if v == sg["run_by"])
-        meeting("6-month check · Siglap Garden House", "ethan", {manager: "pending"}, at(6, 9), 2, kind="maintenance_check",
-                place="physical", location=sg["address"], system_id=sg["system_id"], check_key="six_month")  # fmt: skip
+        meeting("Year 2 check · Siglap Garden House", manager, {"ethan": "pending"}, at(6, 9), 2, kind="maintenance_check",
+                place="physical", location=sg["address"], system_id=sg["system_id"], check_key="year_2")  # fmt: skip
     # A weekly site sync, six times, reminded a day and half an hour before (each time is its own meeting).
     first = None
     for week in range(6):

@@ -303,8 +303,8 @@ function MonthCell({ cell, month, onOpen }: { cell: Cell; month: string; onOpen?
   );
 }
 
-/** Each system's twelve months, and each project's admin fee: issued? paid? (Amounts only for Admin.) */
-export function StatusBoard({ data, onOpen, onIssueFee, busyFee }: { data: Overview; onOpen?: (id: number) => void; onIssueFee?: (projectId: number) => void; busyFee?: number | null }) {
+/** Each project's admin fee, or each system's twelve months: issued? paid? (Amounts only for Admin.) */
+export function StatusBoard({ data, show, onOpen, onIssueFee, busyFee }: { data: Overview; show: "fees" | "monthly"; onOpen?: (id: number) => void; onIssueFee?: (projectId: number) => void; busyFee?: number | null }) {
   const legend: Cell["state"][] = ["paid", "waiting", "overdue", "to_issue"];
   const fees = data.projects.filter((p) => p.status !== "maintenance" || p.fee.state !== "to_issue");
   return (
@@ -314,7 +314,12 @@ export function StatusBoard({ data, onOpen, onIssueFee, busyFee }: { data: Overv
           <StateChip key={s} state={s} small />
         ))}
       </Stack>
-      {fees.length > 0 && (
+      {show === "fees" && fees.length === 0 && (
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          {T("No admin fees yet. Each project has one, paid before it moves to Maintenance.")}
+        </Typography>
+      )}
+      {show === "fees" && fees.length > 0 && (
         <Box>
           <Typography sx={{ fontWeight: 700, mb: 1 }}>{T("Admin fee")}</Typography>
           <Stack sx={{ gap: 1 }}>
@@ -348,8 +353,9 @@ export function StatusBoard({ data, onOpen, onIssueFee, busyFee }: { data: Overv
           </Stack>
         </Box>
       )}
-      <Box>
-        <Typography sx={{ fontWeight: 700, mb: 1 }}>{T("Monthly payments, {year}", { year: String(data.year) })}</Typography>
+      {show === "monthly" && (
+        <Box>
+          <Typography sx={{ fontWeight: 700, mb: 1 }}>{T("Monthly payments, {year}", { year: String(data.year) })}</Typography>
         {data.systems.length === 0 ? (
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
             {T("No systems are billed yet. A system is billed monthly from the month it's turned on.")}
@@ -373,7 +379,8 @@ export function StatusBoard({ data, onOpen, onIssueFee, busyFee }: { data: Overv
             ))}
           </Stack>
         )}
-      </Box>
+        </Box>
+      )}
     </Stack>
   );
 }

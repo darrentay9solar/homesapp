@@ -5,20 +5,25 @@ import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
+import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
 import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { useMaintenanceHref } from "@/components/maintenance";
+import { ImportListDialog } from "@/components/import-list";
 import { NewProjectDialog, ProjectCard, useProjectHref } from "@/components/projects";
+import { ProjectsTable } from "@/components/projects-table";
 import { Page } from "@/components/shell";
 import { ExportButton, GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
 import { useApi } from "@/lib/client/api";
@@ -26,6 +31,7 @@ import { isAdmin, useMe } from "@/lib/client/app-state";
 import { filterProjects, type ProjectList, sortProjects, type Tab, TABS } from "@/lib/client/projects";
 
 import { T } from "@/lib/client/i18n";
+import { useTab } from "@/lib/client/tabs";
 /**
  * Projects. Project managers see every project and can create one; contractor
  * admins and EPC crew see the projects they're on; a homeowner goes straight
@@ -33,7 +39,7 @@ import { T } from "@/lib/client/i18n";
  * dashboard instead: "/" takes them there, and their list is /projects. Admin
  * (finance) opens on Payments.
  */
-export default function ProjectsPage() {
+function ProjectsScreen() {
   const me = useMe();
   const router = useRouter();
   const pathname = usePathname();
@@ -45,10 +51,12 @@ export default function ProjectsPage() {
   }, [opening, router]);
   const href = useProjectHref();
   const maintenance = useMaintenanceHref();
-  const { data, error } = useApi<ProjectList>(me && !toDashboard ? "/projects" : null);
-  const [tab, setTab] = useState<Tab>("all");
+  const { data, error, reload } = useApi<ProjectList>(me && !toDashboard ? "/projects" : null);
+  // The open tab is in the address (?tab=table), as on every screen.
+  const [tab, setTab] = useTab<Tab | "table">([...TABS.map(([v]) => v), "table"], "all");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const homeowner = me?.role === "homeowner";
   const only = homeowner && data?.projects.length === 1 ? data.projects[0] : null;
@@ -59,9 +67,14 @@ export default function ProjectsPage() {
   const all = useMemo(() => sortProjects(data?.projects ?? []), [data]);
   if (!me || only || toDashboard) return null;
 
-  const shown = filterProjects(all, { query: q, tab });
+  // The Table tab (staff): every project, handed-over ones too, with Excel's filters on each column.
+  const staff = isAdmin(me.role) || me.role === "finance";
+  const table = tab === "table" && staff;
+  const shown = filterProjects(all, { query: q, tab: tab === "table" ? "all" : tab });
   const count = (t: Tab) => filterProjects(all, { tab: t }).length;
   const red = all.filter((p) => p.attention).length;
+  // A homeowner isn't shown whether a project is on time, so no Attention tab or verdict chip.
+  const tabs: Array<[Tab | "table", string]> = [...(homeowner ? TABS.filter(([v]) => v !== "attention") : TABS), ...(staff ? ([["table", "Table"]] as Array<["table", string]>) : [])];
   return (
     <>
       <TopBar
@@ -70,6 +83,13 @@ export default function ProjectsPage() {
           data?.canCreate && (
             <>
               <ExportButton path="/export/projects.xlsx" name="GetHomeApps projects.xlsx" label="Download all projects (Excel)" testId="export-projects" />
+              {me.role === "superadmin" && (
+                <Tooltip title={T("Import from Excel")}>
+                  <IconButton aria-label={T("Import from Excel")} onClick={() => setImporting(true)} data-testid="import-projects" sx={{ color: "#fff" }}>
+                    <UploadFileRoundedIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
               <Button
                 onClick={() => setCreating(true)}
                 startIcon={<AddRoundedIcon />}
@@ -85,8 +105,8 @@ export default function ProjectsPage() {
             </>
           )
         }
-        search={<SearchBox value={q} onChange={setQ} placeholder={T("Search projects, people, places")} testId="projects-search" />}
-        tabs={<SegTabs label={T("Filter projects")} value={tab} onChange={setTab} options={TABS.map(([v, l]) => ({ value: v, label: l, count: data ? count(v) : undefined }))} />}
+        search={table ? undefined : <SearchBox value={q} onChange={setQ} placeholder={T("Search projects, people, places")} testId="projects-search" />}
+        tabs={<SegTabs label={T("Filter projects")} value={tab} onChange={setTab} options={tabs.map(([v, l]) => ({ value: v, label: l, count: data && v !== "table" ? count(v) : undefined }))} />}
       />
 
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
@@ -104,13 +124,15 @@ export default function ProjectsPage() {
             </Box>
           )}
 
-          {data && (
+          {table && <ProjectsTable />}
+          {data && !table && (
             <>
               <Heading
                 title={tab === "all" ? T("Projects") : (TABS.find(([v]) => v === tab)?.[1] ?? T("Projects"))}
                 count={shown.length}
                 action={
                   all.length > 0 &&
+                  !homeowner &&
                   (red ? (
                     <Chip size="small" color="error" label={T(red === 1 ? "{n} needs attention" : "{n} need attention", { n: red })} onClick={() => setTab("attention")} />
                   ) : (
@@ -174,6 +196,15 @@ export default function ProjectsPage() {
       </Box>
 
       {creating && <NewProjectDialog onClose={() => setCreating(false)} />}
+      {importing && <ImportListDialog onClose={() => setImporting(false)} onDone={reload} />}
     </>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense>
+      <ProjectsScreen />
+    </Suspense>
   );
 }

@@ -8,11 +8,16 @@ import { currentLang, interpolate, type Lang } from "./i18n";
 import { normalise, tokens } from "./people-search";
 import type { SystemExtras } from "./records";
 
-export type CheckKey = "six_month" | "one_year";
+/**
+ * A yearly check: "year_2", "year_3"... None in a system's first year; year n's
+ * is due n × 12 months after turn-on, for the plan's (else the contract's) years
+ * (api/_lib/checks.py).
+ */
+export type CheckKey = `year_${number}`;
 export type CheckState = "done" | "overdue" | "due_soon" | "scheduled" | "unscheduled";
 /** A visit booked for a check (a maintenance-check meeting); agreed once everyone has accepted. */
 export type Booking = { meetingId: number; startsAt: string; endsAt: string; agreed: boolean };
-export type Check = { key: CheckKey; label: string; due: string | null; doneOn: string | null; state: CheckState; booked?: Booking | null };
+export type Check = { key: CheckKey; year: number; label: string; due: string | null; doneOn: string | null; state: CheckState; booked?: Booking | null };
 export type PanelSet = { count: number; wp: number | null };
 
 export type MaintenanceSystem = {
@@ -32,6 +37,8 @@ export type MaintenanceSystem = {
   phase: 1 | 3 | null;
   inverters: string[];
   turnedOn: string | null;
+  /** How many years the checks run (the plan's, else the PPA's); null when neither is recorded. */
+  checkYears: number | null;
   checks: Check[];
   next: Check | null;
   roofAccess: boolean | null;
@@ -49,14 +56,20 @@ export type MaintenanceDetail = {
   project: { id: number; name: string | null; signedAt: string | null; closedAt: string | null; certificate: string | null } | null;
   canEdit: boolean;
   canAssign: boolean;
-  /** May book a visit for a check: the system's managers and its homeowner. */
+  /** May book a visit for a check: the system's managers (a homeowner is invited, never books). */
   canBook?: boolean;
-  /** Who a visit is booked with: the homeowner (for the office), or the manager (for the homeowner). */
+  /** Who a visit is booked with: the homeowner, when they have an account. */
   bookWith?: number[];
   managers: Manager[];
 } & Partial<SystemExtras>;
 
 // ------------------------------------------------------------- how it reads
+
+/** "Year 2 check" for "year_2" (any other key: "Maintenance check"). */
+export function checkLabel(key: string | null | undefined, lang: Lang = currentLang()): string {
+  const n = /^year_(\d+)$/.exec(key ?? "")?.[1];
+  return n ? interpolate("Year {n} check", { n: Number(n) }, lang) : interpolate("Maintenance check", undefined, lang);
+}
 
 /** "5-year PPA", "Value buy". */
 export function ppaText(s: Pick<MaintenanceSystem, "ppa">, lang: Lang = currentLang()): string | null {

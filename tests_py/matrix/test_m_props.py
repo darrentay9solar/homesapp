@@ -17,6 +17,7 @@ import pytest
 
 from _lib import analytics as an
 from _lib import assistant
+from _lib import checks as yearly
 
 FAQ = [
     {"faq_id": i, "question": q, "answer": a, "question_zh": qz, "answer_zh": az, "position": i, "active": True}
@@ -70,8 +71,7 @@ def fleet(seed: int) -> list[dict]:
     rng = random.Random(seed)
     rows = []
     for i in range(rng.randrange(0, 30)):
-        on = TODAY - timedelta(days=rng.randrange(-30, 900))
-        six, year = on + timedelta(days=182), on + timedelta(days=365)
+        on = TODAY - timedelta(days=rng.randrange(-30, 1500))
         rows.append({
             "system_id": i + 1, "address": f"{i} Lane", "postal_code": rng.choice(["560123", "018989", "730001", None]),
             "run_by": rng.choice([None, 1, 2]), "pm_name": None, "urgent": rng.random() < 0.1,
@@ -79,16 +79,27 @@ def fleet(seed: int) -> list[dict]:
             "inverters": rng.sample(MODELS, rng.randrange(0, 3)),
             "ppa_kind": rng.choice(["ppa", "value_buy", None]), "ppa_years": rng.choice([5, 7, 8, 9]),
             "plan_years": rng.choice([None, 3, 5, 7]), "plan_excludes_first_year": rng.random() < 0.5,
-            "turned_on_on": on, "six_month_due": six, "one_year_due": year,
-            "six_month_done_on": six if rng.random() < 0.3 else None, "one_year_done_on": year if rng.random() < 0.2 else None,
+            "turned_on_on": on,
         })  # fmt: skip
     return rows
+
+
+def fleet_done(seed: int, rows: list[dict]) -> dict[int, dict[int, date]]:
+    """Some of each fleet's yearly checks recorded done, on the day they fell due."""
+    rng = random.Random(seed + 1)
+    done: dict[int, dict[int, date]] = {}
+    for r in rows:
+        for c in yearly.for_system(r):
+            if c.due and rng.random() < 0.3:
+                done.setdefault(r["system_id"], {})[c.year] = c.due
+    return done
 
 
 @pytest.mark.parametrize("seed", range(3000), ids=[f"fleet:{i}" for i in range(3000)])
 def test_maintenance_numbers_add_up(seed) -> None:
     rows = fleet(seed)
-    u = an.maintenance(rows, TODAY)
+    done = fleet_done(seed, rows)
+    u = an.maintenance(rows, TODAY, done)
     ids = {r["system_id"] for r in rows}
     t = u["tiles"]
     assert t["systems"]["count"] == len(rows)
@@ -97,9 +108,9 @@ def test_maintenance_numbers_add_up(seed) -> None:
     assert sum(g["count"] for g in u["bySize"]) == len(rows)
     assert sum(g["count"] for g in u["byRegion"]) == len(rows) == sum(g["count"] for g in u["byPhase"])
     assert sum(g["count"] for g in u["inverterPower"]) == sum(len(r["inverters"]) for r in rows) == sum(g["count"] for g in u["inverters"])
-    pending = [(r[f"{k}_due"]) for r in rows for k in ("six_month", "one_year") if not r[f"{k}_done_on"]]
-    assert u["overdueChecks"]["six"] + u["overdueChecks"]["year"] == sum(1 for d in pending if d < TODAY)
-    ahead = sum(m["six"] + m["year"] for m in u["upcoming"])
+    pending = [c.due for r in rows for c in yearly.open_checks(r, done.get(r["system_id"]))]
+    assert u["overdueChecks"] == sum(1 for d in pending if d < TODAY)
+    ahead = sum(m["count"] for m in u["upcoming"])
     assert ahead == sum(1 for d in pending if d >= TODAY and (d.year, d.month) <= ((TODAY.year * 12 + TODAY.month + 10) // 12, (TODAY.month + 10) % 12 + 1))
     assert sum(g["count"] for g in u["ppaEnds"]) == sum(1 for r in rows if r["ppa_kind"] == "ppa" and r["ppa_years"] and r["turned_on_on"])
     sizes = sorted(float(r["kwp"]) for r in rows if r["kwp"] is not None)

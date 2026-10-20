@@ -4,9 +4,10 @@ convert   the world's handed-over project became a maintenance record carrying i
 list      handed over, a project leaves the Projects list for the Maintenance page (its homeowner keeps it)
 access    every person by every kind of record (a manager's, another's, unassigned, a converted project) by every action
 fields    every field by good and bad values by who changes it
-checks    every due/done combination reads right; marking done refuses impossible dates
+checks    yearly from 24 months after turn-on for the plan's (else the PPA's) years; every due/done combination
+          reads right; marking done refuses impossible dates; there's no other check
 import    the project listing's wordings, row by row, and anything unexpected stops it
-months    the listing's 6 Months and 1 Year columns, for every turn-on day of two years (a leap year among them)
+months    each yearly check's date, for every turn-on day of two years (a leap year among them)
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from typing import Any
 
 import pytest
 
-from _routes import maintenance as mt
+from _lib import checks as yearly
 from _routes import projects as proj
 from uat import spec
 
@@ -43,17 +44,19 @@ def recs(world) -> dict[str, int]:
     for i, kind in enumerate(["pm", "pm2", "none"]):
         out[kind] = c.execute(
             "insert into maintenance_systems (import_ref, address, postal_code, run_by, panels, kwp, phase, inverters, "
-            "turned_on_on, six_month_due, one_year_due, ppa_kind, ppa_years, plan_years, plan_excludes_first_year) "
-            "values (%s, %s, '358791', %s, %s, 13.64, 1, %s, %s, %s, %s, 'ppa', 5, 5, false) returning system_id",
+            "turned_on_on, ppa_kind, ppa_years, plan_years, plan_excludes_first_year) "
+            "values (%s, %s, '358791', %s, %s, 13.64, 1, %s, %s, 'ppa', 5, 5, false) returning system_id",
             (
                 f"uat-{world.tag}#{i}", f"{i + 1} UAT Maintenance Road", world.uid(kind) if kind != "none" else None,
                 json.dumps([{"count": 22, "wp": 620}]), ["SUN2000-5KTL-L1", "SUN2000-5KTL-L1"],
-                t - timedelta(days=200), t - timedelta(days=17), t + timedelta(days=165),
+                yearly.add_months(t, -25),
             ),
         ).fetchone()["system_id"]  # fmt: skip
     out["converted"] = c.execute(
         "select system_id from maintenance_systems where project_id = %s", (world.pid["closed"],)
     ).fetchone()["system_id"]
+    # Its contract filled in, as a manager would after the handover: a 5-year plan, so it has yearly checks.
+    c.execute("update maintenance_systems set plan_years = 5 where system_id = %s", (out["converted"],))
     return out
 
 
@@ -71,8 +74,7 @@ def scratch(world) -> Any:
             "run_by": world.uid("pm"),
             "panels": json.dumps([{"count": 20, "wp": 620}]),
             "turned_on_on": t - timedelta(days=200),
-            "six_month_due": t - timedelta(days=17),
-            "one_year_due": t + timedelta(days=165),
+            "plan_years": 5,
             **cols,
         }
         return c.execute(
@@ -93,7 +95,8 @@ def test_the_handed_over_project_became_a_maintenance_record(world) -> None:
     assert m["address"] == "53 Ang Mo Kio Avenue 3" and m["postal_code"] == "569933"
     assert m["panels"] == [{"count": 20, "wp": 610}] and float(m["kwp"]) == 12.2
     assert m["inverters"] == ["Huawei SUN2000-10KTL-M1"]
-    assert (m["turned_on_on"], m["six_month_due"], m["one_year_due"]) == (date(2026, 10, 10), date(2027, 4, 10), date(2027, 10, 10))
+    assert m["turned_on_on"] == date(2026, 10, 10)
+    assert (m["six_month_due"], m["one_year_due"]) == (None, None), "checks are yearly, counted from the turn-on"
 
 
 @pytest.mark.parametrize("state", [s for s in spec.STATE_KEYS if s != "closed"])
@@ -180,7 +183,7 @@ def test_changing_a_record(api, world, recs, actor, kind) -> None:
 
 @pytest.mark.parametrize(("actor", "kind"), GRID, ids=IDS)
 def test_reopening_a_check(api, world, recs, actor, kind) -> None:
-    r = api.post(f"/api/py/maintenance/{recs[kind]}/checks/one_year", headers=world.h(actor), json={"doneOn": None})
+    r = api.post(f"/api/py/maintenance/{recs[kind]}/checks/year_2", headers=world.h(actor), json={"doneOn": None})
     assert r.status_code == spec.maintenance_edit(actor, OWNER[kind]), r.text
 
 
@@ -228,9 +231,11 @@ GOOD: list[tuple[str, Any, str, Any]] = [
     ("roofAccess", None, "roofAccess", None),
     ("urgent", True, "urgent", True),
     ("notes", "  ", "notes", None),
-    ("turnedOn", "2026-02-28", "checks.0.due", "2026-08-28"),
-    ("turnedOn", "2025-08-31", "checks.0.due", "2026-02-28"),
-    ("turnedOn", "2025-08-31", "checks.1.due", "2026-08-31"),
+    ("turnedOn", "2026-02-28", "checks.0.due", "2028-02-28"),
+    ("turnedOn", "2024-02-29", "checks.0.due", "2026-02-28"),
+    ("turnedOn", "2024-02-29", "checks.2.due", "2028-02-29"),
+    ("turnedOn", "2025-08-31", "checks.3.due", "2030-08-31"),
+    ("turnedOn", None, "checks.0.due", None),
 ]
 BAD: list[tuple[str, Any, int]] = [
     ("address", "", 400),
@@ -251,8 +256,7 @@ BAD: list[tuple[str, Any, int]] = [
     ("phase", 2, 422),
     ("inverters", ["X"] * 21, 400),
     ("inverters", ["X" * 61], 400),
-    ("sixMonthDue", "1999-01-01", 400),
-    ("oneYearDue", "1999-01-01", 400),
+    ("sixMonthDue", "1999-01-01", 400),  # the old check dates aren't taken: nothing to change
     ("turnedOn", "not a date", 422),
     ("urgent", None, 400),
     ("notes", "x" * 2001, 400),
@@ -309,30 +313,54 @@ DONE = [None, 0, 3, 100]
 STATES = [(d, x) for d in DUE for x in DONE]
 
 
-@pytest.mark.parametrize("which", ["six_month", "one_year"])
+@pytest.mark.parametrize("which", [2, 3])
 @pytest.mark.parametrize(("due", "done"), STATES, ids=[f"due{d}-done{x}" for d, x in STATES])
 def test_a_check_reads_right(api, world, scratch, which, due, done) -> None:
     t = proj.today()
-    when = lambda n: None if n is None else t + timedelta(days=n)  # noqa: E731
-    cols = {"turned_on_on": None, "six_month_due": None, "one_year_due": None}
-    cols[f"{which}_due"] = when(due)
-    cols[f"{which}_done_on"] = when(-done) if done is not None else None
-    sid = scratch(**cols)
+    on = None if due is None else yearly.add_months(t + timedelta(days=due), -12 * which)
+    if due is None:
+        sid = scratch(turned_on_on=None)
+    else:
+        # Turned on so that this year's check falls `due` days from today, and every earlier one is done.
+        sid = scratch(turned_on_on=on)
+        for y in range(2, which):
+            world.conn.execute("insert into maintenance_checks (system_id, year, done_on) values (%s, %s, %s)", (sid, y, t - timedelta(days=500)))
+    if done is not None:
+        world.conn.execute("insert into maintenance_checks (system_id, year, done_on) values (%s, %s, %s)", (sid, which, t - timedelta(days=done)))
     s = api.get(f"/api/py/maintenance/{sid}", headers=world.h("pm")).json()["system"]
-    c = next(x for x in s["checks"] if x["key"] == which)
-    want = spec.check_state(due, done)
+    c = next(x for x in s["checks"] if x["key"] == f"year_{which}")
+    due_in = None if c["due"] is None else (date.fromisoformat(c["due"]) - t).days
+    want = spec.check_state(due_in, done)
     assert c["state"] == want
-    assert s["attention"] == (want == "overdue")
-    assert (s["next"] or {}).get("key") == (which if want in ("overdue", "due_soon", "scheduled") else None)
+    # Done, the next is the following year's (the plan is 5 years), read the same way.
+    nxt, nxt_state = (which, want) if want != "done" else (which + 1, None)
+    if want == "done" and on is not None:
+        d = date(*spec.check_due(on.year, on.month, on.day, nxt))
+        nxt_state = spec.check_state((d - t).days, None)
+    assert s["attention"] == (nxt_state == "overdue")
+    assert (s["next"] or {}).get("key") == (f"year_{nxt}" if nxt_state in ("overdue", "due_soon", "scheduled") else None)
+
+
+PLANS = [(p, q) for p in (None, 1, 2, 3, 5, 7, 8, 10) for q in (None, 1, 5, 8)]
+
+
+@pytest.mark.parametrize(("plan", "ppa"), PLANS, ids=[f"plan{p}-ppa{q}" for p, q in PLANS])
+def test_the_checks_are_the_plans_years_from_the_second(api, world, scratch, plan, ppa) -> None:
+    on = date(2026, 3, 31)
+    sid = scratch(turned_on_on=on, plan_years=plan, ppa_kind="ppa" if ppa else None, ppa_years=ppa)
+    s = api.get(f"/api/py/maintenance/{sid}", headers=world.h("pm")).json()["system"]
+    years = spec.check_years(plan, ppa)
+    assert [c["key"] for c in s["checks"]] == [f"year_{y}" for y in years]
+    assert [c["due"] for c in s["checks"]] == [date(*spec.check_due(on.year, on.month, on.day, y)).isoformat() for y in years]
 
 
 DONE_ON = [(-300, 400), (-201, 400), (-200, 200), (-17, 200), (0, 200), (1, 400), (30, 400)]
 
 
-@pytest.mark.parametrize("which", ["six_month", "one_year"])
+@pytest.mark.parametrize("which", ["year_2", "year_5"])
 @pytest.mark.parametrize(("on", "status"), DONE_ON, ids=[f"{o}" for o, _ in DONE_ON])
 def test_marking_a_check_done(api, world, scratch, which, on, status) -> None:
-    sid = scratch()  # turned on 200 days ago
+    sid = scratch()  # turned on 200 days ago, a 5-year plan
     day = (proj.today() + timedelta(days=on)).isoformat()
     r = api.post(f"/api/py/maintenance/{sid}/checks/{which}", headers=world.h("pm"), json={"doneOn": day})
     assert r.status_code == status, r.text
@@ -343,8 +371,8 @@ def test_marking_a_check_done(api, world, scratch, which, on, status) -> None:
         assert next(x for x in r.json()["system"]["checks"] if x["key"] == which)["doneOn"] is None
 
 
-@pytest.mark.parametrize("which", ["three_month", "two_year", "six-month", ""])
-def test_there_are_two_checks(api, world, recs, which) -> None:
+@pytest.mark.parametrize("which", ["year_1", "year_6", "year_41", "six_month", "one_year", "three_month", "two_year", "six-month", ""])
+def test_there_are_only_the_plans_yearly_checks(api, world, recs, which) -> None:
     r = api.post(f"/api/py/maintenance/{recs['pm']}/checks/{which}", headers=world.h("pm"), json={"doneOn": None})
     assert r.status_code in (404, 405)
 
@@ -410,7 +438,7 @@ def test_anything_unexpected_stops_the_whole_import(col, value) -> None:
 DAYS = [date(2027, 1, 1) + timedelta(days=i) for i in range(731)]  # 2027 and 2028, a leap year
 
 
-@pytest.mark.parametrize("n", [6, 12])
+@pytest.mark.parametrize("year", [2, 3, 8])
 @pytest.mark.parametrize("d", DAYS, ids=[d.isoformat() for d in DAYS])
-def test_the_checks_fall_where_the_listing_puts_them(d, n) -> None:
-    assert mt._months(d, n) == date(*spec.plus_months(d.year, d.month, d.day, n))
+def test_each_yearly_check_falls_on_its_day(d, year) -> None:
+    assert yearly.due_on(d, year) == date(*spec.check_due(d.year, d.month, d.day, year))

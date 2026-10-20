@@ -27,6 +27,7 @@ from _routes import (
     files,
     finance,
     handover,
+    imports,
     location,
     maintenance,
     me,
@@ -71,6 +72,7 @@ app.include_router(location.router, prefix=PREFIX)
 app.include_router(support.router, prefix=PREFIX)
 app.include_router(finance.router, prefix=PREFIX)
 app.include_router(demo.router, prefix=PREFIX)
+app.include_router(imports.router, prefix=PREFIX)
 
 
 @app.get(f"{PREFIX}/ping")

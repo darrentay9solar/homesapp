@@ -80,6 +80,7 @@ def _load(acct: Account, project_id: int | None = None) -> list[dict[str, Any]]:
     rows = fetch_all(
         f"""
         select p.*, r.name as retailer_name,
+               (select s.signed_at from project_signatures s where s.project_id = p.project_id) as signed_at,
                h.full_name as h_name, h.email as h_email, h.ic_last4 as h_ic, h.active as h_active,
                pm.full_name as pm_name, g.name as group_name
           from projects p
@@ -143,11 +144,14 @@ def _load(acct: Account, project_id: int | None = None) -> list[dict[str, Any]]:
             f"No check-in for the EPC visit on {when}" + (f" ({v['works_note']})" if v["works_note"] else "")
         )
 
-    # An EPC no-show is the crew's and 9 Solar Home's business, not something to alarm the homeowner with.
+    out = [_row(r, files.get(r["project_id"], {}), people.get(r["project_id"], []), missed.get(r["project_id"], []))
+           for r in rows]  # fmt: skip
+    # Whether a project is on time, late or had an EPC no-show is the crew's and 9 Solar Home's
+    # business: the homeowner sees its progress and status, never a timing verdict.
     if acct.role == "homeowner":
-        missed = {}
-    return [_row(r, files.get(r["project_id"], {}), people.get(r["project_id"], []), missed.get(r["project_id"], []))
-            for r in rows]  # fmt: skip
+        for p in out:
+            p["flags"], p["attention"] = [], False
+    return out
 
 
 def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], missed: list[str]) -> dict[str, Any]:
@@ -217,17 +221,22 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
         "flags": flags,
         "attention": bool(flags),
         "createdAt": r["created_at"].isoformat(),
+        # For the table's date filters ("handed over between..."): when it was signed, and handed over.
+        "projectCode": r.get("project_code"),
+        "signedAt": r["signed_at"].isoformat() if r.get("signed_at") else None,
+        "closedAt": r["closed_at"].isoformat() if r.get("closed_at") else None,
     }
 
 
 @router.get("/projects")
-def projects(acct: Account = Depends(active)) -> dict[str, Any]:
+def projects(acct: Account = Depends(active), handed: bool = False) -> dict[str, Any]:
     can_create = acct.role in ("project_manager", "superadmin")
     rows = _load(acct)
     # Handed over, a project's development is done: it's kept as a maintenance
-    # record (the Maintenance page), not in the list. A homeowner still sees theirs.
+    # record (the Maintenance page), not in the list. A homeowner still sees theirs,
+    # and the table view asks for them too (?handed=1), to find what was handed over when.
     handed_over = 0
-    if acct.role != "homeowner":
+    if acct.role != "homeowner" and not handed:
         handed_over = sum(1 for r in rows if r["status"] == "maintenance")
         rows = [r for r in rows if r["status"] != "maintenance"]
     return {"projects": rows, "canCreate": can_create, "handedOver": handed_over, "today": today().isoformat()}

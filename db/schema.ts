@@ -1040,6 +1040,7 @@ export const maintenanceSystems = pgTable(
     phase: smallint("phase"),
     inverters: text("inverters").array().notNull().default(sql`'{}'::text[]`),
     turnedOnOn: date("turned_on_on"),
+    // The 6-month and 1-year checks from before 0046: no longer read (checks are yearly, maintenanceChecks).
     sixMonthDue: date("six_month_due"),
     sixMonthDoneOn: date("six_month_done_on"),
     oneYearDue: date("one_year_due"),
@@ -1417,6 +1418,26 @@ export const supportFaq = pgTable(
       "support_faq_values",
       sql`btrim(${table.question}) <> '' and length(${table.question}) <= 300 and btrim(${table.answer}) <> '' and length(${table.answer}) <= 3000 and (${table.questionZh} is null or length(${table.questionZh}) <= 300) and (${table.answerZh} is null or length(${table.answerZh}) <= 3000)`
     ),
+  ]
+);
+
+/**
+ * When each of a system's yearly maintenance checks was done (0046). Due dates
+ * aren't stored: year n's is n x 12 months after turn-on (api/_lib/checks.py).
+ */
+export const maintenanceChecks = pgTable(
+  "maintenance_checks",
+  {
+    systemId: integer("system_id")
+      .notNull()
+      .references(() => maintenanceSystems.systemId, { onDelete: "cascade" }),
+    year: smallint("year").notNull(),
+    doneOn: date("done_on").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: "maintenance_checks_pk", columns: [table.systemId, table.year] }),
+    check("maintenance_checks_values", sql`${table.year} between 2 and 40`),
   ]
 );
 

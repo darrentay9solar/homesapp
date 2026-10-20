@@ -38,6 +38,7 @@ type Open = { kind: "new"; draft: MeetingDraft } | { kind: "edit"; m: Meeting } 
  */
 export default function CalendarPage() {
   const me = useMe();
+  const homeowner = me?.role === "homeowner";
   const router = useRouter();
   const pathname = usePathname();
   const fetcher = useFetcher();
@@ -108,9 +109,16 @@ export default function CalendarPage() {
       <TopBar
         title={T("Calendar")}
         action={
-          <Button onClick={() => setOpen({ kind: "new", draft: {} })} startIcon={<AddRoundedIcon />} data-testid="new-meeting" sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}>
-            {T("Meeting")}
-          </Button>
+          // Homeowners don't arrange meetings: they're invited, and block out the times they can't do.
+          homeowner ? (
+            <Button onClick={() => setOpen({ kind: "block", day: anchor })} startIcon={<EventBusyRoundedIcon />} data-testid="block-time-top" sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}>
+              {T("Block out time")}
+            </Button>
+          ) : (
+            <Button onClick={() => setOpen({ kind: "new", draft: {} })} startIcon={<AddRoundedIcon />} data-testid="new-meeting" sx={{ color: "#073f2b", bgcolor: "#fff", px: { xs: 1.5, sm: 2 }, height: 36, "&:hover": { bgcolor: "#eafff4" } }}>
+              {T("Meeting")}
+            </Button>
+          )
         }
         tabs={
           <SegTabs
@@ -195,7 +203,7 @@ export default function CalendarPage() {
                       blocks={blocks}
                       onMeeting={(m) => setOpen({ kind: "meeting", m })}
                       onBlock={(b) => setOpen({ kind: "blocked", b })}
-                      onSlot={(day, minutes) => setOpen({ kind: "new", draft: { day, minutes } })}
+                      onSlot={(day, minutes) => setOpen(homeowner ? { kind: "block", day } : { kind: "new", draft: { day, minutes } })}
                     />
                   ) : (
                     !error && <Skeleton variant="rounded" height={480} />

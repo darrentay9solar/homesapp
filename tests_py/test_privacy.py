@@ -110,3 +110,19 @@ def test_download_my_data(client, fx) -> None:
     for part in ("homes", "systems", "invoices", "meetings", "signatures", "siteCheckIns", "supportMessages"):
         assert d[part] == []
     assert "123A" not in r.text
+
+
+def test_a_staff_members_files_with_no_project_are_in_their_data(client, fx) -> None:
+    pm = fx.user("project_manager")
+    other = fx.user("project_manager")
+    fx.conn.execute(
+        "insert into unassigned_files (url, file_name, content_type, size_bytes, kind, note, uploaded_by) values "
+        "(%s, 'mine.pdf', 'application/pdf', 10, 'document', 'For a lead', %s), "
+        "(%s, 'theirs.pdf', 'application/pdf', 10, 'document', null, %s)",
+        (f"unassigned/documents/{pm['uid']}-a.pdf", pm["uid"], f"unassigned/documents/{other['uid']}-b.pdf", other["uid"]),
+    )
+    try:
+        d = client.get("/api/py/me/data", headers=bearer(pm["clerk_user_id"])).json()
+        assert [(f["file_name"], f["note"]) for f in d["filesNotOnAProject"]] == [("mine.pdf", "For a lead")]
+    finally:
+        fx.conn.execute("delete from unassigned_files where uploaded_by = any(%s)", ([pm["uid"], other["uid"]],))

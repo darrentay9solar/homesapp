@@ -501,14 +501,14 @@ def file_done(pid: int, body: FileIn, acct: Account = Depends(active)) -> dict[s
 
 
 @router.get("/files/{file_id}")
-def view_file(file_id: int, acct: Account = Depends(active)) -> Response:
-    """Open a file: checks access, then sends the browser to a five-minute link."""
+def view_file(file_id: int, acct: Account = Depends(active), download: bool = False) -> Response:
+    """Open a file (or, ?download=1, save it): checks access, then sends the browser to a five-minute link."""
     row = fetch_one("select project_id, url, file_name from project_files where file_id = %s", (file_id,))
     if not row:
         raise HTTPException(404, "No such file.")
     _need(acct, _project(row["project_id"]))
     try:
-        return RedirectResponse(storage.view_link(row["url"], row["file_name"]), status_code=302)
+        return RedirectResponse(storage.view_link(row["url"], row["file_name"], download), status_code=302)
     except storage.StorageNotConfiguredError as exc:
         raise HTTPException(503, str(exc)) from exc
 
@@ -564,7 +564,8 @@ def dev_get(token: str) -> Response:
         raise HTTPException(404, "That file isn't in local storage.")
     meta = path.with_suffix(path.suffix + ".type")
     return FileResponse(path, media_type=meta.read_text() if meta.exists() else None,
-                        content_disposition_type="inline", filename=str(t.get("name") or path.name))  # fmt: skip
+                        content_disposition_type="attachment" if t.get("dl") else "inline",
+                        filename=str(t.get("name") or path.name))  # fmt: skip
 
 
 # --------------------------------------------------------------- approvals

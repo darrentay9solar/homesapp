@@ -39,7 +39,8 @@ def done(key: str, uid: int | None = None) -> None:
 def _registered(key: str) -> bool:
     return bool(
         fetch_all(
-            "select 1 from project_files where url = %(k)s union all select 1 from users where avatar_key = %(k)s "
+            "select 1 from project_files where url = %(k)s union all select 1 from unassigned_files where url = %(k)s "
+            "union all select 1 from users where avatar_key = %(k)s "
             "union all select 1 from project_signatures where signature_url = %(k)s or certificate_url = %(k)s",
             {"k": key},
         )

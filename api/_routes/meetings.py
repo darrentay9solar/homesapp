@@ -19,8 +19,10 @@ when they've accepted a meeting or blocked the time out; an invitation they
 haven't answered doesn't block anything yet. A meeting can't be arranged
 over anyone's busy time, and accepting one over your own is refused (the
 database checks that too, migration 0032). A meeting can be a maintenance
-check (its system and which check), arranged by the system's manager or its
-homeowner.
+check (its system and which check), arranged by the system's manager.
+
+Homeowners don't arrange meetings: they block out time they can't do, and
+accept or decline the meetings they're invited to.
 
 A meeting is online, physical (an address, found from its postal code) or a
 phone call, and can carry a video link whatever its place. Everyone is
@@ -43,7 +45,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from _lib import notify, onemap, repeat, video
+from _lib import checks, notify, onemap, repeat, video
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.web import active
@@ -54,7 +56,6 @@ SG = ZoneInfo("Asia/Singapore")
 SLOT = timedelta(minutes=30)
 MAX_RANGE = 62  # days a calendar or a block can span
 LINK = re.compile(r"^https://[^\s]+$")
-CHECK_LABEL = {"six_month": "6-month check", "one_year": "1-year check"}
 DEFAULT_REMINDERS = (60,)  # minutes before, when the organiser doesn't choose
 MAX_REMINDER = 4 * 7 * 24 * 60  # four weeks
 
@@ -373,7 +374,7 @@ class MeetingIn(BaseModel):
     notes: str | None = None
     projectId: int | None = None
     systemId: int | None = None
-    checkKey: Literal["six_month", "one_year"] | None = None
+    checkKey: str | None = None  # a yearly check, "year_2"... (_lib/checks.py)
     # Minutes before the start; none given is an hour before, an empty list is none.
     reminders: list[int] | None = None
     repeat: Literal["daily", "weekdays", "weekly", "fortnightly", "monthly_day", "monthly_weekday", "yearly"] | None = None
@@ -485,19 +486,23 @@ def _system_check(acct: Account, body: MeetingIn) -> dict[str, Any] | None:
         return None
     if body.systemId is None or body.checkKey is None:
         raise HTTPException(400, "Say which system and which check.")
+    if checks.year_of(body.checkKey) is None:
+        raise HTTPException(400, "That isn't one of the system's yearly checks.")
     s = fetch_one("select * from maintenance_systems where system_id = %s", (body.systemId,))
     ok = s is not None and (
-        acct.role == "superadmin"
-        or (acct.role == "project_manager" and s["run_by"] in (None, acct.uid))
-        or s["homeowner_id"] == acct.uid
+        acct.role == "superadmin" or (acct.role == "project_manager" and s["run_by"] in (None, acct.uid))
     )
     if not ok:
         raise HTTPException(404, "That system isn't one of yours.")
+    if checks.year_of(body.checkKey) not in checks.years(checks.term(s)):
+        raise HTTPException(400, "That isn't one of the system's yearly checks.")
     return s
 
 
 @router.post("/meetings")
 def arrange(body: MeetingIn, acct: Account = Depends(active)) -> dict[str, Any]:
+    if acct.role == "homeowner":
+        raise HTTPException(403, "Your project manager arranges meetings with you. Block out the times you can't do in your calendar.")
     title = _text(body.title, 120, "title")
     if not title:
         raise HTTPException(400, "Give the meeting a title.")

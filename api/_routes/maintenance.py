@@ -3,18 +3,19 @@
   GET   /maintenance                         every system this person looks after, with what's due
   GET   /maintenance/{sid}                   one system, and the project it came from
   PATCH /maintenance/{sid}                   change its details (a superadmin also assigns the manager)
-  POST  /maintenance/{sid}/checks/{check}    record a check done {doneOn}, or undo it {doneOn: null}
+  POST  /maintenance/{sid}/checks/{check}    record a yearly check (year_2...) done {doneOn}, or undo it {doneOn: null}
 
 A handed-over project becomes a maintenance record by itself (migration
 0031); systems from before the app are imported from the project listing
 (scripts/import_maintenance.py) and assigned later. A superadmin sees and
 changes every record; a project manager the ones they look after and the
 ones nobody has been given yet. The database enforces the same (guard_maintenance_write).
+
+Checks are yearly from the second year, for the plan's years (_lib/checks.py).
 """
 
 from __future__ import annotations
 
-import calendar
 import json
 from datetime import date, timedelta
 from decimal import Decimal
@@ -23,6 +24,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from _lib import checks as yearly
 from _lib import records
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
@@ -36,8 +38,6 @@ looks = role("project_manager", "finance")
 
 # A check is "due soon" this many days ahead.
 SOON = timedelta(days=30)
-CHECKS: list[tuple[str, str]] = [("six_month", "6-month check"), ("one_year", "1-year check")]
-COLUMN = {"six_month": ("six_month_due", "six_month_done_on"), "one_year": ("one_year_due", "one_year_done_on")}
 
 SELECT = (
     "select m.*, u.full_name as pm_name, u.email as pm_email, h.full_name as h_name, h.email as h_email, "
@@ -89,19 +89,26 @@ def bookings(sids: list[int]) -> dict[tuple[int, str], dict[str, Any]]:
     return out
 
 
-def row(r: dict[str, Any], today: date, booked: dict[tuple[int, str], dict[str, Any]] | None = None) -> dict[str, Any]:
-    checks = []
-    for key, label in CHECKS:
-        due_col, done_col = COLUMN[key]
-        due, done = r[due_col], r[done_col]
-        checks.append({
-            "key": key,
-            "label": label,
-            "due": due.isoformat() if due else None,
-            "doneOn": done.isoformat() if done else None,
-            "state": check_state(due, done, today),
-            "booked": None if done else (booked or {}).get((r["system_id"], key)),
-        })  # fmt: skip
+def row(
+    r: dict[str, Any],
+    today: date,
+    booked: dict[tuple[int, str], dict[str, Any]] | None = None,
+    done: dict[int, dict[int, date]] | None = None,
+) -> dict[str, Any]:
+    if done is None:
+        done = yearly.done([r["system_id"]])
+    checks = [
+        {
+            "key": c.key,
+            "year": c.year,
+            "label": yearly.label(c.key),
+            "due": c.due.isoformat() if c.due else None,
+            "doneOn": c.done_on.isoformat() if c.done_on else None,
+            "state": check_state(c.due, c.done_on, today),
+            "booked": None if c.done_on else (booked or {}).get((r["system_id"], c.key)),
+        }
+        for c in yearly.for_system(r, done.get(r["system_id"]))
+    ]
     pending = [c for c in checks if c["state"] not in ("done", "unscheduled")]
     overdue = any(c["state"] == "overdue" for c in checks)
     panels = r["panels"] or []
@@ -130,6 +137,7 @@ def row(r: dict[str, Any], today: date, booked: dict[tuple[int, str], dict[str, 
         "phase": r["phase"],
         "inverters": list(r["inverters"] or []),
         "turnedOn": r["turned_on_on"].isoformat() if r["turned_on_on"] else None,
+        "checkYears": yearly.term(r),
         "checks": checks,
         "next": pending[0] if pending else None,
         "roofAccess": r["roof_access"],
@@ -165,9 +173,10 @@ def systems(acct: Account = Depends(looks)) -> dict[str, Any]:
     today = proj.today()
     rows = fetch_all(f"{SELECT} where {where} order by m.address", params)  # type: ignore[arg-type]
     superadmin = acct.role == "superadmin"
-    booked = bookings([r["system_id"] for r in rows])
+    sids = [r["system_id"] for r in rows]
+    booked, done = bookings(sids), yearly.done(sids)
     return {
-        "systems": [row(r, today, booked) for r in rows],
+        "systems": [row(r, today, booked, done) for r in rows],
         "today": today.isoformat(),
         "canAssign": superadmin,
         "managers": _managers() if superadmin else [],
@@ -215,19 +224,15 @@ def detail(acct: Account, r: dict[str, Any]) -> dict[str, Any]:
     if homeowner:
         # The homeowner sees their system and its checks, not the office's notes.
         system["notes"] = None
-    # Who a check is booked with. The homeowner books with the manager looking after the system (the
-    # superadmins while there's none); the office books with the homeowner, when they have an account.
-    if homeowner:
-        with_whom = [r["run_by"]] if r["run_by"] else [a["uid"] for a in fetch_all(
-            "select uid from users where user_type = 'superadmin' and active")]  # fmt: skip
-    else:
-        with_whom = [r["homeowner_id"]] if r["homeowner_id"] else []
+    # A check is booked by the office, with the homeowner when they have an account. The homeowner
+    # doesn't book: they're invited, and block out the times they can't do.
+    with_whom = [r["homeowner_id"]] if r["homeowner_id"] and not homeowner else []
     out = {
         "system": system,
         "project": project,
         "canEdit": can_edit(acct, r),
         "canAssign": superadmin,
-        "canBook": can_edit(acct, r) or (homeowner and r["homeowner_id"] == acct.uid),
+        "canBook": can_edit(acct, r),
         "bookWith": [u for u in with_whom if u != acct.uid],
         "managers": _managers() if superadmin else [],
     }
@@ -267,8 +272,6 @@ class Change(BaseModel):
     phase: Literal[1, 3] | None = None
     inverters: list[str] | None = None
     turnedOn: date | None = None
-    sixMonthDue: date | None = None
-    oneYearDue: date | None = None
     roofAccess: bool | None = None
     urgent: bool | None = None
     urgentNote: str | None = None
@@ -327,10 +330,6 @@ def change(sid: int, body: Change, acct: Account = Depends(pm_only)) -> dict[str
         sets["inverters"] = models
     if "turnedOn" in given:
         sets["turned_on_on"] = body.turnedOn
-    if "sixMonthDue" in given:
-        sets["six_month_due"] = body.sixMonthDue
-    if "oneYearDue" in given:
-        sets["one_year_due"] = body.oneYearDue
     if "roofAccess" in given:
         sets["roof_access"] = body.roofAccess
     if "urgent" in given:
@@ -353,15 +352,7 @@ def change(sid: int, body: Change, acct: Account = Depends(pm_only)) -> dict[str
             raise HTTPException(400, "Choose an active project manager.")
         sets["run_by"] = body.runBy
 
-    # The turn-on date moves the checks with it, unless they were given too.
-    if sets.get("turned_on_on"):
-        sets.setdefault("six_month_due", _months(sets["turned_on_on"], 6))
-        sets.setdefault("one_year_due", _months(sets["turned_on_on"], 12))
-    on = sets.get("turned_on_on", r["turned_on_on"])
-    six = sets.get("six_month_due", r["six_month_due"])
-    year = sets.get("one_year_due", r["one_year_due"])
-    if (on and six and six < on) or (six and year and year < six):
-        raise HTTPException(400, "The checks come after the turn-on date: the 6-month check, then the 1-year one.")
+    # The checks' dates follow from the turn-on date (_lib/checks.py): changing it moves them all.
     if not sets:
         raise HTTPException(400, "Nothing to change.")
     with transaction(acct.uid) as cur:
@@ -372,28 +363,29 @@ def change(sid: int, body: Change, acct: Account = Depends(pm_only)) -> dict[str
     return system(sid, acct)
 
 
-def _months(d: date, n: int) -> date:
-    """d plus n months, on the month's last day when it's shorter (31 Dec + 6 months = 30 Jun)."""
-    y, m = divmod(d.month - 1 + n, 12)
-    year, month = d.year + y, m + 1
-    return date(year, month, min(d.day, calendar.monthrange(year, month)[1]))
-
-
 class Done(BaseModel):
     doneOn: date | None
 
 
 @router.post("/maintenance/{sid}/checks/{check}")
 def check_done(sid: int, check: str, body: Done, acct: Account = Depends(pm_only)) -> dict[str, Any]:
-    if check not in COLUMN:
-        raise HTTPException(404, "There's no such check.")
     r = _one(acct, sid)
     if not can_edit(acct, r):
         raise HTTPException(403, "This system is looked after by another project manager.")
+    year = yearly.year_of(check)
+    if year is None or year not in yearly.years(yearly.term(r)):
+        raise HTTPException(404, "There's no such check.")
     if body.doneOn and body.doneOn > proj.today():
         raise HTTPException(400, "A check can't be done in the future.")
     if body.doneOn and r["turned_on_on"] and body.doneOn < r["turned_on_on"]:
         raise HTTPException(400, "A check can't be done before the system was turned on.")
     with transaction(acct.uid) as cur:
-        cur.execute(f"update maintenance_systems set {COLUMN[check][1]} = %s where system_id = %s", (body.doneOn, sid))
+        if body.doneOn:
+            cur.execute(
+                "insert into maintenance_checks (system_id, year, done_on) values (%s, %s, %s) "
+                "on conflict (system_id, year) do update set done_on = excluded.done_on",
+                (sid, year, body.doneOn),
+            )
+        else:
+            cur.execute("delete from maintenance_checks where system_id = %s and year = %s", (sid, year))
     return system(sid, acct)

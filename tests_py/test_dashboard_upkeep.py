@@ -31,25 +31,22 @@ def system(sid: int, **over) -> dict:
         "plan_years": 7,
         "plan_excludes_first_year": True,
         "turned_on_on": date(2026, 5, 1),
-        "six_month_due": date(2026, 11, 1),
-        "six_month_done_on": None,
-        "one_year_due": date(2027, 5, 1),
-        "one_year_done_on": None,
         "urgent": False,
     }
     return {**row, **over}
 
 
 def test_overdue_checks_are_counted_apart_from_the_months_ahead() -> None:
+    # Yearly checks from 24 months after turn-on (_lib/checks.py).
     rows = [
-        system(1, six_month_due=date(2026, 3, 29), one_year_due=date(2026, 9, 29)),
-        system(2, six_month_due=date(2026, 8, 15)),
-        system(3, six_month_due=date(2026, 8, 15), six_month_done_on=date(2026, 8, 20)),
-        system(4),
+        system(1, turned_on_on=date(2024, 3, 29)),  # year 2 overdue (Mar 2026), year 3 in Mar 2027
+        system(2, turned_on_on=date(2024, 8, 15)),  # year 2 overdue (Aug 2026), year 3 in Aug 2027
+        system(3, turned_on_on=date(2024, 8, 15)),  # year 2 done; year 3 in Aug 2027
+        system(4),  # turned on May 2026: its first check is May 2028, past the year ahead
     ]
-    u = an.maintenance(rows, TODAY)
-    assert u["overdueChecks"] == {"six": 2, "year": 1}
-    assert sum(m["six"] + m["year"] for m in u["upcoming"]) == 4, "1-year checks of 2-4, and the 6-month of 4"
+    u = an.maintenance(rows, TODAY, {3: {2: date(2026, 8, 20)}})
+    assert u["overdueChecks"] == 2
+    assert sum(m["count"] for m in u["upcoming"]) == 3, "the year 3 checks of 1 to 3"
     assert u["tiles"]["overdue"]["count"] == 2
 
 
@@ -60,7 +57,7 @@ def test_inverters_group_by_rating_with_every_model_kept() -> None:
         system(3, inverters=["SUN2000-12K-MB0", "SUN2000-12K-MB0"]),
         system(4, inverters=["Mystery box"]),
     ]
-    u = an.maintenance(rows, TODAY)
+    u = an.maintenance(rows, TODAY, {})
     assert u["inverterPower"] == [
         {"label": "10 kW", "count": 2, "models": ["SUN2000-10K-LC0", "SUN2000-10KTL-MAP0"]},
         {"label": "12 kW", "count": 2, "models": ["SUN2000-12K-MB0"]},
@@ -79,7 +76,7 @@ def test_inverter_rating(model: str, rating: str) -> None:
 
 def test_sizes_come_in_bands_and_the_typical_size_is_the_median() -> None:
     sizes = [8.68, 9.9, 10.0, 12.0, 14.08, 15.0, 19.99, 20.0, 76.8]
-    u = an.maintenance([system(i, kwp=k) for i, k in enumerate(sizes, 1)], TODAY)
+    u = an.maintenance([system(i, kwp=k) for i, k in enumerate(sizes, 1)], TODAY, {})
     # Under 10, 10 to 15, 15 to 20, 20 to 40, 40 and over: smallest first.
     bands = [label for _, label in an.SIZE_BANDS]
     assert [(g["label"], g["count"]) for g in u["bySize"]] == list(zip(bands, [2, 3, 2, 1, 1], strict=True))
@@ -88,7 +85,7 @@ def test_sizes_come_in_bands_and_the_typical_size_is_the_median() -> None:
 
 
 def test_an_even_count_takes_the_middle_two() -> None:
-    u = an.maintenance([system(1, kwp=10), system(2, kwp=20)], TODAY)
+    u = an.maintenance([system(1, kwp=10), system(2, kwp=20)], TODAY, {})
     assert u["medianKwp"] == 15.0
 
 
@@ -100,7 +97,7 @@ def test_ppas_by_the_year_they_end() -> None:
         system(4, ppa_kind="value_buy", ppa_years=None),
         system(5, ppa_years=4, turned_on_on=date(2028, 2, 29)),
     ]
-    u = an.maintenance(rows, TODAY)
+    u = an.maintenance(rows, TODAY, {})
     assert [(g["label"], g["count"], g["ids"]) for g in u["ppaEnds"]] == [
         ("2030", 1, [3]),
         ("2031", 1, [1]),
@@ -110,6 +107,6 @@ def test_ppas_by_the_year_they_end() -> None:
 
 
 def test_nothing_yet() -> None:
-    u = an.maintenance([], TODAY)
+    u = an.maintenance([], TODAY, {})
     assert u["medianKwp"] is None and u["bySize"] == [] and u["ppaEnds"] == [] and u["inverterPower"] == []
-    assert u["overdueChecks"] == {"six": 0, "year": 0}
+    assert u["overdueChecks"] == 0

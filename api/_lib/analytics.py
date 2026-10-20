@@ -534,14 +534,21 @@ def _add_years(d: date, years: int) -> date:
         return d.replace(year=d.year + years, day=28)
 
 
-def maintenance(rows: list[dict[str, Any]], today: date) -> dict[str, Any]:
+def maintenance(
+    rows: list[dict[str, Any]], today: date, done: dict[int, dict[int, date]] | None = None
+) -> dict[str, Any]:
     """The Maintenance tab: what's looked after, what's coming up, and what the systems are.
 
     rows: maintenance_systems (with pm_name), as the reader may see them.
+    done: when their yearly checks were done ({system_id: {year: date}}, _lib/checks.done); read here if not given.
     """
+    from _lib import checks as yearly
+
+    if done is None:
+        done = yearly.done([r["system_id"] for r in rows])
 
     def pending(r: dict[str, Any]) -> list[tuple[str, date]]:
-        return [(k, r[f"{k}_due"]) for k in ("six_month", "one_year") if r[f"{k}_due"] and not r[f"{k}_done_on"]]
+        return [(c.key, c.due) for c in yearly.open_checks(r, done.get(r["system_id"])) if c.due]
 
     ids = [r["system_id"] for r in rows]
     due_soon = [r["system_id"] for r in rows if any(0 <= (d - today).days <= MAINT_SOON for _, d in pending(r))]
@@ -556,12 +563,12 @@ def maintenance(rows: list[dict[str, Any]], today: date) -> dict[str, Any]:
     for _ in range(12):
         months.append(f"{y:04d}-{m:02d}")
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
-    upcoming = {k: {"label": k, "six": 0, "year": 0} for k in months}
+    upcoming = {k: {"label": k, "count": 0} for k in months}
     for r in rows:
-        for key, d in pending(r):
+        for _key, d in pending(r):
             mk = _month_key(d)
             if mk in upcoming and d >= today:
-                upcoming[mk]["six" if key == "six_month" else "year"] += 1
+                upcoming[mk]["count"] += 1
 
     def group(label_of: Any) -> list[dict[str, Any]]:
         g: dict[str, dict[str, Any]] = {}
@@ -574,11 +581,7 @@ def maintenance(rows: list[dict[str, Any]], today: date) -> dict[str, Any]:
         return sorted(g.values(), key=lambda e: (-e["count"], e["label"]))
 
     # Overdue checks: not in any month ahead, so counted on their own (the chart's first column).
-    overdue_checks = {"six": 0, "year": 0}
-    for r in rows:
-        for key, d in pending(r):
-            if d < today:
-                overdue_checks["six" if key == "six_month" else "year"] += 1
+    overdue_checks = sum(1 for r in rows for _key, d in pending(r) if d < today)
 
     # Every model, for the table; grouped by rating for the bars, since one
     # maker's many model names otherwise end up mostly in "Other".

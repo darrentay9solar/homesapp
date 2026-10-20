@@ -351,3 +351,38 @@ who hasn't agreed, and lets everyone download their own data. What only
   sample data. The demo needs its own switch *and* a marker that only the
   dev database has. Sample people can only be created by the seed script on
   the dev database.
+
+## 14. Let the browser zip and upload files on every site (Cloudflare R2 CORS)
+
+My Files can download a selection or a folder as one zip, made in the
+browser from each file. The storage bucket has to allow each site's address
+to read files (it already lets them upload). The live site is already
+allowed; the demo and the staging preview use the dev bucket.
+
+1. <https://dash.cloudflare.com> → **R2 Object Storage** → `gethomeapps-dev`
+   → **Settings** → **CORS Policy** → **Edit**.
+2. Replace it with the `gethomeapps-dev` policy in [r2.md](r2.md) step 3
+   (the demo, the staging preview and `http://localhost:3000`). Save.
+3. `gethomeapps-prod`: check its policy lists
+   `https://homesapp-alpha.vercel.app` with `PUT`, `GET` and `HEAD` (it
+   should already). When you add your own domain (step 10), add it to both.
+
+Without this, single files still open and download; only the zip says it
+couldn't read a file.
+
+## 15. Before the next release: what the 20 Oct changes need
+
+These go to production only when you say to release `staging`.
+
+1. **Migrations 0046 to 0048** (yearly checks, more kinds of Excel export,
+   files with no project yet) are applied with the release:
+   `npm run db:migrate -- --key=PROD_MIGRATION_DATABASE_URL --confirm`.
+2. **Yearly checks need each system's years.** Checks run for the
+   maintenance plan's years (else the PPA's). Systems with neither show "No
+   maintenance plan recorded": open each in Maintenance → Edit and fill in
+   the plan's years, or include them in the next project list import.
+3. **The client list import** (Projects → Import from Excel, superadmins):
+   press Check first. It refuses a list with a repeated postal code,
+   address or project code (in the file, or already in the app), and says
+   which. Turn on "Allow clients sharing a postal code" only for a block of
+   flats.

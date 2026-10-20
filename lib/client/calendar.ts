@@ -36,7 +36,8 @@ export type Meeting = {
   organiser: { uid: number; name: string };
   project: { id: number; name: string | null } | null;
   system: { id: number; address: string | null } | null;
-  checkKey: "six_month" | "one_year" | null;
+  /** A maintenance visit's yearly check ("year_2"...); older ones may carry "six_month" or "one_year". */
+  checkKey: string | null;
   status: MeetingStatus;
   people: MeetingPerson[];
   myResponse: Response | null;

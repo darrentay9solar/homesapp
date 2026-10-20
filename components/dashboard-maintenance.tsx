@@ -22,16 +22,15 @@ import { useMaintenanceHref } from "@/components/maintenance";
 import { GRID, gradText } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { bucketLabel, kwp, num, type Upkeep, type UpkeepSystem } from "@/lib/client/analytics";
+import { checkLabel } from "@/lib/client/maintenance";
 import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
 
 type TileKey = "systems" | "dueSoon" | "attention" | "unassigned";
 
-const CHECK_NAME: Record<string, string> = { six_month: "6-month check", one_year: "1-year check" };
-
 /**
  * The dashboard's Maintenance tab, from the systems 9 Solar Home looks
- * after: how many and how big, the checks coming up (6-month and 1-year) and
+ * after: how many and how big, the yearly checks coming up and
  * those overdue, what needs a visit, and what the systems are (plan, PPA,
  * supply, inverters, region). Tap a number to see its systems.
  */
@@ -44,20 +43,20 @@ export function UpkeepTab({ u }: { u: Upkeep }) {
   const tiles: Array<{ key: TileKey; label: string; icon: ReactNode; tone?: "bad" | "warn" | "good"; sub: string }> = [
     // The typical (median) size: a few big systems pull an average up.
     { key: "systems", label: "Systems looked after", icon: <SolarPowerRoundedIcon />, sub: u.medianKwp ? T("{total} · typically {size}", { total: kwp(u.kwp), size: kwp(u.medianKwp) }) : kwp(u.kwp) },
-    { key: "dueSoon", label: "Checks due in 30 days", icon: <EventRoundedIcon />, tone: t.dueSoon.count ? "warn" : undefined, sub: T("6-month and 1-year checks") },
+    { key: "dueSoon", label: "Checks due in 30 days", icon: <EventRoundedIcon />, tone: t.dueSoon.count ? "warn" : undefined, sub: T("Yearly checks, from the second year") },
     { key: "attention", label: "Need attention", icon: <WarningAmberRoundedIcon />, tone: attention.length ? "bad" : "good", sub: T("{a} urgent · {b} with a check overdue", { a: u.tiles.urgent.count, b: u.tiles.overdue.count }) },
     { key: "unassigned", label: "Unassigned systems", icon: <PersonOffRoundedIcon />, tone: t.unassigned.count ? "warn" : undefined, sub: T("No project manager yet") },
   ];
   const picked = open ? tiles.find((x) => x.key === open) : null;
   const list = open ? t[open].ids.map((i) => u.systems[String(i)]).filter(Boolean) : [];
   // Overdue checks lead the chart, so the work already late is on it too.
-  const late = u.overdueChecks.six + u.overdueChecks.year;
-  const checks = [...(late ? [{ label: T("Overdue"), values: [u.overdueChecks.six, u.overdueChecks.year] }] : []), ...u.upcoming.map((x) => ({ label: bucketLabel(x.label), values: [x.six, x.year] }))];
-  const busiest = u.upcoming.reduce<(typeof u.upcoming)[number] | null>((b, x) => (x.six + x.year > (b ? b.six + b.year : 0) ? x : b), null);
+  const late = u.overdueChecks;
+  const checks = [...(late ? [{ label: T("Overdue"), values: [late] }] : []), ...u.upcoming.map((x) => ({ label: bucketLabel(x.label), values: [x.count] }))];
+  const busiest = u.upcoming.reduce<(typeof u.upcoming)[number] | null>((b, x) => (x.count > (b ? b.count : 0) ? x : b), null);
   const checksSub = [
-    T("6-month and 1-year checks falling due, month by month, over the next 12 months"),
+    T("Yearly checks falling due, month by month, over the next 12 months"),
     late ? T("{n} overdue", { n: late }) : null,
-    busiest ? T("busiest in {month} ({n} checks)", { month: bucketLabel(busiest.label), n: busiest.six + busiest.year }) : null,
+    busiest ? T("busiest in {month} ({n} checks)", { month: bucketLabel(busiest.label), n: busiest.count }) : null,
   ].filter(Boolean).join(" · ");
   return (
     <Stack sx={{ gap: { xs: 1.5, lg: 2 } }} data-testid="dashboard-upkeep">
@@ -97,14 +96,11 @@ export function UpkeepTab({ u }: { u: Upkeep }) {
         <ChartCard
           title="Checks coming up"
           sub={checksSub}
-          legend={[
-            { label: "6-month checks", color: (th) => seriesColor(th, 0) },
-            { label: "1-year checks", color: (th) => seriesColor(th, 1) },
-          ]}
-          table={{ head: ["Month", "6-month checks", "1-year checks"], rows: checks.map((x) => [x.label, ...x.values]) }}
+          legend={[{ label: "Checks", color: (th) => seriesColor(th, 0) }]}
+          table={{ head: ["Month", "Checks"], rows: checks.map((x) => [x.label, ...x.values]) }}
           testId="chart-checks"
         >
-          <ColumnChart data={checks} series={["6-month checks", "1-year checks"]} />
+          <ColumnChart data={checks} series={["Checks"]} />
         </ChartCard>
         <ChartCard
           title="Systems turned on"
@@ -181,7 +177,7 @@ function SystemRows({ list }: { list: UpkeepSystem[] }) {
                 {s.address}
               </Typography>
               <Typography variant="caption" noWrap component="p" sx={{ color: late ? "error.main" : "text.secondary", fontWeight: late ? 700 : 400 }}>
-                {s.urgent ? T("Urgent maintenance") : s.next ? T(s.next.overdue ? "{check} overdue since {date}" : "{check} due {date}", { check: TR(CHECK_NAME[s.next.key]), date: d2s(s.next.due) }) : T("All checks done")}
+                {s.urgent ? T("Urgent maintenance") : s.next ? T(s.next.overdue ? "{check} overdue since {date}" : "{check} due {date}", { check: checkLabel(s.next.key), date: d2s(s.next.due) }) : T("All checks done")}
                 {` · ${s.pm ?? T("Unassigned")}`}
               </Typography>
             </Box>

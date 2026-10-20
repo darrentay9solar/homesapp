@@ -46,6 +46,10 @@ export type ProjectRow = {
   flags: Flag[];
   attention: boolean;
   createdAt: string;
+  projectCode?: string | null;
+  /** When the homeowner signed the handover, and when it was handed over (closed). */
+  signedAt?: string | null;
+  closedAt?: string | null;
 };
 
 /** handedOver: handed-over projects (in maintenance), which live on the Maintenance page rather than in the list. */

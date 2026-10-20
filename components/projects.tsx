@@ -59,7 +59,10 @@ export function StatusChip({ p, size = "small" }: { p: Pick<ProjectRow, "status"
   return <Chip size={size} label={TR(p.statusLabel)} color={tone} variant={tone === "default" ? "outlined" : "filled"} sx={{ fontWeight: 600 }} />;
 }
 
+/** On time, late or an issue: for the team only. A homeowner never sees a timing verdict. */
 export function TimingChip({ p }: { p: Pick<ProjectRow, "attention" | "flags"> }) {
+  const me = useMe();
+  if (me?.role === "homeowner") return null;
   if (!p.attention) return <Chip size="small" variant="outlined" color="success" label={T("On time")} />;
   const late = p.flags.some((f) => f.kind === "overdue");
   return <Chip size="small" color="error" icon={<WarningAmberRoundedIcon />} label={late ? T("Late") : T("Issue")} />;

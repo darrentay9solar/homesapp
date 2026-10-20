@@ -3,7 +3,8 @@
 
 convert     a handed-over project becomes a maintenance record by itself, once
 see         a superadmin sees every system; a project manager theirs and unassigned ones; nobody else any
-change      details, the contract, the checks; a superadmin assigns the manager
+change      details, the contract; a superadmin assigns the manager
+checks      yearly from 24 months after turn-on, for the plan's (else the PPA's) years (_lib/checks.py)
 guard       the database refuses what the API refuses, whoever asks
 projects    the Projects list leaves handed-over projects to Maintenance; labels read Completed, Handed Over
 import      the project listing's rows, read strictly; a re-run adds nothing
@@ -21,6 +22,7 @@ import psycopg
 import pytest
 from test_project_work import _onemap, new_project, team  # noqa: F401
 
+from _lib import checks as yearly
 from _lib.db import transaction
 from _routes import maintenance as mt
 from _routes import projects as proj
@@ -61,8 +63,7 @@ def systems(fx):
             "panels": json.dumps([{"count": 20, "wp": 620}]),
             "kwp": 12.4,
             "turned_on_on": date(2026, 5, 11),
-            "six_month_due": date(2026, 11, 11),
-            "one_year_due": date(2027, 5, 11),
+            "plan_years": 5,
             **cols,
         }
         sid = fx.conn.execute(
@@ -111,7 +112,8 @@ def test_a_handed_over_project_becomes_a_maintenance_record(client, fx, team, cl
     assert m["panels"] == [{"count": 20, "wp": 620}], "the actual panel count wins over the estimate"
     assert float(m["kwp"]) == 12.4
     assert m["inverters"] == ["SUN2000-10K-LC0"]
-    assert (m["turned_on_on"], m["six_month_due"], m["one_year_due"]) == (date(2026, 5, 11), date(2026, 11, 11), date(2027, 5, 11))
+    assert m["turned_on_on"] == date(2026, 5, 11)
+    assert m["six_month_due"] is None and m["one_year_due"] is None, "no 6-month or 1-year dates any more: checks are yearly"
     assert m["import_ref"] is None and m["ppa_kind"] is None and m["plan_years"] is None, "the contract is left for the manager"
 
 
@@ -121,7 +123,7 @@ def test_without_a_turn_on_inspection_the_checks_count_from_the_close(client, fx
     m = close_project(fx, pid)
     today = proj.today()
     assert m["turned_on_on"] == today
-    assert m["six_month_due"] == mt._months(today, 6) and m["one_year_due"] == mt._months(today, 12)
+    assert m["six_month_due"] is None and m["one_year_due"] is None
     assert m["panels"] == [] and m["kwp"] is None and m["inverters"] == []
 
 
@@ -208,20 +210,49 @@ def test_a_check_is_overdue_due_soon_scheduled_or_done(due, done, state) -> None
     assert mt.check_state(d(due), d(done), t) == state
 
 
-def test_the_next_check_is_the_first_not_done(client, team, systems) -> None:  # noqa: F811
+def test_the_next_check_is_the_first_not_done(client, fx, team, systems) -> None:  # noqa: F811
     t = proj.today()
-    sid = systems(turned_on_on=t - timedelta(days=200), six_month_due=t - timedelta(days=17), one_year_due=t + timedelta(days=165),
-                  six_month_done_on=t - timedelta(days=20))  # fmt: skip
+    on = yearly.add_months(t, -26)
+    sid = systems(turned_on_on=on)
+    fx.conn.execute("insert into maintenance_checks (system_id, year, done_on) values (%s, 2, %s)", (sid, t - timedelta(days=50)))
     s = client.get(f"/api/py/maintenance/{sid}", headers=h(team["pm"])).json()["system"]
-    assert [c["state"] for c in s["checks"]] == ["done", "scheduled"]
-    assert s["next"]["key"] == "one_year" and not s["attention"]
+    assert [c["key"] for c in s["checks"]] == ["year_2", "year_3", "year_4", "year_5"]
+    assert [c["state"] for c in s["checks"]] == ["done", "scheduled", "scheduled", "scheduled"]
+    assert s["next"]["key"] == "year_3" and s["next"]["label"] == "Year 3 check" and not s["attention"]
 
 
 def test_an_overdue_check_needs_attention(client, team, systems) -> None:  # noqa: F811
     t = proj.today()
-    sid = systems(turned_on_on=t - timedelta(days=200), six_month_due=t - timedelta(days=17), one_year_due=t + timedelta(days=165))
+    sid = systems(turned_on_on=yearly.add_months(t, -25))
     s = client.get(f"/api/py/maintenance/{sid}", headers=h(team["pm"])).json()["system"]
-    assert s["next"]["state"] == "overdue" and s["attention"]
+    assert s["next"]["key"] == "year_2" and s["next"]["state"] == "overdue" and s["attention"]
+
+
+@pytest.mark.parametrize(
+    ("plan", "ppa", "keys"),
+    [
+        (5, None, ["year_2", "year_3", "year_4", "year_5"]),
+        (8, 5, ["year_2", "year_3", "year_4", "year_5", "year_6", "year_7", "year_8"]),  # the plan's years win
+        (None, 3, ["year_2", "year_3"]),  # no plan: the contract's years
+        (1, None, []),  # a one-year plan: the first year has no check
+        (None, None, []),
+    ],
+)
+def test_checks_are_yearly_from_the_second_year_for_the_plans_years(client, team, systems, plan, ppa, keys) -> None:  # noqa: F811
+    sid = systems(plan_years=plan, ppa_kind="ppa" if ppa else None, ppa_years=ppa, turned_on_on=date(2026, 5, 11))
+    s = client.get(f"/api/py/maintenance/{sid}", headers=h(team["pm"])).json()["system"]
+    assert [c["key"] for c in s["checks"]] == keys
+    assert s["checkYears"] == (plan or ppa)
+    if keys:
+        assert s["checks"][0]["due"] == "2028-05-11", "the first check is 24 months after turn-on"
+        assert s["checks"][-1]["due"] == f"{2026 + len(keys) + 1}-05-11", "the last in the term's final year"
+
+
+def test_without_a_turn_on_date_the_checks_have_no_dates(client, team, systems) -> None:  # noqa: F811
+    sid = systems(turned_on_on=None)
+    s = client.get(f"/api/py/maintenance/{sid}", headers=h(team["pm"])).json()["system"]
+    assert len(s["checks"]) == 4 and all(c["due"] is None and c["state"] == "unscheduled" for c in s["checks"])
+    assert s["next"] is None
 
 
 # ------------------------------------------------------------------- change
@@ -269,15 +300,15 @@ def test_clearing_urgent_clears_its_note(client, team, systems) -> None:  # noqa
 
 def test_a_new_turn_on_date_moves_the_checks(client, team, systems) -> None:  # noqa: F811
     sid = systems(run_by=team["pm"]["uid"])
-    s = client.patch(f"/api/py/maintenance/{sid}", headers=h(team["pm"]), json={"turnedOn": "2025-12-31"}).json()["system"]
-    assert s["turnedOn"] == "2025-12-31"
-    assert [c["due"] for c in s["checks"]] == ["2026-06-30", "2026-12-31"], "the month's last day when it's shorter, as the listing has it"
+    s = client.patch(f"/api/py/maintenance/{sid}", headers=h(team["pm"]), json={"turnedOn": "2024-02-29"}).json()["system"]
+    assert s["turnedOn"] == "2024-02-29"
+    assert [c["due"] for c in s["checks"]] == ["2026-02-28", "2027-02-28", "2028-02-29", "2029-02-28"], "the month's last day when it's shorter"
 
 
-def test_given_check_dates_are_kept(client, team, systems) -> None:  # noqa: F811
+def test_the_old_check_dates_are_no_longer_taken(client, team, systems) -> None:  # noqa: F811
     sid = systems(run_by=team["pm"]["uid"])
-    s = client.patch(f"/api/py/maintenance/{sid}", headers=h(team["pm"]), json={"turnedOn": "2026-01-10", "sixMonthDue": "2026-07-01", "oneYearDue": "2027-01-02"}).json()["system"]
-    assert [c["due"] for c in s["checks"]] == ["2026-07-01", "2027-01-02"]
+    r = client.patch(f"/api/py/maintenance/{sid}", headers=h(team["pm"]), json={"sixMonthDue": "2026-07-01"})
+    assert r.status_code == 400 and "Nothing to change" in r.json()["error"]
 
 
 def test_a_project_manager_looks_after_unassigned_systems(client, team, systems) -> None:  # noqa: F811
@@ -299,8 +330,6 @@ def test_a_project_manager_looks_after_unassigned_systems(client, team, systems)
         ({"kwp": -1}, 422, None),
         ({"phase": 2}, 422, None),
         ({"inverters": ["X"] * 21}, 400, "more inverters"),
-        ({"sixMonthDue": "2026-05-01"}, 400, "after the turn-on"),
-        ({"oneYearDue": "2026-11-10"}, 400, "after the turn-on"),
         ({"urgent": None}, 400, "whether it's urgent"),
         ({"notes": "x" * 2001}, 400, "too long"),
         ({}, 400, "Nothing to change"),
@@ -345,38 +374,40 @@ def test_a_system_goes_only_to_an_active_manager(client, boss, team, systems) ->
 
 def test_a_check_is_marked_done_and_undone(client, fx, team, systems) -> None:  # noqa: F811
     t = proj.today()
-    sid = systems(run_by=team["pm"]["uid"], turned_on_on=t - timedelta(days=190), six_month_due=t - timedelta(days=7), one_year_due=t + timedelta(days=175))
-    r = client.post(f"/api/py/maintenance/{sid}/checks/six_month", headers=h(team["pm"]), json={"doneOn": t.isoformat()})
+    sid = systems(run_by=team["pm"]["uid"], turned_on_on=yearly.add_months(t, -25))
+    r = client.post(f"/api/py/maintenance/{sid}/checks/year_2", headers=h(team["pm"]), json={"doneOn": t.isoformat()})
     assert r.status_code == 200, r.text
     c = r.json()["system"]["checks"][0]
-    assert c["state"] == "done" and c["doneOn"] == t.isoformat() and not r.json()["system"]["attention"]
-    r = client.post(f"/api/py/maintenance/{sid}/checks/six_month", headers=h(team["pm"]), json={"doneOn": None})
+    assert c["key"] == "year_2" and c["state"] == "done" and c["doneOn"] == t.isoformat() and not r.json()["system"]["attention"]
+    r = client.post(f"/api/py/maintenance/{sid}/checks/year_2", headers=h(team["pm"]), json={"doneOn": None})
     assert r.json()["system"]["checks"][0]["state"] == "overdue"
-    changes = fx.conn.execute(
-        "select changes from audit_log where entity_table = 'maintenance_systems' and entity_id = %s and action = 'update' and changes ? 'six_month_done_on' order by audit_id",
+    log = fx.conn.execute(
+        "select action::text as action, actor_uid from audit_log where entity_table = 'maintenance_checks' and entity_id = %s order by audit_id",
         (str(sid),),
     ).fetchall()
-    assert len(changes) == 2
+    assert [a["action"] for a in log] == ["insert", "delete"] and all(a["actor_uid"] == team["pm"]["uid"] for a in log)
 
 
 @pytest.mark.parametrize(
     ("check", "when", "status"),
     [
-        ("six_month", 1, 400),  # tomorrow
-        ("six_month", -400, 400),  # before the turn-on
-        ("two_year", 0, 404),
+        ("year_2", 1, 400),  # tomorrow
+        ("year_2", -800, 400),  # before the turn-on
+        ("year_1", 0, 404),  # the first year has none
+        ("year_6", 0, 404),  # past the plan's 5 years
+        ("six_month", 0, 404),  # the old checks are gone
     ],
 )
 def test_a_check_cant_be_done_in_the_future_or_before_the_turn_on(client, team, systems, check, when, status) -> None:  # noqa: F811
     t = proj.today()
-    sid = systems(run_by=team["pm"]["uid"], turned_on_on=t - timedelta(days=190), six_month_due=t - timedelta(days=7), one_year_due=t + timedelta(days=175))
+    sid = systems(run_by=team["pm"]["uid"], turned_on_on=yearly.add_months(t, -25))
     r = client.post(f"/api/py/maintenance/{sid}/checks/{check}", headers=h(team["pm"]), json={"doneOn": (t + timedelta(days=when)).isoformat()})
     assert r.status_code == status
 
 
 def test_another_managers_checks_are_theirs(client, team, pm2, systems) -> None:  # noqa: F811
     sid = systems(run_by=pm2["uid"])
-    r = client.post(f"/api/py/maintenance/{sid}/checks/six_month", headers=h(team["pm"]), json={"doneOn": proj.today().isoformat()})
+    r = client.post(f"/api/py/maintenance/{sid}/checks/year_2", headers=h(team["pm"]), json={"doneOn": proj.today().isoformat()})
     assert r.status_code == 404
 
 
@@ -415,6 +446,17 @@ def test_the_database_refuses_everyone_else(team, systems, who) -> None:  # noqa
     sid = systems()
     with pytest.raises(psycopg.errors.InsufficientPrivilege, match="project managers look after"):
         _as(team[who]["uid"], "update maintenance_systems set notes = 'x' where system_id = %s", (sid,))
+
+
+def test_the_database_keeps_checks_to_the_systems_manager(team, pm2, systems) -> None:  # noqa: F811
+    mine, theirs = systems(run_by=team["pm"]["uid"]), systems(run_by=pm2["uid"])
+    _as(team["pm"]["uid"], "insert into maintenance_checks (system_id, year, done_on) values (%s, 2, current_date)", (mine,))
+    with pytest.raises(psycopg.errors.InsufficientPrivilege, match="another project manager"):
+        _as(team["pm"]["uid"], "insert into maintenance_checks (system_id, year, done_on) values (%s, 2, current_date)", (theirs,))
+    with pytest.raises(psycopg.errors.InsufficientPrivilege, match="project managers look after"):
+        _as(team["ho"]["uid"], "delete from maintenance_checks where system_id = %s", (mine,))
+    with pytest.raises(psycopg.errors.CheckViolation, match="maintenance_checks_values"):
+        _as(team["pm"]["uid"], "insert into maintenance_checks (system_id, year, done_on) values (%s, 1, current_date)", (mine,))
 
 
 def test_a_superadmin_may_do_anything(boss, team, systems) -> None:  # noqa: F811
@@ -612,4 +654,4 @@ def test_an_import_adds_new_rows_once_and_updates_only_when_asked(fx) -> None:
     ],
 )
 def test_months_are_added_as_the_listing_does(d, n, want) -> None:
-    assert mt._months(d, n) == want
+    assert yearly.add_months(d, n) == want

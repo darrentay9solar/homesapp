@@ -50,9 +50,10 @@ export type Upkeep = {
   avgKwp: number | null;
   /** The typical size: a few big systems pull the average up. */
   medianKwp: number | null;
-  upcoming: Array<{ label: string; six: number; year: number }>;
+  /** Yearly checks falling due each month ahead. */
+  upcoming: Array<{ label: string; count: number }>;
   /** Checks past their due date and not done, which no month ahead holds. */
-  overdueChecks: { six: number; year: number };
+  overdueChecks: number;
   turnedOn: Array<{ label: string; count: number; kwp: number }>;
   byPlan: UpkeepGroup[];
   byPpa: UpkeepGroup[];

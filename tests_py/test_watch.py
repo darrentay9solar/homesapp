@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from test_project_work import _onemap, new_project, team  # noqa: F401
 
+from _lib import checks as yearly
 from _lib import watch
 from _routes import projects as proj
 
@@ -89,12 +90,12 @@ def test_outside_the_windows_nothing_is_sent(client, fx, team, boss, days) -> No
 # ------------------------------------------------------------ a check a month overdue
 
 
-def system(fx, *, run_by: int | None, six_due: date) -> int:
+def system(fx, *, run_by: int | None, year2_due: date) -> int:
+    """A system whose year 2 check falls due on year2_due (24 months after its turn-on)."""
     return fx.conn.execute(
-        "insert into maintenance_systems (import_ref, address, postal_code, run_by, turned_on_on, six_month_due, "
-        "one_year_due) values (%s, 'Watch Test House', '560123', %s, %s, %s, %s) returning system_id",
-        (f"pytest-watch-{uuid.uuid4().hex[:8]}", run_by, six_due - timedelta(days=182), six_due,
-         six_due + timedelta(days=183)),
+        "insert into maintenance_systems (import_ref, address, postal_code, run_by, turned_on_on, plan_years) "
+        "values (%s, 'Watch Test House', '560123', %s, %s, 5) returning system_id",
+        (f"pytest-watch-{uuid.uuid4().hex[:8]}", run_by, yearly.add_months(year2_due, -24)),
     ).fetchone()["system_id"]  # fmt: skip
 
 
@@ -106,18 +107,18 @@ def systems(fx):
 
 
 def test_a_check_a_month_overdue_on_a_managed_system_goes_to_the_superadmins(fx, team, boss, systems) -> None:  # noqa: F811
-    sid = system(fx, run_by=team["pm"]["uid"], six_due=today() - timedelta(days=31))
+    sid = system(fx, run_by=team["pm"]["uid"], year2_due=today() - timedelta(days=31))
     systems.append(sid)
     assert watch.overdue_checks(today(), uids=[boss["uid"]], system_ids=[sid]) == 1
     got = alerts(fx, boss["uid"], "escalation")
-    assert got[-1]["title"] == "6-month check a month overdue · Watch Test House"
+    assert got[-1]["title"] == "Year 2 check a month overdue · Watch Test House"
     assert got[-1]["link"] == f"/maintenance/{sid}"
     assert watch.overdue_checks(today(), uids=[boss["uid"]], system_ids=[sid]) == 0, "once"
 
 
 def test_an_unmanaged_system_isnt_escalated(fx, boss, systems) -> None:
     """The superadmins already get its reminders."""
-    sid = system(fx, run_by=None, six_due=today() - timedelta(days=31))
+    sid = system(fx, run_by=None, year2_due=today() - timedelta(days=31))
     systems.append(sid)
     assert watch.overdue_checks(today(), uids=[boss["uid"]], system_ids=[sid]) == 0
 
@@ -204,9 +205,9 @@ def test_unassigned_systems_are_for_superadmins_only() -> None:
 
 def test_checks_due_this_week_count_from_today() -> None:
     systems = {
-        "1": {"next": {"key": "six_month", "due": "2026-10-15", "overdue": False}},
-        "2": {"next": {"key": "one_year", "due": "2026-10-19", "overdue": False}},
-        "3": {"next": {"key": "six_month", "due": "2026-10-20", "overdue": False}},
+        "1": {"next": {"key": "year_2", "due": "2026-10-15", "overdue": False}},
+        "2": {"next": {"key": "year_3", "due": "2026-10-19", "overdue": False}},
+        "3": {"next": {"key": "year_2", "due": "2026-10-20", "overdue": False}},
         "4": {"next": None},
     }
     u = {**upkeep(), "systems": systems}

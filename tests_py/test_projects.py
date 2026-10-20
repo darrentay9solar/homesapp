@@ -234,6 +234,22 @@ def test_late_and_no_show_turn_a_project_red(client, pm, fx, made) -> None:
     assert p["attention"] and p["flags"][0]["kind"] == "no_show" and "Panel mounting" in p["flags"][0]["text"]
 
 
+def test_a_homeowner_is_never_told_whether_a_project_is_on_time(client, pm, fx, made) -> None:
+    ho = fx.user("homeowner")
+    pid = create(client, pm, made, homeownerId=ho["uid"], homeownerName="",
+                 startDate="2026-01-05", endDate="2026-01-26").json()["id"]  # fmt: skip
+    fx.conn.execute(
+        "insert into site_visits (project_id, scheduled_date, scheduled_time) "
+        "values (%s, current_date - 2, '09:00')",
+        (pid,),
+    )
+    staff = next(x for x in listed(client, pm) if x["id"] == pid)
+    assert staff["attention"] and {f["kind"] for f in staff["flags"]} == {"overdue", "no_show"}
+    one = client.get(f"/api/py/projects/{pid}", headers=bearer(ho["clerk_user_id"])).json()
+    for p in (listed(client, ho)[0], one):
+        assert p["flags"] == [] and p["attention"] is False, "late and no-shows are the team's business"
+
+
 # ---------------------------------------------------------------- the guard
 
 

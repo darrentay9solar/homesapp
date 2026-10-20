@@ -66,6 +66,12 @@ def project_key(pid: int, category: str, content_type: str) -> str:
     return f"projects/{pid}/{folder(content_type)}/{category}/{uuid.uuid4()}.{ALLOWED_TYPES[content_type]}"
 
 
+def unassigned_key(content_type: str) -> str:
+    """A file not on any project yet (My Files → Unassigned, staff only): unassigned/images/<uuid>.jpg.
+    Assigned to a project, it keeps this key (project_files.url)."""
+    return f"unassigned/{folder(content_type)}/{uuid.uuid4()}.{ALLOWED_TYPES[content_type]}"
+
+
 def avatar_key(uid: int, content_type: str) -> str:
     return f"profiles/{uid}/images/{uuid.uuid4()}.{AVATAR_TYPES[content_type]}"
 
@@ -237,15 +243,16 @@ def upload_link(key: str, content_type: str, size: int) -> str:
     raise StorageNotConfiguredError
 
 
-def view_link(key: str, file_name: str) -> str:
+def view_link(key: str, file_name: str, download: bool = False) -> str:
+    """A five-minute link to a stored file: shown in the browser, or (download) saved under its name."""
     m = mode()
-    disposition = f"inline; filename*=UTF-8''{urllib.parse.quote(file_name)}"
+    disposition = f"{'attachment' if download else 'inline'}; filename*=UTF-8''{urllib.parse.quote(file_name)}"
     if m == "r2":
         cfg = _r2()
         assert cfg
         return _sign(cfg, "GET", key, LINK_SECONDS, {}, {"response-content-disposition": disposition})
     if m == "local":
-        tok = _token({"op": "get", "key": key, "name": file_name, "exp": time.time() + LINK_SECONDS})
+        tok = _token({"op": "get", "key": key, "name": file_name, "dl": download, "exp": time.time() + LINK_SECONDS})
         return f"/api/py/dev-storage/{tok}"
     raise StorageNotConfiguredError
 

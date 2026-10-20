@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { Page } from "@/components/shell";
-import { AnswersPanel, AskDialog, ThreadCard, useSupportHref } from "@/components/support";
+import { AnswersPanel, AskDialog, ChatStart, ThreadCard, useSupportHref } from "@/components/support";
 import { GRID, SegTabs, TopBar } from "@/components/topbar";
 import { useApi } from "@/lib/client/api";
 import { useMe } from "@/lib/client/app-state";
@@ -56,6 +56,8 @@ function SupportScreen() {
   const shown = staff ? (tab === "answers" ? [] : inTab(threads, tab)) : threads;
   const count = (t: SupportTab) => inTab(threads, t).length;
   const labels: Record<Tab, string> = { waiting: "Waiting", open: "In progress", assistant: "With the assistant", settled: "Settled", all: "All", answers: "Answers" };
+  // A homeowner's Help opens on a chat with the assistant; their past conversations follow.
+  const chat = Boolean(data && !staff && data.assistant && data.canAsk);
 
   return (
     <>
@@ -98,7 +100,13 @@ function SupportScreen() {
               <AnswersPanel />
             </Box>
           )}
-          {data && !(staff && tab === "answers") && shown.length === 0 && (
+          {chat && data && <ChatStart name={me.fullName?.split(" ")[0] ?? null} projects={data.projects} ai={data.ai} onStarted={(id) => router.push(href(id))} />}
+          {chat && shown.length > 0 && (
+            <Typography variant="caption" component="p" sx={{ color: "text.secondary", mt: 3, mb: -1, fontWeight: 600 }}>
+              {T("Your conversations")}
+            </Typography>
+          )}
+          {data && !chat && !(staff && tab === "answers") && shown.length === 0 && (
             <Card sx={{ p: 4, mt: 2, textAlign: "center" }} data-testid="support-empty">
               <SupportAgentRoundedIcon sx={{ fontSize: 42, color: "primary.main" }} />
               <Typography sx={{ fontWeight: 600, mt: 1 }}>

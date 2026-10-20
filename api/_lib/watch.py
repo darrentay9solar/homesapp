@@ -31,6 +31,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from _lib import analytics as an
+from _lib import checks as yearly
 from _lib import notify
 from _lib.account import Account
 from _lib.auth import ClerkIdentity
@@ -41,7 +42,6 @@ SUMMARY_HOUR = 8  # Singapore time
 LATE_WINDOW = (1, 7)  # days late: the manager is told
 ESCALATE_LATE = (14, 21)  # days late: the superadmins are told
 ESCALATE_CHECK = (30, 37)  # days a check is overdue: the superadmins are told
-CHECK_NAME = {"six_month": "6-month check", "one_year": "1-year check"}
 
 
 def _claim(kind: str, subject: str, uid: int) -> bool:
@@ -123,16 +123,20 @@ def overdue_checks(today: date, *, uids: list[int] | None = None, system_ids: li
     """A check a month overdue on a system that has a manager: the superadmins, once."""
     admins = [u for u in _managers(uids) if u["user_type"] == "superadmin"]
     sent = 0
-    rows = fetch_all(
-        "select m.system_id, m.address, m.six_month_due, m.six_month_done_on, m.one_year_due, m.one_year_done_on, "
-        "u.full_name as pm_name from maintenance_systems m join users u on u.uid = m.run_by "
-        "where %(ids)s::int[] is null or m.system_id = any(%(ids)s)",
-        {"ids": system_ids},
+    names = {
+        r["uid"]: r["full_name"] or r["email"]
+        for r in fetch_all(
+            "select uid, full_name, email from users where user_type in ('project_manager', 'superadmin')"
+        )
+    }
+    rows = yearly.all_systems(
+        "m.run_by is not null and (%(ids)s::int[] is null or m.system_id = any(%(ids)s))", {"ids": system_ids}
     )
-    for s in rows:
-        for key, name in CHECK_NAME.items():
-            due, done = s[f"{key}_due"], s[f"{key}_done_on"]
-            if not due or done or not ESCALATE_CHECK[0] <= (today - due).days <= ESCALATE_CHECK[1]:
+    for s, checks in rows:
+        s["pm_name"] = names.get(s["run_by"])
+        for c in checks:
+            due, key, name = c.due, c.key, yearly.label(c.key)
+            if not due or c.done_on or not ESCALATE_CHECK[0] <= (today - due).days <= ESCALATE_CHECK[1]:
                 continue
             for u in admins:
                 if _claim("escalation", f"check:{s['system_id']}:{key}:{due.isoformat()}", u["uid"]):

@@ -46,6 +46,8 @@ CFG = storage._r2()
 needs_r2 = pytest.mark.skipif(CFG is None, reason="R2 settings aren't in .env.local")
 LIVE_ORIGIN = "https://homesapp-alpha.vercel.app"
 LAPTOP_ORIGIN = "http://localhost:3000"
+DEMO_ORIGIN = "https://gethomeapps-demo.vercel.app"
+STAGING_ORIGIN = "https://gethomeapps-demo-git-staging-9-solar-fintech.vercel.app"
 PROD_BUCKET = "gethomeapps-prod"
 DEV_BUCKET = "gethomeapps-dev"
 FILE_SLOTS = [f.key for f in project_fields.FIELDS if f.kind in project_fields.FILE_KINDS]
@@ -613,13 +615,27 @@ def test_each_link_is_signed_fresh() -> None:
 # ------------------------------------------------------------------ docs
 
 
-def cors_policy() -> list[dict]:
+def cors_policies() -> list[list[dict]]:
+    """The documented policies: the live bucket's, then the dev bucket's."""
     text = (Path(__file__).resolve().parents[1] / "docs" / "r2.md").read_text(encoding="utf8")
-    return json.loads(re.search(r"```json\n(.*?)```", text, re.S).group(1))
+    return [json.loads(m) for m in re.findall(r"```json\n(.*?)```", text, re.S)]
 
 
-def test_documented_cors_allows_the_live_site_and_laptop() -> None:
-    assert set(cors_policy()[0]["AllowedOrigins"]) == {LIVE_ORIGIN, LAPTOP_ORIGIN}
+def cors_policy() -> list[dict]:
+    return cors_policies()[0]
+
+
+def test_documented_cors_allows_the_live_site_on_the_live_bucket_only() -> None:
+    assert set(cors_policies()[0][0]["AllowedOrigins"]) == {LIVE_ORIGIN}
+
+
+def test_documented_cors_allows_the_demo_staging_and_laptop_on_the_dev_bucket() -> None:
+    assert set(cors_policies()[1][0]["AllowedOrigins"]) == {DEMO_ORIGIN, STAGING_ORIGIN, LAPTOP_ORIGIN}
+
+
+def test_both_documented_policies_allow_the_same_methods_and_header() -> None:
+    live, dev = (p[0] for p in cors_policies()[:2])
+    assert (live["AllowedMethods"], live["AllowedHeaders"]) == (dev["AllowedMethods"], dev["AllowedHeaders"])
 
 
 @pytest.mark.parametrize("method", ["PUT", "GET", "HEAD"])

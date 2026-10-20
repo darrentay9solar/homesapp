@@ -23,16 +23,18 @@ import {
   phaseText,
   planText,
   ppaText,
+  checkLabel,
   sgToday,
   sortSystems,
 } from "../lib/client/maintenance";
 
 function check(key: Check["key"], state: Check["state"], due: string | null = "2027-01-01"): Check {
-  return { key, label: key === "six_month" ? "6-month check" : "1-year check", due, doneOn: state === "done" ? "2026-10-01" : null, state };
+  const year = Number(key.slice(5));
+  return { key, year, label: `Year ${year} check`, due, doneOn: state === "done" ? "2026-10-01" : null, state };
 }
 
 function system(over: Partial<MaintenanceSystem> = {}): MaintenanceSystem {
-  const checks = over.checks ?? [check("six_month", "scheduled", "2026-11-26"), check("one_year", "scheduled", "2027-05-26")];
+  const checks = over.checks ?? [check("year_2", "scheduled", "2026-11-26"), check("year_3", "scheduled", "2027-05-26")];
   return {
     id: 1,
     address: "23 Lorong Example",
@@ -50,6 +52,7 @@ function system(over: Partial<MaintenanceSystem> = {}): MaintenanceSystem {
     phase: 1,
     inverters: ["SUN2000-5KTL-L1", "SUN2000-5KTL-L1"],
     turnedOn: "2026-05-26",
+    checkYears: 5,
     next: checks.find((c) => c.state !== "done" && c.state !== "unscheduled") ?? null,
     roofAccess: false,
     urgent: false,
@@ -93,10 +96,10 @@ describe("wording", () => {
 
 describe("tabs", () => {
   const urgent = system({ id: 2, urgent: true, attention: true });
-  const overdue = system({ id: 3, attention: true, checks: [check("six_month", "overdue"), check("one_year", "scheduled")] });
-  const soon = system({ id: 4, checks: [check("six_month", "due_soon"), check("one_year", "scheduled")] });
+  const overdue = system({ id: 3, attention: true, checks: [check("year_2", "overdue"), check("year_3", "scheduled")] });
+  const soon = system({ id: 4, checks: [check("year_2", "due_soon"), check("year_3", "scheduled")] });
   const free = system({ id: 5, pm: { uid: null, name: null } });
-  const done = system({ id: 6, checks: [check("six_month", "done"), check("one_year", "done")] });
+  const done = system({ id: 6, checks: [check("year_2", "done"), check("year_3", "done")] });
   const all = [urgent, overdue, soon, free, done];
   const ids = (tab: Parameters<typeof inMTab>[1]) => all.filter((s) => inMTab(s, tab)).map((s) => s.id);
   it("Attention: urgent or overdue", () => assert.deepEqual(ids("attention"), [2, 3]));
@@ -116,7 +119,7 @@ describe("search", () => {
     assert.ok(matchesSystem(system({ pm: { uid: null, name: null } }), "unassigned"));
     assert.ok(!matchesSystem(system(), "unassigned"));
   });
-  it("overdue finds an overdue check", () => assert.ok(matchesSystem(system({ checks: [check("six_month", "overdue"), check("one_year", "scheduled")] }), "overdue")));
+  it("overdue finds an overdue check", () => assert.ok(matchesSystem(system({ checks: [check("year_2", "overdue"), check("year_3", "scheduled")] }), "overdue")));
   it("search and tab together", () => {
     const list = [system({ id: 1, address: "1 Bedok Walk", pm: { uid: null, name: null } }), system({ id: 2, address: "2 Bedok Walk" })];
     assert.deepEqual(filterSystems(list, { query: "bedok", tab: "unassigned" }).map((x) => x.id), [1]);
@@ -126,11 +129,11 @@ describe("search", () => {
 describe("order", () => {
   it("urgent, then overdue, then the soonest check, then the address", () => {
     const list = [
-      system({ id: 1, address: "B", checks: [check("six_month", "scheduled", "2027-03-01"), check("one_year", "scheduled", "2027-09-01")] }),
-      system({ id: 2, address: "A", checks: [check("six_month", "scheduled", "2027-03-01"), check("one_year", "scheduled", "2027-09-01")] }),
-      system({ id: 3, checks: [check("six_month", "overdue", "2026-09-01"), check("one_year", "scheduled")] }),
+      system({ id: 1, address: "B", checks: [check("year_2", "scheduled", "2027-03-01"), check("year_3", "scheduled", "2027-09-01")] }),
+      system({ id: 2, address: "A", checks: [check("year_2", "scheduled", "2027-03-01"), check("year_3", "scheduled", "2027-09-01")] }),
+      system({ id: 3, checks: [check("year_2", "overdue", "2026-09-01"), check("year_3", "scheduled")] }),
       system({ id: 4, urgent: true }),
-      system({ id: 5, checks: [check("six_month", "due_soon", "2026-10-20"), check("one_year", "scheduled")] }),
+      system({ id: 5, checks: [check("year_2", "due_soon", "2026-10-20"), check("year_3", "scheduled")] }),
     ];
     assert.deepEqual(sortSystems(list).map((s) => s.id), [4, 3, 5, 2, 1]);
   });
@@ -146,4 +149,9 @@ describe("dates", () => {
   ];
   for (const [d, n, want] of cases) it(`${d} + ${n} months is ${want}`, () => assert.equal(addMonths(d, n), want));
   it("today in Singapore", () => assert.equal(sgToday(new Date("2026-10-08T17:30:00Z")), "2026-10-09"));
+});
+
+describe("checkLabel", () => {
+  it("names a yearly check", () => assert.equal(checkLabel("year_2", "en"), "Year 2 check"));
+  it("names anything else a maintenance check", () => assert.equal(checkLabel("six_month", "en"), "Maintenance check"));
 });

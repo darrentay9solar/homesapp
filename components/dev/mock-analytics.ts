@@ -154,8 +154,8 @@ function upkeep() {
     kwp,
     avgKwp: Math.round((kwp / list.length) * 100) / 100,
     medianKwp: 16.5,
-    upcoming: months(false).map((label, i) => ({ label, six: [2, 0, 1, 3, 1, 0, 2, 4, 1, 0, 1, 2][i], year: [0, 1, 0, 1, 2, 3, 1, 0, 2, 1, 0, 1][i] })),
-    overdueChecks: { six: 2, year: 1 },
+    upcoming: months(false).map((label, i) => ({ label, count: [2, 1, 1, 4, 3, 3, 3, 4, 3, 1, 1, 3][i] })),
+    overdueChecks: 3,
     ppaEnds: g([["2030", 2, 24.8], ["2031", 1, 12.4], ["2033", 1, 16.5], ["2034", 1, 38.4]]),
     bySize: g([["Under 10 kWp", 1, 9.3], ["10–15 kWp", 2, 24.8], ["15–20 kWp", 2, 33.2], ["20–40 kWp", 2, 62.0]]),
     inverterPower: [

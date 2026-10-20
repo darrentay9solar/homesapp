@@ -9,6 +9,7 @@ import SmartToyRoundedIcon from "@mui/icons-material/SmartToyRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
 import VideocamRoundedIcon from "@mui/icons-material/VideocamRounded";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -31,6 +32,7 @@ import { EdgeCard } from "@/components/topbar";
 import { ago, d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp } from "@/lib/client/app-state";
+import { type Contacts, VIDEO_NAME, type VideoProvider, wallTime } from "@/lib/client/calendar";
 import { DESIGN } from "@/lib/client/design";
 import { locale, T, TR } from "@/lib/client/i18n";
 import { type Answer, CALL_LINK, type Candidate, MAX_MESSAGE, type Message, statusText, statusTone, type Thread, type ThreadSummary, withDays } from "@/lib/client/support";
@@ -82,6 +84,92 @@ export function ThreadCard({ t, staff, onOpen }: { t: ThreadSummary; staff: bool
         </Typography>
       </ButtonBase>
     </EdgeCard>
+  );
+}
+
+// ------------------------------------------------------------------ the chat (homeowners)
+
+const STARTERS = ["When is my next maintenance check?", "How is my monthly bill worked out?", "My system seems to be making less power", "How do I see my system in the FusionSolar app?"];
+
+/**
+ * Help's chat window for a homeowner: the assistant says hello, offers a few
+ * common questions, and takes theirs. Sending starts a conversation, which
+ * carries on as a chat (Conversation): the assistant answers straight away,
+ * and hands over to their project manager for anything it can't settle.
+ */
+export function ChatStart({ name, projects, ai, onStarted }: { name: string | null; projects: Array<{ id: number; name: string }>; ai: boolean; onStarted: (id: number) => void }) {
+  const fetcher = useFetcher();
+  const [pid, setPid] = useState<string>(projects.length === 1 ? String(projects[0].id) : "");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function send(message: string) {
+    const problem = messageProblem(message) ?? (projects.length > 1 && !pid ? T("Choose the project it's about.") : null);
+    if (problem) return setErr(problem);
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await fetcher<{ id: number }>("/support", { method: "POST", json: { message, projectId: pid ? Number(pid) : null } });
+      onStarted(r.id);
+    } catch (x) {
+      setErr(x instanceof ApiError ? x.message : T("Something went wrong. Please try again."));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card sx={{ mt: 2, overflow: "hidden" }} data-testid="chat-start">
+      <Stack direction="row" sx={{ gap: 1.25, alignItems: "center", px: 2, py: 1.5, background: DESIGN.headerGradient, color: "#fff" }}>
+        <SmartToyRoundedIcon />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 700 }}>{T("9 Solar Home assistant")}</Typography>
+          <Typography variant="caption" sx={{ opacity: 0.85 }}>
+            {ai ? T("Answers straight away, any time. Your project manager takes over when needed.") : T("Answers common questions straight away. Your project manager takes over when needed.")}
+          </Typography>
+        </Box>
+      </Stack>
+      <Stack sx={{ p: 2, gap: 1.5 }}>
+        <Box sx={{ alignSelf: "flex-start", maxWidth: "85%", bgcolor: "action.hover", px: 1.75, py: 1.25, borderRadius: `${DESIGN.radius.card}px`, borderTopLeftRadius: 4 }}>
+          <Typography variant="body2">{name ? T("Hi {name}! Ask me anything about your solar system, your bills or the app.", { name }) : T("Hi! Ask me anything about your solar system, your bills or the app.")}</Typography>
+        </Box>
+        <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
+          {STARTERS.map((q) => (
+            <Chip key={q} label={T(q)} variant="outlined" color="primary" disabled={busy} onClick={() => void send(T(q))} data-testid="chat-starter" />
+          ))}
+        </Stack>
+        {projects.length > 1 && (
+          <Field select size="small" label={T("About")} value={pid} onChange={(e) => setPid(e.target.value)}>
+            {projects.map((p) => (
+              <MenuItem key={p.id} value={String(p.id)}>
+                {p.name}
+              </MenuItem>
+            ))}
+          </Field>
+        )}
+        {err && <Alert severity="error">{err}</Alert>}
+        <Stack direction="row" sx={{ gap: 1, alignItems: "flex-end" }}>
+          <Field
+            placeholder={T("Type your question")}
+            multiline
+            maxRows={5}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send(text);
+              }
+            }}
+            slotProps={{ htmlInput: { maxLength: MAX_MESSAGE + 200, "aria-label": T("Type your question"), "data-testid": "chat-text" } }}
+            sx={{ flex: 1 }}
+          />
+          <IconButton color="primary" disabled={busy || !text.trim()} onClick={() => void send(text)} aria-label={T("Send")} data-testid="chat-send" sx={{ mb: 0.5 }}>
+            <SendRoundedIcon />
+          </IconButton>
+        </Stack>
+      </Stack>
+    </Card>
   );
 }
 
@@ -426,16 +514,63 @@ export function Conversation({ t, me, staff, reload }: { t: Thread; me: number; 
  * another tab, paste its link here, and everyone in the conversation gets a
  * Join button and an alert. To arrange a time instead, use the Calendar.
  */
+/** Where each service starts a call now, when the company's account isn't connected here. */
+const CALL_NOW: Record<VideoProvider, string> = {
+  teams: "https://teams.microsoft.com/l/meeting/new",
+  meet: "https://meet.google.com/new",
+  zoom: "https://zoom.us/start/videomeeting",
+};
+
+/**
+ * A video call in a support conversation, on Teams, Google Meet or Zoom. With
+ * the company's account connected (YOUR_STEPS.md step 12) a meeting is made
+ * for now and its link sent at once; otherwise the service opens to start
+ * one, and its link is pasted back here.
+ */
 function CallDialog({ onClose, onSend }: { onClose: () => void; onSend: (link: string) => void }) {
   const [link, setLink] = useState("");
   const [tried, setTried] = useState(false);
+  const [making, setMaking] = useState<VideoProvider | null>(null);
+  const fetcher = useFetcher();
+  const { toast } = useApp();
+  const { data: contacts } = useApi<Contacts>("/calendar/contacts");
+  const connected = contacts?.video ?? [];
   const problem = !link.trim() ? T("Paste the meeting's link.") : CALL_LINK.test(link.trim()) ? null : T("Paste a Google Meet, Microsoft Teams or Zoom link, starting with https://.");
+
+  async function make(p: VideoProvider) {
+    if (!connected.includes(p)) {
+      window.open(CALL_NOW[p], "_blank", "noopener,noreferrer");
+      return;
+    }
+    // A call now: from this half hour, for an hour.
+    const now = new Date();
+    const day = now.toLocaleDateString("en-CA", { timeZone: "Asia/Singapore" });
+    const [h, m] = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Singapore" }).split(":").map(Number);
+    const from = h * 60 + (m < 30 ? 0 : 30);
+    setMaking(p);
+    try {
+      const r = await fetcher<{ link: string }>("/calendar/video-link", { method: "POST", json: { provider: p, title: T("Support call"), startsAt: wallTime(day, from), endsAt: wallTime(day, from + 60) } });
+      onSend(r.link);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : T("Something went wrong. Please try again."), "bad");
+    } finally {
+      setMaking(null);
+    }
+  }
+
   return (
-    <MDialog title={T("Video call")} heading={T("Talk it through face to face")} subtitle={T("Make a meeting, paste its link, and everyone in this conversation can join with one tap.")} onClose={onClose}>
+    <MDialog title={T("Video call")} heading={T("Talk it through face to face")} subtitle={T("Start a call on Teams, Google Meet or Zoom. Everyone in this conversation can join with one tap.")} onClose={onClose}>
       <Stack sx={{ gap: 2.5 }}>
-        <Button variant="outlined" size="large" component="a" href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer" startIcon={<VideocamRoundedIcon />} data-testid="call-new-meet">
-          {T("Make a Google Meet")}
-        </Button>
+        <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap", "& > *": { flex: "1 1 120px" } }}>
+          {(["teams", "meet", "zoom"] as VideoProvider[]).map((p) => (
+            <Button key={p} variant="outlined" size="large" startIcon={<VideocamRoundedIcon />} endIcon={connected.includes(p) ? undefined : <OpenInNewRoundedIcon />} disabled={making !== null} onClick={() => void make(p)} data-testid={`call-new-${p}`}>
+              {making === p ? T("Setting up…") : VIDEO_NAME[p]}
+            </Button>
+          ))}
+        </Stack>
+        <Typography variant="caption" sx={{ color: "text.secondary", mt: -1.5 }}>
+          {connected.length === 3 ? T("The call is made and its link sent straight away.") : T("A service marked with an arrow opens in a new tab: start the call there, copy its link and paste it below.")}
+        </Typography>
         <Field
           label={T("Meeting link")}
           placeholder="https://meet.google.com/abc-defg-hij"

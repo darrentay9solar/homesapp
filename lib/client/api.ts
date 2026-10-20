@@ -82,11 +82,13 @@ export function useFetcher(): Fetcher {
  * Downloads a file the API makes (an Excel export) as the signed-in person,
  * and hands it to the browser to save under the name the server gives it.
  */
-export function useDownload(): (path: string, fallbackName: string) => Promise<void> {
+/** Downloads a file from the API; with `json`, it's asked for by POST with that body (a table's rows, say). */
+export function useDownload(): (path: string, fallbackName: string, json?: unknown) => Promise<void> {
   const { getToken } = useAuth();
   return useCallback(
-    async (path: string, fallbackName: string) => {
+    async (path: string, fallbackName: string, json?: unknown) => {
       const headers = new Headers();
+      if (json !== undefined) headers.set("Content-Type", "application/json");
       const demo = demoAs();
       if (demo) headers.set("X-Demo-As", demo);
       else {
@@ -95,7 +97,7 @@ export function useDownload(): (path: string, fallbackName: string) => Promise<v
       }
       const as = actingAs();
       if (as) headers.set("X-Act-As", as);
-      const res = await fetch(`/api/py${path}`, { headers, cache: "no-store" });
+      const res = await fetch(`/api/py${path}`, json === undefined ? { headers, cache: "no-store" } : { method: "POST", headers, body: JSON.stringify(json), cache: "no-store" });
       if (!res.ok) {
         const data = safeJson(await res.text());
         const serverMessage = data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : "";

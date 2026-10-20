@@ -292,3 +292,98 @@ def test_flats_can_share_a_postal_code_when_said(owner, tmp_path) -> None:
     cur.execute("select set_config('app.actor_uid', '', false)")
     k = icl.write(cur, parsed, date(2026, 10, 14), geocode=False, allow_shared_postal=True)
     assert k.projects_added == 2
+
+
+def test_the_projects_download_reads_back_as_the_client_list(client, fx, team, tmp_path) -> None:  # noqa: F811
+    """Downloaded, the client list is laid out as the company sent it, so the import reads it back."""
+    pid = new_project(client, team)
+    fx.conn.execute(
+        "update projects set project_code = %s, salutation = 'Ms', solar_plan = 'Smart Green', rate_per_kwh = 0.19, "
+        "ppa_kind = 'ppa', ppa_years = 7, phase = 3, panel_quantity_estimate = 20, panel_capacity = 620 where project_id = %s",
+        (f"9SHT{TAG}", pid),
+    )
+    r = client.get("/api/py/export/projects.xlsx", headers=bearer(team["pm"]["clerk_user_id"]))
+    assert r.status_code == 200, r.text
+    path = tmp_path / "download.xlsx"
+    path.write_bytes(r.content)
+    wb = icl.read(path, date(2026, 10, 19))
+    mine = next(c for c in wb.clients if c.code == f"9SHT{TAG}")
+    assert (mine.salutation, mine.plan, float(mine.rate), mine.ppa_kind, mine.ppa_years) == ("Ms", "Smart Green", 0.19, "ppa", 7)
+    assert (mine.panels, mine.wp, float(mine.kwp), mine.phase, mine.turned_on) == (20, 620, 12.4, 3, None)
+
+
+# ------------------------------------------------------------------ importing it in the app
+
+
+@pytest.fixture
+def imported(fx):
+    """Removes what an in-app import of the sample list wrote (it commits, unlike the owner tests)."""
+    yield
+    like = f"9SH{TAG}%"
+    fx.conn.execute("delete from client_feedback where import_ref like %s", (f"feedback#{like}",))
+    fx.conn.execute("delete from maintenance_systems where project_code like %s", (like,))
+    fx.conn.execute("delete from projects where project_code like %s", (like,))
+    fx.conn.execute("delete from inverter_models where model_key = %s", (icl.model_key(f"SUN2000-10KTL-MAP{TAG}"),))
+
+
+def test_a_superadmin_checks_then_imports_the_list_in_the_app(client, fx, tmp_path, imported, monkeypatch) -> None:
+    from _lib import onemap
+
+    monkeypatch.setattr(onemap, "resolve", lambda _a, _p: (_ for _ in ()).throw(onemap.GeocodeError("offline", "unreachable")))
+    boss = fx.user("superadmin")
+    data = workbook(tmp_path).read_bytes()
+    url = "/api/py/import/client-list"
+    h = bearer(boss["clerk_user_id"])
+
+    r = client.post(url, headers=h, content=data, params={"fileName": "Project List-2026-10-14.xlsx"})
+    assert r.status_code == 200, r.text
+    check = r.json()
+    assert check["applied"] is False and check["listDate"] == "2026-10-14" and check["clients"] == 3 and check["turnedOn"] == 1
+    assert check["counts"]["projectsAdded"] == 2 and check["counts"]["systemsAdded"] == 1
+    none = fx.conn.execute("select count(*) as n from projects where project_code like %s", (f"9SH{TAG}%",)).fetchone()
+    assert none["n"] == 0, "a check writes nothing"
+
+    r = client.post(url, headers=h, content=data, params={"apply": 1, "fileName": "Project List-2026-10-14.xlsx"})
+    assert r.status_code == 200, r.text
+    assert r.json()["applied"] is True and r.json()["counts"]["projectsAdded"] == 2
+    made = fx.conn.execute("select count(*) as n from projects where project_code like %s", (f"9SH{TAG}%",)).fetchone()
+    assert made["n"] == 2
+    actors = fx.conn.execute(
+        "select distinct actor_uid from audit_log where entity_table = 'projects' and action = 'insert' "
+        "and changes -> 'project_code' ->> 'to' like %s",
+        (f"9SH{TAG}%",),
+    ).fetchall()
+    assert [a["actor_uid"] for a in actors] == [boss["uid"]], "written as the person importing"
+
+    again = client.post(url, headers=h, content=data, params={"apply": 1, "fileName": "x-2026-10-14.xlsx"}).json()
+    assert again["counts"]["projectsAdded"] == 0 and again["counts"]["projectsUpdated"] == 2, "a second import adds nothing"
+
+
+@pytest.mark.parametrize(
+    ("who", "body", "status", "says"),
+    [
+        ("project_manager", b"PK..", 403, None),
+        ("superadmin", b"", 400, "Choose"),
+        ("superadmin", b"not a workbook", 400, "Excel"),
+        ("superadmin", b"PK\x03\x04broken", 400, "couldn't be read"),
+    ],
+)
+def test_an_import_is_refused(client, fx, who, body, status, says) -> None:
+    u = fx.user(who)
+    r = client.post("/api/py/import/client-list", headers=bearer(u["clerk_user_id"]), content=body)
+    assert r.status_code == status, r.text
+    if says:
+        assert says in r.json()["error"]
+
+
+def test_a_list_with_a_repeated_postal_code_imports_nothing(client, fx, tmp_path, imported) -> None:
+    path = workbook(tmp_path)
+    wb = openpyxl.load_workbook(path)
+    ws = wb["Clients List-Mia"]
+    ws["E4"] = 999001  # client 2 at client 1's postal code
+    wb.save(path)
+    boss = fx.user("superadmin")
+    r = client.post("/api/py/import/client-list", headers=bearer(boss["clerk_user_id"]), content=path.read_bytes(), params={"apply": 1})
+    assert r.status_code == 400 and "Nothing imported" in r.json()["error"]
+    n = fx.conn.execute("select count(*) as n from projects where project_code like %s", (f"9SH{TAG}%",)).fetchone()["n"]
+    assert n == 0
