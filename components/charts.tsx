@@ -266,6 +266,13 @@ export const TILE_GRID = {
  * Columns over time: one or two series side by side per period, a 2 px gap
  * between them. Hovering (or tapping) a period shows its values.
  */
+/** About how wide a label is at 11px: Chinese characters take about twice a Latin letter. */
+function labelWidth(label: string): number {
+  let px = 0;
+  for (const ch of label) px += ch >= "\u2e80" ? 11 : 6.2;
+  return px;
+}
+
 export function ColumnChart({
   data,
   series,
@@ -291,8 +298,14 @@ export function ColumnChart({
   const y = (v: number) => 6 + plotH - (v / top) * plotH;
   const grid = theme.palette.divider;
   const muted = theme.palette.text.secondary;
-  // Label every column when there's room; otherwise every other one.
-  const every = band < 34 ? Math.ceil(34 / band) : 1;
+  // Label every column when its words fit; otherwise every second (or third...) one.
+  const widest = Math.max(34, ...data.map((d) => labelWidth(d.label) + 8));
+  const every = band < widest ? Math.ceil(widest / band) : 1;
+  // A label never runs past the chart's edges (onto the axis's numbers, or off the right).
+  const labelX = (i: number, label: string) => {
+    const half = labelWidth(label) / 2;
+    return Math.min(w - half, Math.max(left + half, left + i * band + band / 2));
+  };
 
   return (
     <Box ref={ref} sx={{ position: "relative", width: "100%" }} onPointerLeave={() => setHover(null)}>
@@ -320,7 +333,7 @@ export function ColumnChart({
                   ) : null;
                 })}
                 {i % every === 0 && (
-                  <text x={left + i * band + band / 2} y={height - 6} textAnchor="middle" fontSize={11} fill={muted}>
+                  <text x={labelX(i, d.label)} y={height - 6} textAnchor="middle" fontSize={11} fill={muted}>
                     {d.label}
                   </text>
                 )}

@@ -276,10 +276,11 @@ export default function DesignCheckPage() {
         const sizeOnly = new URLSearchParams(window.location.search).get("size")?.toLowerCase();
         const sizes = SIZES.filter(([name, , , both]) => (both || theme === "dark") && (!sizeOnly || name.toLowerCase().includes(sizeOnly)));
         const jobs = screens.flatMap((s) => sizes.map(([size, w, h]) => ({ s, size, w, h })));
-        // A few at a time: fast, without starving the page of CPU.
-        for (let i = 0; i < jobs.length; i += 4) {
+        // A few at a time: fast, without starving the page of CPU. ?at=8 runs more at once on a machine with cores to spare.
+        const at = Math.min(12, Math.max(1, Number(new URLSearchParams(window.location.search).get("at")) || 4));
+        for (let i = 0; i < jobs.length; i += at) {
           const batch = await Promise.all(
-            jobs.slice(i, i + 4).map(async ({ s, size, w, h }) => ({ screen: s.name, size, theme, lang, findings: await measure(s.path, s.kind, w, h, lang, s.click, s.opens) }))
+            jobs.slice(i, i + at).map(async ({ s, size, w, h }) => ({ screen: s.name, size, theme, lang, findings: await measure(s.path, s.kind, w, h, lang, s.click, s.opens) }))
           );
           out.push(...batch);
           setResults([...out]);

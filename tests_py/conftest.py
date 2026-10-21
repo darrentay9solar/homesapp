@@ -132,7 +132,7 @@ def fresh_mobile() -> str:
 
 
 def owner_conn() -> psycopg.Connection:
-    return psycopg.connect(TEST_OWNER_URL, row_factory=dict_row, autocommit=True)
+    return psycopg.connect(TEST_OWNER_URL, row_factory=dict_row, autocommit=True, prepare_threshold=None)
 
 
 class Fixtures:

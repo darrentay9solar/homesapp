@@ -33,11 +33,11 @@ function AlertCard({ a, onOpen }: { a: AlertRow; onOpen: () => void }) {
         data-testid="alert-card"
         sx={{ all: "unset", cursor: "pointer", display: "block", flex: 1, minWidth: 0, p: 1.5, pl: 2.25, "&:focus-visible": { outline: 2, outlineColor: "primary.main" } }}
       >
-        <Stack direction="row" sx={{ gap: 1, alignItems: "center" }}>
+        {/* With large text the time goes under the kind, not off the screen. */}
+        <Stack direction="row" sx={{ gap: 1, rowGap: 0.5, alignItems: "center", flexWrap: "wrap" }}>
           {!a.read && <Box aria-label={T("Unread")} sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: a.urgent ? "error.main" : "primary.main", flex: "0 0 auto" }} />}
           <Chip size="small" label={TR(a.kindLabel)} color={a.urgent ? "error" : "default"} variant={a.urgent ? "filled" : "outlined"} />
-          <Box sx={{ flex: 1 }} />
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          <Typography variant="caption" sx={{ color: "text.secondary", ml: "auto", whiteSpace: "nowrap" }}>
             {timeOf(a.createdAt)}
           </Typography>
         </Stack>

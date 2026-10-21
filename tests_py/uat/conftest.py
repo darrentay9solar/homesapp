@@ -38,7 +38,9 @@ class _Pool:
         with self.lock:
             conn = self.free.pop() if self.free else None
         if conn is None or conn.closed or conn.broken:
-            conn = psycopg.connect(self.url, row_factory=dict_row)
+            # Never prepared, as in the app (_lib/db.py): a long-lived pooled connection would
+            # otherwise prepare its queries, and Neon's pooler can lose them ("_pg3_N does not exist").
+            conn = psycopg.connect(self.url, row_factory=dict_row, prepare_threshold=None)
         return conn
 
     def put(self, conn: psycopg.Connection) -> None:

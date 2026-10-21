@@ -87,30 +87,31 @@ function FileRow({
 }) {
   return (
     <EdgeCard color={(t) => (kind === "photo" ? t.palette.primary.main : t.palette.error.main)}>
-      <Stack direction="row" sx={{ gap: 1, alignItems: "center", p: 1.25, pl: onPick ? 0.75 : 2, flex: 1, minWidth: 0 }} data-testid={testId}>
+      {/* A long file name wraps rather than being cut short; on a narrow phone the buttons go under it. */}
+      <Stack direction="row" sx={{ gap: 1, rowGap: 0.5, alignItems: "center", flexWrap: "wrap", p: 1.25, pl: onPick ? 0.75 : 2, flex: 1, minWidth: 0 }} data-testid={testId}>
         {onPick && <Checkbox checked={Boolean(picked)} onChange={onPick} slotProps={{ input: { "aria-label": T("Select {name}", { name }) } }} />}
-        <Box component="a" href={open} target="_blank" rel="noopener" sx={{ display: "flex", gap: 1.5, alignItems: "center", color: "inherit", textDecoration: "none", flex: 1, minWidth: 0 }}>
+        <Box component="a" href={open} target="_blank" rel="noopener" sx={{ display: "flex", gap: 1.5, alignItems: "center", color: "inherit", textDecoration: "none", flex: "1 1 160px", minWidth: 0 }}>
           <Thumb kind={kind} src={kind === "photo" ? open : null} />
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography noWrap sx={[{ fontWeight: 600, fontSize: 15 }, gradText()]}>
+            <Typography sx={[{ fontWeight: 600, fontSize: 15, overflowWrap: "anywhere" }, gradText()]}>
               {name}
             </Typography>
             {lines.map((l) => (
-              <Typography key={l} variant="caption" noWrap component="div" sx={{ color: "text.secondary" }}>
+              <Typography key={l} variant="caption" component="div" sx={{ color: "text.secondary", overflowWrap: "anywhere" }}>
                 {l}
               </Typography>
             ))}
             {by && (
               <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", mt: 0.25 }}>
                 <RoleAvatar name={by.name} role={by.role} size={18} src={by.avatar} />
-                <Typography variant="caption" noWrap sx={{ color: "text.secondary" }}>
+                <Typography variant="caption" sx={{ color: "text.secondary", overflowWrap: "anywhere", minWidth: 0 }}>
                   {by.name}
                 </Typography>
               </Stack>
             )}
           </Box>
         </Box>
-        <Stack direction="row" sx={{ flex: "0 0 auto" }}>
+        <Stack direction="row" sx={{ flex: "0 0 auto", ml: "auto" }}>
           {actions}
         </Stack>
       </Stack>
@@ -125,7 +126,7 @@ function Folder({ name, count, onOpen, testId }: { name: string; count: number; 
       <ButtonBase onClick={onOpen} data-testid={testId} sx={{ width: "100%", p: 2, display: "flex", gap: 1.5, alignItems: "center", justifyContent: "flex-start", textAlign: "left", fontFamily: "inherit" }}>
         <FolderRoundedIcon sx={{ color: "warning.main", fontSize: 34 }} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography noWrap sx={{ fontWeight: 600 }}>
+          <Typography sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>
             {name}
           </Typography>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -483,14 +484,14 @@ function FilesScreen() {
                   </>
                 )}
                 <Box sx={{ flex: 1 }} />
+                {/* The template's own field size (as every other picker), and on a narrow phone it takes the row. */}
                 <Field
                   select
-                  size="small"
                   label={T("Project")}
                   value={place.projectId === null ? "" : String(place.projectId)}
                   onChange={(e) => go({ projectId: e.target.value ? Number(e.target.value) : null, section: null })}
                   slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true }, htmlInput: { "data-testid": "files-project" } }}
-                  sx={{ minWidth: 180, maxWidth: 260 }}
+                  sx={{ flex: "1 1 180px", minWidth: 0, maxWidth: { sm: 260 } }}
                 >
                   <MenuItem value="">{T("All projects")}</MenuItem>
                   {data.projects.map((p) => (
