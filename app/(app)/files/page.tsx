@@ -461,7 +461,8 @@ function FilesScreen() {
           {data && !loose && (
             <>
               {/* Where you are, and what you can do with what's here. */}
-              <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, mt: 2, flexWrap: "wrap" }} data-testid="files-path">
+              {/* Room between wrapped lines: the project picker's label sits above its field. */}
+              <Stack direction="row" sx={{ alignItems: "center", gap: 0.5, rowGap: 2, mt: 2, flexWrap: "wrap" }} data-testid="files-path">
                 <Button size="small" onClick={() => go(TOP)} startIcon={<FolderOpenRoundedIcon />} sx={{ fontWeight: place.projectId === null ? 700 : 500 }}>
                   {T("All projects")}
                 </Button>
