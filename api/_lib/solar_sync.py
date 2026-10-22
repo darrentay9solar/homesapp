@@ -34,7 +34,9 @@ from _lib.duplicates import address_key
 SG = ZoneInfo("Asia/Singapore")
 HEALTH = {1: "disconnected", 2: "faulty", 3: "normal"}
 LEVEL = {1: "critical", 2: "major", 3: "minor", 4: "warning"}
-INVERTER = 1  # FusionSolar's device type for a string inverter
+# FusionSolar's device types for inverters: string (1) and residential (38). Its other devices
+# (WiFi dongles, 62; meters; batteries) have no power of their own to show.
+INVERTERS = (1, 38)
 PACE = {
     "plants": timedelta(hours=24),
     "devices": timedelta(hours=24),
@@ -82,9 +84,10 @@ def _when(v: Any) -> datetime | None:
 
 
 def _kwp(v: Any) -> Decimal | None:
-    """A plant's size. FusionSolar gives MWp in some answers, kWp in others: a home system is under 1 MWp."""
+    """A plant's size. FusionSolar gives MWp in some answers, kWp in others: a home system is under 1 MWp.
+    Many plants have no size set there (0); that's unknown, not zero (the linked system's size is used)."""
     n = _num(v)
-    if n is None:
+    if n is None or n <= 0:
         return None
     return (n * 1000).quantize(Decimal("0.001")) if n < 1 else n
 
@@ -363,9 +366,13 @@ def run(now: datetime | None = None) -> dict[str, Any]:
     step("live", lambda: save_live(fs.live(codes()), now))
 
     def inverters() -> int:
-        ids = [r["dev_id"] for r in fetch_all("select dev_id from solar_devices where type_id = %s", (INVERTER,))]
-        save_device_live(fs.device_live(ids, INVERTER), now)
-        return len(ids)
+        n = 0
+        for kind in INVERTERS:
+            ids = [r["dev_id"] for r in fetch_all("select dev_id from solar_devices where type_id = %s", (kind,))]
+            if ids:
+                save_device_live(fs.device_live(ids, kind), now)
+                n += len(ids)
+        return n
 
     if _due("live", now) or "live" in out:
         try:

@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from _lib import fusionsolar as fs
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
-from _lib.solar_sync import SG
+from _lib.solar_sync import INVERTERS, SG
 from _lib.web import active, role
 
 router = APIRouter()
@@ -77,7 +77,7 @@ def _connection() -> dict[str, Any]:
 
 
 PLANT_COLUMNS = (
-    "p.station_code, p.name, p.address, p.capacity_kwp, p.grid_connected_on, p.health, p.current_kw, p.today_kwh, "
+    "p.station_code, p.name, p.address, coalesce(p.capacity_kwp, m.kwp) as capacity_kwp, p.grid_connected_on, p.health, p.current_kw, p.today_kwh, "
     "p.month_kwh, p.year_kwh, p.total_kwh, p.today_income, p.total_income, p.live_at, p.system_id, p.linked_by, "
     "m.rate_per_kwh, m.project_code, m.homeowner_name, m.run_by, u.full_name as homeowner_full_name"
 )
@@ -182,7 +182,10 @@ def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
             "totalKwh": _f(d["total_kwh"]),
             "state": d["state"],
         }
-        for d in fetch_all("select * from solar_devices where station_code = %s order by name", (r["station_code"],))
+        for d in fetch_all(
+            "select * from solar_devices where station_code = %s and type_id = any(%s) order by name",
+            (r["station_code"], list(INVERTERS)),
+        )
     ]
     out["alarms"] = [
         {

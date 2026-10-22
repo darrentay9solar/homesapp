@@ -185,6 +185,7 @@ class FakeFusionSolar:
         self.logins = 0
         self.expire_once = False
         self.too_often: set[str] = set()
+        self.kinds: list[int] = []
 
     def post(self, path: str, body: dict[str, Any], token: str | None) -> tuple[dict[str, Any], dict[str, str]]:
         self.calls.append(path)
@@ -196,6 +197,14 @@ class FakeFusionSolar:
         if self.expire_once:
             self.expire_once = False
             return {"success": False, "failCode": 305}, {}
+        if path == "/thirdData/getDevList":
+            return {"success": True, "data": [
+                {"id": 7001, "stationCode": "NE=FAKE1", "devName": "INV-1", "devTypeId": 1},
+                {"id": 7002, "stationCode": "NE=FAKE1", "devName": "Home inverter", "devTypeId": 38},
+                {"id": 7003, "stationCode": "NE=FAKE1", "devName": "Dongle", "devTypeId": 62},
+            ]}, {}
+        if path == "/thirdData/getDevRealKpi":
+            self.kinds.append(body["devTypeId"])
         if path == "/thirdData/stations":
             return {
                 "success": True,
@@ -258,3 +267,15 @@ def test_each_kind_keeps_its_own_pace(fake) -> None:
 def test_not_connected_does_nothing(monkeypatch) -> None:
     monkeypatch.setattr(fs, "configured", lambda: False)
     assert sync.run(NOW) == {"skipped": "FusionSolar isn't connected"}
+
+
+def test_both_kinds_of_inverter_are_asked_for_their_power_not_the_dongles(fake) -> None:
+    sync.run(NOW)
+    assert sorted(fake.kinds) == [1, 38]
+
+
+def test_a_plant_with_no_size_in_fusionsolar_has_none_not_zero(fx, plant_codes) -> None:
+    a = _code()
+    plant_codes.append(a)
+    sync.save_plants([{"plantCode": a, "plantName": "No size", "capacity": 0.0}])
+    assert fx.conn.execute("select capacity_kwp from solar_plants where station_code = %s", (a,)).fetchone()["capacity_kwp"] is None
