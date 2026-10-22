@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth, useSignIn } from "@clerk/nextjs";
+import KeyRoundedIcon from "@mui/icons-material/KeyRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import Box from "@mui/material/Box";
 import Link from "next/link";
@@ -32,7 +33,9 @@ function SignInFlow() {
   const params = useSearchParams();
   const dest = safeRedirect(params.get("redirect_url"));
 
-  const [step, setStep] = useState<"start" | "code">("start");
+  const [step, setStep] = useState<"start" | "code" | "app">("start");
+  // On the authenticator step: a backup code instead (a lost phone).
+  const [backup, setBackup] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -51,7 +54,14 @@ function SignInFlow() {
       if (error) setErr(clerkMessage(error));
       return;
     }
-    // A new device, or two-step verification: Clerk asks for a code sent to
+    // Two-step verification with an authenticator app (components/two-step.tsx).
+    if (signIn.status === "needs_second_factor" && signIn.supportedSecondFactors?.some((f) => f.strategy === "totp")) {
+      setCode("");
+      setBackup(false);
+      setStep("app");
+      return;
+    }
+    // A new device, or two-step verification by email: Clerk asks for a code sent to
     // the account's email before trusting this browser.
     if (signIn.status === "needs_second_factor" || signIn.status === "needs_client_trust") {
       const { error } = await signIn.mfa.sendEmailCode();
@@ -81,6 +91,47 @@ function SignInFlow() {
     const { error } = await signIn.mfa.verifyEmailCode({ code: value });
     if (error) return setErr(clerkMessage(error));
     await finishOrContinue();
+  }
+
+  async function submitAppCode(value = code) {
+    if (!backup && value.length < 6) return setErr(codeProblem(value));
+    if (backup && !value.trim()) return setErr(T("Enter one of your backup codes."));
+    setErr(null);
+    const { error } = backup ? await signIn.mfa.verifyBackupCode({ code: value.trim() }) : await signIn.mfa.verifyTOTP({ code: value });
+    if (error) return setErr(clerkMessage(error));
+    await finishOrContinue();
+  }
+
+  if (step === "app") {
+    return (
+      <AuthShell title="Two-step verification" back={() => setStep("start")}>
+        <AuthHeading>{backup ? T("Use a backup code") : T("Enter your code")}</AuthHeading>
+        <AuthSubtitle>{backup ? T("Enter one of the backup codes you saved when you set up two-step verification. Each works once.") : T("Open your authenticator app and enter the 6-digit code for GetHomeApps.")}</AuthSubtitle>
+        {backup ? (
+          <AuthField id="si-backup" label="Backup code" icon={<KeyRoundedIcon />} value={code} onChange={(e) => setCode(e.target.value)} slotProps={{ htmlInput: { autoComplete: "one-time-code", "data-testid": "signin-backup-code" } }} />
+        ) : (
+          <OtpInput value={code} onChange={setCode} onComplete={(v) => void submitAppCode(v)} />
+        )}
+        <AuthError>{err}</AuthError>
+        <AuthButton disabled={busy} onClick={() => void submitAppCode()} sx={{ mt: 2.75 }}>
+          {busy ? T("Checking…") : T("Verify and Proceed")}
+        </AuthButton>
+        <AuthAlt>
+          <Box
+            component="button"
+            type="button"
+            onClick={() => {
+              setBackup((b) => !b);
+              setCode("");
+              setErr(null);
+            }}
+            sx={{ all: "unset", cursor: "pointer", color: "primary.main", fontWeight: 600 }}
+          >
+            {backup ? T("Use my authenticator app") : T("Lost your phone? Use a backup code")}
+          </Box>
+        </AuthAlt>
+      </AuthShell>
+    );
   }
 
   if (step === "code") {

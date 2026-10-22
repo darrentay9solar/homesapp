@@ -1,0 +1,36 @@
+name: Uptime
+
+# Every 15 minutes: is the live site up, and can it reach its database? (ISO 27001 A.8.16 monitoring,
+# A.5.30 continuity.) It asks /api/py/health, which says only "ok" or "unavailable". A failed run is
+# emailed by GitHub to whoever last changed this schedule; the incident procedure is in
+# docs/iso/incident-response.md. On 22 Oct 2026 the database ran out of its plan's allowance and
+# nothing said so; this would have, within 15 minutes.
+#
+# Uses the APP_URL repository secret (the live site's address), as the 15-minute job does.
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: The live site and its database answer
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then echo "::error::The APP_URL secret isn't set."; exit 1; fi
+          # Three tries a minute apart: one slow cold start isn't an outage.
+          for i in 1 2 3; do
+            code=$(curl -s -o body.json -w "%{http_code}" --max-time 25 "$APP_URL/api/py/health" || true)
+            if [ "$code" = "200" ]; then cat body.json; echo; exit 0; fi
+            echo "Try $i: HTTP $code $(cat body.json 2>/dev/null)"
+            sleep 60
+          done
+          echo "::error::The live site or its database isn't answering ($APP_URL/api/py/health). See docs/iso/incident-response.md."
+          exit 1

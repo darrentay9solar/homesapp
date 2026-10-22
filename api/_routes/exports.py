@@ -253,7 +253,17 @@ CLIENT_HEAD = [
     "kWp DC", "1P or 3P", "Inverter", "Serial Number", "Dongle Serial No.", "Installation Start",
     "Installation End", "Turn On", "Turn On Date",
 ]  # fmt: skip
-OUTPUT_HEAD = ["#", "Project Code", "Date", "Address", "PPA", "Panel No.", "Panel Wp", "System \nSize kWp", "Est. Output/ Mth"]
+OUTPUT_HEAD = [
+    "#",
+    "Project Code",
+    "Date",
+    "Address",
+    "PPA",
+    "Panel No.",
+    "Panel Wp",
+    "System \nSize kWp",
+    "Est. Output/ Mth",
+]
 BILLING_HEAD = ["#", "Project Code", "Date", "Address", "PPA", "Billing Period\n-owner side"]
 FEEDBACK_HEAD = ["Project Code", "Homeowner", "Address", "Feedback"]
 WARRANTY_HEAD = ["Huawei Inverter", "1P or 3P", "Price ex. GST", "Price incl. GST", "Warranty"]
@@ -349,7 +359,13 @@ def client_sheets(acct: Account, projects: list[dict[str, Any]]) -> list[Sheet]:
         who = (s["h_name"] or s["homeowner_name"]) if s else (p["h_name"] or p["homeowner_name"])
         feedback.append([(s or p)["project_code"], who, (s or p)["address"], f["body"]])
     warranties = [
-        [w["model"], phase_text(w), w["price_ex_gst"], w["price_incl_gst"], f"{w['warranty_years']} years" if w["warranty_years"] else None]
+        [
+            w["model"],
+            phase_text(w),
+            w["price_ex_gst"],
+            w["price_incl_gst"],
+            f"{w['warranty_years']} years" if w["warranty_years"] else None,
+        ]
         for w in fetch_all("select * from inverter_models order by model")
     ]
     return [
@@ -402,6 +418,81 @@ def export_people(acct: Account = Depends(pm_only)) -> Response:
     data = workbook([("People", PEOPLE_HEAD, rows)], lang)
     _record(acct, "people", len(rows))
     return _send(data, "GetHomeApps people")
+
+
+# ------------------------------------------------------------------ access review
+
+ACCESS_HEAD = [
+    "S/N", "Name", "Role", "Email", "Account", "Role since", "Last sign-in", "Two-step verification",
+    "Projects", "Disables on", "Keep as is?", "Change to make",
+]  # fmt: skip
+REVIEW_EVERY = timedelta(days=91)
+
+
+@router.get("/export/access-review.xlsx")
+def export_access_review(acct: Account = Depends(pm_only)) -> Response:
+    """Everyone who can sign in, what their role lets them see, when they last signed in and whether they
+    use two-step verification, for a superadmin to review each quarter and sign off (ISO 27001 A.5.18,
+    docs/iso/access-control.md). The last two come from Clerk; without it they're left blank."""
+    if acct.role != "superadmin":
+        raise HTTPException(403, "Only a superadmin reviews everyone's access.")
+    from _lib import clerk
+
+    try:
+        facts = clerk.sign_in_facts()
+    except Exception as exc:  # the review is still useful without Clerk's columns
+        print(f"[access review] Clerk unavailable: {type(exc).__name__}: {exc}")
+        facts = {}
+    users = fetch_all(
+        "select * from users where not is_demo order by active desc, user_type, full_name nulls last, email"
+    )
+    since = {
+        r["uid"]: r["at"]
+        for r in fetch_all(
+            "select entity_id::bigint as uid, max(occurred_at) as at from audit_log "
+            "where entity_table = 'users' and changes ? 'user_type' and entity_id ~ '^[0-9]+$' group by 1"
+        )
+    }
+    counts: dict[int, int] = {}
+    for r in fetch_all(
+        """
+        select uid, count(distinct project_id)::int as n from (
+          select project_manager_id as uid, project_id from projects where project_manager_id is not null
+          union select homeowner_id, project_id from projects where homeowner_id is not null
+          union select user_id, project_id from project_assignments
+          union select m.user_id, p.project_id from projects p join contractor_group_members m on m.group_id = p.contractor_group_id
+        ) x group by uid
+        """
+    ):
+        counts[r["uid"]] = r["n"]
+    rows = []
+    for n, u in enumerate(users, start=1):
+        f = facts.get(u["clerk_user_id"] or "", {})
+        last = f.get("last_sign_in_ms")
+        rows.append([
+            n, u["full_name"], ROLE_LABEL.get(u["user_type"], u["user_type"]), u["email"],
+            "Active" if u["active"] else "Disabled", local(since.get(u["uid"]) or u["created_at"]),
+            local(datetime.fromtimestamp(last / 1000, SG)) if last else ("Never" if u["clerk_user_id"] is None else None),
+            ("On" if f["two_step"] else "Off") if f else None,
+            "All" if u["user_type"] in ("superadmin", "finance") else counts.get(u["uid"], 0),
+            u["disable_on"], None, None,
+        ])  # fmt: skip
+    today = datetime.now(SG).date()
+    signoff = [
+        ["Reviewed by", None],
+        ["Their role", None],
+        ["Date of the review", None],
+        ["Accounts changed or switched off after it", None],
+        ["Next review due", today + REVIEW_EVERY],
+        [
+            "Downloaded",
+            f"{today.isoformat()} by {acct.user.get('full_name') or acct.user.get('email')}" if acct.user else None,
+        ],
+    ]
+    lang = (acct.user or {}).get("language") or "en"
+    data = workbook([("Access", ACCESS_HEAD, rows), ("Sign-off", ["Item", "Answer"], signoff)], lang)
+    _record(acct, "access_review", len(rows))
+    return _send(data, "GetHomeApps access review")
 
 
 # ------------------------------------------------------------------ any table, as filtered

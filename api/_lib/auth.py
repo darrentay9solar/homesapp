@@ -30,6 +30,9 @@ class AuthError(Exception):
 class ClerkIdentity:
     clerk_user_id: str
     session_id: str | None
+    # Whether this sign-in included a second factor (Clerk's ``fva`` claim: minutes since each factor
+    # was verified, -1 for none). None when the token doesn't say.
+    second_factor: bool | None = None
 
 
 def env(key: str) -> str:
@@ -114,4 +117,6 @@ def verify_token(token: str, *, key: object | None = None) -> ClerkIdentity:
     if claims.get("sts") == "pending":
         raise AuthError("Sign-in is not complete.")
 
-    return ClerkIdentity(clerk_user_id=str(claims["sub"]), session_id=claims.get("sid"))
+    fva = claims.get("fva")
+    second = fva[1] not in (None, -1) if isinstance(fva, list) and len(fva) == 2 else None
+    return ClerkIdentity(clerk_user_id=str(claims["sub"]), session_id=claims.get("sid"), second_factor=second)

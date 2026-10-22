@@ -83,9 +83,28 @@ def account(request: Request) -> Account:
     return acct
 
 
-def active(acct: Account = Depends(account)) -> Account:
+TWO_STEP_NEEDED = "Your role needs two-step verification. Set it up in Account → Security, then sign in again."
+
+
+def two_step_missing(acct: Account) -> bool:
+    """Staff must sign in with two-step verification once 9 Solar Home turns it on (REQUIRE_STAFF_MFA=1,
+    ISO 27001 A.8.5): they see many customers' records. Homeowners see only their own; the demo has none."""
+    return (
+        env("REQUIRE_STAFF_MFA") == "1"
+        and acct.state == "active"
+        and not acct.demo
+        and acct.acting_pm is None
+        and acct.role not in (None, "homeowner")
+        and acct.identity.second_factor is False
+    )
+
+
+def active(request: Request, acct: Account = Depends(account)) -> Account:
     if acct.state != "active":
         raise HTTPException(403, "You don't have an active account.")
+    # Their own account (/me...) stays open, so they can set two-step verification up.
+    if two_step_missing(acct) and not request.url.path.startswith("/api/py/me"):
+        raise HTTPException(403, TWO_STEP_NEEDED)
     return acct
 
 

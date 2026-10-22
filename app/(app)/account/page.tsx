@@ -1,6 +1,6 @@
 "use client";
 
-import { SignOutButton } from "@clerk/nextjs";
+import { SignOutButton, useUser } from "@clerk/nextjs";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import BlockRoundedIcon from "@mui/icons-material/BlockRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
@@ -13,6 +13,7 @@ import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import NotificationsActiveRoundedIcon from "@mui/icons-material/NotificationsActiveRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
+import PhonelinkLockRoundedIcon from "@mui/icons-material/PhonelinkLockRounded";
 import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
 import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
@@ -32,6 +33,7 @@ import { AvatarEditor } from "@/components/avatar";
 import { Field, ROLE_NAME, RoleChip, SettingRow } from "@/components/m";
 import { NotificationsDialog } from "@/components/notification-settings";
 import { Page } from "@/components/shell";
+import { TwoStepDialog } from "@/components/two-step";
 import { LangButton, ThemeButton } from "@/components/theme-button";
 import { SegTabs, TopBar, gradText } from "@/components/topbar";
 import { ACCESS } from "@/lib/client/access";
@@ -43,7 +45,7 @@ import { DEFAULT_PREFS, summary } from "@/lib/client/prefs";
 import { useTab } from "@/lib/client/tabs";
 import { useTheme } from "@/lib/client/theme";
 
-type Edit = "name" | "email" | "mobile" | "password" | "role" | "notifications" | null;
+type Edit = "name" | "email" | "mobile" | "password" | "twostep" | "role" | "notifications" | null;
 type Tab = "profile" | "security" | "settings" | "access";
 const TABS: Array<[Tab, string]> = [
   ["profile", "Profile"],
@@ -113,6 +115,7 @@ export default function AccountPage() {
       {edit === "email" && <EmailDialog current={me.email} onClose={() => setEdit(null)} />}
       {edit === "mobile" && <MobileDialog current={me.contactNo} onClose={() => setEdit(null)} />}
       {edit === "password" && <PasswordDialog onClose={() => setEdit(null)} />}
+      {edit === "twostep" && <TwoStepDialog onClose={() => setEdit(null)} />}
       {edit === "role" && <RoleDialog current={me.role} onClose={() => setEdit(null)} />}
       {edit === "notifications" && <NotificationsDialog onClose={() => setEdit(null)} />}
     </>
@@ -210,16 +213,27 @@ function YourData() {
 
 function SecurityTab({ change }: { change: Change }) {
   const { me: state } = useApp();
+  const { user } = useUser();
   const s = state?.settings;
   if (state?.demo) return <SettingRow icon={<PasswordIcon />} tint="#BE185D" label={T("Password")} sub={T("Not in the demo: there are no passwords here.")} />;
+  const twoStep = Boolean(user?.totpEnabled);
   return (
-    <SettingRow
-      icon={<PasswordIcon />}
-      tint="#BE185D"
-      label={T("Password")}
-      sub={s?.passwordChangedAt ? T("Last changed {date}", { date: when(s.passwordChangedAt) }) : T("Change it with your current password, or reset it by email.")}
-      right={change("password")}
-    />
+    <>
+      <SettingRow
+        icon={<PasswordIcon />}
+        tint="#BE185D"
+        label={T("Password")}
+        sub={s?.passwordChangedAt ? T("Last changed {date}", { date: when(s.passwordChangedAt) }) : T("Change it with your current password, or reset it by email.")}
+        right={change("password")}
+      />
+      <SettingRow
+        icon={<PhonelinkLockRoundedIcon />}
+        tint="#0F766E"
+        label={T("Two-step verification")}
+        sub={twoStep ? T("On: a code from your authenticator app after your password") : T("Off: add a code from your phone, so a password alone can't open your account")}
+        right={change("twostep", twoStep ? "Manage" : "Set up")}
+      />
+    </>
   );
 }
 

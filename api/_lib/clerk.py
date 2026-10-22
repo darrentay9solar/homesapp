@@ -46,8 +46,9 @@ def _request(method: str, path: str, body: dict[str, Any] | None = None) -> dict
             err = json.loads(exc.read() or b"{}").get("errors", [{}])[0]
         except ValueError:
             err = {}
-        raise ClerkApiError(exc.code, err.get("long_message") or err.get("message") or exc.reason,
-                            err.get("code")) from exc
+        raise ClerkApiError(
+            exc.code, err.get("long_message") or err.get("message") or exc.reason, err.get("code")
+        ) from exc
 
 
 @dataclass(frozen=True)
@@ -64,11 +65,7 @@ class ClerkUser:
 def get_user(clerk_user_id: str) -> ClerkUser:
     data = _request("GET", f"/users/{clerk_user_id}")
     emails = data.get("email_addresses") or []
-    verified = [
-        e["email_address"].lower()
-        for e in emails
-        if (e.get("verification") or {}).get("status") == "verified"
-    ]
+    verified = [e["email_address"].lower() for e in emails if (e.get("verification") or {}).get("status") == "verified"]
     primary = next(
         (e["email_address"].lower() for e in emails if e.get("id") == data.get("primary_email_address_id")),
         None,
@@ -87,6 +84,21 @@ def get_user(clerk_user_id: str) -> ClerkUser:
     return ClerkUser(
         data["id"], verified, primary, name, phone, bool(data.get("password_enabled")), int(data.get("updated_at") or 0)
     )
+
+
+def sign_in_facts() -> dict[str, dict[str, Any]]:
+    """Every Clerk user's last sign-in (ms) and whether they use two-step verification, by Clerk id:
+    for the access review (api/_routes/exports.py), which the app's own records can't tell."""
+    out: dict[str, dict[str, Any]] = {}
+    offset = 0
+    while True:
+        page = _request("GET", f"/users?limit=500&offset={offset}&order_by=-created_at")
+        rows = page if isinstance(page, list) else page.get("data") or []
+        for u in rows:
+            out[u["id"]] = {"last_sign_in_ms": u.get("last_sign_in_at"), "two_step": bool(u.get("two_factor_enabled"))}
+        if len(rows) < 500:
+            return out
+        offset += 500
 
 
 def create_invitation(email: str, redirect_url: str) -> dict[str, Any]:

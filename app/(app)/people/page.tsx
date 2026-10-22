@@ -14,6 +14,7 @@ import GroupAddRoundedIcon from "@mui/icons-material/GroupAddRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import PersonAddAlt1RoundedIcon from "@mui/icons-material/PersonAddAlt1Rounded";
+import VerifiedUserRoundedIcon from "@mui/icons-material/VerifiedUserRounded";
 import PersonRemoveRoundedIcon from "@mui/icons-material/PersonRemoveRounded";
 import PhoneRoundedIcon from "@mui/icons-material/PhoneRounded";
 import EventBusyRoundedIcon from "@mui/icons-material/EventBusyRounded";
@@ -248,6 +249,8 @@ export default function PeoplePage() {
         action={
           <>
           {isAdmin(me?.role) && <ExportButton path="/export/people.xlsx" name="GetHomeApps people.xlsx" label="Download everyone (Excel)" testId="export-people" />}
+          {/* Each quarter: who can see what, signed off (docs/iso/access-control.md). */}
+          {me?.role === "superadmin" && <ExportButton path="/export/access-review.xlsx" name="GetHomeApps access review.xlsx" label="Access review (Excel)" testId="export-access-review" icon={<VerifiedUserRoundedIcon />} />}
           <Button
             onClick={() => setDialog({ kind: "newuser" })}
             startIcon={<PersonAddAlt1RoundedIcon />}

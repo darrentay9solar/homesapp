@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from _lib import prefs, privacy
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
-from _lib.web import account, act_as_allowed, active, role
+from _lib.web import account, act_as_allowed, active, role, two_step_missing
 from _routes.people import avatar_url
 
 router = APIRouter()
@@ -79,6 +79,8 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
             "notificationPrefs": prefs.normalise(u.get("notification_prefs")),
             "mobileVerifiedAt": u["mobile_verified_at"].isoformat() if u.get("mobile_verified_at") else None,
             "passwordChangedAt": u["password_changed_at"].isoformat() if u.get("password_changed_at") else None,
+            # Staff who must sign in with two-step verification and this sign-in didn't (web.two_step_missing).
+            "twoStepNeeded": two_step_missing(acct),
             # The privacy notice they agreed to; asked again when it's not the current one.
             "privacy": {
                 "acceptedAt": u["privacy_accepted_at"].isoformat() if u.get("privacy_accepted_at") else None,

@@ -27,7 +27,7 @@ import type { Theme } from "@mui/material/styles";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, Suspense, useMemo, useState } from "react";
 
 import { ChartCard, ColumnChart, DataTable as PlainTable, StatTile, TILE_GRID } from "@/components/charts";
 import { DataTable, type TableCol } from "@/components/data-table";
@@ -38,6 +38,7 @@ import { ago, dt2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useMe } from "@/lib/client/app-state";
 import { T, TR } from "@/lib/client/i18n";
+import { useTab } from "@/lib/client/tabs";
 import {
   type AlarmLevel,
   capacity,
@@ -570,9 +571,21 @@ export function LinkDialog({ code, current, onClose, onDone }: { code: string; c
  * devices (each inverter's full readings), alarms and a report. `base` is where its data comes from
  * (/solar/plants/CODE for staff, /me/solar for a homeowner).
  */
-export function PlantScreen({ base, staff, onBack }: { base: string; staff: boolean; onBack?: () => void }) {
+export function PlantScreen(props: { base: string; staff: boolean; onBack?: () => void }) {
+  // The open tab is in the address (?tab=devices), so a link or Back lands on it.
+  return (
+    <Suspense>
+      <PlantTabs {...props} />
+    </Suspense>
+  );
+}
+
+function PlantTabs({ base, staff, onBack }: { base: string; staff: boolean; onBack?: () => void }) {
   const { data, error, reload } = useApi<PlantDetail | { plant: PlantDetail | null }>(base);
-  const [tab, setTab] = useState<PlantTab>("overview");
+  const [tab, setTab] = useTab<PlantTab>(
+    PLANT_TABS.map(([v]) => v),
+    "overview"
+  );
   const [linking, setLinking] = useState(false);
   const me = useMe();
   const p = data && "plant" in data ? data.plant : (data as PlantDetail | undefined);

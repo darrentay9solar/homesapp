@@ -67,6 +67,8 @@ export type Me = {
     shareLocation?: boolean;
     mobileVerifiedAt: string | null;
     passwordChangedAt: string | null;
+    /** Staff who must use two-step verification and haven't on this sign-in (REQUIRE_STAFF_MFA). */
+    twoStepNeeded?: boolean;
     /** The privacy notice they agreed to (version and when), and the current one. */
     privacy?: { acceptedAt: string | null; version: string | null; current: string };
     roleRequest: { role: Role; roleLabel: string; reason: string | null; createdAt: string } | null;

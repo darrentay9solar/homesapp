@@ -11,12 +11,15 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 
 from _lib import storage
+from _lib.db import fetch_one
 from _lib.web import install_error_handlers
 from _routes import (
     alerts,
@@ -81,3 +84,33 @@ app.include_router(solar.router, prefix=PREFIX)
 def ping() -> dict[str, object]:
     """Unauthenticated liveness check for the rewrite itself."""
     return {"ok": True, "region": os.environ.get("VERCEL_REGION"), "storage": storage.mode()}
+
+
+@app.get(f"{PREFIX}/health")
+def health() -> JSONResponse:
+    """For the uptime check (.github/workflows/uptime.yml): the app and its database answer. Says nothing else."""
+    started = time.monotonic()
+    try:
+        fetch_one("select 1 as ok")
+    except Exception as exc:  # the reason goes to the log, not to whoever asked
+        print(f"[health] database unavailable: {type(exc).__name__}: {exc}")
+        return JSONResponse({"ok": False, "database": "unavailable"}, status_code=503)
+    return JSONResponse({"ok": True, "database": "ok", "ms": round((time.monotonic() - started) * 1000)})
+
+
+@app.post(f"{PREFIX}/csp-report")
+async def csp_report(request: Request) -> Response:
+    """What the content security policy would have blocked (vercel.json, report-only for now), into the log:
+    the directive and where from, without query strings (they can carry personal data)."""
+    try:
+        body = await request.json()
+    except Exception:
+        return Response(status_code=204)
+    reports = body if isinstance(body, list) else [body]
+    for r in reports[:20]:
+        r = r.get("csp-report") or r.get("body") or r if isinstance(r, dict) else {}
+        directive = str(r.get("violated-directive") or r.get("effectiveDirective") or "")[:80]
+        blocked = str(r.get("blocked-uri") or r.get("blockedURL") or "").split("?")[0][:200]
+        page = str(r.get("document-uri") or r.get("documentURL") or "").split("?")[0][:200]
+        print(f"[csp] {directive} blocked {blocked} on {page}")
+    return Response(status_code=204)

@@ -353,7 +353,7 @@ export function EdgeCard({ color, children, dim, alarm }: { color: (t: Theme) =>
  * Download a list as an Excel workbook (project managers and superadmins):
  * an icon in a green header, with a tooltip saying what it downloads.
  */
-export function ExportButton({ path, name, label, testId }: { path: string; name: string; label: string; testId?: string }) {
+export function ExportButton({ path, name, label, testId, icon }: { path: string; name: string; label: string; testId?: string; icon?: ReactNode }) {
   const download = useDownload();
   const { toast } = useApp();
   const { tr } = useLang();
@@ -378,7 +378,7 @@ export function ExportButton({ path, name, label, testId }: { path: string; name
           }}
           sx={{ color: "#fff", "&.Mui-disabled": { color: "rgba(255,255,255,0.5)" } }}
         >
-          <FileDownloadRoundedIcon />
+          {icon ?? <FileDownloadRoundedIcon />}
         </IconButton>
       </span>
     </Tooltip>

@@ -211,7 +211,8 @@ function me() {
   const m = FIXTURES["GET /me"] as { settings: Record<string, unknown> };
   const ask = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("privacy") === "ask";
   const privacy = { acceptedAt: ask ? null : iso(60 * 24 * 30), version: ask ? null : PRIVACY_VERSION, current: PRIVACY_VERSION };
-  return { ...m, settings: { ...m.settings, language: currentLang(), privacy } };
+  const twoStepNeeded = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("twostep") === "ask";
+  return { ...m, settings: { ...m.settings, language: currentLang(), privacy, twoStepNeeded } };
 }
 
 // ------------------------------------------------------------ projects

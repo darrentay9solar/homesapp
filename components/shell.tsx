@@ -11,6 +11,7 @@ import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
 import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
+import PhonelinkLockRoundedIcon from "@mui/icons-material/PhonelinkLockRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
 import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
@@ -40,6 +41,7 @@ import { DESIGN } from "@/lib/client/design";
 import { needsPrivacyAgreement } from "@/lib/client/privacy";
 
 import { Logo } from "./icons";
+import { IdleSignOut } from "./idle";
 import { RoleAvatar } from "./m";
 
 import { T, TR } from "@/lib/client/i18n";
@@ -238,6 +240,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         {state?.actingAs && <ActingBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} by={state.actingAs.byName} />}
         {state?.demo && <DemoBanner name={me.fullName ?? me.email} role={TR(me.roleLabel)} />}
         {!state?.actingAs && needsPrivacyAgreement(state?.settings?.privacy) && <PrivacyBanner />}
+        {state?.settings?.twoStepNeeded && <TwoStepBanner />}
+        {/* Staff sign out after 30 idle minutes; not homeowners (only their own records), the demo or the previews. */}
+        {me.role !== "homeowner" && !state?.demo && !pathname.startsWith("/dev-preview") && <IdleSignOut />}
         {children}
       </Box>
 
@@ -346,6 +351,28 @@ function PrivacyBanner() {
         }
       >
         {T("Please read our privacy notice: how 9 Solar Home uses your details to run your account and projects.")}
+      </Alert>
+    </Box>
+  );
+}
+
+/**
+ * Staff whose role needs two-step verification (REQUIRE_STAFF_MFA) and who signed in
+ * without it: everything but their own account is closed until they set it up.
+ */
+function TwoStepBanner() {
+  return (
+    <Box sx={{ px: PAGE_GUTTER, pt: 1.5 }} data-testid="two-step-banner">
+      <Alert
+        severity="warning"
+        icon={<PhonelinkLockRoundedIcon />}
+        action={
+          <Button size="small" variant="contained" color="warning" component={Link} href="/account?tab=security">
+            {T("Set up")}
+          </Button>
+        }
+      >
+        {T("Your role needs two-step verification. Set it up in Account → Security, then sign in again.")}
       </Alert>
     </Box>
   );
