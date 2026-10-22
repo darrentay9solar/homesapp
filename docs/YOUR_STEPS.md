@@ -402,3 +402,25 @@ FusionSolar. Full details in [solar.md](solar.md).
    Variables (Production, Sensitive). Redeploy.
 3. Tell me; I'll test the connection and bring in the history.
 4. Note the API account's deadline in your calendar and extend it before then.
+
+## 17. ISO 27001 (and Singapore's Cyber Trust mark)
+
+The app's side is done (two-step sign-in, idle sign-out, encrypted backups,
+dependency scanning, uptime checks, security headers, the access review).
+The documents are drafted in [iso/](iso/README.md). What only you can do, in
+order (details in iso/README.md):
+
+1. Name the information security owner and the DPO; fill in the blanks in
+   [iso/policies.md](iso/policies.md), approve and sign it, tell staff.
+2. Clerk dashboard → *User & authentication → Multi-factor*: allow
+   **Authenticator application** and **Backup codes**. Everyone on staff sets
+   it up in Account → Security. Then Vercel → homesapp → Environment
+   Variables (Production): `REQUIRE_STAFF_MFA` = `1`, and redeploy.
+3. Laptops: BitLocker, screen lock after 5 minutes, updates, antivirus.
+4. Accept and file the suppliers' data processing agreements (step 13).
+5. People → **Access review (Excel)** (superadmin): check, change, sign, file.
+   Every quarter after that.
+6. A 30-minute security session for staff once a year.
+7. Review [iso/risk-register.md](iso/risk-register.md) with management.
+8. Apply for the CSA **Cyber Trust mark** first; ISO 27001 after about three
+   months of records.
