@@ -417,9 +417,197 @@ def save_alarms(rows: list[dict[str, Any]], now: datetime) -> int:
             )
             seen.append(cur.fetchone()["alarm_id"])
         cur.execute(
-            "update solar_alarms set cleared_at = %s where cleared_at is null and not (alarm_id = any(%s))", (now, seen)
+            "update solar_alarms set cleared_at = %s where cleared_at is null and source = 'fusionsolar' "
+            "and not (alarm_id = any(%s))",
+            (now, seen),
         )
     return len(seen)
+
+
+# Who hears about an alarm: staff for these levels, the homeowner for the serious ones.
+ALERT_STAFF = ("critical", "major", "minor")
+ALERT_HOMEOWNER = ("critical", "major")
+
+
+def involved(system_id: int | None) -> list[int]:
+    """Everyone on a system's project: the manager who runs it, its homeowner, and its project's manager,
+    homeowner, assigned crew and contractor group. Superadmins when nobody runs it."""
+    if system_id is None:
+        return []
+    rows = fetch_all(
+        """
+        select m.run_by as uid from maintenance_systems m where m.system_id = %(s)s
+        union select m.homeowner_id from maintenance_systems m where m.system_id = %(s)s
+        union select p.project_manager_id from maintenance_systems m join projects p using (project_id) where m.system_id = %(s)s
+        union select p.homeowner_id from maintenance_systems m join projects p using (project_id) where m.system_id = %(s)s
+        union select a.user_id from maintenance_systems m join project_assignments a using (project_id) where m.system_id = %(s)s
+        union select g.user_id from maintenance_systems m join projects p using (project_id)
+          join contractor_group_members g on g.group_id = p.contractor_group_id where m.system_id = %(s)s
+        """,
+        {"s": system_id},
+    )
+    return [r["uid"] for r in rows if r["uid"] is not None]
+
+
+def alert_alarms() -> int:
+    """An alert for each alarm not alerted yet (migration 0055).
+
+    FusionSolar's: to the project manager who runs the plant's system (every superadmin when nobody does),
+    and to its homeowner when it's major or critical. The app's own (output below expected): to everyone
+    on the project, by email too."""
+    from _lib import notify
+
+    rows = fetch_all(
+        "select a.alarm_id, a.name, a.level, a.device, a.source, p.station_code, p.name as plant, p.system_id, "
+        "m.run_by, m.homeowner_id, m.project_id "
+        "from solar_alarms a join solar_plants p using (station_code) "
+        "left join maintenance_systems m on m.system_id = p.system_id "
+        "where a.notified_at is null and a.cleared_at is null order by a.raised_at"
+    )
+    if not rows:
+        return 0
+    people = {
+        u["uid"]: u
+        for u in fetch_all("select uid, full_name, email, language, user_type, is_demo from users where active")
+    }
+    supers = [u for u in people.values() if u["user_type"] == "superadmin" and not u["is_demo"]]
+    sent = 0
+    for a in rows:
+        code = a["station_code"]
+
+        def link_for(u: dict[str, Any], a: dict[str, Any] = a, code: str = code) -> str:
+            if u["user_type"] == "homeowner":
+                return "/my-solar?tab=alarms"
+            if u["user_type"] in ("project_manager", "superadmin", "finance"):
+                return f"/solar/{code}?tab=alarms"
+            return f"/projects/{a['project_id']}" if a["project_id"] else "/alerts"  # crew can't open Solar
+
+        if a["source"] == "app":
+            uids = involved(a["system_id"])
+            if a["run_by"] is None:
+                uids += [u["uid"] for u in supers]
+            to = [people[uid] for uid in dict.fromkeys(uids) if uid in people]
+            with_email = True
+        else:
+            to = []
+            if a["level"] in ALERT_STAFF:
+                to += [people[a["run_by"]]] if a["run_by"] in people else supers
+            if a["level"] in ALERT_HOMEOWNER and a["homeowner_id"] in people:
+                to.append(people[a["homeowner_id"]])
+            with_email = a["level"] in ALERT_HOMEOWNER
+        for u in to:
+            link = link_for(u)
+            lang = u["language"] or "en"
+            m = notify.msg_solar_alarm(
+                u["full_name"], a["plant"], a["level"], a["device"], a["name"], notify.app_url() + link, lang
+            )
+            try:
+                notify.notify(
+                    u["uid"], "solar_alarm", m["title"], m["body"], link=link, urgent=a["level"] == "critical",
+                    email=(u["email"], *m["email"]) if with_email and u["email"] else None,
+                )  # fmt: skip
+                sent += 1
+            except Exception as exc:  # one person's alert mustn't stop the others
+                print(f"[solar] couldn't alert {u['uid']} about alarm {a['alarm_id']}: {exc}")
+        with transaction(None) as cur:
+            cur.execute("update solar_alarms set notified_at = now() where alarm_id = %s", (a["alarm_id"],))
+    return sent
+
+
+# ------------------------------------------------------------------ output below expected
+
+# Each plant's output per kWp installed, against the median of the other plants at the same moments
+# (all in Singapore, under much the same sky): FusionSolar gives no irradiance or theoretical yield
+# for these plants, so similar plants now are the best measure of what a plant should be making.
+LOW = 0.5  # an alarm below half of expected
+BACK = 0.7  # cleared once back above 70%
+NOTHING_KW_PER_KWP = 0.01  # "no output": under 10 W per kWp
+SUNNY_ENOUGH = 0.08  # skip when the median plant makes under 80 W per kWp (heavy cloud everywhere)
+WINDOW = timedelta(minutes=30)
+MIN_PEERS = 5
+LOW_NAME, NONE_NAME = "Output below expected", "No output"
+
+
+def _median(xs: list[float]) -> float:
+    xs = sorted(xs)
+    n = len(xs)
+    return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+
+def check_output(now: datetime) -> dict[str, Any]:
+    """Opens an alarm for each plant making much less than similar plants over the last 30 minutes, and
+    clears it once the plant has recovered. Daylight (9 am to 5 pm) only."""
+    local = now.astimezone(SG)
+    if not 9 <= local.hour < 17:
+        return {"skipped": "outside 9 am to 5 pm"}
+    rows = fetch_all(
+        "select w.station_code, w.at, w.kw::float as kw, coalesce(p.capacity_kwp, m.kwp)::float as kwp, p.health "
+        "from solar_plant_power w join solar_plants p using (station_code) "
+        "left join maintenance_systems m on m.system_id = p.system_id "
+        "where w.at > %s and w.at <= %s and coalesce(p.capacity_kwp, m.kwp) > 0 and w.kw is not null",
+        (now - WINDOW, now),
+    )
+    at_time: dict[datetime, dict[str, float]] = {}
+    size: dict[str, float] = {}
+    for r in rows:
+        at_time.setdefault(r["at"], {})[r["station_code"]] = r["kw"] / r["kwp"]
+        size[r["station_code"]] = r["kwp"]
+    open_ = {
+        r["station_code"]: r
+        for r in fetch_all(
+            "select alarm_id, station_code from solar_alarms where source = 'app' and cleared_at is null "
+            "and name in (%s, %s)",
+            (LOW_NAME, NONE_NAME),
+        )
+    }
+    opened, cleared, judged = 0, 0, 0
+    for code, kwp in size.items():
+        actual = expected = 0.0
+        points = 0
+        for ratios in at_time.values():
+            if code not in ratios:
+                continue
+            peers = [v for c, v in ratios.items() if c != code]
+            if len(peers) < MIN_PEERS:
+                continue
+            med = _median(peers)
+            if med < SUNNY_ENOUGH:
+                continue
+            actual += ratios[code] * kwp
+            expected += med * kwp
+            points += 1
+        if points < 3 or expected <= 0:
+            continue
+        judged += 1
+        share = actual / expected
+        if code in open_:
+            if share >= BACK:
+                with transaction(None) as cur:
+                    cur.execute(
+                        "update solar_alarms set cleared_at = %s where alarm_id = %s", (now, open_[code]["alarm_id"])
+                    )
+                cleared += 1
+            continue
+        if share >= LOW:
+            continue
+        nothing = actual / points < NOTHING_KW_PER_KWP * kwp
+        with transaction(None) as cur:
+            cur.execute(
+                "insert into solar_alarms (station_code, device, name, level, cause, suggestion, raised_at, source) "
+                "values (%s, '', %s, %s, %s, %s, %s, 'app') on conflict do nothing",
+                (
+                    code,
+                    NONE_NAME if nothing else LOW_NAME,
+                    "critical" if nothing else "major",
+                    f"Making {actual / points:.2f} kW against about {expected / points:.2f} kW expected "
+                    f"({round(share * 100)}% of what similar plants are making now)",
+                    "Check the inverter and its alarms; then look for shading, dirty panels, a tripped breaker "
+                    "or a faulty string (Devices, then the inverter's PV strings).",
+                    now,
+                ),
+            )
+            opened += cur.rowcount
+    return {"judged": judged, "opened": opened, "cleared": cleared}
 
 
 # ------------------------------------------------------------------ the job
@@ -471,6 +659,18 @@ def run(now: datetime | None = None) -> dict[str, Any]:
         lambda: (power_on(local - timedelta(hours=1)) if local.hour == 0 and local.minute < 30 else 0)
         + power_on(local),
     )
+    # With fresh power figures: is any plant making much less than similar plants are?
+    if isinstance(out.get("power"), int):
+        try:
+            out["output"] = check_output(now)
+        except Exception as exc:  # the check failing mustn't stop the rest
+            out["output"] = f"failed: {exc}"
+    # New alarms (FusionSolar's, and the output check's) to the people who need them; cheap when there are none.
+    try:
+        if n := alert_alarms():
+            out["alerts"] = n
+    except Exception as exc:  # alerts failing mustn't stop the rest
+        out["alerts"] = f"failed: {exc}"
     step("hours", lambda: save_history("hour", fs.history("hour", codes(), local)))
     step("days", lambda: save_history("day", fs.history("day", codes(), local)))
     step("months", lambda: save_history("month", fs.history("month", codes(), local)))

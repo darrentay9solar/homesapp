@@ -44,7 +44,8 @@ export type SolarOverview = {
   unlinked: number;
 };
 
-export type PlantAlarm = { level: AlarmLevel; name: string; device: string | null; cause: string | null; suggestion: string | null; raisedAt: string; clearedAt: string | null };
+/** source: FusionSolar's own alarm, or the app's output check (a plant making much less than similar plants). */
+export type PlantAlarm = { level: AlarmLevel; name: string; device: string | null; cause: string | null; suggestion: string | null; raisedAt: string; clearedAt: string | null; source?: "fusionsolar" | "app" };
 export type DeviceKind = "inverter" | "dongle" | "meter" | "battery" | "device";
 export type DeviceState = "producing" | "standby" | "offline";
 /** An inverter's live readings as FusionSolar shows them (only what it reports). */

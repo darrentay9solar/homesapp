@@ -4,7 +4,7 @@
  * describing the current state in a line.
  */
 
-export type Category = "approvals" | "visits" | "late" | "milestones" | "meetings" | "maintenance" | "warnings" | "summary" | "support" | "payments" | "people" | "account";
+export type Category = "approvals" | "visits" | "late" | "milestones" | "meetings" | "maintenance" | "warnings" | "summary" | "support" | "payments" | "solar" | "people" | "account";
 export type Prefs = {
   pausedUntil: string | null;
   quiet: { on: boolean; from: string; to: string };
@@ -33,6 +33,7 @@ export const CATEGORIES: Array<{ key: Category; label: string; sub: string; pm?:
   { key: "summary", label: "Morning summary", sub: "At 8 am, Monday to Saturday: what needs you today. Only sent when something does", pm: true },
   { key: "support", label: "Support", sub: "Answers to your questions, people asking for help, and conversations you're added to" },
   { key: "payments", label: "Payments", sub: "Invoices issued to you, payments received, and proof of payment to check" },
+  { key: "solar", label: "Solar alarms", sub: "An alarm from FusionSolar on a plant you look after, or a major one on your own system" },
   { key: "people", label: "People to review", sub: "New account and role requests", pm: true },
   { key: "account", label: "Your account", sub: "Your account or role approved, and changes reverted" },
 ];

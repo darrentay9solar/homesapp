@@ -1533,6 +1533,14 @@ def solar(c: psycopg.Connection) -> None:
                 cur.executemany("insert into solar_device_power (dev_id, at, kw) values (%s, %s, %s)", [(900000 + n, at, kw) for at, kw in points])
                 cur.executemany("insert into solar_plant_power (station_code, at, kw) values (%s, %s, %s)", [(code, at, kw) for at, kw in points])
         if health == "faulty":
+            # The app's own check: this plant is making far less than the others right now.
+            c.execute(
+                "insert into solar_alarms (station_code, device, name, level, cause, suggestion, raised_at, source, notified_at) values "
+                "(%s, '', 'Output below expected', 'major', %s, %s, %s, 'app', %s)",
+                (code, "Making 0.79 kW against about 3.21 kW expected (25% of what similar plants are making now)",
+                 "Check the inverter and its alarms; then look for shading, dirty panels, a tripped breaker or a faulty string (Devices, then the inverter's PV strings).",
+                 now - timedelta(minutes=35), now - timedelta(minutes=34)),
+            )
             c.execute(
                 "insert into solar_alarms (station_code, device, name, level, cause, suggestion, raised_at) values "
                 "(%s, 'INV-1', 'Grid Overvoltage', 'major', 'The grid voltage is above the inverter''s limit.', "

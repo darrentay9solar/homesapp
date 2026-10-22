@@ -191,6 +191,8 @@ def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
             "suggestion": a["suggestion"],
             "raisedAt": a["raised_at"].isoformat(),
             "clearedAt": a["cleared_at"].isoformat() if a["cleared_at"] else None,
+            # FusionSolar's own alarm, or the app's output check (solar_sync.check_output).
+            "source": a["source"],
         }
         for a in fetch_all(
             "select * from solar_alarms where station_code = %s and (cleared_at is null or cleared_at > now() - interval '90 days') "

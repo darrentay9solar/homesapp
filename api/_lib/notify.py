@@ -582,5 +582,25 @@ def msg_project_closed(name: str | None, project: str, url: str, lang: str = "en
     }
 
 
+def msg_solar_alarm(
+    name: str | None, plant: str, level: str, device: str, alarm: str, url: str, lang: str = "en"
+) -> dict[str, Any]:
+    """FusionSolar raised an alarm: which plant, how serious, on what, and where to see what to do."""
+    t = _l(lang)
+    body = f"A {level} alarm on {device or plant}: {t(alarm)}"
+    h, x = email_shell(
+        "A solar alarm",
+        [
+            f"Hi {name}," if name else "Hi there,",
+            f"Solar alarm: {plant}",
+            body,
+            "Open the plant in the app to see the cause and what to do.",
+        ],
+        ("Open GetHomeApps", url),
+        lang,
+    )
+    return {"email": (t(f"Solar alarm: {plant}"), h, x), "title": f"Solar alarm: {plant}", "body": body}
+
+
 def msg_verification_code(code: str, minutes: int, lang: str = "en") -> str:
     return _l(lang)(f"{code} is your GetHomeApps verification code. It expires in {minutes} minutes. Don't share it.")

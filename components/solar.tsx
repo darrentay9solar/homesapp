@@ -521,8 +521,9 @@ export function AlarmsPanel({ p }: { p: PlantDetail }) {
         <Card key={`${a.raisedAt}-${a.name}-${i}`} sx={{ p: 2, opacity: a.clearedAt ? 0.7 : 1 }}>
           <Stack direction="row" sx={{ gap: 1, rowGap: 0.5, alignItems: "center", flexWrap: "wrap" }}>
             <Box sx={{ color: LEVEL_COLOR[a.level], display: "grid" }}>{LEVEL_ICON[a.level]}</Box>
-            <Typography sx={{ fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{a.name}</Typography>
+            <Typography sx={{ fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{TR(a.name)}</Typography>
             <Chip size="small" variant="outlined" label={TR(LEVEL_LABEL[a.level])} />
+            {a.source === "app" && <Chip size="small" variant="outlined" label={T("Output check")} data-testid="alarm-output-check" />}
             <Chip size="small" label={a.clearedAt ? T("Cleared") : T("Active")} color={a.clearedAt ? "default" : "warning"} />
           </Stack>
           <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.75 }}>
@@ -530,12 +531,12 @@ export function AlarmsPanel({ p }: { p: PlantDetail }) {
           </Typography>
           {a.cause && (
             <Typography variant="body2" sx={{ mt: 0.75, overflowWrap: "anywhere" }}>
-              {a.cause}
+              {TR(a.cause)}
             </Typography>
           )}
           {a.suggestion && (
             <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary", overflowWrap: "anywhere" }}>
-              {T("What to do: {text}", { text: a.suggestion })}
+              {T("What to do: {text}", { text: TR(a.suggestion) })}
             </Typography>
           )}
         </Card>

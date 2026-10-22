@@ -93,6 +93,7 @@ export function mockPlant(code: string): PlantDetail {
     ],
     alarms: faulty
       ? [
+          { level: "major", name: "Output below expected", device: null, cause: "Making 0.79 kW against about 3.21 kW expected (25% of what similar plants are making now)", suggestion: "Check the inverter and its alarms; then look for shading, dirty panels, a tripped breaker or a faulty string (Devices, then the inverter's PV strings).", raisedAt: iso(35), clearedAt: null, source: "app" },
           { level: "major", name: "Grid Overvoltage", device: "INV-1", cause: "The grid voltage is above the inverter's limit.", suggestion: "If it keeps happening, ask the grid operator to check the voltage.", raisedAt: iso(140), clearedAt: null },
           { level: "minor", name: "Low Insulation Resistance", device: "INV-1", cause: "Moisture on the strings after rain.", suggestion: "Usually clears as panels dry; check the cabling if it doesn't.", raisedAt: iso(60 * 50), clearedAt: iso(60 * 46) },
         ]
