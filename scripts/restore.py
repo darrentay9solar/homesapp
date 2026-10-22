@@ -21,7 +21,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import tarfile
 from pathlib import Path
 
 import psycopg
@@ -31,6 +30,7 @@ from psycopg.rows import dict_row
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 from backup import URLS, _from_env_file, backup, migrations, tables  # noqa: E402
+from backup_crypt import open_backup  # noqa: E402
 
 
 def load_order(cur: psycopg.Cursor, names: list[str]) -> list[str]:
@@ -75,7 +75,7 @@ def main() -> None:
     if a.target == "prod" and a.apply and not a.confirm_restore_production:
         sys.exit("Restoring production replaces everything in it. Add --confirm-restore-production.")
 
-    with tarfile.open(a.file) as tar:
+    with open_backup(a.file) as tar:
         manifest = json.loads(tar.extractfile("manifest.json").read())  # type: ignore[union-attr]
         data = {t: tar.extractfile(f"tables/{t}.csv").read() for t in manifest["tables"]}  # type: ignore[union-attr]
 

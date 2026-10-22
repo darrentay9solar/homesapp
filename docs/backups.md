@@ -14,7 +14,11 @@ Four layers, from the smallest mistake to the worst day.
 `npm run db:migrate -- --key=PROD_MIGRATION_DATABASE_URL --confirm` now backs
 up production first (into `backups/` on the laptop that runs it) and won't
 migrate if that fails. The file is named like
-`backups/gethomeapps-prod-20261012-173000.tar.gz`.
+`backups/gethomeapps-prod-20261012-173000.tar.gz.enc`: like every production
+backup, it is encrypted with `BACKUP_PASSPHRASE` (in `.env.local`), and
+without the passphrase it isn't taken at all (`scripts/backup_crypt.py`).
+Older plain ones were encrypted on 22 Oct 2026; `python scripts/backup.py
+--encrypt-existing` does any more.
 
 ## The nightly backup
 
@@ -42,9 +46,12 @@ Nightly backup → Run workflow) to see it succeed.
 npm run db:backup -- --target prod
 ```
 
-## Opening a nightly backup
+## Opening a production backup
 
-Download the artifact, unzip it, then (Git Bash on Windows has `openssl`):
+`scripts/restore.py` opens an encrypted backup itself (with
+`BACKUP_PASSPHRASE` from `.env.local`). To look inside one by hand, download
+the artifact (for a nightly one) and unzip it, then (Git Bash on Windows has
+`openssl`; the laptop's restore points open the same way):
 
 ```bash
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in gethomeapps-prod-….tar.gz.enc -out gethomeapps-prod.tar.gz -pass env:BACKUP_PASSPHRASE

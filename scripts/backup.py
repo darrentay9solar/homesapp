@@ -4,6 +4,7 @@
     python scripts/backup.py --target prod                    # production, into backups/
     python scripts/backup.py --target dev --out somewhere/
     python scripts/backup.py --url-env BACKUP_DATABASE_URL    # the nightly job (GitHub Actions)
+    python scripts/backup.py --encrypt-existing               # encrypt older plain production backups
 
 The file, `gethomeapps-<target>-<YYYYMMDD-HHMMSS>.tar.gz`, holds each table as
 CSV, the sequences' positions, and a manifest: when, which migrations the
@@ -12,8 +13,10 @@ read-only snapshot, so the tables agree with each other, and nothing is
 written. The schema itself is the migrations in git: restore into a database
 at the same migration (scripts/restore.py checks).
 
-Real customers' data is in a production backup: it stays on this laptop
-(backups/ is ignored by git) or, from the nightly job, encrypted.
+Real customers' data is in a production backup, so it is always encrypted
+(scripts/backup_crypt.py, BACKUP_PASSPHRASE): `....tar.gz.enc`, on this laptop
+(backups/ is ignored by git) and from the nightly job alike. Without the
+passphrase a production backup isn't taken at all.
 """
 
 from __future__ import annotations
@@ -34,6 +37,8 @@ from psycopg.rows import dict_row
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "api"))
+from backup_crypt import encrypt_file, open_backup, passphrase  # noqa: E402
+
 from _lib.db import _from_env_file  # noqa: E402
 
 URLS = {"dev": "MIGRATION_DATABASE_URL", "test": "TEST_MIGRATION_DATABASE_URL", "prod": "PROD_MIGRATION_DATABASE_URL"}
@@ -66,6 +71,12 @@ def migrations(cur: psycopg.Cursor) -> list[str]:
 
 
 def backup(url: str, label: str, out_dir: Path, reason: str | None = None) -> Path:
+    secret = passphrase() if label == "prod" else ""
+    if label == "prod" and not secret:
+        sys.exit(
+            "A production backup is always encrypted: set BACKUP_PASSPHRASE in .env.local (the same as the "
+            "GitHub secret, from the password manager). Nothing was backed up."
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(SG).strftime("%Y%m%d-%H%M%S")
     path = out_dir / f"gethomeapps-{label}-{stamp}.tar.gz"
@@ -111,7 +122,18 @@ def backup(url: str, label: str, out_dir: Path, reason: str | None = None) -> Pa
             info = tarfile.TarInfo("manifest.json")
             info.size = len(body)
             tar.addfile(info, io.BytesIO(body))
-    return path
+    return encrypt_file(path, secret) if secret else path
+
+
+def encrypt_existing(folder: Path) -> None:
+    """Older production backups, written before they were encrypted here."""
+    secret = passphrase()
+    if not secret:
+        sys.exit("Set BACKUP_PASSPHRASE in .env.local first.")
+    plain = sorted(folder.glob("gethomeapps-prod-*.tar.gz"))
+    for p in plain:
+        print(f"  {p.name} -> {encrypt_file(p, secret).name}")
+    print(f"Encrypted {len(plain)} production backup(s).")
 
 
 def main() -> None:
@@ -121,7 +143,11 @@ def main() -> None:
     ap.add_argument("--out", default=str(ROOT / "backups"), help="folder for the file (default: backups/)")
     ap.add_argument("--reason", help="kept in the manifest, e.g. 'before migration 0033'")
     ap.add_argument("--label", help="names the file (default: the target, or prod for --url-env)")
+    ap.add_argument("--encrypt-existing", action="store_true", help="encrypt plain production backups in --out")
     a = ap.parse_args()
+    if a.encrypt_existing:
+        encrypt_existing(Path(a.out))
+        return
     if bool(a.target) == bool(a.url_env):
         sys.exit("Give one of --target or --url-env.")
     url = (
@@ -133,7 +159,7 @@ def main() -> None:
         sys.exit(f"{a.url_env or URLS[a.target]} isn't set.")
     label = a.label or a.target or "prod"
     path = backup(url, label, Path(a.out), a.reason)
-    with tarfile.open(path) as tar:
+    with open_backup(path) as tar:
         m = json.loads(tar.extractfile("manifest.json").read())  # type: ignore[union-attr]
     total = sum(t["rows"] for t in m["tables"].values())
     print(f"Backed up {label}: {len(m['tables'])} tables, {total} rows, {len(m['migrations'])} migrations -> {path}")

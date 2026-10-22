@@ -34,7 +34,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install
-        run: pip install "psycopg[binary]==3.2.3"
+        run: pip install "psycopg[binary]==3.2.3" "cryptography==50.0.2"
 
       - name: Back up production
         env:
@@ -45,11 +45,9 @@ jobs:
             echo "::error::BACKUP_DATABASE_URL or BACKUP_PASSPHRASE isn't set. Run: python scripts/create_backup_role.py --target prod --github"
             exit 1
           fi
+          # The script encrypts it (scripts/backup_crypt.py, OpenSSL's format) before it leaves the runner:
+          # the artifact alone reveals nothing.
           python scripts/backup.py --url-env BACKUP_DATABASE_URL --label prod --reason nightly --out out
-          f=$(ls out/*.tar.gz)
-          # Encrypted before it leaves the runner: the artifact alone reveals nothing.
-          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$f" -out "$f.enc" -pass env:BACKUP_PASSPHRASE
-          rm "$f"
           ls -l out
 
       - name: Keep it 30 days
