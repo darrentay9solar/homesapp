@@ -65,6 +65,7 @@ export type DeviceReadings = {
   mpptTotalKwh: number | null;
 };
 export type PlantDevice = {
+  id: number;
   name: string | null;
   kind: DeviceKind;
   serial: string | null;
@@ -90,6 +91,15 @@ export type PlantDetail = PlantRow & {
 export type EnergyPeriod = "day" | "month" | "year" | "lifetime";
 export type EnergySeries = { period: EnergyPeriod; date: string; by: string; points: Array<{ at: string; label: string; kwh: number | null; revenue: number | null }>; totalKwh: number | null };
 export type ReportBy = "hour" | "day" | "month";
+/** Power through a day: every 5 minutes (FusionSolar's curve), or by the hour for days older than 90. */
+export type PowerSeries = {
+  date: string;
+  by: "5min" | "hour";
+  points: Array<{ label: string; kw: number | null }>;
+  peakKw: number | null;
+  peakAt: string | null;
+  latestKw: number | null;
+};
 export type SolarReport = {
   by: ReportBy;
   start: string;

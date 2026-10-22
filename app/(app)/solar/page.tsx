@@ -18,7 +18,7 @@ import { Suspense, useMemo, useState } from "react";
 import { StatTile, TILE_GRID } from "@/components/charts";
 import { DataTable, type TableCol } from "@/components/data-table";
 import { Page } from "@/components/shell";
-import { AlarmsCard, ConnectionNote, HealthCard, HealthChip } from "@/components/solar";
+import { AlarmsCard, ConnectionNote, EnergyPanel, HealthCard, HealthChip, PowerPanel, useEvery } from "@/components/solar";
 import { GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
 import { useApi } from "@/lib/client/api";
 import { T, TR } from "@/lib/client/i18n";
@@ -35,7 +35,8 @@ const ORDER = { faulty: 0, disconnected: 1, unknown: 2, normal: 3 } as const;
 function SolarScreen() {
   const router = useRouter();
   const preview = usePathname().startsWith("/dev-preview");
-  const { data, error } = useApi<SolarOverview>("/solar");
+  const { data, error, reload } = useApi<SolarOverview>("/solar");
+  useEvery(reload); // live, as FusionSolar is
   const [tab, setTab] = useTab<Tab>(["overview", "table"], "overview");
   const [q, setQ] = useState("");
   const open = (p: PlantRow) => router.push(`${preview ? "/dev-preview" : ""}/solar/${encodeURIComponent(p.code)}`);
@@ -88,6 +89,9 @@ function SolarScreen() {
                 <StatTile label="Total yield" value={energy(k.totalKwh)} icon={<SavingsRoundedIcon />} testId="stile-total" />
                 <StatTile label="Installed capacity" value={capacity(k.capacityKwp)} icon={<SolarPowerRoundedIcon />} sub={T(data.plants.length === 1 ? "1 plant" : "{n} plants", { n: data.plants.length })} testId="stile-capacity" />
               </Box>
+              {/* FusionSolar's home page: every plant's power through the day, and yield by day, month or year. */}
+              <PowerPanel path="/solar/power" title="Power (all plants)" testId="all-power-chart" />
+              <EnergyPanel base="/solar" />
               <Box sx={{ display: "grid", gap: 1.5, mt: 1.5, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "1fr 1fr" } }}>
                 <HealthCard health={data.health} />
                 <AlarmsCard alarms={data.alarms} />

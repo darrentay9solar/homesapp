@@ -27,9 +27,9 @@ import type { Theme } from "@mui/material/styles";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
-import { type ReactNode, Suspense, useMemo, useState } from "react";
+import { type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
-import { ChartCard, ColumnChart, DataTable as PlainTable, StatTile, TILE_GRID } from "@/components/charts";
+import { AreaChart, ChartCard, ColumnChart, DataTable as PlainTable, StatTile, TILE_GRID } from "@/components/charts";
 import { DataTable, type TableCol } from "@/components/data-table";
 import { Field, MDialog } from "@/components/m";
 import { Page } from "@/components/shell";
@@ -56,6 +56,7 @@ import {
   type PlantDetail,
   type PlantDevice,
   periodTitle,
+  type PowerSeries,
   power,
   reading,
   type ReportBy,
@@ -169,6 +170,70 @@ export function AlarmsCard({ alarms }: { alarms: Record<AlarmLevel, number> }) {
   );
 }
 
+/** Calls ``fn`` every ``ms`` while the page is showing (live figures, as FusionSolar refreshes them). */
+export function useEvery(fn: () => unknown, ms = 60_000, on = true) {
+  const latest = useRef(fn);
+  useEffect(() => {
+    latest.current = fn;
+  });
+  useEffect(() => {
+    if (!on) return;
+    const timer = setInterval(() => document.visibilityState === "visible" && void latest.current(), ms);
+    return () => clearInterval(timer);
+  }, [ms, on]);
+}
+
+const today = () => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+
+/**
+ * Power through the day, every 5 minutes, as FusionSolar draws it: a plant's, all plants' together, or
+ * one inverter's. Today's updates itself every minute; the arrows go back a day at a time.
+ */
+export function PowerPanel({ path, title = "Power", compact = false, testId = "power-chart" }: { path: string; title?: string; compact?: boolean; testId?: string }) {
+  const [day, setDay] = useState(today);
+  const { data, error, reload } = useApi<PowerSeries>(`${path}?date=${day}`);
+  const isToday = day === today();
+  useEvery(reload, 60_000, isToday);
+  const sub = !data
+    ? undefined
+    : data.peakKw === null
+      ? T("No readings for this day yet")
+      : [isToday && data.latestKw !== null ? T("Now {kw}", { kw: power(data.latestKw) }) : null, T("Peak {kw} at {time}", { kw: power(data.peakKw), time: data.peakAt ?? "" }), data.by === "hour" ? T("hourly averages") : null]
+          .filter(Boolean)
+          .join(" · ");
+  return (
+    <Box sx={{ mt: 1.5 }}>
+      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "flex-end", maxWidth: "100%", mb: compact ? 0 : 0.5 }}>
+        <IconButton aria-label={T("Earlier")} onClick={() => setDay((d) => shiftDate(d, "day", -1))}>
+          <ChevronLeftRoundedIcon />
+        </IconButton>
+        <Typography sx={{ fontWeight: 600, flex: "0 1 auto", minWidth: 0, overflowWrap: "anywhere", textAlign: "center" }}>{isToday ? T("Today") : periodTitle(day, "day")}</Typography>
+        <IconButton aria-label={T("Later")} disabled={isToday} onClick={() => setDay((d) => shiftDate(d, "day", 1))}>
+          <ChevronRightRoundedIcon />
+        </IconButton>
+      </Stack>
+      {error && <Alert severity="error">{error.message}</Alert>}
+      {!data && !error && <Skeleton variant="rounded" height={compact ? 200 : 280} />}
+      {data && (
+        <ChartCard
+          title={TR(title)}
+          sub={sub}
+          table={{ head: [T("Time"), "kW"], rows: data.points.filter((p) => p.kw !== null).map((p) => [p.label, p.kw ?? 0]) }}
+          testId={testId}
+        >
+          <AreaChart
+            points={data.points.map((p) => ({ label: p.label, value: p.kw }))}
+            series={title}
+            unit="kW"
+            height={compact ? 170 : 230}
+            tickEvery={data.by === "hour" ? 4 : 48}
+          />
+        </ChartCard>
+      )}
+    </Box>
+  );
+}
+
 // ------------------------------------------------------------------ one plant
 
 type PlantTab = "overview" | "energy" | "devices" | "alarms" | "report";
@@ -180,9 +245,10 @@ export const PLANT_TABS: Array<[PlantTab, string]> = [
   ["report", "Report"],
 ];
 
-export function PlantOverview({ p }: { p: PlantDetail }) {
+export function PlantOverview({ p, base }: { p: PlantDetail; base: string }) {
   return (
     <>
+      <PowerPanel path={`${base}/power`} />
       <Box sx={{ ...TILE_GRID, mt: 1.5 }}>
         <StatTile label="Power now" value={p.live ? power(p.currentKw) : "—"} icon={<BoltRoundedIcon />} sub={p.live ? undefined : T("Not live just now")} testId="ptile-power" />
         <StatTile label="Yield today" value={energy(p.todayKwh)} icon={<WbSunnyRoundedIcon />} sub={p.todayRevenue !== null ? T("{amount} today", { amount: sgd(p.todayRevenue) }) : undefined} testId="ptile-today" />
@@ -297,7 +363,7 @@ export function EnergyPanel({ base }: { base: string }) {
   );
 }
 
-export function DevicesPanel({ p }: { p: PlantDetail }) {
+export function DevicesPanel({ p, base }: { p: PlantDetail; base: string }) {
   const [open, setOpen] = useState<number | null>(null);
   if (!p.devices.length) {
     return (
@@ -338,13 +404,13 @@ export function DevicesPanel({ p }: { p: PlantDetail }) {
           </Card>
         ))}
       </Stack>
-      {shown && <DeviceDialog d={shown} onClose={() => setOpen(null)} />}
+      {shown && <DeviceDialog d={shown} base={base} onClose={() => setOpen(null)} />}
     </>
   );
 }
 
 /** Everything FusionSolar shows about one device: its live readings, by group, and what it is. */
-function DeviceDialog({ d, onClose }: { d: PlantDevice; onClose: () => void }) {
+function DeviceDialog({ d, base, onClose }: { d: PlantDevice; base: string; onClose: () => void }) {
   const r = d.readings;
   const status = r ? inverterStatus(r.inverterState) : null;
   return (
@@ -360,6 +426,7 @@ function DeviceDialog({ d, onClose }: { d: PlantDevice; onClose: () => void }) {
             {T("No live readings from this inverter just now.")}
           </Alert>
         )}
+        {d.kind === "inverter" && <PowerPanel path={`${base}/devices/${d.id}/power`} title="Power" compact testId="device-power-chart" />}
         {r && (
           <>
             <DeviceSection title="Status">
@@ -589,6 +656,7 @@ function PlantTabs({ base, staff, onBack }: { base: string; staff: boolean; onBa
   const [linking, setLinking] = useState(false);
   const me = useMe();
   const p = data && "plant" in data ? data.plant : (data as PlantDetail | undefined);
+  useEvery(reload);
   const canLink = staff && (me?.role === "project_manager" || me?.role === "superadmin");
   return (
     <>
@@ -625,9 +693,9 @@ function PlantTabs({ base, staff, onBack }: { base: string; staff: boolean; onBa
           {p && (
             <>
               <ConnectionNote connection={p.connection} staff={staff} />
-              {tab === "overview" && <PlantOverview p={p} />}
+              {tab === "overview" && <PlantOverview p={p} base={staff ? base : "/me/solar"} />}
               {tab === "energy" && <EnergyPanel base={staff ? base : "/me/solar"} />}
-              {tab === "devices" && <DevicesPanel p={p} />}
+              {tab === "devices" && <DevicesPanel p={p} base={staff ? base : "/me/solar"} />}
               {tab === "alarms" && <AlarmsPanel p={p} />}
               {tab === "report" && <ReportPanel base={staff ? base : "/me/solar"} exportable={staff} plantName={p.name} />}
             </>

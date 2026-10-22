@@ -3,7 +3,7 @@
  * Never real customers or real FusionSolar plants: invented names and addresses only.
  */
 
-import type { DeviceReadings, EnergySeries, Health, PlantDetail, PlantRow, SolarOverview, SolarReport } from "@/lib/client/solar";
+import type { DeviceReadings, EnergySeries, Health, PlantDetail, PlantRow, PowerSeries, SolarOverview, SolarReport } from "@/lib/client/solar";
 
 const NOW = Date.now();
 const iso = (minAgo: number) => new Date(NOW - minAgo * 60_000).toISOString();
@@ -75,6 +75,7 @@ export function mockPlant(code: string): PlantDetail {
     benefits: { coalTons: Math.round((p.totalKwh ?? 0) * 0.4) / 1000, co2Tons: Math.round((p.totalKwh ?? 0) * 0.475) / 1000, trees: Math.round(((p.totalKwh ?? 0) * 0.475) / 18.3) },
     devices: [
       {
+        id: 900100,
         name: "INV-1",
         kind: "inverter",
         serial: "HV2240012345",
@@ -88,7 +89,7 @@ export function mockPlant(code: string): PlantDetail {
         liveAt: p.liveAt,
         readings: p.live ? mockReadings(p.currentKw ?? 0, faulty) : null,
       },
-      { name: "Dongle-1", kind: "dongle", serial: "HD2241009876", model: "SDongleA-05", softwareVersion: "V100R001C00SPC127", optimizers: null, currentKw: null, todayKwh: null, totalKwh: null, state: null, liveAt: null, readings: null },
+      { id: 950100, name: "Dongle-1", kind: "dongle", serial: "HD2241009876", model: "SDongleA-05", softwareVersion: "V100R001C00SPC127", optimizers: null, currentKw: null, todayKwh: null, totalKwh: null, state: null, liveAt: null, readings: null },
     ],
     alarms: faulty
       ? [
@@ -152,6 +153,25 @@ export function mockEnergy(search: URLSearchParams): EnergySeries {
   for (const p of points) p.revenue = p.kwh === null ? null : Math.round(p.kwh * 0.265 * 100) / 100;
   const total = points.reduce((n, p) => n + (p.kwh ?? 0), 0);
   return { period, date, by: period === "day" ? "hour" : period === "month" ? "day" : period === "year" ? "month" : "year", points, totalKwh: Math.round(total * 1000) / 1000 };
+}
+
+/** Power every 5 minutes through a day: a sunny curve with passing clouds, up to now for today. */
+export function mockPower(search: URLSearchParams, kwp = 15.2): PowerSeries {
+  const date = search.get("date") ?? sgDay();
+  const nowSg = new Date(NOW + 8 * 3600_000);
+  const isToday = date === sgDay();
+  const minutesNow = nowSg.getUTCHours() * 60 + nowSg.getUTCMinutes();
+  const points = Array.from({ length: 288 }, (_, i) => {
+    const m = i * 5;
+    const label = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    if ((isToday && m > minutesNow) || m < 6 * 60 + 45 || m > 19 * 60) return { label, kw: null };
+    const sun = Math.max(0, Math.sin(((m - 405) / 735) * Math.PI));
+    const cloud = 0.9 + 0.1 * Math.sin(i * 0.23) * Math.cos(i * 0.07);
+    return { label, kw: Math.round(kwp * 0.72 * sun * cloud * 1000) / 1000 };
+  });
+  const known = points.filter((p) => p.kw !== null);
+  const peak = known.reduce<{ label: string; kw: number | null } | null>((a, p) => (!a || (p.kw ?? 0) > (a.kw ?? 0) ? p : a), null);
+  return { date, by: "5min", points, peakKw: peak?.kw ?? null, peakAt: peak?.label ?? null, latestKw: isToday && known.length ? known[known.length - 1].kw : null };
 }
 
 export function mockReport(search: URLSearchParams): SolarReport {

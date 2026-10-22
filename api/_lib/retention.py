@@ -28,10 +28,15 @@ def run() -> dict[str, Any]:
     counts: dict[str, Any] = dict(row["counts"]) if row else {}
     if counts.get("skipped"):
         return counts
-    # FusionSolar's alarms, a year after they cleared (non-essential; the plant's output is kept).
+    # FusionSolar's alarms, a year after they cleared (non-essential; the plant's output is kept), and the
+    # 5-minute power curves: an inverter's after 7 days, a plant's after 90 (its hourly kWh stays).
     with transaction(None) as cur:
         cur.execute("delete from solar_alarms where cleared_at < now() - interval '1 year'")
         counts["solar_alarms"] = cur.rowcount
+        cur.execute("delete from solar_device_power where at < now() - interval '7 days'")
+        counts["solar_device_power"] = cur.rowcount
+        cur.execute("delete from solar_plant_power where at < now() - interval '90 days'")
+        counts["solar_plant_power"] = cur.rowcount
     keys = counts.pop("files", None) or []
     gone = 0
     for key in keys:

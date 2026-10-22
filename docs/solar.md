@@ -54,6 +54,19 @@ figures match what people saw there.
    link those in Solar → the plant → **Link**.
 4. Before the API account's deadline, extend it in FusionSolar.
 
+## The charts
+
+As FusionSolar draws them, and the screens update themselves every minute:
+
+- **Power through the day** (kW every 5 minutes): on each plant's Overview, for
+  all plants together on Solar, and for each inverter in its Details. The
+  arrows go back a day at a time. 5-minute points are kept 90 days for a
+  plant and 7 days for an inverter; older days are drawn from the hourly kWh
+  (an hour's kWh is its average kW), kept with the plant.
+- **Yield** by hour, day, month, year and lifetime (columns): each plant's
+  Energy tab, with revenue at its contract's rate, and all plants together
+  on Solar.
+
 ## How the figures come in
 
 `api/_lib/fusionsolar.py` talks to FusionSolar's Northbound API (it logs in
@@ -66,6 +79,7 @@ each kind at its own pace so FusionSolar's limits are kept:
 | What | How often |
 |---|---|
 | Live figures, inverters' readings (both kinds: string, 1, and residential, 38), alarms | Every run (15 minutes) |
+| Power every 5 minutes (each inverter's, so each plant's): the power curves | Every run (15 minutes) |
 | Today by the hour | Every hour |
 | This month by the day | Every 6 hours |
 | This year by the month; the plant list; devices | Once a day |

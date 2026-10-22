@@ -41,6 +41,7 @@ PACE = {
     "plants": timedelta(hours=24),
     "devices": timedelta(hours=24),
     "live": timedelta(minutes=5),
+    "power": timedelta(minutes=5),
     "alarms": timedelta(minutes=5),
     "hours": timedelta(hours=1),
     "days": timedelta(hours=6),
@@ -282,6 +283,51 @@ def save_device_live(rows: list[dict[str, Any]], now: datetime) -> None:
         )
 
 
+# ------------------------------------------------------------------ power through the day
+
+
+def save_device_power(rows: list[dict[str, Any]]) -> int:
+    """Each inverter's kW at each 5 minutes (migration 0054)."""
+    points = [
+        (int(r["devId"]), at, _num((r.get("dataItemMap") or {}).get("active_power")))
+        for r in rows
+        if r.get("devId") is not None and (at := _when(r.get("collectTime")))
+    ]
+    with transaction(None) as cur:
+        cur.executemany(
+            "insert into solar_device_power (dev_id, at, kw) select %s, %s, %s "
+            "where exists (select 1 from solar_devices where dev_id = %s) "
+            "on conflict (dev_id, at) do update set kw = excluded.kw where solar_device_power.kw is distinct from excluded.kw",
+            [(d, at, kw, d) for d, at, kw in points],
+        )
+    return len(points)
+
+
+def plant_power(day: date) -> int:
+    """A plant's kW at each 5 minutes of ``day``: the sum of its inverters'."""
+    start = datetime(day.year, day.month, day.day, tzinfo=SG)
+    with transaction(None) as cur:
+        cur.execute(
+            "insert into solar_plant_power (station_code, at, kw) "
+            "select d.station_code, p.at, sum(p.kw) from solar_device_power p join solar_devices d using (dev_id) "
+            "where p.at >= %s and p.at < %s group by 1, 2 "
+            "on conflict (station_code, at) do update set kw = excluded.kw where solar_plant_power.kw is distinct from excluded.kw",
+            (start, start + timedelta(days=1)),
+        )
+        return cur.rowcount
+
+
+def power_on(day: datetime) -> int:
+    """Every inverter's 5-minute power through ``day``, and so each plant's."""
+    n = 0
+    for kind in INVERTERS:
+        ids = [r["dev_id"] for r in fetch_all("select dev_id from solar_devices where type_id = %s", (kind,))]
+        if ids:
+            n += save_device_power(fs.five_minutes(ids, kind, day))
+    plant_power(day.astimezone(SG).date())
+    return n
+
+
 # ------------------------------------------------------------------ history
 
 
@@ -419,6 +465,12 @@ def run(now: datetime | None = None) -> dict[str, Any]:
         except fs.FusionSolarError as exc:
             out["inverters"] = f"failed: {exc}"
     step("alarms", lambda: save_alarms(fs.alarms(codes(), now - timedelta(days=30), now), now))
+    # Power through the day, for the charts; in the first half hour of a day, yesterday's last points too.
+    step(
+        "power",
+        lambda: (power_on(local - timedelta(hours=1)) if local.hour == 0 and local.minute < 30 else 0)
+        + power_on(local),
+    )
     step("hours", lambda: save_history("hour", fs.history("hour", codes(), local)))
     step("days", lambda: save_history("day", fs.history("day", codes(), local)))
     step("months", lambda: save_history("month", fs.history("month", codes(), local)))

@@ -34,6 +34,7 @@ def main() -> None:
     ap.add_argument("--target", choices=URLS, required=True)
     ap.add_argument("--confirm", action="store_true", help="needed for production")
     ap.add_argument("--hours", type=int, default=31, help="days back to fetch hour by hour (default 31)")
+    ap.add_argument("--power-days", type=int, default=7, help="days back of 5-minute power for the charts (default 7)")
     a = ap.parse_args()
     if a.target == "prod" and not a.confirm:
         sys.exit("Production needs --confirm.")
@@ -81,6 +82,18 @@ def main() -> None:
     codes = sync.codes()
     print("Inverters…", flush=True)
     print(f"  {sync.save_devices(patient('devices', lambda: fs.devices(codes)))} devices", flush=True)
+
+    # Power every 5 minutes for the last few days (the power curves); the 15-minute job keeps today's.
+    print("Power every 5 minutes…", flush=True)
+    now_sg = datetime.now(sync.SG)
+    for back in range(a.power_days, -1, -1):
+        day = now_sg - timedelta(days=back)
+        key = f"power:{day.date().isoformat()}"
+        if back and done(key):
+            continue
+        n = patient(key, lambda day=day: sync.power_on(day))
+        print(f"  {key}: {n} readings", flush=True)
+        mark(key)
 
     first = fetch_one("select min(grid_connected_on) d from solar_plants")["d"] or (date.today() - timedelta(days=365))
     today = datetime.now(sync.SG)

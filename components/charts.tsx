@@ -379,6 +379,123 @@ export function ColumnChart({
   );
 }
 
+/**
+ * One quantity through time as a 2px line over a light fill (a plant's power through the day):
+ * hover or tap for the crosshair and the value. A gap (no reading) breaks the line, never draws a zero.
+ */
+export function AreaChart({
+  points,
+  series,
+  unit,
+  height = 220,
+  tickEvery = 1,
+}: {
+  points: Array<{ label: string; value: number | null }>;
+  series: string;
+  unit: string;
+  height?: number;
+  tickEvery?: number;
+}) {
+  const theme = useTheme();
+  const [ref, w] = useWidth<HTMLDivElement>();
+  const [hover, setHover] = useState<number | null>(null);
+  const gradient = useId().replace(/:/g, "");
+  const max = Math.max(0, ...points.map((p) => p.value ?? 0));
+  const ys = ticks(max);
+  const top = ys[ys.length - 1] || 1;
+  const left = 34;
+  const bottom = 22;
+  const plotW = Math.max(0, w - left - 4);
+  const plotH = height - bottom - 6;
+  const n = Math.max(1, points.length - 1);
+  const x = (i: number) => left + (i / n) * plotW;
+  const y = (v: number) => 6 + plotH - (v / top) * plotH;
+  const color = seriesColor(theme, 0);
+  const grid = theme.palette.divider;
+  const muted = theme.palette.text.secondary;
+
+  // Runs of readings with no gap, each drawn as its own line and fill.
+  const runs: number[][] = [];
+  points.forEach((p, i) => {
+    if (p.value === null) return;
+    const last = runs[runs.length - 1];
+    if (last && last[last.length - 1] === i - 1) last.push(i);
+    else runs.push([i]);
+  });
+  const line = (run: number[]) => run.map((i, k) => `${k ? "L" : "M"}${x(i).toFixed(1)},${y(points[i].value ?? 0).toFixed(1)}`).join(" ");
+  const area = (run: number[]) => `${line(run)} L${x(run[run.length - 1]).toFixed(1)},${y(0)} L${x(run[0]).toFixed(1)},${y(0)} Z`;
+  const at = (clientX: number, box: DOMRect) => {
+    const i = Math.round(((clientX - box.left - left) / Math.max(1, plotW)) * n);
+    return Math.min(points.length - 1, Math.max(0, i));
+  };
+  const shown = hover !== null ? points[hover] : null;
+  // Label every tickEvery-th point, as long as the words fit between them.
+  const step = Math.max(tickEvery, Math.ceil(46 / Math.max(1, plotW / n)));
+
+  return (
+    <Box ref={ref} sx={{ position: "relative", width: "100%", minWidth: 0, height }} onPointerLeave={() => setHover(null)}>
+      {w > 0 && (
+        <svg
+          width={w}
+          height={height}
+          role="img"
+          aria-label={TR(series)}
+          style={{ position: "absolute", top: 0, left: 0, display: "block", touchAction: "pan-y" }}
+          onPointerMove={(e) => setHover(at(e.clientX, e.currentTarget.getBoundingClientRect()))}
+          onPointerDown={(e) => setHover(at(e.clientX, e.currentTarget.getBoundingClientRect()))}
+        >
+          <defs>
+            <linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.28} />
+              <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          {ys.map((v) => (
+            <g key={v}>
+              <line x1={left} x2={w} y1={y(v)} y2={y(v)} stroke={grid} strokeWidth={1} />
+              <text x={left - 6} y={y(v) + 4} textAnchor="end" fontSize={11} fill={muted} style={{ fontVariantNumeric: "tabular-nums" }}>
+                {num(v)}
+              </text>
+            </g>
+          ))}
+          {runs.map((run) => (
+            <g key={run[0]}>
+              <path d={area(run)} fill={`url(#${gradient})`} />
+              <path d={line(run)} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+            </g>
+          ))}
+          {points.map((p, i) =>
+            i % step === 0 ? (
+              <text key={p.label} x={Math.min(w - 16, Math.max(left + 16, x(i)))} y={height - 6} textAnchor="middle" fontSize={11} fill={muted}>
+                {p.label}
+              </text>
+            ) : null
+          )}
+          {shown && hover !== null && (
+            <g>
+              <line x1={x(hover)} x2={x(hover)} y1={6} y2={6 + plotH} stroke={muted} strokeWidth={1} strokeDasharray="3 3" />
+              {shown.value !== null && <circle cx={x(hover)} cy={y(shown.value)} r={4.5} fill={color} stroke={theme.palette.background.paper} strokeWidth={2} />}
+            </g>
+          )}
+        </svg>
+      )}
+      {shown && hover !== null && (
+        <ChartTip x={x(hover)} width={w}>
+          <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+            {shown.label}
+          </Typography>
+          <Stack direction="row" sx={{ alignItems: "baseline", gap: 0.5 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: 13.5 }}>{shown.value === null ? "—" : num(shown.value, 2)}</Typography>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              {unit}
+            </Typography>
+          </Stack>
+        </ChartTip>
+      )}
+    </Box>
+  );
+}
+
 function ChartTip({ x, width, children }: { x: number; width: number; children: ReactNode }) {
   const left = Math.min(Math.max(0, x - 70), Math.max(0, width - 150));
   return (

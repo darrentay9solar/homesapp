@@ -372,3 +372,28 @@ def test_fed_into_the_grid_and_used_today(fx, plant_codes) -> None:
         "select today_feed_in_kwh, today_use_kwh from solar_plants where station_code = %s", (a,)
     ).fetchone()
     assert p == {"today_feed_in_kwh": Decimal("12.5"), "today_use_kwh": Decimal("7.5")}
+
+
+def test_power_every_5_minutes_adds_up_to_the_plants(fx, plant_codes) -> None:
+    a = _code()
+    plant_codes.append(a)
+    sync.save_plants([{"plantCode": a, "plantName": "Power test"}])
+    base = int(uuid.uuid4().int % 10**12)
+    sync.save_devices(
+        [{"id": base, "stationCode": a, "devTypeId": 1}, {"id": base + 1, "stationCode": a, "devTypeId": 38}]
+    )
+    noon = datetime(2026, 10, 21, 12, tzinfo=sync.SG)
+    ms = lambda d: int(d.timestamp() * 1000)  # noqa: E731
+    rows = [
+        {"devId": base, "collectTime": ms(noon), "dataItemMap": {"active_power": 3.5}},
+        {"devId": base + 1, "collectTime": ms(noon), "dataItemMap": {"active_power": "2.25"}},
+        {"devId": base, "collectTime": ms(noon + timedelta(minutes=5)), "dataItemMap": {"active_power": 3.0}},
+        {"devId": 999999999999, "collectTime": ms(noon), "dataItemMap": {"active_power": 9}},  # not a known device
+    ]
+    assert sync.save_device_power(rows) == 4
+    sync.plant_power(noon.date())
+    got = fx.conn.execute("select at, kw from solar_plant_power where station_code = %s order by at", (a,)).fetchall()
+    assert [g["kw"] for g in got] == [Decimal("5.750"), Decimal("3.000")]
+    # Saving the same again changes nothing.
+    sync.save_device_power(rows)
+    assert sync.plant_power(noon.date()) == 0

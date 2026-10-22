@@ -166,3 +166,59 @@ def test_the_report_has_specific_yield_and_benefits(client, world, fx) -> None:
     ]
     first = rows[0]  # 0.9 kWh on a 10 kWp plant
     assert first["specificYield"] == 0.09 and first["co2Kg"] == 0.4 and first["coalKg"] == 0.4
+
+
+def test_power_through_the_day(client, world, fx) -> None:
+    code = world["codes"]["mine"]
+    h = bearer(world["pm"]["clerk_user_id"])
+    day = datetime.now(SG).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    for minutes, kw in ((600, 4.0), (605, 4.5), (720, 6.25)):
+        fx.conn.execute(
+            "insert into solar_plant_power (station_code, at, kw) values (%s, %s, %s)",
+            (code, day + timedelta(minutes=minutes), kw),
+        )
+    p = client.get(f"/api/py/solar/plants/{code}/power", params={"date": day.date().isoformat()}, headers=h).json()
+    assert p["by"] == "5min" and len(p["points"]) == 288
+    assert (
+        p["points"][120] == {"label": "10:00", "kw": 4.0}
+        and p["points"][121]["kw"] == 4.5
+        and p["points"][122]["kw"] is None
+    )
+    assert p["peakKw"] == 6.25 and p["peakAt"] == "12:00" and p["latestKw"] is None  # not today
+    # Today, before any 5-minute points: drawn from the hourly kWh (9 to 11 in the fixture).
+    t = client.get(f"/api/py/solar/plants/{code}/power", headers=h).json()
+    assert t["by"] == "hour" and len(t["points"]) == 24 and t["points"][10]["kw"] == 1.0
+    # All plants one can see, together; another manager's isn't counted.
+    fx.conn.execute(
+        "insert into solar_plant_power (station_code, at, kw) values (%s, %s, 100)",
+        (world["codes"]["theirs"], day + timedelta(minutes=600)),
+    )
+    allp = client.get("/api/py/solar/power", params={"date": day.date().isoformat()}, headers=h).json()
+    assert allp["points"][120]["kw"] == 4.0
+    # The homeowner's own.
+    mine = client.get(
+        "/api/py/me/solar/power", params={"date": day.date().isoformat()}, headers=bearer(world["ho"]["clerk_user_id"])
+    ).json()
+    assert mine["peakKw"] == 6.25
+
+
+def test_an_inverters_power_and_all_plants_yield(client, world, fx) -> None:
+    code = world["codes"]["mine"]
+    h = bearer(world["pm"]["clerk_user_id"])
+    fx.conn.execute(
+        "insert into solar_devices (dev_id, station_code, name, type_id) values (920001, %s, 'INV', 38)", (code,)
+    )
+    try:
+        noon = datetime.now(SG).replace(hour=12, minute=0, second=0, microsecond=0)
+        fx.conn.execute("insert into solar_device_power (dev_id, at, kw) values (920001, %s, 2.5)", (noon,))
+        d = client.get(f"/api/py/solar/plants/{code}/devices/920001/power", headers=h).json()
+        assert d["points"][144]["kw"] == 2.5
+        # A device on another plant isn't reachable through this one.
+        assert (
+            client.get(f"/api/py/solar/plants/{world['codes']['loose']}/devices/920001/power", headers=h).status_code
+            == 404
+        )
+        e = client.get("/api/py/solar/energy", params={"period": "day"}, headers=h).json()
+        assert e["points"][10]["kwh"] == 1.0 and e["points"][10]["revenue"] is None
+    finally:
+        fx.conn.execute("delete from solar_devices where dev_id = 920001")

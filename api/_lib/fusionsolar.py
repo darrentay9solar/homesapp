@@ -186,6 +186,15 @@ def device_live(dev_ids: list[int], type_id: int) -> list[dict[str, Any]]:
     return out
 
 
+def five_minutes(dev_ids: list[int], type_id: int, day: datetime) -> list[dict[str, Any]]:
+    """Each inverter's readings every 5 minutes through ``day`` (FusionSolar takes 10 at a time)."""
+    out: list[dict[str, Any]] = []
+    for i in range(0, len(dev_ids), 10):
+        body = {"devIds": ",".join(str(d) for d in dev_ids[i : i + 10]), "devTypeId": type_id, "collectTime": _ms(day)}
+        out.extend(call("/thirdData/getDevFiveMinutes", body) or [])
+    return out
+
+
 def alarms(codes: list[str], since: datetime, until: datetime | None = None) -> list[dict[str, Any]]:
     until = until or datetime.now(UTC)
     out: list[dict[str, Any]] = []

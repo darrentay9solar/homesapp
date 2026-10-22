@@ -67,6 +67,8 @@ URLS = {"dev": "MIGRATION_DATABASE_URL", "test": "TEST_MIGRATION_DATABASE_URL", 
 # Everything a project or a person owns. TRUNCATE skips row triggers (no audit
 # entry per row) and CASCADE takes anything else that points at these.
 WIPE = [
+    "solar_device_power",
+    "solar_plant_power",
     "solar_alarms",
     "solar_devices",
     "solar_readings",
@@ -1515,6 +1517,21 @@ def solar(c: psycopg.Connection) -> None:
             "values (%s, %s, 'Dongle-1', %s, 62, 'SDongleA-05', 'V100R001C00SPC127')",
             (950000 + n, code, f"HD22{410000 + n * 7}"),
         )
+        # Power every 5 minutes, yesterday and today so far (the charts FusionSolar draws): its inverter's and the plant's.
+        if health != "disconnected":
+            points = []
+            for back in (1, 0):
+                day = today - timedelta(days=back)
+                for i in range(81, 229):  # 06:45 to 19:00
+                    at = datetime(day.year, day.month, day.day, tzinfo=sg) + timedelta(minutes=5 * i)
+                    if at > now:
+                        break
+                    sun = max(0.0, math.sin((i * 5 - 405) / 735 * math.pi))
+                    cloud = 0.9 + 0.1 * math.sin(i * 0.23 + n) * math.cos(i * 0.07)
+                    points.append((at, round(kwp * 0.72 * sun * cloud * (0.3 if health == "faulty" and back == 0 else 1), 3)))
+            with c.cursor() as cur:
+                cur.executemany("insert into solar_device_power (dev_id, at, kw) values (%s, %s, %s)", [(900000 + n, at, kw) for at, kw in points])
+                cur.executemany("insert into solar_plant_power (station_code, at, kw) values (%s, %s, %s)", [(code, at, kw) for at, kw in points])
         if health == "faulty":
             c.execute(
                 "insert into solar_alarms (station_code, device, name, level, cause, suggestion, raised_at) values "
