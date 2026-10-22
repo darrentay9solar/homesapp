@@ -1,6 +1,12 @@
 "use client";
 
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
+import CloudRoundedIcon from "@mui/icons-material/CloudRounded";
+import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalServicesRounded";
+import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import NightsStayRoundedIcon from "@mui/icons-material/NightsStayRounded";
+import ThunderstormRoundedIcon from "@mui/icons-material/ThunderstormRounded";
+import UmbrellaRoundedIcon from "@mui/icons-material/UmbrellaRounded";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import Co2RoundedIcon from "@mui/icons-material/Co2Rounded";
@@ -27,6 +33,7 @@ import type { Theme } from "@mui/material/styles";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
 import { type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { AreaChart, ChartCard, ColumnChart, DataTable as PlainTable, StatTile, TILE_GRID } from "@/components/charts";
@@ -55,8 +62,10 @@ import {
   KIND_LABEL,
   type PlantDetail,
   type PlantDevice,
+  type PlantWeather,
   periodTitle,
   type PowerSeries,
+  type DeviceReadings,
   power,
   reading,
   type ReportBy,
@@ -234,6 +243,162 @@ export function PowerPanel({ path, title = "Power", compact = false, testId = "p
   );
 }
 
+function weatherIcon(text: string): ReactNode {
+  const t = text.toLowerCase();
+  if (t.includes("thunder")) return <ThunderstormRoundedIcon />;
+  if (t.includes("rain") || t.includes("shower")) return <UmbrellaRoundedIcon />;
+  if (t.includes("night")) return <NightsStayRoundedIcon />;
+  if (t.includes("cloud") || t.includes("haz") || t.includes("mist") || t.includes("fog")) return <CloudRoundedIcon />;
+  return <WbSunnyRoundedIcon />;
+}
+
+/** Singapore's weather where the plant is: NEA's 2-hour forecast for its area, and the nearest temperature. */
+export function WeatherNow({ w }: { w: PlantWeather | null | undefined }) {
+  if (!w || (!w.forecast && w.temperatureC === null)) return null;
+  const now = [w.forecast ? TR(w.forecast) : null, w.temperatureC !== null ? `${w.temperatureC.toFixed(1)} °C` : null].filter(Boolean).join(" · ");
+  return (
+    <Stack direction="row" sx={{ alignItems: "center", gap: 1.25, rowGap: 0.25, mt: 1.5, px: 0.5, flexWrap: "wrap" }} data-testid="plant-weather">
+      <Box sx={{ color: "primary.main", display: "grid" }}>{weatherIcon(w.forecast ?? "")}</Box>
+      <Typography sx={{ fontWeight: 600 }}>{now}</Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary", minWidth: 0, overflowWrap: "anywhere" }}>
+        {w.area && w.valid ? T("NEA forecast for {area}, {when}", { area: w.area, when: w.valid }) : T("From NEA")}
+      </Typography>
+    </Stack>
+  );
+}
+
+/** One stage of the energy flow: an icon, what it's doing now, and a line under it. */
+function FlowNode({ icon, label, value, sub }: { icon: ReactNode; label: string; value: string; sub?: string | null }) {
+  return (
+    <Box sx={{ textAlign: "center", minWidth: 0, p: 1 }}>
+      <Box sx={(t) => ({ width: 48, height: 48, borderRadius: "50%", display: "grid", placeItems: "center", mx: "auto", color: "primary.main", bgcolor: alpha(t.palette.primary.main, 0.12) })}>{icon}</Box>
+      <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.75 }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontWeight: 700, fontSize: 18 }}>{value}</Typography>
+      {sub && (
+        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", overflowWrap: "anywhere" }}>
+          {sub}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+/** The line between two stages; it moves while power flows (not for those who'd rather it didn't). */
+function FlowLine({ on }: { on: boolean }) {
+  return (
+    <Box
+      aria-hidden
+      sx={(t) => ({
+        alignSelf: "center",
+        justifySelf: "center",
+        width: { xs: 3, sm: "100%" },
+        height: { xs: 28, sm: 3 },
+        minWidth: { sm: 40 },
+        borderRadius: 2,
+        backgroundImage: on
+          ? {
+              xs: `repeating-linear-gradient(180deg, ${t.palette.primary.main} 0 8px, transparent 8px 14px)`,
+              sm: `repeating-linear-gradient(90deg, ${t.palette.primary.main} 0 8px, transparent 8px 14px)`,
+            }
+          : `linear-gradient(${t.palette.divider}, ${t.palette.divider})`,
+        backgroundSize: { xs: "3px 14px", sm: "14px 3px" },
+        animation: on ? { xs: "gha-flow-down 0.9s linear infinite", sm: "gha-flow-right 0.9s linear infinite" } : "none",
+        "@keyframes gha-flow-right": { from: { backgroundPosition: "0 0" }, to: { backgroundPosition: "14px 0" } },
+        "@keyframes gha-flow-down": { from: { backgroundPosition: "0 0" }, to: { backgroundPosition: "0 14px" } },
+        "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+      })}
+    />
+  );
+}
+
+/**
+ * Energy flow, as FusionSolar draws it, from what the plant reports: the panels' DC power into the
+ * inverters, their AC output (and efficiency) out to the home and the grid. Without a meter, the split
+ * between the home and the grid isn't known, so it's one stage; with one, today's split shows.
+ */
+export function EnergyFlow({ p }: { p: PlantDetail }) {
+  const inverters = p.devices.filter((d) => d.kind === "inverter");
+  const inputs = inverters.map((d) => d.readings?.inputKw).filter((v): v is number => v !== null && v !== undefined);
+  const dc = p.live && inputs.length ? inputs.reduce((a, b) => a + b, 0) : null;
+  const ac = p.live ? p.currentKw : null;
+  const eff = dc && ac && dc > 0 ? Math.min(100, (ac / dc) * 100) : null;
+  const split = p.feedInTodayKwh != null || p.usedTodayKwh != null;
+  return (
+    <Card sx={{ p: 2, mt: 1.5 }} data-testid="energy-flow">
+      <Typography component="h2" sx={{ fontWeight: 600, fontSize: 15.5 }}>
+        {T("Energy flow")}
+      </Typography>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "minmax(0, 1fr) minmax(40px, 0.5fr) minmax(0, 1fr) minmax(40px, 0.5fr) minmax(0, 1fr)" }, alignItems: "center", mt: 1 }}>
+        <FlowNode icon={<SolarPowerRoundedIcon />} label={T("Solar panels")} value={dc !== null ? power(dc) : p.live ? "—" : T("Not live")} sub={capacity(p.capacityKwp)} />
+        <FlowLine on={(dc ?? ac ?? 0) > 0} />
+        <FlowNode
+          icon={<ElectricalServicesRoundedIcon />}
+          label={T(inverters.length === 1 ? "Inverter" : "{n} inverters", { n: inverters.length })}
+          value={ac !== null ? power(ac) : "—"}
+          sub={eff !== null ? T("{pct}% efficient", { pct: eff.toFixed(1) }) : null}
+        />
+        <FlowLine on={(ac ?? 0) > 0} />
+        <FlowNode
+          icon={<HomeRoundedIcon />}
+          label={T("Home and grid")}
+          value={ac !== null ? power(ac) : "—"}
+          sub={split ? T("Today: {grid} to the grid, {home} used", { grid: energy(p.feedInTodayKwh ?? 0), home: energy(p.usedTodayKwh ?? 0) }) : T("No meter, so the split isn't measured")}
+        />
+      </Box>
+    </Card>
+  );
+}
+
+/**
+ * A plant's strings as FusionSolar's layout view would show its panels (these inverters have no
+ * optimisers, so the string is the finest level): each string's power, and any making much less than
+ * the others, the usual sign of shading, dirt or a loose connection.
+ */
+function StringTiles({ strings }: { strings: DeviceReadings["strings"] }) {
+  const kw = strings.map((s) => (s.voltage !== null && s.current !== null ? (s.voltage * s.current) / 1000 : null));
+  const known = kw.filter((v): v is number => v !== null && v > 0).sort((a, b) => a - b);
+  const median = known.length ? known[Math.floor(known.length / 2)] : 0;
+  const max = known.length ? known[known.length - 1] : 0;
+  const low = strings.filter((_, i) => median > 0.1 && kw[i] !== null && (kw[i] ?? 0) < 0.6 * median).map((s) => `PV${s.n}`);
+  return (
+    <>
+      {low.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 1 }} data-testid="strings-low">
+          {T("{strings} making much less than the other strings: check for shading, dirty panels or a loose connection.", { strings: low.join(", ") })}
+        </Alert>
+      )}
+      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: 0.75, mb: 1 }} data-testid="string-tiles">
+        {strings.map((s, i) => {
+          const share = max > 0 && kw[i] !== null ? (kw[i] ?? 0) / max : 0;
+          const isLow = low.includes(`PV${s.n}`);
+          return (
+            <Box
+              key={s.n}
+              sx={(t) => ({
+                p: 1,
+                borderRadius: 1.5,
+                border: 1,
+                borderColor: isLow ? "warning.main" : "divider",
+                bgcolor: alpha(isLow ? t.palette.warning.main : t.palette.primary.main, 0.06 + 0.3 * share),
+              })}
+            >
+              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600 }}>
+                PV{s.n}
+              </Typography>
+              <Typography sx={{ fontWeight: 700 }}>{kw[i] !== null ? power(kw[i]) : "—"}</Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+                {reading(s.voltage, "V", 0)} · {reading(s.current, "A", 1)}
+              </Typography>
+            </Box>
+          );
+        })}
+      </Box>
+    </>
+  );
+}
+
 // ------------------------------------------------------------------ one plant
 
 type PlantTab = "overview" | "energy" | "devices" | "alarms" | "report";
@@ -248,6 +413,8 @@ export const PLANT_TABS: Array<[PlantTab, string]> = [
 export function PlantOverview({ p, base }: { p: PlantDetail; base: string }) {
   return (
     <>
+      <WeatherNow w={p.weather} />
+      <EnergyFlow p={p} />
       <PowerPanel path={`${base}/power`} />
       <Box sx={{ ...TILE_GRID, mt: 1.5 }}>
         <StatTile label="Power now" value={p.live ? power(p.currentKw) : "—"} icon={<BoltRoundedIcon />} sub={p.live ? undefined : T("Not live just now")} testId="ptile-power" />
@@ -455,6 +622,7 @@ function DeviceDialog({ d, base, onClose }: { d: PlantDevice; base: string; onCl
               </DeviceSection>
             )}
             <DeviceSection title="PV strings">
+              {r.strings.length > 0 && <StringTiles strings={r.strings} />}
               {r.strings.length > 0 ? (
                 <PlainTable
                   head={["String", "Voltage", "Current", "Power"]}

@@ -28,6 +28,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from _lib import fusionsolar as fs
+from _lib import weather
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.duplicates import address_key
 
@@ -42,6 +43,7 @@ PACE = {
     "devices": timedelta(hours=24),
     "live": timedelta(minutes=5),
     "power": timedelta(minutes=5),
+    "weather": timedelta(minutes=30),
     "alarms": timedelta(minutes=5),
     "hours": timedelta(hours=1),
     "days": timedelta(hours=6),
@@ -671,6 +673,8 @@ def run(now: datetime | None = None) -> dict[str, Any]:
             out["alerts"] = n
     except Exception as exc:  # alerts failing mustn't stop the rest
         out["alerts"] = f"failed: {exc}"
+    # Singapore's weather where each plant is (NEA, data.gov.sg), for the plant screens.
+    step("weather", lambda: weather.save(now))
     step("hours", lambda: save_history("hour", fs.history("hour", codes(), local)))
     step("days", lambda: save_history("day", fs.history("day", codes(), local)))
     step("months", lambda: save_history("month", fs.history("month", codes(), local)))

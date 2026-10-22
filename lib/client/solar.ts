@@ -81,7 +81,11 @@ export type PlantDevice = {
   readings: DeviceReadings | null;
 };
 
+/** Singapore's weather where the plant is (NEA): its area's 2-hour forecast and the nearest temperature. */
+export type PlantWeather = { area: string | null; forecast: string | null; valid: string | null; temperatureC: number | null; station: string | null; at: string };
+
 export type PlantDetail = PlantRow & {
+  weather?: PlantWeather | null;
   yearKwh: number | null;
   benefits: { coalTons: number | null; co2Tons: number | null; trees: number | null };
   devices: PlantDevice[];

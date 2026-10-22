@@ -1,8 +1,8 @@
 -- Power through the day, as FusionSolar draws it (docs/solar.md): each inverter's output every 5
 -- minutes (FusionSolar's getDevFiveMinutes), and each plant's, the sum of its inverters'.
 --
---   solar_device_power   an inverter's kW at each 5 minutes; kept 7 days
---   solar_plant_power    a plant's kW at each 5 minutes; kept 90 days (older days chart from the
+--   solar_device_power   an inverter's kW at each 5 minutes; kept 31 days
+--   solar_plant_power    a plant's kW at each 5 minutes; kept 400 days (older days chart from the
 --                        hourly kWh in solar_readings, kept with the plant)
 --
 -- Written by the sync; the old points go in api/_lib/retention.py. Re-runnable.

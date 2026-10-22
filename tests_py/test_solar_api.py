@@ -222,3 +222,20 @@ def test_an_inverters_power_and_all_plants_yield(client, world, fx) -> None:
         assert e["points"][10]["kwh"] == 1.0 and e["points"][10]["revenue"] is None
     finally:
         fx.conn.execute("delete from solar_devices where dev_id = 920001")
+
+
+def test_a_plant_shows_the_weather_where_it_is(client, world, fx) -> None:
+    from _lib import weather
+
+    code = world["codes"]["mine"]
+    fx.conn.execute("update solar_plants set latitude = 1.335, longitude = 103.848 where station_code = %s", (code,))
+    weather.save(datetime.now(SG))  # the stand-in NEA (conftest): Toa Payoh
+    p = client.get(f"/api/py/solar/plants/{code}", headers=bearer(world["pm"]["clerk_user_id"])).json()
+    assert p["weather"]["area"] == "Toa Payoh" and p["weather"]["forecast"] == "Partly Cloudy (Day)"
+    assert p["weather"]["temperatureC"] == 31.4
+    # Three hours old: not shown as now.
+    fx.conn.execute("update solar_sync set at = now() - interval '4 hours' where key = 'weather'")
+    assert (
+        client.get(f"/api/py/solar/plants/{code}", headers=bearer(world["pm"]["clerk_user_id"])).json()["weather"]
+        is None
+    )

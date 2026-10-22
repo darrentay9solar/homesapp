@@ -1557,6 +1557,26 @@ def solar(c: psycopg.Connection) -> None:
         "insert into solar_sync (key, value, at) values ('ran:live', 'null', %s) on conflict (key) do update set at = excluded.at",
         (now - timedelta(minutes=7),),
     )
+    # Singapore's weather as NEA gives it (api/_lib/weather.py): a few areas and stations, made up.
+    weather = {
+        "areas": [
+            {"name": "Queenstown", "lat": 1.294, "lng": 103.786, "forecast": "Partly Cloudy (Day)"},
+            {"name": "Bukit Timah", "lat": 1.325, "lng": 103.791, "forecast": "Cloudy"},
+            {"name": "Toa Payoh", "lat": 1.334, "lng": 103.856, "forecast": "Light Showers"},
+            {"name": "Bedok", "lat": 1.321, "lng": 103.924, "forecast": "Fair (Day)"},
+        ],
+        "valid": "12 pm to 2 pm",
+        "updated": now.isoformat(),
+        "stations": [
+            {"name": "Clementi Road", "lat": 1.333, "lng": 103.777, "c": 31.2},
+            {"name": "Upper Changi Road North", "lat": 1.367, "lng": 103.983, "c": 30.6},
+        ],
+        "temperatureAt": now.isoformat(),
+    }
+    c.execute(
+        "insert into solar_sync (key, value, at) values ('weather', %s, %s) on conflict (key) do update set value = excluded.value, at = excluded.at",
+        (json.dumps(weather), now - timedelta(minutes=12)),
+    )
     print(f"Solar: {len(systems) + len(extra)} plants")
 
 

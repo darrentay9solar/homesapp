@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from _lib import fusionsolar as fs
+from _lib import weather
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.solar_sync import INVERTERS, SG
@@ -77,7 +78,7 @@ def _connection() -> dict[str, Any]:
 
 
 PLANT_COLUMNS = (
-    "p.station_code, p.name, p.address, coalesce(p.capacity_kwp, m.kwp) as capacity_kwp, p.grid_connected_on, p.health, p.current_kw, p.today_kwh, "
+    "p.station_code, p.name, p.address, p.latitude, p.longitude, coalesce(p.capacity_kwp, m.kwp) as capacity_kwp, p.grid_connected_on, p.health, p.current_kw, p.today_kwh, "
     "p.month_kwh, p.year_kwh, p.total_kwh, p.today_income, p.total_income, p.today_feed_in_kwh, p.today_use_kwh, p.live_at, p.system_id, p.linked_by, "
     "m.rate_per_kwh, m.project_code, m.homeowner_name, m.run_by, u.full_name as homeowner_full_name"
 )
@@ -175,6 +176,7 @@ def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
     )
     out["yearKwh"] = _f(yr["kwh"]) if yr and yr["kwh"] is not None else _f(r["year_kwh"])
     out["benefits"] = _benefits(r["total_kwh"])
+    out["weather"] = weather.for_place(r["latitude"], r["longitude"], now)
     out["devices"] = [
         _device(d, acct, now)
         for d in fetch_all(
@@ -406,7 +408,7 @@ def _report(r: dict[str, Any], by: str, start: str | None, end: str | None) -> d
 
 def _power(sql_from: str, params: tuple[Any, ...], day: date, hourly_codes: list[str] | None) -> dict[str, Any]:
     """kW at each 5 minutes of ``day`` (FusionSolar's power curve), with a gap where there's no reading.
-    Days older than the 5-minute points kept (90 days) are drawn from the hourly kWh instead."""
+    Days older than the 5-minute points kept (400 days) are drawn from the hourly kWh instead."""
     start = datetime(day.year, day.month, day.day, tzinfo=SG)
     end = start + timedelta(days=1)
     rows = fetch_all(

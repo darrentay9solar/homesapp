@@ -71,6 +71,7 @@ export function mockPlant(code: string): PlantDetail {
   const faulty = p.health === "faulty";
   return {
     ...p,
+    weather: { area: "Toa Payoh", forecast: p.health === "faulty" ? "Light Showers" : "Partly Cloudy (Day)", valid: "12 pm to 2 pm", temperatureC: 31.4, station: "Toa Payoh Lorong 4", at: iso(12) },
     yearKwh: Math.round((p.totalKwh ?? 0) * 0.62),
     benefits: { coalTons: Math.round((p.totalKwh ?? 0) * 0.4) / 1000, co2Tons: Math.round((p.totalKwh ?? 0) * 0.475) / 1000, trees: Math.round(((p.totalKwh ?? 0) * 0.475) / 18.3) },
     devices: [

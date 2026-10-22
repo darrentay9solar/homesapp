@@ -34,7 +34,7 @@ def main() -> None:
     ap.add_argument("--target", choices=URLS, required=True)
     ap.add_argument("--confirm", action="store_true", help="needed for production")
     ap.add_argument("--hours", type=int, default=31, help="days back to fetch hour by hour (default 31)")
-    ap.add_argument("--power-days", type=int, default=7, help="days back of 5-minute power for the charts (default 7)")
+    ap.add_argument("--power-days", type=int, default=31, help="days back of 5-minute power for the charts (default 31)")
     a = ap.parse_args()
     if a.target == "prod" and not a.confirm:
         sys.exit("Production needs --confirm.")

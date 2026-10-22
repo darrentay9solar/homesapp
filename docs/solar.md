@@ -60,9 +60,10 @@ As FusionSolar draws them, and the screens update themselves every minute:
 
 - **Power through the day** (kW every 5 minutes): on each plant's Overview, for
   all plants together on Solar, and for each inverter in its Details. The
-  arrows go back a day at a time. 5-minute points are kept 90 days for a
-  plant and 7 days for an inverter; older days are drawn from the hourly kWh
-  (an hour's kWh is its average kW), kept with the plant.
+  arrows go back a day at a time. 5-minute points are kept 400 days for a
+  plant and 31 days for an inverter; older days are drawn from the hourly kWh
+  (an hour's kWh is its average kW), kept with the plant. The import brings
+  the last 31 days.
 - **Yield** by hour, day, month, year and lifetime (columns): each plant's
   Energy tab, with revenue at its contract's rate, and all plants together
   on Solar.

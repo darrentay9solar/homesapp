@@ -105,6 +105,24 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 
 @pytest.fixture(autouse=True)
+def _no_real_weather(monkeypatch: pytest.MonkeyPatch) -> None:
+    """NEA's weather (data.gov.sg) is a stand-in: one area, one station, near the middle of Singapore."""
+    from _lib import weather
+
+    monkeypatch.setattr(
+        weather,
+        "fetch",
+        lambda: {
+            "areas": [{"name": "Toa Payoh", "lat": 1.34, "lng": 103.85, "forecast": "Partly Cloudy (Day)"}],
+            "valid": "12 pm to 2 pm",
+            "updated": None,
+            "stations": [{"name": "Toa Payoh Lorong 4", "lat": 1.33, "lng": 103.85, "c": 31.4}],
+            "temperatureAt": None,
+        },
+    )
+
+
+@pytest.fixture(autouse=True)
 def _no_real_push(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tests never send to real push services; tests about push replace this with their own recorder."""
     from _lib import push
