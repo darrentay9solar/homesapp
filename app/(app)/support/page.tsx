@@ -14,7 +14,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { Page } from "@/components/shell";
 import { AnswersPanel, AskDialog, ChatStart, ThreadCard, useSupportHref } from "@/components/support";
-import { GRID, SegTabs, TopBar } from "@/components/topbar";
+import { GRID, Heading, SegTabs, TopBar } from "@/components/topbar";
 import { ContactLinks, ContactNumbers } from "@/components/contact";
 import { useApi } from "@/lib/client/api";
 import { useMe } from "@/lib/client/app-state";
@@ -145,11 +145,9 @@ function SupportScreen() {
           )}
           {/* Instead of Help, a homeowner can call, WhatsApp or write to 9 Solar Home (the same as the public Contact page). */}
           {data && !staff && (
-            <Box component="section" id="contact" sx={{ mt: 4, scrollMarginTop: 16 }} data-testid="support-contact">
-              <Typography component="h2" sx={{ fontWeight: 600, fontSize: 16 }}>
-                {T("Prefer to reach us another way?")}
-              </Typography>
-              <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5, mb: 1.5 }}>
+            <Box component="section" id="contact" sx={{ mt: 2, scrollMarginTop: 16 }} data-testid="support-contact">
+              <Heading title="Prefer to reach us another way?" />
+              <Typography variant="body2" sx={{ color: "text.secondary", mt: -0.5, mb: 1.5 }}>
                 {T("You don't have to use Help: call, WhatsApp or email 9 Solar Home directly.")}
               </Typography>
               <Stack sx={{ gap: 1.5 }}>
