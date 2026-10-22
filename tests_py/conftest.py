@@ -48,6 +48,17 @@ if _prod and _host(_prod)["host"] == _host(TEST_OWNER_URL)["host"]:
     raise RuntimeError("TEST_MIGRATION_DATABASE_URL points at production. Refusing.")
 os.environ["DATABASE_URL"] = TEST_APP_URL
 
+# Real outside services are never reached from tests, whatever .env.local holds: a test that runs the
+# 15-minute job would otherwise bring the real FusionSolar plants (customers' addresses) into the test
+# branch, ask Claude, or send real email, WhatsApp or SMS. Tests that need one use a stand-in.
+REAL_SERVICES = ("FUSIONSOLAR_", "ANTHROPIC_", "RESEND_", "WHATSAPP_", "TWILIO_", "ZOOM_", "MS_", "GOOGLE_")
+for _k in list(os.environ):
+    if _k.startswith(REAL_SERVICES):
+        del os.environ[_k]
+_db_module = sys.modules["_lib.db"]
+_read_env_file = _db_module._from_env_file
+_db_module._from_env_file = lambda key: "" if key.startswith(REAL_SERVICES) else _read_env_file(key)
+
 PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC_KEY = PRIVATE_KEY.public_key()
 
