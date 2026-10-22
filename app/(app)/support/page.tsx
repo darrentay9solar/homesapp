@@ -7,6 +7,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Skeleton from "@mui/material/Skeleton";
+import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -14,7 +15,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Page } from "@/components/shell";
 import { AnswersPanel, AskDialog, ChatStart, ThreadCard, useSupportHref } from "@/components/support";
 import { GRID, SegTabs, TopBar } from "@/components/topbar";
-import { ContactNumbers } from "@/components/contact";
+import { ContactLinks, ContactNumbers } from "@/components/contact";
 import { useApi } from "@/lib/client/api";
 import { useMe } from "@/lib/client/app-state";
 import { T } from "@/lib/client/i18n";
@@ -102,6 +103,14 @@ function SupportScreen() {
             </Box>
           )}
           {chat && data && <ChatStart name={me.fullName?.split(" ")[0] ?? null} projects={data.projects} ai={data.ai} onStarted={(id) => router.push(href(id))} />}
+          {data && !staff && (
+            <Typography variant="body2" sx={{ color: "text.secondary", mt: 1.5 }} data-testid="support-contact-link">
+              {T("Prefer to call, WhatsApp or email?")}{" "}
+              <Box component="a" href="#contact" sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}>
+                {T("Contact us")}
+              </Box>
+            </Typography>
+          )}
           {chat && shown.length > 0 && (
             <Typography variant="caption" component="p" sx={{ color: "text.secondary", mt: 3, mb: -1, fontWeight: 600 }}>
               {T("Your conversations")}
@@ -134,10 +143,19 @@ function SupportScreen() {
               ))}
             </Box>
           )}
-          {/* A homeowner can also call, WhatsApp or write to 9 Solar Home. */}
+          {/* Instead of Help, a homeowner can call, WhatsApp or write to 9 Solar Home (the same as the public Contact page). */}
           {data && !staff && (
-            <Box sx={{ mt: 3 }}>
-              <ContactNumbers />
+            <Box component="section" id="contact" sx={{ mt: 4, scrollMarginTop: 16 }} data-testid="support-contact">
+              <Typography component="h2" sx={{ fontWeight: 600, fontSize: 16 }}>
+                {T("Prefer to reach us another way?")}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5, mb: 1.5 }}>
+                {T("You don't have to use Help: call, WhatsApp or email 9 Solar Home directly.")}
+              </Typography>
+              <Stack sx={{ gap: 1.5 }}>
+                <ContactNumbers />
+                <ContactLinks />
+              </Stack>
             </Box>
           )}
         </Page>
