@@ -3,7 +3,7 @@
  * the same version (api/_lib/privacy.py VERSION): change both together, and
  * everyone is asked to agree again.
  */
-export const PRIVACY_VERSION = "2026-10-15";
+export const PRIVACY_VERSION = "2026-10-22";
 
 /** The Data Protection Officer's email, shown in the notice (Vercel: NEXT_PUBLIC_DPO_EMAIL). */
 export const DPO_EMAIL = process.env.NEXT_PUBLIC_DPO_EMAIL ?? "";

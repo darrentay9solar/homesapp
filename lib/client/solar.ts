@@ -19,6 +19,9 @@ export type PlantRow = {
   todayKwh: number | null;
   monthKwh: number | null;
   totalKwh: number | null;
+  /** Only where the plant has a meter. */
+  feedInTodayKwh?: number | null;
+  usedTodayKwh?: number | null;
   specificYield: number | null;
   todayRevenue: number | null;
   totalRevenue: number | null;
@@ -42,7 +45,39 @@ export type SolarOverview = {
 };
 
 export type PlantAlarm = { level: AlarmLevel; name: string; device: string | null; cause: string | null; suggestion: string | null; raisedAt: string; clearedAt: string | null };
-export type PlantDevice = { name: string | null; serial: string | null; model: string | null; currentKw: number | null; todayKwh: number | null; totalKwh: number | null; state: string | null };
+export type DeviceKind = "inverter" | "dongle" | "meter" | "battery" | "device";
+export type DeviceState = "producing" | "standby" | "offline";
+/** An inverter's live readings as FusionSolar shows them (only what it reports). */
+export type DeviceReadings = {
+  inverterState: number | null;
+  reactiveKvar: number | null;
+  powerFactor: number | null;
+  efficiency: number | null;
+  frequencyHz: number | null;
+  temperatureC: number | null;
+  inputKw: number | null;
+  startedAt: string | null;
+  stoppedAt: string | null;
+  phases: Array<{ phase: string; voltage: number | null; current: number | null }>;
+  lineVoltages: Array<{ between: string; voltage: number | null }>;
+  strings: Array<{ n: number; voltage: number | null; current: number | null }>;
+  mppts: Array<{ n: number; kwh: number | null }>;
+  mpptTotalKwh: number | null;
+};
+export type PlantDevice = {
+  name: string | null;
+  kind: DeviceKind;
+  serial: string | null;
+  model: string | null;
+  softwareVersion: string | null;
+  optimizers: number | null;
+  currentKw: number | null;
+  todayKwh: number | null;
+  totalKwh: number | null;
+  state: DeviceState | null;
+  liveAt: string | null;
+  readings: DeviceReadings | null;
+};
 
 export type PlantDetail = PlantRow & {
   yearKwh: number | null;
@@ -55,7 +90,12 @@ export type PlantDetail = PlantRow & {
 export type EnergyPeriod = "day" | "month" | "year" | "lifetime";
 export type EnergySeries = { period: EnergyPeriod; date: string; by: string; points: Array<{ at: string; label: string; kwh: number | null; revenue: number | null }>; totalKwh: number | null };
 export type ReportBy = "hour" | "day" | "month";
-export type SolarReport = { by: ReportBy; start: string; end: string; rows: Array<{ period: string; kwh: number | null; revenue: number | null }> };
+export type SolarReport = {
+  by: ReportBy;
+  start: string;
+  end: string;
+  rows: Array<{ period: string; kwh: number | null; revenue: number | null; specificYield: number | null; co2Kg: number | null; coalKg: number | null }>;
+};
 
 export const HEALTH: Array<[Health, string]> = [
   ["normal", "Normal"],
@@ -95,6 +135,27 @@ export function energy(kwh: number | null | undefined): string {
 export function capacity(kwp: number | null | undefined): string {
   if (kwp === null || kwp === undefined) return "—";
   return kwp >= 1000 ? `${fmt(kwp / 1000, 2)} MWp` : `${fmt(kwp, kwp < 100 ? 2 : 1)} kWp`;
+}
+
+export const KIND_LABEL: Record<DeviceKind, string> = { inverter: "Inverter", dongle: "WiFi dongle", meter: "Power meter", battery: "Battery", device: "Device" };
+export const STATE_LABEL: Record<DeviceState, string> = { producing: "Producing", standby: "Standby", offline: "Offline" };
+
+/** FusionSolar's inverter status codes, by group (its own words are longer: "Shutdown: input underpower"...). */
+export function inverterStatus(code: number | null): string | null {
+  if (code === null) return null;
+  if (code === 512) return "Grid-connected";
+  if (code >= 513 && code <= 515) return "Grid-connected, output limited";
+  if (code >= 768 && code <= 776) return "Shut down";
+  if (code === 40960) return "Standby: no sunlight";
+  if (code >= 0 && code <= 3) return "Standby";
+  if (code === 256) return "Starting";
+  return null;
+}
+
+/** A reading with its unit: "231.4 V", "6.85 A", "98.69%". */
+export function reading(v: number | null | undefined, unit: string, digits = 1): string {
+  if (v === null || v === undefined) return "—";
+  return unit === "%" ? `${fmt(v, digits)}%` : unit ? `${fmt(v, digits)} ${unit}` : fmt(v, digits);
 }
 
 export function sgd(v: number | null | undefined): string {

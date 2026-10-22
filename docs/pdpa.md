@@ -46,6 +46,7 @@ Protection Act 2012, what the app does for each obligation, and what
 | Anthropic (support assistant, when switched on) | The question and the asker's own project facts; never other people's | United States |
 | Zoom / Microsoft Teams / Google Meet (when switched on) | Meeting title and time | Their own regions |
 | OneMap (Singapore Land Authority) | Postal codes and addresses being looked up | Singapore |
+| Huawei FusionSolar (system monitoring) | Each plant's name and address, its output and its equipment's readings: FusionSolar holds them already, and the app reads them from it (docs/solar.md) | Huawei's Singapore-region site (sg5) |
 
 Sending data abroad is allowed when the receiver protects it to a standard
 comparable to the PDPA. These services' data processing agreements do that:
@@ -105,7 +106,7 @@ daily run may remove entries, and only those above.
   what the app actually does, not legal advice.
 - **Decide the retention rules** above; once decided, a nightly job can apply them.
 - **Accept each provider's data processing agreement** (Clerk, Resend,
-  Meta, Twilio, Anthropic, Cloudflare, Neon, Vercel).
+  Meta, Twilio, Anthropic, Cloudflare, Neon, Vercel, Huawei FusionSolar).
 - **Laptop backups**: the restore-point backups in `backups/` are not
   encrypted and hold real customers' data. Keep that laptop's disk
   encrypted (BitLocker) and delete restore points you no longer need.

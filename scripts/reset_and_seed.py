@@ -358,7 +358,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
             # is_demo: a sample person visitors can try the demo site as (only the owner can set it).
             # They've agreed to the privacy notice, so visitors aren't asked for sample people (api/_lib/privacy.py VERSION).
             "insert into users (full_name, user_type, email, contact_no, mobile_verified_at, is_demo, privacy_accepted_at, privacy_version) "
-            "values (%s, %s, %s, %s, now(), true, now(), '2026-10-15') returning uid",
+            "values (%s, %s, %s, %s, now(), true, now(), '2026-10-22') returning uid",
             name,
             role,
             f"{key}.demo@example.com",
@@ -878,7 +878,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
         created_on = closed_on - timedelta(days=took)
         ho = one(
             "insert into users (full_name, user_type, email, contact_no, privacy_accepted_at, privacy_version) "
-            "values (%s, 'homeowner', %s, %s, now(), '2026-10-15') returning uid",
+            "values (%s, 'homeowner', %s, %s, now(), '2026-10-22') returning uid",
             f"{name.split()[0]} Homeowner",
             f"past{n}.demo@example.com",
             f"+65 9{n:03d} 7{n:03d}",
@@ -1444,8 +1444,8 @@ def solar(c: psycopg.Connection) -> None:
             kwh = 0.0 if health == "disconnected" and d > today - timedelta(days=2) else round(kwp * 4.2 * weather, 3)
             months[d.replace(day=1)] = months.get(d.replace(day=1), 0.0) + kwh
             c.execute(
-                "insert into solar_readings (station_code, period, at, kwh) values (%s, 'day', %s, %s)",
-                (code, datetime(d.year, d.month, d.day, tzinfo=sg), kwh),
+                "insert into solar_readings (station_code, period, at, kwh, specific_yield) values (%s, 'day', %s, %s, %s)",
+                (code, datetime(d.year, d.month, d.day, tzinfo=sg), kwh, round(kwh / kwp, 3)),
             )
             d += timedelta(days=1)
         if sid:
@@ -1485,11 +1485,35 @@ def solar(c: psycopg.Connection) -> None:
             (power, round(today_kwh, 3), round(months.get(today.replace(day=1), 0.0), 3), round(years.get(today.year, 0.0), 3), round(total, 3),
              now - timedelta(minutes=7 if live else 60 * 30), code),
         )
+        # The inverter's live readings as FusionSolar names them (invented): three phases, four strings on two MPPTs.
+        readings = None
+        if live:
+            kw = power or 0.0
+            amps = round(kw * 1000 / (3 * 231), 2)
+            strings = {f"pv{i}_u": round(505 - i * 3.5 + rng.random() * 4, 1) for i in range(1, 5)}
+            strings |= {f"pv{i}_i": round(kw * 1000 / 4 / strings[f"pv{i}_u"] * (0.1 if health == "faulty" and i == 3 else 1), 2) for i in range(1, 5)}
+            readings = {
+                "active_power": kw, "reactive_power": 0.001, "power_factor": 1.0 if kw else 0.0,
+                "efficiency": 0.0 if not kw else 96.2 if health == "faulty" else 98.4, "elec_freq": 49.98, "temperature": 38.5 + kw * 1.6,
+                "mppt_power": round(kw * 1.02, 3), "inverter_state": 512 if kw else 40960,
+                "a_u": 231.4, "b_u": 232.1, "c_u": 230.8, "a_i": amps, "b_i": amps, "c_i": amps,
+                "ab_u": 400.6, "bc_u": 401.2, "ca_u": 399.9,
+                "mppt_1_cap": round(total * 0.51, 2), "mppt_2_cap": round(total * 0.49, 2), "mppt_total_cap": round(total, 2),
+                "open_time": int(datetime(today.year, today.month, today.day, 6, 52, tzinfo=sg).timestamp() * 1000),
+                "day_cap": round(today_kwh, 3), "total_cap": round(total, 3), "run_state": 1,
+                **strings,
+            }
         c.execute(
-            "insert into solar_devices (dev_id, station_code, name, serial, type_id, model, active_kw, today_kwh, total_kwh, state, live_at) "
-            "values (%s, %s, 'INV-1', %s, 1, 'SUN2000-10KTL-M1', %s, %s, %s, %s, %s)",
+            "insert into solar_devices (dev_id, station_code, name, serial, type_id, model, software_version, active_kw, today_kwh, total_kwh, state, readings, live_at) "
+            "values (%s, %s, 'INV-1', %s, 1, 'SUN2000-10KTL-M1', 'V100R001C00SPC140', %s, %s, %s, %s, %s, %s)",
             (900000 + n, code, f"HV22{400000 + n * 7}", power, round(today_kwh, 3), round(total, 3),
-             "fault" if health == "faulty" else "producing" if live else None, now - timedelta(minutes=7) if live else None),
+             None if not live else "producing" if power else "standby", json.dumps(readings) if readings else None,
+             now - timedelta(minutes=7) if live else None),
+        )
+        c.execute(
+            "insert into solar_devices (dev_id, station_code, name, serial, type_id, model, software_version) "
+            "values (%s, %s, 'Dongle-1', %s, 62, 'SDongleA-05', 'V100R001C00SPC127')",
+            (950000 + n, code, f"HD22{410000 + n * 7}"),
         )
         if health == "faulty":
             c.execute(

@@ -3,7 +3,7 @@
  * Never real customers or real FusionSolar plants: invented names and addresses only.
  */
 
-import type { EnergySeries, Health, PlantDetail, PlantRow, SolarOverview, SolarReport } from "@/lib/client/solar";
+import type { DeviceReadings, EnergySeries, Health, PlantDetail, PlantRow, SolarOverview, SolarReport } from "@/lib/client/solar";
 
 const NOW = Date.now();
 const iso = (minAgo: number) => new Date(NOW - minAgo * 60_000).toISOString();
@@ -74,7 +74,21 @@ export function mockPlant(code: string): PlantDetail {
     yearKwh: Math.round((p.totalKwh ?? 0) * 0.62),
     benefits: { coalTons: Math.round((p.totalKwh ?? 0) * 0.4) / 1000, co2Tons: Math.round((p.totalKwh ?? 0) * 0.475) / 1000, trees: Math.round(((p.totalKwh ?? 0) * 0.475) / 18.3) },
     devices: [
-      { name: "INV-1", serial: "HV2240012345", model: "SUN2000-10KTL-M1", currentKw: p.currentKw, todayKwh: p.todayKwh, totalKwh: p.totalKwh, state: faulty ? "fault" : "producing" },
+      {
+        name: "INV-1",
+        kind: "inverter",
+        serial: "HV2240012345",
+        model: "SUN2000-10KTL-M1",
+        softwareVersion: "V100R001C00SPC140",
+        optimizers: null,
+        currentKw: p.currentKw,
+        todayKwh: p.todayKwh,
+        totalKwh: p.totalKwh,
+        state: p.live ? "producing" : "offline",
+        liveAt: p.liveAt,
+        readings: p.live ? mockReadings(p.currentKw ?? 0, faulty) : null,
+      },
+      { name: "Dongle-1", kind: "dongle", serial: "HD2241009876", model: "SDongleA-05", softwareVersion: "V100R001C00SPC127", optimizers: null, currentKw: null, todayKwh: null, totalKwh: null, state: null, liveAt: null, readings: null },
     ],
     alarms: faulty
       ? [
@@ -83,6 +97,37 @@ export function mockPlant(code: string): PlantDetail {
         ]
       : [],
     connection: { connected: true, lastSync: iso(7) },
+  };
+}
+
+/** An inverter's live readings, made up: four strings on two MPPTs, three phases. */
+function mockReadings(kw: number, faulty: boolean): DeviceReadings {
+  const amps = Math.round(((kw * 1000) / (3 * 231)) * 100) / 100;
+  const volts = [512.4, 509.8, 498.2, 501.7];
+  // Each string carries a quarter of the power; on the faulty plant, string 3 hardly any.
+  const share = faulty ? [0.32, 0.32, 0.04, 0.32] : [0.25, 0.25, 0.25, 0.25];
+  return {
+    inverterState: 512,
+    reactiveKvar: 0.001,
+    powerFactor: 1,
+    efficiency: faulty ? 96.2 : 98.4,
+    frequencyHz: 49.98,
+    temperatureC: 47.3,
+    inputKw: Math.round(kw * 1.02 * 1000) / 1000,
+    startedAt: iso(60 * 6),
+    stoppedAt: iso(60 * 19),
+    phases: ["A", "B", "C"].map((phase, i) => ({ phase, voltage: [231.4, 232.1, 230.8][i], current: amps })),
+    lineVoltages: [
+      { between: "AB", voltage: 400.6 },
+      { between: "BC", voltage: 401.2 },
+      { between: "CA", voltage: 399.9 },
+    ],
+    strings: volts.map((voltage, i) => ({ n: i + 1, voltage, current: Math.round(((kw * 1020 * share[i]) / voltage) * 100) / 100 })),
+    mppts: [
+      { n: 1, kwh: 9840.27 },
+      { n: 2, kwh: 9512.6 },
+    ],
+    mpptTotalKwh: 19352.87,
   };
 }
 
@@ -117,5 +162,16 @@ export function mockReport(search: URLSearchParams): SolarReport {
       : by === "day"
         ? Array.from({ length: 31 }, (_, i) => ({ period: sgDay(i - 30), kwh: Math.round((48 + ((i * 37) % 23)) * 10) / 10 }))
         : Array.from({ length: 12 }, (_, i) => ({ period: `M${i + 1}`, kwh: Math.round(1400 + 300 * Math.sin(i / 2)) }));
-  return { by, start: sgDay(-30), end: sgDay(), rows: rows.map((r) => ({ ...r, revenue: r.kwh === null ? null : Math.round(r.kwh * 0.265 * 100) / 100 })) };
+  return {
+    by,
+    start: sgDay(-30),
+    end: sgDay(),
+    rows: rows.map((r) => ({
+      ...r,
+      revenue: r.kwh === null ? null : Math.round(r.kwh * 0.265 * 100) / 100,
+      specificYield: r.kwh === null ? null : Math.round((r.kwh / 15.2) * 1000) / 1000,
+      co2Kg: r.kwh === null ? null : Math.round(r.kwh * 0.475 * 10) / 10,
+      coalKg: r.kwh === null ? null : Math.round(r.kwh * 0.4 * 10) / 10,
+    })),
+  };
 }

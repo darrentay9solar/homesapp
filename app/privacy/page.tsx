@@ -53,7 +53,7 @@ export default function PrivacyPage() {
           <Points
             items={[
               T("Your name, email address, mobile number and the language you use."),
-              T("Homeowners: your address and postal code, your solar contract and system, what it generates, your invoices and payments, and the last 3 digits and letter of your NRIC if you give them. We never ask for your full NRIC."),
+              T("Homeowners: your address and postal code, your solar contract and system, what it generates and its equipment's readings (from its monitoring), your invoices and payments, and the last 3 digits and letter of your NRIC if you give them. We never ask for your full NRIC."),
               T("Crew at a site: where your phone is when you check in and out, and when."),
               T("When you sign: your signature and name, the time, and the internet address and browser you signed from."),
               T("Photos and files you upload, your messages to support, and your replies to meetings."),
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
           <Points
             items={[
               T("Your project manager, the crew on your project and our admin team, only as far as their work needs."),
-              T("Services that run the app for us: Neon (database, Singapore), Vercel (hosting, Singapore), Cloudflare (files), Clerk (sign-in), Resend (email), Meta (WhatsApp), Twilio (SMS), Anthropic (the support assistant) and OneMap (addresses). Some are outside Singapore; each is bound to protect your data to a standard comparable to the PDPA."),
+              T("Services that run the app for us: Neon (database, Singapore), Vercel (hosting, Singapore), Cloudflare (files), Clerk (sign-in), Resend (email), Meta (WhatsApp), Twilio (SMS), Anthropic (the support assistant), OneMap (addresses) and Huawei FusionSolar (your solar system's monitoring). Some are outside Singapore; each is bound to protect your data to a standard comparable to the PDPA."),
               T("We never sell your personal data."),
             ]}
           />

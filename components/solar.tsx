@@ -50,13 +50,18 @@ import {
   type Health,
   LEVEL_LABEL,
   LEVELS,
+  inverterStatus,
+  KIND_LABEL,
   type PlantDetail,
+  type PlantDevice,
   periodTitle,
   power,
+  reading,
   type ReportBy,
   type SolarReport,
   sgd,
   shiftDate,
+  STATE_LABEL,
 } from "@/lib/client/solar";
 
 // Status colours are kept for state, with an icon and a word, never colour alone.
@@ -77,6 +82,8 @@ const LEVEL_COLOR: Record<AlarmLevel, string> = { critical: "error.main", major:
 export function HealthChip({ health }: { health: Health }) {
   return (
     <Chip
+      // A span: it also sits in the header's line of text (a <p>).
+      component="span"
       size="small"
       variant="outlined"
       label={TR(HEALTH_LABEL[health])}
@@ -167,7 +174,7 @@ type PlantTab = "overview" | "energy" | "devices" | "alarms" | "report";
 export const PLANT_TABS: Array<[PlantTab, string]> = [
   ["overview", "Overview"],
   ["energy", "Energy"],
-  ["devices", "Inverters"],
+  ["devices", "Devices"],
   ["alarms", "Alarms"],
   ["report", "Report"],
 ];
@@ -200,6 +207,8 @@ export function PlantOverview({ p }: { p: PlantDetail }) {
           <Fact label={T("Status")} value={<HealthChip health={p.health} />} />
           <Fact label={T("Installed capacity")} value={capacity(p.capacityKwp)} />
           <Fact label={T("Grid connection date")} value={p.gridConnectedOn ?? "—"} />
+          {p.feedInTodayKwh != null && <Fact label={T("Fed into the grid today")} value={energy(p.feedInTodayKwh)} />}
+          {p.usedTodayKwh != null && <Fact label={T("Used today")} value={energy(p.usedTodayKwh)} />}
           <Fact label={T("Contract rate")} value={p.rate !== null ? T("{rate} per kWh", { rate: sgd(p.rate) }) : "—"} />
           {p.address && <Fact label={T("Address")} value={p.address} />}
         </Card>
@@ -288,37 +297,134 @@ export function EnergyPanel({ base }: { base: string }) {
 }
 
 export function DevicesPanel({ p }: { p: PlantDetail }) {
+  const [open, setOpen] = useState<number | null>(null);
   if (!p.devices.length) {
     return (
       <Card sx={{ p: 3, mt: 1.5, textAlign: "center", color: "text.secondary" }} data-testid="devices-empty">
-        {T("No inverters brought in yet.")}
+        {T("No devices brought in yet.")}
       </Card>
     );
   }
+  const shown = open !== null ? p.devices[open] : null;
   return (
-    <Stack sx={{ gap: 1, mt: 1.5 }} data-testid="devices">
-      {p.devices.map((d, i) => (
-        <Card key={`${d.serial ?? d.name}-${i}`} sx={{ p: 2 }}>
-          <Stack direction="row" sx={{ gap: 1, rowGap: 0.5, alignItems: "center", flexWrap: "wrap" }}>
-            <Typography sx={{ fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{d.name ?? T("Inverter")}</Typography>
-            {d.state && <Chip size="small" variant="outlined" label={T(d.state === "producing" ? "Producing" : d.state === "fault" ? "Fault" : "Standby")} color={d.state === "fault" ? "error" : d.state === "producing" ? "success" : "default"} />}
-            <Typography variant="body2" sx={{ color: "text.secondary", ml: "auto" }}>
-              {d.model ?? ""}
-            </Typography>
-          </Stack>
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 1, mt: 1 }}>
-            <Fig label={T("Power now")} value={power(d.currentKw)} />
-            <Fig label={T("Yield today")} value={energy(d.todayKwh)} />
-            <Fig label={T("Total yield")} value={energy(d.totalKwh)} />
-          </Box>
-          {d.serial && (
-            <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.75, overflowWrap: "anywhere" }}>
-              {T("Serial {sn}", { sn: d.serial })}
-            </Typography>
-          )}
-        </Card>
-      ))}
-    </Stack>
+    <>
+      <Stack sx={{ gap: 1, mt: 1.5 }} data-testid="devices">
+        {p.devices.map((d, i) => (
+          <Card key={`${d.serial ?? d.name}-${i}`} sx={{ p: 2 }} data-testid={`device-${d.kind}`}>
+            <Stack direction="row" sx={{ gap: 1, rowGap: 0.5, alignItems: "center", flexWrap: "wrap" }}>
+              <Typography sx={{ fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{d.name ?? TR(KIND_LABEL[d.kind])}</Typography>
+              <Chip size="small" variant="outlined" label={TR(KIND_LABEL[d.kind])} />
+              {d.state && <Chip size="small" label={TR(STATE_LABEL[d.state])} color={d.state === "producing" ? "success" : "default"} variant={d.state === "producing" ? "filled" : "outlined"} />}
+              <Typography variant="body2" sx={{ color: "text.secondary", ml: "auto", minWidth: 0, overflowWrap: "anywhere" }}>
+                {d.model ?? ""}
+              </Typography>
+            </Stack>
+            {d.kind === "inverter" && (
+              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))", gap: 1, mt: 1 }}>
+                <Fig label={T("Power now")} value={power(d.currentKw)} />
+                <Fig label={T("Yield today")} value={energy(d.todayKwh)} />
+                <Fig label={T("Total yield")} value={energy(d.totalKwh)} />
+              </Box>
+            )}
+            <Stack direction="row" sx={{ gap: 1, rowGap: 0.5, alignItems: "center", flexWrap: "wrap", mt: 1 }}>
+              <Typography variant="caption" sx={{ color: "text.secondary", minWidth: 0, overflowWrap: "anywhere", mr: "auto" }}>
+                {[d.serial ? T("Serial {sn}", { sn: d.serial }) : null, d.softwareVersion ? T("Software {v}", { v: d.softwareVersion }) : null].filter(Boolean).join(" · ")}
+              </Typography>
+              <Button size="small" onClick={() => setOpen(i)} data-testid="device-open">
+                {T("Details")}
+              </Button>
+            </Stack>
+          </Card>
+        ))}
+      </Stack>
+      {shown && <DeviceDialog d={shown} onClose={() => setOpen(null)} />}
+    </>
+  );
+}
+
+/** Everything FusionSolar shows about one device: its live readings, by group, and what it is. */
+function DeviceDialog({ d, onClose }: { d: PlantDevice; onClose: () => void }) {
+  const r = d.readings;
+  const status = r ? inverterStatus(r.inverterState) : null;
+  return (
+    <MDialog title={d.name ?? TR(KIND_LABEL[d.kind])} onClose={onClose}>
+      <Box data-testid="device-dialog">
+        {d.liveAt && (
+          <Typography variant="caption" component="p" sx={{ color: "text.secondary", mb: 1 }}>
+            {T("Readings from {when}", { when: ago(d.liveAt) })}
+          </Typography>
+        )}
+        {d.kind === "inverter" && !r && (
+          <Alert severity="info" sx={{ mb: 1.5 }}>
+            {T("No live readings from this inverter just now.")}
+          </Alert>
+        )}
+        {r && (
+          <>
+            <DeviceSection title="Status">
+              {status && <Fact label={T("Inverter status")} value={TR(status)} />}
+              {d.state && <Fact label={T("Running state")} value={TR(STATE_LABEL[d.state])} />}
+              {r.startedAt && <Fact label={T("Switched on")} value={dt2s(r.startedAt)} />}
+              {r.stoppedAt && <Fact label={T("Switched off")} value={dt2s(r.stoppedAt)} />}
+            </DeviceSection>
+            <DeviceSection title="Output">
+              <Fact label={T("Power now")} value={power(d.currentKw)} />
+              <Fact label={T("Input power (DC)")} value={power(r.inputKw)} />
+              <Fact label={T("Reactive power")} value={reading(r.reactiveKvar, "kvar", 3)} />
+              <Fact label={T("Power factor")} value={reading(r.powerFactor, "", 3)} />
+              <Fact label={T("Efficiency")} value={reading(r.efficiency, "%", 2)} />
+              <Fact label={T("Grid frequency")} value={reading(r.frequencyHz, "Hz", 2)} />
+              <Fact label={T("Inverter temperature")} value={reading(r.temperatureC, "°C")} />
+              <Fact label={T("Yield today")} value={energy(d.todayKwh)} />
+              <Fact label={T("Total yield")} value={energy(d.totalKwh)} />
+            </DeviceSection>
+            {(r.phases.length > 0 || r.lineVoltages.length > 0) && (
+              <DeviceSection title="Grid">
+                {r.phases.length > 0 && <PlainTable head={["Phase", "Voltage", "Current"]} rows={r.phases.map((x) => [x.phase, reading(x.voltage, "V"), reading(x.current, "A", 2)])} />}
+                {r.lineVoltages.map((x) => (
+                  <Fact key={x.between} label={T("Voltage {between}", { between: x.between })} value={reading(x.voltage, "V")} />
+                ))}
+              </DeviceSection>
+            )}
+            <DeviceSection title="PV strings">
+              {r.strings.length > 0 ? (
+                <PlainTable
+                  head={["String", "Voltage", "Current", "Power"]}
+                  rows={r.strings.map((x) => [`PV${x.n}`, reading(x.voltage, "V"), reading(x.current, "A", 2), x.voltage !== null && x.current !== null ? power((x.voltage * x.current) / 1000) : "—"])}
+                />
+              ) : (
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {T("The strings read nothing just now (at night they read zero).")}
+                </Typography>
+              )}
+            </DeviceSection>
+            {r.mppts.length > 0 && (
+              <DeviceSection title="Energy by MPPT">
+                <PlainTable head={["MPPT", "Total"]} rows={[...r.mppts.map((x) => [`MPPT ${x.n}`, energy(x.kwh)]), ...(r.mpptTotalKwh !== null ? [[T("All"), energy(r.mpptTotalKwh)]] : [])]} />
+              </DeviceSection>
+            )}
+          </>
+        )}
+        <DeviceSection title="About">
+          <Fact label={T("Type")} value={TR(KIND_LABEL[d.kind])} />
+          {d.model && <Fact label={T("Model")} value={d.model} />}
+          {d.serial && <Fact label={T("Serial number")} value={d.serial} />}
+          {d.softwareVersion && <Fact label={T("Software version")} value={d.softwareVersion} />}
+          {d.optimizers !== null && <Fact label={T("Optimisers")} value={String(d.optimizers)} />}
+        </DeviceSection>
+      </Box>
+    </MDialog>
+  );
+}
+
+function DeviceSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Box sx={{ "& + &": { mt: 2 } }}>
+      <Typography component="h3" sx={{ fontWeight: 600, fontSize: 14.5, mb: 0.5 }}>
+        {TR(title)}
+      </Typography>
+      {children}
+    </Box>
   );
 }
 
@@ -381,6 +487,9 @@ export function ReportPanel({ base, exportable, plantName }: { base: string; exp
       { key: "period", label: "Period", get: (r) => r.period, width: 160 },
       { key: "kwh", label: "Yield (kWh)", type: "number", get: (r) => r.kwh, width: 120 },
       { key: "revenue", label: "Revenue (S$)", type: "number", get: (r) => r.revenue, width: 120 },
+      { key: "specificYield", label: "Specific yield (kWh/kWp)", type: "number", get: (r) => r.specificYield, width: 150 },
+      { key: "co2Kg", label: "CO₂ avoided (kg)", type: "number", get: (r) => r.co2Kg, width: 130 },
+      { key: "coalKg", label: "Standard coal saved (kg)", type: "number", get: (r) => r.coalKg, width: 150 },
     ],
     []
   );
@@ -396,7 +505,10 @@ export function ReportPanel({ base, exportable, plantName }: { base: string; exp
       {data && exportable && <DataTable rows={data.rows} cols={cols} rowKey={(r) => r.period} exportAs={{ what: "solar_report", title: plantName.slice(0, 31) }} testId="solar-report" />}
       {data && !exportable && (
         <Card sx={{ p: 1 }} data-testid="solar-report">
-          <PlainTable head={[T("Period"), T("Yield (kWh)"), T("Revenue (S$)")]} rows={data.rows.map((r) => [r.period, r.kwh ?? "—", r.revenue ?? "—"])} />
+          <PlainTable
+            head={["Period", "Yield (kWh)", "Revenue (S$)", "Specific yield (kWh/kWp)", "CO₂ avoided (kg)"]}
+            rows={data.rows.map((r) => [r.period, r.kwh ?? "—", r.revenue ?? "—", r.specificYield ?? "—", r.co2Kg ?? "—"])}
+          />
         </Card>
       )}
     </Box>
@@ -455,7 +567,7 @@ export function LinkDialog({ code, current, onClose, onDone }: { code: string; c
 
 /**
  * One plant, in tabs as FusionSolar has them: the overview, energy charts,
- * inverters, alarms and a report. `base` is where its data comes from
+ * devices (each inverter's full readings), alarms and a report. `base` is where its data comes from
  * (/solar/plants/CODE for staff, /me/solar for a homeowner).
  */
 export function PlantScreen({ base, staff, onBack }: { base: string; staff: boolean; onBack?: () => void }) {

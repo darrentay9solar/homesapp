@@ -63,6 +63,17 @@ def _num(v: Any) -> Decimal | None:
         return None
 
 
+def _readings(m: dict[str, Any]) -> dict[str, float]:
+    """A device's live readings as FusionSolar names them (a_u, pv1_i, mppt_3_cap, open_time...),
+    numbers only: what it doesn't report is left out rather than kept as 0."""
+    out: dict[str, float] = {}
+    for k, v in m.items():
+        n = _num(v)
+        if n is not None and re.fullmatch(r"[A-Za-z0-9_]{1,40}", str(k)):
+            out[str(k)] = float(n)
+    return out
+
+
 def _first(d: dict[str, Any], *keys: str) -> Any:
     for k in keys:
         if d.get(k) not in (None, ""):
@@ -134,7 +145,7 @@ def save_plants(rows: list[dict[str, Any]]) -> int:
                 "insert into solar_plants (station_code, name, address, capacity_kwp, grid_connected_on, latitude, longitude, seen_at) "
                 "values (%s, %s, %s, %s, %s, %s, %s, now()) "
                 "on conflict (station_code) do update set name = excluded.name, address = excluded.address, "
-                "capacity_kwp = excluded.capacity_kwp, grid_connected_on = excluded.grid_connected_on, "
+                "capacity_kwp = coalesce(excluded.capacity_kwp, solar_plants.capacity_kwp), grid_connected_on = excluded.grid_connected_on, "
                 "latitude = excluded.latitude, longitude = excluded.longitude, seen_at = now()",
                 (
                     code,
@@ -196,13 +207,16 @@ def save_live(rows: list[dict[str, Any]], now: datetime) -> int:
             health = HEALTH.get(int(_num(m.get("real_health_state")) or 0))
             cur.execute(
                 "update solar_plants set today_kwh = %s, month_kwh = %s, total_kwh = %s, today_income = %s, "
-                "total_income = %s, health = coalesce(%s, health), live_at = %s where station_code = %s",
+                "total_income = %s, today_feed_in_kwh = %s, today_use_kwh = %s, health = coalesce(%s, health), "
+                "live_at = %s where station_code = %s",
                 (
                     _num(m.get("day_power")),
                     _num(m.get("month_power")),
                     _num(m.get("total_power")),
                     _num(m.get("day_income")),
                     _num(m.get("total_income")),
+                    _num(m.get("day_on_grid_energy")),
+                    _num(m.get("day_use_energy")),
                     health,
                     now,
                     r.get("stationCode"),
@@ -219,9 +233,11 @@ def save_devices(rows: list[dict[str, Any]]) -> int:
             if r.get("id") is None or not r.get("stationCode"):
                 continue
             cur.execute(
-                "insert into solar_devices (dev_id, station_code, name, serial, type_id, model) values (%s, %s, %s, %s, %s, %s) "
+                "insert into solar_devices (dev_id, station_code, name, serial, type_id, model, software_version, optimizers) "
+                "values (%s, %s, %s, %s, %s, %s, %s, %s) "
                 "on conflict (dev_id) do update set station_code = excluded.station_code, name = excluded.name, "
-                "serial = excluded.serial, type_id = excluded.type_id, model = excluded.model",
+                "serial = excluded.serial, type_id = excluded.type_id, model = excluded.model, "
+                "software_version = excluded.software_version, optimizers = excluded.optimizers",
                 (
                     int(r["id"]),
                     r["stationCode"],
@@ -229,6 +245,8 @@ def save_devices(rows: list[dict[str, Any]]) -> int:
                     r.get("esnCode"),
                     r.get("devTypeId"),
                     r.get("invType") or r.get("model"),
+                    r.get("softwareVersion") or None,
+                    int(n) if (n := _num(r.get("optimizerNumber"))) is not None else None,
                 ),
             )
             n += 1
@@ -236,18 +254,23 @@ def save_devices(rows: list[dict[str, Any]]) -> int:
 
 
 def save_device_live(rows: list[dict[str, Any]], now: datetime) -> None:
-    """Each inverter's power now; a plant's power now is the sum of its inverters'."""
+    """Each inverter's live readings (all of them, as FusionSolar names them); a plant's power now is
+    the sum of its inverters'."""
     with transaction(None) as cur:
         for r in rows:
             m = r.get("dataItemMap") or {}
-            state = {0: "standby", 1: "producing", 2: "fault"}.get(int(_num(m.get("run_state")) or -1))
+            # run_state is whether FusionSolar can reach it (0 no, 1 yes); producing is whether it's making power.
+            run, kw = _num(m.get("run_state")), _num(m.get("active_power"))
+            state = None if run is None else "offline" if run == 0 else "producing" if kw and kw > 0 else "standby"
             cur.execute(
-                "update solar_devices set active_kw = %s, today_kwh = %s, total_kwh = %s, state = %s, live_at = %s where dev_id = %s",
+                "update solar_devices set active_kw = %s, today_kwh = %s, total_kwh = %s, state = %s, readings = %s, "
+                "live_at = %s where dev_id = %s",
                 (
                     _num(m.get("active_power")),
                     _num(m.get("day_cap")),
                     _num(m.get("total_cap")),
                     state,
+                    json.dumps(_readings(m)),
                     now,
                     r.get("devId"),
                 ),
@@ -285,12 +308,28 @@ def save_history(period: str, rows: list[dict[str, Any]]) -> int:
             if not (at and r.get("stationCode")) or (kwh is None and _num(m.get("power_profit")) is None):
                 continue
             cur.execute(
-                "insert into solar_readings (station_code, period, at, kwh, income, updated_at) values (%s, %s, %s, %s, %s, now()) "
-                "on conflict (station_code, period, at) do update set kwh = excluded.kwh, income = excluded.income, updated_at = now() "
-                "where solar_readings.kwh is distinct from excluded.kwh or solar_readings.income is distinct from excluded.income",
-                (r["stationCode"], period, _start(period, at), kwh, _num(m.get("power_profit"))),
+                "insert into solar_readings (station_code, period, at, kwh, income, specific_yield, updated_at) "
+                "values (%s, %s, %s, %s, %s, %s, now()) "
+                "on conflict (station_code, period, at) do update set kwh = excluded.kwh, income = excluded.income, "
+                "specific_yield = excluded.specific_yield, updated_at = now() "
+                "where solar_readings.kwh is distinct from excluded.kwh or solar_readings.income is distinct from excluded.income "
+                "or solar_readings.specific_yield is distinct from excluded.specific_yield",
+                (
+                    r["stationCode"],
+                    period,
+                    _start(period, at),
+                    kwh,
+                    _num(m.get("power_profit")),
+                    _num(m.get("perpower_ratio")),
+                ),
             )
             n += cur.rowcount
+            # Most plants have no size on FusionSolar's plant list; its daily figures carry one.
+            if size := _kwp(m.get("installed_capacity")):
+                cur.execute(
+                    "update solar_plants set capacity_kwp = %s where station_code = %s and capacity_kwp is distinct from %s",
+                    (size, r["stationCode"], size),
+                )
     return n
 
 

@@ -365,6 +365,13 @@
       "when": 1792120000000,
       "tag": "0051_solar",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1792200000000,
+      "tag": "0052_solar_more",
+      "breakpoints": true
     }
   ]
 }

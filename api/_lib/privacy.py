@@ -18,7 +18,7 @@ from typing import Any
 
 from _lib.db import fetch_all, fetch_one
 
-VERSION = "2026-10-15"
+VERSION = "2026-10-22"
 
 # Never in the download: ways into the account, other systems' ids, our own storage keys.
 HIDDEN = {

@@ -287,3 +287,88 @@ def test_a_plant_with_no_size_in_fusionsolar_has_none_not_zero(fx, plant_codes) 
         ]
         is None
     )
+
+
+def test_an_inverters_full_readings_are_kept(fx, plant_codes) -> None:
+    a = _code()
+    plant_codes.append(a)
+    sync.save_plants([{"plantCode": a, "plantName": "Readings test"}])
+    base = int(uuid.uuid4().int % 10**12)
+    sync.save_devices(
+        [
+            {
+                "id": base,
+                "stationCode": a,
+                "devName": "INV-1",
+                "devTypeId": 38,
+                "softwareVersion": "V100",
+                "optimizerNumber": 0,
+            },
+            {"id": base + 1, "stationCode": a, "devName": "Dongle", "devTypeId": 62, "softwareVersion": "V200"},
+        ]
+    )
+    sync.save_device_live(
+        [
+            {
+                "devId": base,
+                "dataItemMap": {
+                    "active_power": 0,
+                    "run_state": 1,
+                    "a_u": "231.4",
+                    "pv1_u": 412,
+                    "pv1_i": None,
+                    "temperature": "N/A",
+                },
+            }
+        ],
+        NOW,
+    )
+    d = fx.conn.execute("select * from solar_devices where dev_id = %s", (base,)).fetchone()
+    # Reachable but making nothing (at night) is standby, not "producing"; what it doesn't report is left out.
+    assert d["state"] == "standby" and d["software_version"] == "V100"
+    assert d["readings"] == {"active_power": 0.0, "run_state": 1.0, "a_u": 231.4, "pv1_u": 412.0}
+    sync.save_device_live([{"devId": base, "dataItemMap": {"run_state": 0}}], NOW)
+    assert (
+        fx.conn.execute("select state from solar_devices where dev_id = %s", (base,)).fetchone()["state"] == "offline"
+    )
+
+
+def test_a_plants_size_and_specific_yield_come_from_its_daily_figures(fx, plant_codes) -> None:
+    a = _code()
+    plant_codes.append(a)
+    sync.save_plants([{"plantCode": a, "plantName": "Size test", "capacity": 0}])
+    day = int(datetime(2026, 10, 21, tzinfo=sync.SG).timestamp() * 1000)
+    sync.save_history(
+        "day",
+        [
+            {
+                "stationCode": a,
+                "collectTime": day,
+                "dataItemMap": {"inverter_power": 38.5, "perpower_ratio": 3.85, "installed_capacity": 10},
+            }
+        ],
+    )
+    assert fx.conn.execute("select capacity_kwp from solar_plants where station_code = %s", (a,)).fetchone()[
+        "capacity_kwp"
+    ] == Decimal("10")
+    assert fx.conn.execute(
+        "select specific_yield from solar_readings where station_code = %s and period = 'day'", (a,)
+    ).fetchone()["specific_yield"] == Decimal("3.850")
+    # The plant list again, still with no size: the size from the daily figures stays.
+    sync.save_plants([{"plantCode": a, "plantName": "Size test", "capacity": 0}])
+    assert fx.conn.execute("select capacity_kwp from solar_plants where station_code = %s", (a,)).fetchone()[
+        "capacity_kwp"
+    ] == Decimal("10")
+
+
+def test_fed_into_the_grid_and_used_today(fx, plant_codes) -> None:
+    a = _code()
+    plant_codes.append(a)
+    sync.save_plants([{"plantCode": a, "plantName": "Meter test"}])
+    sync.save_live(
+        [{"stationCode": a, "dataItemMap": {"day_power": 20, "day_on_grid_energy": 12.5, "day_use_energy": 7.5}}], NOW
+    )
+    p = fx.conn.execute(
+        "select today_feed_in_kwh, today_use_kwh from solar_plants where station_code = %s", (a,)
+    ).fetchone()
+    assert p == {"today_feed_in_kwh": Decimal("12.5"), "today_use_kwh": Decimal("7.5")}

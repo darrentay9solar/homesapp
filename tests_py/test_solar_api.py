@@ -127,3 +127,42 @@ def test_linking_a_plant(client, world, fx) -> None:
         ).status_code
         == 403
     )
+
+
+def test_every_device_and_an_inverters_readings(client, world, fx) -> None:
+    code = world["codes"]["mine"]
+    fx.conn.execute(
+        "insert into solar_devices (dev_id, station_code, name, serial, type_id, software_version, readings, live_at) values "
+        "(%s, %s, 'INV-1', 'SN1', 38, 'V100', %s, now()), (%s, %s, 'Dongle', 'SN2', 62, 'V200', null, null)",
+        (
+            910001,
+            code,
+            '{"active_power": 3.2, "a_u": 231.4, "a_i": 4.6, "pv1_u": 510, "pv1_i": 3.2, "pv2_u": 0, "pv2_i": 0, '
+            '"mppt_1_cap": 900.5, "open_time": 1792549920000, "inverter_state": 512, "efficiency": 98.4}',
+            910002,
+            code,
+        ),
+    )
+    try:
+        p = client.get(f"/api/py/solar/plants/{code}", headers=bearer(world["pm"]["clerk_user_id"])).json()
+        kinds = [d["kind"] for d in p["devices"]]
+        assert kinds == ["inverter", "dongle"]  # inverters first
+        r = p["devices"][0]["readings"]
+        assert r["phases"] == [{"phase": "A", "voltage": 231.4, "current": 4.6}]
+        assert r["strings"] == [{"n": 1, "voltage": 510.0, "current": 3.2}]  # a string reading 0 isn't listed
+        assert r["mppts"] == [{"n": 1, "kwh": 900.5}] and r["inverterState"] == 512 and r["startedAt"]
+        assert p["devices"][1]["readings"] is None and p["devices"][1]["softwareVersion"] == "V200"
+        # A homeowner sees the readings, not the serial numbers.
+        mine = client.get("/api/py/me/solar", headers=bearer(world["ho"]["clerk_user_id"])).json()["plant"]
+        assert mine["devices"][0]["readings"]["efficiency"] == 98.4 and mine["devices"][0]["serial"] is None
+    finally:
+        fx.conn.execute("delete from solar_devices where dev_id in (910001, 910002)")
+
+
+def test_the_report_has_specific_yield_and_benefits(client, world, fx) -> None:
+    h = bearer(world["pm"]["clerk_user_id"])
+    rows = client.get(f"/api/py/solar/plants/{world['codes']['mine']}/report", params={"by": "hour"}, headers=h).json()[
+        "rows"
+    ]
+    first = rows[0]  # 0.9 kWh on a 10 kWp plant
+    assert first["specificYield"] == 0.09 and first["co2Kg"] == 0.4 and first["coalKg"] == 0.4

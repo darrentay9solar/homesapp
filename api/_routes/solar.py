@@ -78,7 +78,7 @@ def _connection() -> dict[str, Any]:
 
 PLANT_COLUMNS = (
     "p.station_code, p.name, p.address, coalesce(p.capacity_kwp, m.kwp) as capacity_kwp, p.grid_connected_on, p.health, p.current_kw, p.today_kwh, "
-    "p.month_kwh, p.year_kwh, p.total_kwh, p.today_income, p.total_income, p.live_at, p.system_id, p.linked_by, "
+    "p.month_kwh, p.year_kwh, p.total_kwh, p.today_income, p.total_income, p.today_feed_in_kwh, p.today_use_kwh, p.live_at, p.system_id, p.linked_by, "
     "m.rate_per_kwh, m.project_code, m.homeowner_name, m.run_by, u.full_name as homeowner_full_name"
 )
 FROM = "from solar_plants p left join maintenance_systems m on m.system_id = p.system_id left join users u on u.uid = m.homeowner_id"
@@ -99,6 +99,9 @@ def _row(r: dict[str, Any], now: datetime) -> dict[str, Any]:
         "todayKwh": _f(r["today_kwh"]),
         "monthKwh": _f(r["month_kwh"]),
         "totalKwh": _f(r["total_kwh"]),
+        # Only where the plant has a meter: FusionSolar gives 0 otherwise, which isn't a reading.
+        "feedInTodayKwh": _f(r["today_feed_in_kwh"]) if r["today_feed_in_kwh"] else None,
+        "usedTodayKwh": _f(r["today_use_kwh"]) if r["today_use_kwh"] else None,
         # kWh for each kWp installed today: how well a plant is doing whatever its size.
         "specificYield": round(float(r["today_kwh"] / cap), 2) if r["today_kwh"] is not None and cap else None,
         "todayRevenue": _revenue(r["today_kwh"], r["rate_per_kwh"], r["today_income"]),
@@ -173,17 +176,9 @@ def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
     out["yearKwh"] = _f(yr["kwh"]) if yr and yr["kwh"] is not None else _f(r["year_kwh"])
     out["benefits"] = _benefits(r["total_kwh"])
     out["devices"] = [
-        {
-            "name": d["name"],
-            "serial": d["serial"] if acct.role != "homeowner" else None,
-            "model": d["model"],
-            "currentKw": _f(d["active_kw"]) if d["live_at"] and now - d["live_at"] <= STALE else None,
-            "todayKwh": _f(d["today_kwh"]),
-            "totalKwh": _f(d["total_kwh"]),
-            "state": d["state"],
-        }
+        _device(d, acct, now)
         for d in fetch_all(
-            "select * from solar_devices where station_code = %s and type_id = any(%s) order by name",
+            "select * from solar_devices where station_code = %s order by type_id = any(%s) desc, name",
             (r["station_code"], list(INVERTERS)),
         )
     ]
@@ -208,6 +203,60 @@ def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
             out.pop(k, None)
     out["connection"] = _connection()
     return out
+
+
+KINDS = {1: "inverter", 38: "inverter", 62: "dongle", 47: "meter", 39: "battery"}
+
+
+def _ms_iso(v: Any) -> str | None:
+    return datetime.fromtimestamp(v / 1000, SG).isoformat() if isinstance(v, int | float) and v > 0 else None
+
+
+def _device(d: dict[str, Any], acct: Account, now: datetime) -> dict[str, Any]:
+    """One device, with an inverter's live readings as FusionSolar shows them, grouped."""
+    live = d["live_at"] is not None and now - d["live_at"] <= STALE
+    r: dict[str, float] = (d["readings"] or {}) if live else {}
+    g = r.get
+    strings = [
+        {"n": i, "voltage": g(f"pv{i}_u"), "current": g(f"pv{i}_i")}
+        for i in range(1, 49)
+        if g(f"pv{i}_u") or g(f"pv{i}_i")  # a string not in use (or at night) reads 0
+    ]
+    return {
+        "name": d["name"],
+        "kind": KINDS.get(d["type_id"], "device"),
+        "serial": d["serial"] if acct.role != "homeowner" else None,
+        "model": d["model"],
+        "softwareVersion": d["software_version"],
+        "optimizers": d["optimizers"] or None,
+        "currentKw": _f(d["active_kw"]) if live else None,
+        "todayKwh": _f(d["today_kwh"]),
+        "totalKwh": _f(d["total_kwh"]),
+        "state": d["state"],
+        "liveAt": d["live_at"].isoformat() if d["live_at"] else None,
+        "readings": {
+            "inverterState": int(g("inverter_state")) if g("inverter_state") is not None else None,
+            "reactiveKvar": g("reactive_power"),
+            "powerFactor": g("power_factor"),
+            "efficiency": g("efficiency"),
+            "frequencyHz": g("elec_freq"),
+            "temperatureC": g("temperature"),
+            "inputKw": g("mppt_power"),
+            "startedAt": _ms_iso(g("open_time")),
+            "stoppedAt": _ms_iso(g("close_time")),
+            "phases": [
+                {"phase": p.upper(), "voltage": g(f"{p}_u"), "current": g(f"{p}_i")}
+                for p in "abc"
+                if g(f"{p}_u") or g(f"{p}_i")
+            ],
+            "lineVoltages": [{"between": k.upper(), "voltage": g(f"{k}_u")} for k in ("ab", "bc", "ca") if g(f"{k}_u")],
+            "strings": strings,
+            "mppts": [{"n": i, "kwh": g(f"mppt_{i}_cap")} for i in range(1, 21) if g(f"mppt_{i}_cap")],
+            "mpptTotalKwh": g("mppt_total_cap"),
+        }
+        if r
+        else None,
+    }
 
 
 @router.get("/solar/plants/{code}")
@@ -313,7 +362,8 @@ def _report(r: dict[str, Any], by: str, start: str | None, end: str | None) -> d
     if (last - first).days > {"hour": 31, "day": 366, "month": 3660}[by]:
         raise HTTPException(400, "That's too long a stretch for this table; choose a shorter one.")
     rows = fetch_all(
-        "select at, kwh, income from solar_readings where station_code = %s and period = %s and at >= %s and at < %s order by at",
+        "select at, kwh, income, specific_yield from solar_readings "
+        "where station_code = %s and period = %s and at >= %s and at < %s order by at",
         (
             r["station_code"],
             by,
@@ -322,6 +372,7 @@ def _report(r: dict[str, Any], by: str, start: str | None, end: str | None) -> d
         ),
     )
     fmt = {"hour": "%Y-%m-%d %H:00", "day": "%Y-%m-%d", "month": "%Y-%m"}[by]
+    cap = r["capacity_kwp"]
     return {
         "by": by,
         "start": first.isoformat(),
@@ -331,6 +382,14 @@ def _report(r: dict[str, Any], by: str, start: str | None, end: str | None) -> d
                 "period": x["at"].astimezone(SG).strftime(fmt),
                 "kwh": _f(x["kwh"]),
                 "revenue": _revenue(x["kwh"], r["rate_per_kwh"], x["income"]),
+                # kWh per kWp: FusionSolar's figure, or worked out from the plant's size.
+                "specificYield": _f(x["specific_yield"])
+                if x["specific_yield"] is not None
+                else round(float(x["kwh"] / cap), 3)
+                if x["kwh"] is not None and cap
+                else None,
+                "co2Kg": round(float(x["kwh"] * CO2_KG_PER_KWH), 1) if x["kwh"] is not None else None,
+                "coalKg": round(float(x["kwh"] * COAL_KG_PER_KWH), 1) if x["kwh"] is not None else None,
             }
             for x in rows
         ],

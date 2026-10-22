@@ -2,8 +2,19 @@
 
 Everything Huawei FusionSolar shows, in GetHomeApps, so nobody needs
 FusionSolar itself: every plant's power now, yield today, this month, this
-year and in total, revenue, status, alarms, inverters, charts by day, month,
-year and lifetime, and reports by hour, day and month with Excel.
+year and in total, revenue, status, alarms, charts by day, month, year and
+lifetime, reports by hour, day and month (with specific yield, CO₂ and coal
+saved) with Excel, and every device: each inverter's full live readings
+(power, reactive power, power factor, efficiency, grid frequency,
+temperature, each phase's voltage and current, each PV string's voltage,
+current and power, each MPPT's energy, when it switched on and off today),
+its model, serial number and software version, and the WiFi dongles.
+
+Checked against the real account (22 Oct 2026: 91 plants, 101 inverters of
+two kinds, 90 dongles). Most plants have no size on FusionSolar's plant
+list; the app takes it from FusionSolar's daily figures, and otherwise from
+the linked system. Grid feed-in and home use only show where a plant has a
+meter (none do yet; FusionSolar reports 0 for them).
 
 ## Who sees what
 
@@ -11,7 +22,7 @@ year and lifetime, and reports by hour, day and month with Excel.
 |---|---|
 | Superadmin, Admin | Solar (under More on a phone): every plant |
 | Project manager | The plants of the systems they run, systems nobody runs, and plants not linked yet; can link a plant to a system |
-| Homeowner | My Solar: their own system's plant only (no other homeowners, no serial numbers) |
+| Homeowner | My Solar: their own system's plant only, with its inverters' readings (no other homeowners, no serial numbers) |
 | Crew, contractors | Nothing |
 
 Revenue is the plant's yield at the rate in the system's contract (FusionSolar
@@ -47,16 +58,17 @@ figures match what people saw there.
 
 `api/_lib/fusionsolar.py` talks to FusionSolar's Northbound API (it logs in
 once and keeps the session for about 25 minutes); `api/_lib/solar_sync.py`
-puts its answers into the app (migration 0051: `solar_plants`,
-`solar_readings`, `solar_devices`, `solar_alarms`). The 15-minute job runs it,
+puts its answers into the app (migrations 0051 and 0052: `solar_plants`,
+`solar_readings`, `solar_devices`, `solar_alarms`; an inverter's readings
+are kept as FusionSolar names them, in `solar_devices.readings`). The 15-minute job runs it,
 each kind at its own pace so FusionSolar's limits are kept:
 
 | What | How often |
 |---|---|
-| Live figures, inverters' power, alarms | Every run (15 minutes) |
+| Live figures, inverters' readings (both kinds: string, 1, and residential, 38), alarms | Every run (15 minutes) |
 | Today by the hour | Every hour |
 | This month by the day | Every 6 hours |
-| This year by the month; the plant list; inverters | Once a day |
+| This year by the month; the plant list; devices | Once a day |
 | Every year | Once a week |
 | Last month's kWh into the invoices' records (system_output) | Once a day |
 

@@ -320,4 +320,10 @@ STARTER: list[tuple[str, str, str, str]] = [
         "如何开启或关闭通知？",
         "前往“账户 → 通知”，可以选择推送到手机、电子邮件和WhatsApp的内容，暂停通知，或设置免打扰时段。",
     ),
+    (
+        "How do I see how much power my system makes?",
+        "Open My Solar. It shows your system's power now and what it made today, this month, this year and in all, charts by day, month and year, each inverter's readings, any alarms, and a report you can look back through. There's no need for the FusionSolar app.",
+        "如何查看我的系统发了多少电？",
+        "打开“我的光伏”。这里显示系统的当前功率，以及今日、本月、本年和累计发电量，按日、月、年查看的图表，每台逆变器的读数、告警，以及可回看的报表。无需再使用 FusionSolar 应用。",
+    ),
 ]

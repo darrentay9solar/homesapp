@@ -320,7 +320,7 @@ who hasn't agreed, and lets everyone download their own data. What only
    records after 13 years. Staff uploads with no project are kept.
 4. **Accept each provider's data processing agreement** in its dashboard:
    Clerk, Resend, Meta (WhatsApp), Twilio, Anthropic, Cloudflare, Neon,
-   Vercel. This is what makes sending data outside Singapore lawful.
+   Vercel, Huawei (FusionSolar). This is what makes sending data outside Singapore lawful.
 5. **The laptop's backups**: `backups/` holds unencrypted copies of the
    production database (real customers). Turn on BitLocker for that disk,
    and delete restore points you no longer need.

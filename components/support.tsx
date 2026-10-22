@@ -89,7 +89,7 @@ export function ThreadCard({ t, staff, onOpen }: { t: ThreadSummary; staff: bool
 
 // ------------------------------------------------------------------ the chat (homeowners)
 
-const STARTERS = ["When is my next maintenance check?", "How is my monthly bill worked out?", "My system seems to be making less power", "How do I see my system in the FusionSolar app?"];
+const STARTERS = ["When is my next maintenance check?", "How is my monthly bill worked out?", "My system seems to be making less power", "How do I see how much power my system makes?"];
 
 /**
  * Help's chat window for a homeowner: the assistant says hello, offers a few
