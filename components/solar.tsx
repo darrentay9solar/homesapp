@@ -260,11 +260,11 @@ export function EnergyPanel({ base }: { base: string }) {
           ))}
         </ToggleButtonGroup>
         {period !== "lifetime" && (
-          <Stack direction="row" sx={{ alignItems: "center", ml: { sm: "auto" } }}>
+          <Stack direction="row" sx={{ alignItems: "center", maxWidth: "100%", ml: { sm: "auto" } }}>
             <IconButton aria-label={T("Earlier")} onClick={() => setDay((d) => shiftDate(d, period, -1))}>
               <ChevronLeftRoundedIcon />
             </IconButton>
-            <Typography sx={{ fontWeight: 600, minWidth: 110, textAlign: "center" }}>{periodTitle(day, period)}</Typography>
+            <Typography sx={{ fontWeight: 600, flex: "0 1 auto", minWidth: { xs: 0, sm: 110 }, overflowWrap: "anywhere", textAlign: "center" }}>{periodTitle(day, period)}</Typography>
             <IconButton aria-label={T("Later")} onClick={() => setDay((d) => shiftDate(d, period, 1))}>
               <ChevronRightRoundedIcon />
             </IconButton>

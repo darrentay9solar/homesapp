@@ -293,7 +293,9 @@ export function ColumnChart({
   const plotW = Math.max(0, w - left);
   const plotH = height - bottom - 6;
   const band = data.length ? plotW / data.length : 0;
-  const bar = Math.max(3, Math.min(24, (band * 0.62 - 2 * (series.length - 1)) / series.length));
+  // At least 3px wide where the column has room for it; never wider than its column.
+  const room = Math.max(1, (band * 0.8 - 2 * (series.length - 1)) / series.length);
+  const bar = Math.min(room, Math.max(3, Math.min(24, (band * 0.62 - 2 * (series.length - 1)) / series.length)));
   const group = bar * series.length + 2 * (series.length - 1);
   const y = (v: number) => 6 + plotH - (v / top) * plotH;
   const grid = theme.palette.divider;
@@ -308,9 +310,11 @@ export function ColumnChart({
   };
 
   return (
-    <Box ref={ref} sx={{ position: "relative", width: "100%" }} onPointerLeave={() => setHover(null)}>
+    // The drawing sits over the box rather than in it, so its width (measured once) never holds
+    // the page wider when the window narrows (text made larger, a phone turned).
+    <Box ref={ref} sx={{ position: "relative", width: "100%", minWidth: 0, height }} onPointerLeave={() => setHover(null)}>
       {w > 0 && (
-        <svg width={w} height={height} role="img" aria-label={series.map((s) => TR(s)).join(", ")} style={{ display: "block", overflow: "visible" }}>
+        <svg width={w} height={height} role="img" aria-label={series.map((s) => TR(s)).join(", ")} style={{ position: "absolute", top: 0, left: 0, display: "block", overflow: "visible" }}>
           {ys.map((v) => (
             <g key={v}>
               <line x1={left} x2={w} y1={y(v)} y2={y(v)} stroke={grid} strokeWidth={1} />
