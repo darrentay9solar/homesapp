@@ -16,6 +16,18 @@ updates:
         update-types: [minor, patch]
     labels: [dependencies]
 
+  # The API's Python libraries (pyproject.toml).
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      python:
+        update-types: [minor, patch]
+    labels: [dependencies]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
