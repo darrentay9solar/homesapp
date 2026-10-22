@@ -67,6 +67,11 @@ URLS = {"dev": "MIGRATION_DATABASE_URL", "test": "TEST_MIGRATION_DATABASE_URL", 
 # Everything a project or a person owns. TRUNCATE skips row triggers (no audit
 # entry per row) and CASCADE takes anything else that points at these.
 WIPE = [
+    "solar_alarms",
+    "solar_devices",
+    "solar_readings",
+    "solar_plants",
+    "solar_sync",
     "bank_statements",
     "invoices",
     "support_messages",
@@ -979,6 +984,7 @@ def seed(c: psycopg.Connection, keep: list[dict], bucket: Bucket | None, target:
     meetings(c, u)
     support(c, u)
     payments(c, u, bucket)
+    solar(c)
 
 
 # Sample systems from before the app, as the project listing import brings them in:
@@ -1391,6 +1397,118 @@ def payments(c: psycopg.Connection, u: dict[str, int], bucket: Bucket | None) ->
             "insert into notifications (recipient_uid, kind, title, body, link, created_at) values (%s, 'payment_proof', %s, %s, %s, now() - interval '5 hours')",
             (u["wendy"], f"Payment proof · {r['number']}", f"{r['bill_to']} sent proof of paying S${r['amount']:,.2f}. Check it and mark the invoice paid.", f"/finance?invoice={r['invoice_id']}"),
         )  # fmt: skip
+
+
+def solar(c: psycopg.Connection) -> None:
+    """Solar monitoring as FusionSolar would fill it (docs/solar.md): a plant for each system, linked to it,
+    with its output by hour (today and yesterday), day (since turn-on) and month (the kWh its invoices use),
+    inverters, live figures, one plant faulty with alarms and one disconnected; and two plants not linked yet."""
+    import math
+    import random
+    from decimal import Decimal
+
+    rng = random.Random(9)
+    sg = timezone(timedelta(hours=8))
+    now = datetime.now(sg)
+    today = now.date()
+    systems = c.execute(
+        "select system_id, address, kwp, turned_on_on from maintenance_systems where turned_on_on is not null order by system_id"
+    ).fetchall()
+    extra = [
+        {"system_id": None, "address": "19 Unlinked Close, Singapore 457000", "kwp": Decimal("10.4"), "turned_on_on": today - timedelta(days=95)},
+        {"system_id": None, "address": "4 Pending Walk, Singapore 458000", "kwp": Decimal("12.8"), "turned_on_on": today - timedelta(days=40)},
+    ]
+
+    def curve(kwp: float, hour: int, factor: float) -> float:
+        if hour < 7 or hour > 18:
+            return 0.0
+        return round(kwp * 0.66 * math.sin((hour - 6.5) / 12.5 * math.pi) * factor, 3)
+
+    for n, sysrow in enumerate([*systems, *extra]):
+        sid, kwp = sysrow["system_id"], float(sysrow["kwp"] or 10)
+        code = f"NE=DEMO{1000 + n}"
+        name = sysrow["address"].split(",")[0]
+        health = "faulty" if n == 3 else "disconnected" if n == 6 else "normal"
+        on = sysrow["turned_on_on"]
+        c.execute(
+            "insert into solar_plants (station_code, name, address, capacity_kwp, grid_connected_on, latitude, longitude, system_id, linked_by, health) "
+            "values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (code, name, sysrow["address"], round(kwp, 3), on, 1.30 + n * 0.004, 103.80 + n * 0.005, sid, "address" if sid else None, health),
+        )
+        # By day since turn-on (at most 15 months back), each month scaled to the kWh its invoices use where there are some.
+        months: dict[date, float] = {}
+        start = max(on, today - timedelta(days=455))
+        d = start
+        while d <= today:
+            weather = 0.55 + 0.45 * rng.random()
+            kwh = 0.0 if health == "disconnected" and d > today - timedelta(days=2) else round(kwp * 4.2 * weather, 3)
+            months[d.replace(day=1)] = months.get(d.replace(day=1), 0.0) + kwh
+            c.execute(
+                "insert into solar_readings (station_code, period, at, kwh) values (%s, 'day', %s, %s)",
+                (code, datetime(d.year, d.month, d.day, tzinfo=sg), kwh),
+            )
+            d += timedelta(days=1)
+        if sid:
+            for o in c.execute("select month, kwh from system_output where system_id = %s", (sid,)).fetchall():
+                if o["month"] in months and o["month"] < today.replace(day=1):
+                    months[o["month"]] = float(o["kwh"])
+        for m, kwh in months.items():
+            c.execute(
+                "insert into solar_readings (station_code, period, at, kwh) values (%s, 'month', %s, %s)",
+                (code, datetime(m.year, m.month, 1, tzinfo=sg), round(kwh, 3)),
+            )
+        years: dict[int, float] = {}
+        for m, kwh in months.items():
+            years[m.year] = years.get(m.year, 0.0) + kwh
+        for y, kwh in years.items():
+            c.execute("insert into solar_readings (station_code, period, at, kwh) values (%s, 'year', %s, %s)", (code, datetime(y, 1, 1, tzinfo=sg), round(kwh, 3)))
+        # Today and yesterday by the hour.
+        today_kwh = 0.0
+        for back in (1, 0):
+            day = today - timedelta(days=back)
+            factor = 0.0 if health == "disconnected" else 0.25 if health == "faulty" and back == 0 else 0.8 + 0.2 * rng.random()
+            for h in range(24):
+                if back == 0 and h > now.hour:
+                    break
+                kwh = curve(kwp, h, factor)
+                if back == 0:
+                    today_kwh += kwh
+                c.execute(
+                    "insert into solar_readings (station_code, period, at, kwh) values (%s, 'hour', %s, %s)",
+                    (code, datetime(day.year, day.month, day.day, h, tzinfo=sg), kwh),
+                )
+        total = sum(months.values())
+        live = health != "disconnected"
+        power = curve(kwp, now.hour, 0.25 if health == "faulty" else 0.9) if live else None
+        c.execute(
+            "update solar_plants set current_kw = %s, today_kwh = %s, month_kwh = %s, year_kwh = %s, total_kwh = %s, live_at = %s where station_code = %s",
+            (power, round(today_kwh, 3), round(months.get(today.replace(day=1), 0.0), 3), round(years.get(today.year, 0.0), 3), round(total, 3),
+             now - timedelta(minutes=7 if live else 60 * 30), code),
+        )
+        c.execute(
+            "insert into solar_devices (dev_id, station_code, name, serial, type_id, model, active_kw, today_kwh, total_kwh, state, live_at) "
+            "values (%s, %s, 'INV-1', %s, 1, 'SUN2000-10KTL-M1', %s, %s, %s, %s, %s)",
+            (900000 + n, code, f"HV22{400000 + n * 7}", power, round(today_kwh, 3), round(total, 3),
+             "fault" if health == "faulty" else "producing" if live else None, now - timedelta(minutes=7) if live else None),
+        )
+        if health == "faulty":
+            c.execute(
+                "insert into solar_alarms (station_code, device, name, level, cause, suggestion, raised_at) values "
+                "(%s, 'INV-1', 'Grid Overvoltage', 'major', 'The grid voltage is above the inverter''s limit.', "
+                "'If it keeps happening, ask the grid operator to check the voltage.', %s)",
+                (code, now - timedelta(hours=3)),
+            )
+            c.execute(
+                "insert into solar_alarms (station_code, device, name, level, cause, suggestion, raised_at, cleared_at) values "
+                "(%s, 'INV-1', 'Low Insulation Resistance', 'minor', 'Moisture on the strings after rain.', "
+                "'Usually clears as the panels dry; check the cabling if it doesn''t.', %s, %s)",
+                (code, now - timedelta(days=3), now - timedelta(days=3) + timedelta(hours=4)),
+            )
+    c.execute(
+        "insert into solar_sync (key, value, at) values ('ran:live', 'null', %s) on conflict (key) do update set at = excluded.at",
+        (now - timedelta(minutes=7),),
+    )
+    print(f"Solar: {len(systems) + len(extra)} plants")
 
 
 if __name__ == "__main__":

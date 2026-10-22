@@ -94,6 +94,14 @@ def my_data(uid: int) -> dict[str, Any]:
             "from maintenance_systems where homeowner_id = %(me)s order by created_at",
             p,
         ),
+        # What their system made, month by month (FusionSolar's figures, migration 0051).
+        "solarOutput": _rows(
+            "select p.name as plant, (r.at at time zone 'Asia/Singapore')::date as month, r.kwh "
+            "from solar_readings r join solar_plants p using (station_code) "
+            "join maintenance_systems s on s.system_id = p.system_id "
+            "where s.homeowner_id = %(me)s and r.period = 'month' order by r.at",
+            p,
+        ),
         "invoices": _rows(
             "select number, kind, period, kwh, rate, amount, bill_to, bill_address, bill_email, issued_on, "
             "due_on, status, paid_on, paid_amount, paid_via, paid_ref, proof_at, proof_note "

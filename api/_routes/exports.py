@@ -415,6 +415,8 @@ TABLES = {
     "invoices": ("finance",),
     "site_visits": ("project_manager",),
     "people": ("project_manager",),
+    "solar": ("project_manager", "finance"),
+    "solar_report": ("project_manager", "finance"),
 }
 DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 

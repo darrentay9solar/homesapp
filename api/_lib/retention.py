@@ -26,6 +26,12 @@ def run() -> dict[str, Any]:
         cur.execute("select purge_old_data() as counts")
         row = cur.fetchone()
     counts: dict[str, Any] = dict(row["counts"]) if row else {}
+    if counts.get("skipped"):
+        return counts
+    # FusionSolar's alarms, a year after they cleared (non-essential; the plant's output is kept).
+    with transaction(None) as cur:
+        cur.execute("delete from solar_alarms where cleared_at < now() - interval '1 year'")
+        counts["solar_alarms"] = cur.rowcount
     keys = counts.pop("files", None) or []
     gone = 0
     for key in keys:

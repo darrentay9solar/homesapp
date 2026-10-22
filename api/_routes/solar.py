@@ -1,0 +1,399 @@
+# ruff: noqa: E501  (SQL reads better whole)
+"""Solar monitoring: everything FusionSolar shows, in the app (docs/solar.md).
+
+  GET  /solar                       the overview: power now, today, revenue, totals; plants by
+                                    health; alarms by level; every plant, as its table shows it
+  GET  /solar/plants/{code}         one plant: its figures, environmental benefits, inverters,
+                                    alarms, and the system it's linked to
+  GET  /solar/plants/{code}/energy  yield (and revenue) by hour of a day, day of a month,
+                                    month of a year, or by year (?period=day|month|year|lifetime&date=)
+  GET  /solar/plants/{code}/report  the same as rows, for a table and Excel (?by=hour|day|month&start=&end=)
+  POST /solar/plants/{code}/link    which system in the app this plant is (or none)
+  GET  /me/solar                    a homeowner's own plant
+
+Who sees what follows Maintenance: a superadmin and Admin see every plant; a project manager
+the plants of the systems they run, any system nobody runs, and plants not linked yet. A
+homeowner sees only the plant of their own system. Revenue is the plant's yield at the rate in
+the system's contract (FusionSolar has no tariff set); without a linked system, FusionSolar's own.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+from typing import Any, Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+
+from _lib import fusionsolar as fs
+from _lib.account import Account
+from _lib.db import fetch_all, fetch_one, transaction
+from _lib.solar_sync import SG
+from _lib.web import active, role
+
+router = APIRouter()
+staff = role("project_manager", "finance")
+
+# FusionSolar's own factors, so the figures match what people saw there.
+COAL_KG_PER_KWH = Decimal("0.4")
+CO2_KG_PER_KWH = Decimal("0.475")
+CO2_KG_PER_TREE = Decimal("18.3")
+STALE = timedelta(minutes=45)  # live figures older than this are shown as not live
+
+
+def _visible(acct: Account) -> tuple[str, dict[str, Any]]:
+    """Which plants: the same rule as Maintenance's systems, and every plant not linked yet."""
+    if acct.role in ("superadmin", "finance"):
+        return "true", {}
+    return "(p.system_id is null or m.run_by is null or m.run_by = %(me)s)", {"me": acct.uid}
+
+
+def _f(v: Any) -> float | None:
+    return None if v is None else float(v)
+
+
+def _revenue(kwh: Any, rate: Any, fallback: Any = None) -> float | None:
+    if kwh is not None and rate is not None:
+        return round(float(Decimal(kwh) * Decimal(rate)), 2)
+    return _f(fallback)
+
+
+def _benefits(total_kwh: Any) -> dict[str, float | int | None]:
+    if total_kwh is None:
+        return {"coalTons": None, "co2Tons": None, "trees": None}
+    kwh = Decimal(total_kwh)
+    co2 = kwh * CO2_KG_PER_KWH
+    return {
+        "coalTons": round(float(kwh * COAL_KG_PER_KWH / 1000), 3),
+        "co2Tons": round(float(co2 / 1000), 3),
+        "trees": int((co2 / CO2_KG_PER_TREE).to_integral_value()),
+    }
+
+
+def _connection() -> dict[str, Any]:
+    last = fetch_one("select max(at) at from solar_sync where key = 'ran:live'")
+    return {"connected": fs.configured(), "lastSync": last["at"].isoformat() if last and last["at"] else None}
+
+
+PLANT_COLUMNS = (
+    "p.station_code, p.name, p.address, p.capacity_kwp, p.grid_connected_on, p.health, p.current_kw, p.today_kwh, "
+    "p.month_kwh, p.year_kwh, p.total_kwh, p.today_income, p.total_income, p.live_at, p.system_id, p.linked_by, "
+    "m.rate_per_kwh, m.project_code, m.homeowner_name, m.run_by, u.full_name as homeowner_full_name"
+)
+FROM = "from solar_plants p left join maintenance_systems m on m.system_id = p.system_id left join users u on u.uid = m.homeowner_id"
+
+
+def _row(r: dict[str, Any], now: datetime) -> dict[str, Any]:
+    live = r["live_at"] is not None and now - r["live_at"] <= STALE
+    cap = r["capacity_kwp"]
+    return {
+        "code": r["station_code"],
+        "name": r["name"],
+        "address": r["address"],
+        "capacityKwp": _f(cap),
+        "gridConnectedOn": r["grid_connected_on"].isoformat() if r["grid_connected_on"] else None,
+        "health": r["health"] or "unknown",
+        "live": live,
+        "currentKw": _f(r["current_kw"]) if live else None,
+        "todayKwh": _f(r["today_kwh"]),
+        "monthKwh": _f(r["month_kwh"]),
+        "totalKwh": _f(r["total_kwh"]),
+        # kWh for each kWp installed today: how well a plant is doing whatever its size.
+        "specificYield": round(float(r["today_kwh"] / cap), 2) if r["today_kwh"] is not None and cap else None,
+        "todayRevenue": _revenue(r["today_kwh"], r["rate_per_kwh"], r["today_income"]),
+        "totalRevenue": _revenue(r["total_kwh"], r["rate_per_kwh"], r["total_income"]),
+        "rate": _f(r["rate_per_kwh"]),
+        "liveAt": r["live_at"].isoformat() if r["live_at"] else None,
+        "systemId": r["system_id"],
+        "projectCode": r["project_code"],
+        "homeowner": r["homeowner_full_name"] or r["homeowner_name"],
+        "linkedBy": r["linked_by"],
+    }
+
+
+@router.get("/solar")
+def overview(acct: Account = Depends(staff)) -> dict[str, Any]:
+    where, params = _visible(acct)
+    now = datetime.now(SG)
+    plants = [_row(r, now) for r in fetch_all(f"select {PLANT_COLUMNS} {FROM} where {where} order by p.name", params)]
+    codes = [p["code"] for p in plants]
+    alarms = fetch_all(
+        "select level, count(*)::int n from solar_alarms where cleared_at is null and station_code = any(%s) group by level",
+        (codes,),
+    )
+    by_level = {"critical": 0, "major": 0, "minor": 0, "warning": 0} | {a["level"]: a["n"] for a in alarms}
+    health = {"normal": 0, "faulty": 0, "disconnected": 0, "unknown": 0}
+    for p in plants:
+        health[p["health"]] += 1
+
+    def total(key: str, digits: int = 3) -> float | None:
+        vals = [p[key] for p in plants if p[key] is not None]
+        return round(sum(vals), digits) if vals else None
+
+    return {
+        "connection": _connection(),
+        "kpis": {
+            "currentKw": total("currentKw"),
+            "todayKwh": total("todayKwh"),
+            "todayRevenue": total("todayRevenue", 2),
+            "totalKwh": total("totalKwh"),
+            "capacityKwp": total("capacityKwp"),
+        },
+        "health": health,
+        "alarms": by_level,
+        "plants": plants,
+        "unlinked": sum(1 for p in plants if p["systemId"] is None),
+    }
+
+
+def _plant(code: str, acct: Account) -> dict[str, Any]:
+    if acct.role == "homeowner":
+        r = fetch_one(
+            f"select {PLANT_COLUMNS} {FROM} where p.station_code = %s and m.homeowner_id = %s", (code, acct.uid)
+        )
+    else:
+        where, params = _visible(acct)
+        r = fetch_one(
+            f"select {PLANT_COLUMNS} {FROM} where p.station_code = %(code)s and {where}", {"code": code, **params}
+        )
+    if not r:
+        raise HTTPException(404, "No such plant, or it isn't one of yours.")
+    return r
+
+
+def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
+    now = datetime.now(SG)
+    out = _row(r, now)
+    year_start = datetime(now.year, 1, 1, tzinfo=SG)
+    yr = fetch_one(
+        "select sum(kwh) kwh from solar_readings where station_code = %s and period = 'month' and at >= %s",
+        (r["station_code"], year_start),
+    )
+    out["yearKwh"] = _f(yr["kwh"]) if yr and yr["kwh"] is not None else _f(r["year_kwh"])
+    out["benefits"] = _benefits(r["total_kwh"])
+    out["devices"] = [
+        {
+            "name": d["name"],
+            "serial": d["serial"] if acct.role != "homeowner" else None,
+            "model": d["model"],
+            "currentKw": _f(d["active_kw"]) if d["live_at"] and now - d["live_at"] <= STALE else None,
+            "todayKwh": _f(d["today_kwh"]),
+            "totalKwh": _f(d["total_kwh"]),
+            "state": d["state"],
+        }
+        for d in fetch_all("select * from solar_devices where station_code = %s order by name", (r["station_code"],))
+    ]
+    out["alarms"] = [
+        {
+            "level": a["level"],
+            "name": a["name"],
+            "device": a["device"] or None,
+            "cause": a["cause"],
+            "suggestion": a["suggestion"],
+            "raisedAt": a["raised_at"].isoformat(),
+            "clearedAt": a["cleared_at"].isoformat() if a["cleared_at"] else None,
+        }
+        for a in fetch_all(
+            "select * from solar_alarms where station_code = %s and (cleared_at is null or cleared_at > now() - interval '90 days') "
+            "order by cleared_at is not null, raised_at desc limit 100",
+            (r["station_code"],),
+        )
+    ]
+    if acct.role == "homeowner":
+        for k in ("homeowner", "linkedBy", "projectCode"):
+            out.pop(k, None)
+    out["connection"] = _connection()
+    return out
+
+
+@router.get("/solar/plants/{code}")
+def plant(code: str, acct: Account = Depends(staff)) -> dict[str, Any]:
+    return _detail(_plant(code, acct), acct)
+
+
+Period = Literal["day", "month", "year", "lifetime"]
+
+
+def _series(code: str, rate: Any, period: Period, day: date) -> dict[str, Any]:
+    if period == "day":
+        start = datetime(day.year, day.month, day.day, tzinfo=SG)
+        end, step, fmt = start + timedelta(days=1), "hour", "%H:%M"
+    elif period == "month":
+        start = datetime(day.year, day.month, 1, tzinfo=SG)
+        end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        step, fmt = "day", "%d"
+    elif period == "year":
+        start, end, step, fmt = (
+            datetime(day.year, 1, 1, tzinfo=SG),
+            datetime(day.year + 1, 1, 1, tzinfo=SG),
+            "month",
+            "%b",
+        )
+    else:
+        start, end, step, fmt = datetime(2000, 1, 1, tzinfo=SG), datetime(2100, 1, 1, tzinfo=SG), "year", "%Y"
+    rows = fetch_all(
+        "select at, kwh, income from solar_readings where station_code = %s and period = %s and at >= %s and at < %s order by at",
+        (code, step, start, end),
+    )
+    have = {r["at"].astimezone(SG): r for r in rows}
+    points: list[dict[str, Any]] = []
+    if period == "lifetime":
+        slots = sorted(have)
+    else:
+        slots, t = [], start
+        while t < end:
+            slots.append(t)
+            t = (
+                t + timedelta(hours=1)
+                if step == "hour"
+                else t + timedelta(days=1)
+                if step == "day"
+                else (t.replace(day=28) + timedelta(days=4)).replace(day=1)
+            )
+    for t in slots:
+        r = have.get(t)
+        kwh = r["kwh"] if r else None
+        points.append(
+            {
+                "at": t.isoformat(),
+                "label": t.strftime(fmt),
+                "kwh": _f(kwh),
+                "revenue": _revenue(kwh, rate, r["income"] if r else None),
+            }
+        )
+    known = [p["kwh"] for p in points if p["kwh"] is not None]
+    return {
+        "period": period,
+        "date": day.isoformat(),
+        "by": step,
+        "points": points,
+        "totalKwh": round(sum(known), 3) if known else None,
+    }
+
+
+@router.get("/solar/plants/{code}/energy")
+def energy(
+    code: str, period: Period = "day", on: str | None = Query(None, alias="date"), acct: Account = Depends(staff)
+) -> dict[str, Any]:
+    r = _plant(code, acct)
+    return _series(code, r["rate_per_kwh"], period, _day(on))
+
+
+def _day(v: str | None) -> date:
+    if not v:
+        return datetime.now(SG).date()
+    try:
+        return date.fromisoformat(v[:10])
+    except ValueError as exc:
+        raise HTTPException(400, "Choose a date.") from exc
+
+
+@router.get("/solar/plants/{code}/report")
+def report(
+    code: str,
+    by: Literal["hour", "day", "month"] = "day",
+    start: str | None = None,
+    end: str | None = None,
+    acct: Account = Depends(staff),
+) -> dict[str, Any]:
+    r = _plant(code, acct)
+    return _report(r, by, start, end)
+
+
+def _report(r: dict[str, Any], by: str, start: str | None, end: str | None) -> dict[str, Any]:
+    today = datetime.now(SG).date()
+    last = _day(end) if end else today
+    first = _day(start) if start else last - timedelta(days={"hour": 0, "day": 30, "month": 364}[by])
+    if first > last:
+        raise HTTPException(400, "The start comes after the end.")
+    if (last - first).days > {"hour": 31, "day": 366, "month": 3660}[by]:
+        raise HTTPException(400, "That's too long a stretch for this table; choose a shorter one.")
+    rows = fetch_all(
+        "select at, kwh, income from solar_readings where station_code = %s and period = %s and at >= %s and at < %s order by at",
+        (
+            r["station_code"],
+            by,
+            datetime(first.year, first.month, first.day, tzinfo=SG),
+            datetime(last.year, last.month, last.day, tzinfo=SG) + timedelta(days=1),
+        ),
+    )
+    fmt = {"hour": "%Y-%m-%d %H:00", "day": "%Y-%m-%d", "month": "%Y-%m"}[by]
+    return {
+        "by": by,
+        "start": first.isoformat(),
+        "end": last.isoformat(),
+        "rows": [
+            {
+                "period": x["at"].astimezone(SG).strftime(fmt),
+                "kwh": _f(x["kwh"]),
+                "revenue": _revenue(x["kwh"], r["rate_per_kwh"], x["income"]),
+            }
+            for x in rows
+        ],
+    }
+
+
+class LinkIn(BaseModel):
+    systemId: int | None = None
+
+
+@router.post("/solar/plants/{code}/link")
+def link(code: str, body: LinkIn, acct: Account = Depends(role("project_manager"))) -> dict[str, Any]:
+    """Which of the app's systems this plant is. A project manager may link to a system they can edit."""
+    _plant(code, acct)
+    if body.systemId is not None:
+        s = fetch_one("select system_id, run_by from maintenance_systems where system_id = %s", (body.systemId,))
+        if not s:
+            raise HTTPException(404, "No such system.")
+        if acct.role != "superadmin" and s["run_by"] not in (None, acct.uid):
+            raise HTTPException(403, "That system is run by another project manager.")
+        other = fetch_one(
+            "select name from solar_plants where system_id = %s and station_code <> %s", (body.systemId, code)
+        )
+        if other:
+            raise HTTPException(409, f"That system is already linked to the plant “{other['name']}”.")
+    with transaction(acct.uid) as cur:
+        cur.execute(
+            "update solar_plants set system_id = %s, linked_by = %s where station_code = %s",
+            (body.systemId, "person" if body.systemId is not None else None, code),
+        )
+    return {"ok": True}
+
+
+# ------------------------------------------------------------------ a homeowner's own plant
+
+
+def _own(acct: Account) -> dict[str, Any] | None:
+    return fetch_one(f"select {PLANT_COLUMNS} {FROM} where m.homeowner_id = %s order by p.name limit 1", (acct.uid,))
+
+
+@router.get("/me/solar")
+def my_solar(acct: Account = Depends(active)) -> dict[str, Any]:
+    if acct.role != "homeowner":
+        raise HTTPException(403, "Only a homeowner has a plant of their own.")
+    r = _own(acct)
+    return {"plant": _detail(r, acct) if r else None}
+
+
+@router.get("/me/solar/energy")
+def my_energy(
+    period: Period = "day", on: str | None = Query(None, alias="date"), acct: Account = Depends(active)
+) -> dict[str, Any]:
+    r = _own(acct) if acct.role == "homeowner" else None
+    if not r:
+        raise HTTPException(404, "There's no plant on your system yet.")
+    return _series(r["station_code"], r["rate_per_kwh"], period, _day(on))
+
+
+@router.get("/me/solar/report")
+def my_report(
+    by: Literal["hour", "day", "month"] = "day",
+    start: str | None = None,
+    end: str | None = None,
+    acct: Account = Depends(active),
+) -> dict[str, Any]:
+    r = _own(acct) if acct.role == "homeowner" else None
+    if not r:
+        raise HTTPException(404, "There's no plant on your system yet.")
+    return _report(r, by, start, end)

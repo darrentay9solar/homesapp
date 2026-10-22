@@ -387,3 +387,18 @@ These go to production only when you say to release `staging`.
    address or project code (in the file, or already in the app), and says
    which. Turn on "Allow clients sharing a postal code" only for a block of
    flats.
+
+## 16. Solar monitoring (FusionSolar)
+
+The app's **Solar** page shows everything FusionSolar does, once it can read
+FusionSolar. Full details in [solar.md](solar.md).
+
+1. FusionSolar → **System → Company Management → Northbound Management → Add**:
+   a username like `gethomeapps_api`, the company account under Associated,
+   the latest Deadline allowed, **9 Solar Home Pte Ltd** ticked and moved
+   across with **»**, **Basic APIs** on (nothing that controls plants).
+2. Add `FUSIONSOLAR_URL`, `FUSIONSOLAR_USER` and `FUSIONSOLAR_PASSWORD` to
+   `.env.local`, and the same to Vercel → **homesapp** → Environment
+   Variables (Production, Sensitive). Redeploy.
+3. Tell me; I'll test the connection and bring in the history.
+4. Note the API account's deadline in your calendar and extend it before then.

@@ -3,6 +3,7 @@
 import { mockAnalytics } from "./mock-analytics";
 import { mockBusy, mockCalendar, mockContacts, mockMeeting, mockUpcoming } from "./mock-calendar";
 import { asFinance, MOCK_SETTINGS, mockFinanceMe, mockInvoice, mockInvoices, mockMyPayments, mockOverview, mockProjectPayments, mockRun } from "./mock-finance";
+import { mockEnergy, mockPlant, mockReport, mockSolarOverview } from "./mock-solar";
 import { mockMaintenance, mockProjectMaintenance, mockRecord, mockSystem } from "./mock-maintenance";
 import { asHomeowner, mockAnswers, mockAssistantThread, mockInbox, mockSupportMe, mockSupportPeople, mockThread } from "./mock-support";
 import { usePathname } from "next/navigation";
@@ -717,6 +718,15 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (method === "GET" && supportId) return Number(supportId[1]) === 403 ? mockAssistantThread() : mockThread(Number(supportId[1]));
   if (method !== "GET" && path.startsWith("/support")) return { message: "Preview only — nothing was sent.", id: 401, ok: true };
   if (key === "GET /maintenance") return mockMaintenance();
+  if (key === "GET /solar") return mockSolarOverview();
+  if (key === "GET /me/solar") return { plant: mockPlant("NE=DEMO100") };
+  if (key === "GET /me/solar/energy") return mockEnergy(search);
+  if (key === "GET /me/solar/report") return mockReport(search);
+  const plant = path.match(/^\/solar\/plants\/([^/]+)(\/energy|\/report|\/link)?$/);
+  if (plant && plant[2] === "/energy") return mockEnergy(search);
+  if (plant && plant[2] === "/report") return mockReport(search);
+  if (plant && plant[2] === "/link") return { ok: true };
+  if (plant) return mockPlant(decodeURIComponent(plant[1]));
   if (key === "GET /calendar") return mockCalendar();
   if (key === "GET /calendar/upcoming") return mockUpcoming();
   if (key === "GET /calendar/contacts") return mockContacts();

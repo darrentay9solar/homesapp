@@ -39,6 +39,7 @@ from _routes import (
     projects,
     settings,
     sites,
+    solar,
     support,
 )
 
@@ -73,6 +74,7 @@ app.include_router(support.router, prefix=PREFIX)
 app.include_router(finance.router, prefix=PREFIX)
 app.include_router(demo.router, prefix=PREFIX)
 app.include_router(imports.router, prefix=PREFIX)
+app.include_router(solar.router, prefix=PREFIX)
 
 
 @app.get(f"{PREFIX}/ping")

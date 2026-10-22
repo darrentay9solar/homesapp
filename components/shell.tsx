@@ -15,6 +15,7 @@ import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
 import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
+import WbSunnyRoundedIcon from "@mui/icons-material/WbSunnyRounded";
 import Alert from "@mui/material/Alert";
 import Badge from "@mui/material/Badge";
 import BottomNavigation from "@mui/material/BottomNavigation";
@@ -62,8 +63,11 @@ const PAYMENTS: Tab = { href: "/payments", label: "Payments", icon: <ReceiptLong
 const FINANCE: Tab = { href: "/finance", label: "Payments", icon: <ReceiptLongRoundedIcon /> };
 
 /** Tabs per role, from the prototype. Audit is project managers' and the superadmin's only. */
+// FusionSolar's figures for every plant (a project manager: those they run).
+const SOLAR: Tab = { href: "/solar", label: "Solar", icon: <WbSunnyRoundedIcon />, phone: false };
+
 const TABS: Record<Role, Tab[]> = {
-  homeowner: [{ href: "/", label: "My Project", icon: <HomeRoundedIcon /> }, PAYMENTS, CALENDAR, HELP, ALERTS, ACCOUNT],
+  homeowner: [{ href: "/", label: "My Project", icon: <HomeRoundedIcon /> }, PAYMENTS, CALENDAR, HELP, ALERTS, { href: "/my-solar", label: "My Solar", icon: <WbSunnyRoundedIcon />, phone: false }, ACCOUNT],
   project_manager: [
     // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
     { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
@@ -72,6 +76,7 @@ const TABS: Record<Role, Tab[]> = {
     ALERTS,
     { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    SOLAR,
     { ...FINANCE, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     SUPPORT,
@@ -86,6 +91,7 @@ const TABS: Record<Role, Tab[]> = {
     ALERTS,
     { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    SOLAR,
     { ...FINANCE, phone: false },
     { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
     SUPPORT,
@@ -99,6 +105,7 @@ const TABS: Record<Role, Tab[]> = {
     CALENDAR,
     ALERTS,
     { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
+    SOLAR,
     SUPPORT,
     { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
     ACCOUNT,
