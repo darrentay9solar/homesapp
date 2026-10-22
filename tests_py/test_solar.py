@@ -198,11 +198,14 @@ class FakeFusionSolar:
             self.expire_once = False
             return {"success": False, "failCode": 305}, {}
         if path == "/thirdData/getDevList":
-            return {"success": True, "data": [
-                {"id": 7001, "stationCode": "NE=FAKE1", "devName": "INV-1", "devTypeId": 1},
-                {"id": 7002, "stationCode": "NE=FAKE1", "devName": "Home inverter", "devTypeId": 38},
-                {"id": 7003, "stationCode": "NE=FAKE1", "devName": "Dongle", "devTypeId": 62},
-            ]}, {}
+            return {
+                "success": True,
+                "data": [
+                    {"id": 7001, "stationCode": "NE=FAKE1", "devName": "INV-1", "devTypeId": 1},
+                    {"id": 7002, "stationCode": "NE=FAKE1", "devName": "Home inverter", "devTypeId": 38},
+                    {"id": 7003, "stationCode": "NE=FAKE1", "devName": "Dongle", "devTypeId": 62},
+                ],
+            }, {}
         if path == "/thirdData/getDevRealKpi":
             self.kinds.append(body["devTypeId"])
         if path == "/thirdData/stations":
@@ -278,4 +281,9 @@ def test_a_plant_with_no_size_in_fusionsolar_has_none_not_zero(fx, plant_codes) 
     a = _code()
     plant_codes.append(a)
     sync.save_plants([{"plantCode": a, "plantName": "No size", "capacity": 0.0}])
-    assert fx.conn.execute("select capacity_kwp from solar_plants where station_code = %s", (a,)).fetchone()["capacity_kwp"] is None
+    assert (
+        fx.conn.execute("select capacity_kwp from solar_plants where station_code = %s", (a,)).fetchone()[
+            "capacity_kwp"
+        ]
+        is None
+    )
