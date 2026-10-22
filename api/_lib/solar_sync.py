@@ -246,7 +246,7 @@ def save_devices(rows: list[dict[str, Any]]) -> int:
                     r.get("devTypeId"),
                     r.get("invType") or r.get("model"),
                     r.get("softwareVersion") or None,
-                    int(n) if (n := _num(r.get("optimizerNumber"))) is not None else None,
+                    int(opt) if (opt := _num(r.get("optimizerNumber"))) is not None else None,
                 ),
             )
             n += 1
