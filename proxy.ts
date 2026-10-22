@@ -11,8 +11,9 @@ const isPublic = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/forgot-password",
-  // The privacy notice: read before there's an account.
+  // The privacy notice and how to reach 9 Solar Home: read before there's an account.
   "/privacy",
+  "/contact",
   // The health checks must stay reachable: an uptime monitor cannot sign in,
   // and they deliberately expose no project data.
   "/api/health",

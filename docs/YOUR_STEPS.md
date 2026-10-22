@@ -314,9 +314,10 @@ who hasn't agreed, and lets everyone download their own data. What only
 2. **Read the notice** at `/privacy` and tell me anything to change. It's
    written from what the app actually does; it isn't legal advice. Changing
    it asks everyone to agree again.
-3. **How long data is kept**: non-essential data goes a year after it
-   stops being needed (done, automatic). Still to decide with the DPO: when
-   essential records go (the proposal is 8 years + 5, in pdpa.md).
+3. **How long data is kept**: decided and automatic (pdpa.md, *Retention*).
+   Non-essential data goes a year after it stops being needed; essential
+   records 5 years after the 8-year plan ends; audit entries about deleted
+   records after 13 years. Staff uploads with no project are kept.
 4. **Accept each provider's data processing agreement** in its dashboard:
    Clerk, Resend, Meta (WhatsApp), Twilio, Anthropic, Cloudflare, Neon,
    Vercel. This is what makes sending data outside Singapore lawful.

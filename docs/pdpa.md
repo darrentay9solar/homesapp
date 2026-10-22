@@ -56,7 +56,8 @@ names them).
 ## Retention
 
 Non-essential data is kept for a year after it stops being needed, then
-deleted (9 Solar Home's decision, 18 Oct 2026). The database does it
+deleted (9 Solar Home's decision, 18 Oct 2026); essential records 5 years
+after the contract ends (22 Oct 2026). The database does it
 (`purge_old_data()`, migration 0045), once a day from the 15-minute job.
 The deletes aren't copied into the audit log; each run is recorded with
 how many of each it removed (`retention_runs`).
@@ -71,12 +72,17 @@ how many of each it removed (`retention_runs`).
 | Support conversations, once settled | 1 year after settling | Deleted, with their messages |
 | Records of reminders and warnings sent | 1 year | Deleted |
 | Abandoned upload records | 1 year | Deleted |
-| **Essential:** contract, system, yearly maintenance checks, invoices, payments, bank statements, signatures, files (on a project, or not yet: Unassigned), site visits and check-ins | The 8-year plan + 5 years (IRAS keeps business records 5 years) | Not yet automatic: decide with the DPO |
-| **Essential:** accounts, exports, the audit log | As the records they describe | Kept |
+| **Essential:** a system and its project: contract, yearly maintenance checks, output and billing records, invoices and payments, signatures and certificates, files, site visits and check-ins | 5 years after the contract ends: the 8-year plan from turn-on, or the PPA or maintenance plan if longer (so 8 + 5 years) | Deleted, files removed from storage too (0050) |
+| **Essential:** a project that never became a system (declined, cancelled) | 13 years after it was last changed | Deleted (0050) |
+| A homeowner's account, once none of their projects or systems are left | Until then | No personal details kept: "Former customer" (0050) |
+| Staff uploads with no project yet (Unassigned) | Kept | Not deleted (9 Solar Home's decision, 22 Oct 2026) |
+| Staff accounts, exports | As the records they describe | Kept |
+| The audit log | An entry about a record that no longer exists: 13 years | Deleted once both have happened: the record is gone and the entry is 13 years old (0050) |
 | Backups | 30 days (nightly, encrypted) | Replaced |
 
-The audit log keeps the history of changes made before a record was
-deleted; it is append-only on purpose and isn't trimmed.
+When essential records go was decided on 22 Oct 2026: 8 + 5 years (IRAS keeps
+business records 5 years). The audit log is otherwise append-only: only the
+daily run may remove entries, and only those above.
 
 ## If data leaks
 

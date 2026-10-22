@@ -147,6 +147,9 @@ function SignInFlow() {
       <AuthAlt>
         {T("New here?")} <Link href="/sign-up">{T("Create an account")}</Link>
       </AuthAlt>
+      <AuthAlt>
+        {T("Questions about going solar?")} <Link href="/contact">{T("Contact us")}</Link>
+      </AuthAlt>
     </AuthShell>
   );
 }

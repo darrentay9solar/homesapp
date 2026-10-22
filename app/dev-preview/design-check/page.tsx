@@ -37,6 +37,7 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Request Access", path: "/dev-preview/onboarding", kind: "auth" },
   { name: "Demo sign-in", path: "/dev-preview/demo", kind: "auth" },
   { name: "Privacy notice", path: "/privacy", kind: "page" },
+  { name: "Contact us", path: "/contact", kind: "page" },
   { name: "Request Access · privacy not agreed", path: "/dev-preview/onboarding", kind: "auth", click: "Request Access", opens: false },
   { name: "Projects", path: "/dev-preview/projects", kind: "app" },
   { name: "Projects: table", path: "/dev-preview/projects?tab=table", kind: "app" },

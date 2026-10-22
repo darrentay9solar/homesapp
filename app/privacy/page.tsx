@@ -116,6 +116,12 @@ export default function PrivacyPage() {
           <Typography sx={{ mt: 1 }}>
             {T("If your data is ever lost or exposed, we'll tell you and, where the law requires, the Personal Data Protection Commission.")}
           </Typography>
+          <Typography sx={{ mt: 1 }}>
+            {T("Anything else:")}{" "}
+            <Box component={Link} href="/contact" sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}>
+              {T("Contact 9 Solar Home")}
+            </Box>
+          </Typography>
         </Part>
       </Box>
     </Box>

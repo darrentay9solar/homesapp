@@ -14,6 +14,7 @@ import { Suspense, useEffect, useState } from "react";
 import { Page } from "@/components/shell";
 import { AnswersPanel, AskDialog, ChatStart, ThreadCard, useSupportHref } from "@/components/support";
 import { GRID, SegTabs, TopBar } from "@/components/topbar";
+import { ContactNumbers } from "@/components/contact";
 import { useApi } from "@/lib/client/api";
 import { useMe } from "@/lib/client/app-state";
 import { T } from "@/lib/client/i18n";
@@ -131,6 +132,12 @@ function SupportScreen() {
               {shown.map((t) => (
                 <ThreadCard key={t.id} t={t} staff={staff} onOpen={() => router.push(href(t.id))} />
               ))}
+            </Box>
+          )}
+          {/* A homeowner can also call, WhatsApp or write to 9 Solar Home. */}
+          {data && !staff && (
+            <Box sx={{ mt: 3 }}>
+              <ContactNumbers />
             </Box>
           )}
         </Page>
