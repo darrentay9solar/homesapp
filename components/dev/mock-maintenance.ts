@@ -17,15 +17,20 @@ const MANAGERS = [
 /** Yearly checks from year 2 to `years` for a system turned on `on` days from today; `done`: {year: days from today}. */
 function checks(on: number, years: number | null, done: Record<number, number> = {}): Check[] {
   const state = (due: number, d?: number): Check["state"] => (d !== undefined ? "done" : due < 0 ? "overdue" : due <= 30 ? "due_soon" : "scheduled");
-  return Array.from({ length: Math.max(0, (years ?? 0) - 1) }, (_, i) => {
-    const year = i + 2;
-    const due = on + year * 365;
-    return { key: `year_${year}` as const, year, label: `Year ${year} check`, due: day(due), doneOn: done[year] !== undefined ? day(done[year]) : null, state: state(due, done[year]) };
-  });
+  // The office's 6-month record first (done on the older systems), then the yearly checks.
+  const six: Check = { key: "six_month", year: 0, label: "6-month check", due: day(on + 182), doneOn: on + 190 < 0 ? day(on + 190) : null, state: on + 190 < 0 ? "done" : "record" };
+  return [
+    six,
+    ...Array.from({ length: Math.max(0, (years ?? 0) - 1) }, (_, i) => {
+      const year = i + 2;
+      const due = on + year * 365;
+      return { key: `year_${year}` as const, year, label: `Year ${year} check`, due: day(due), doneOn: done[year] !== undefined ? day(done[year]) : null, state: state(due, done[year]) };
+    }),
+  ];
 }
 
 function system(id: number, over: Partial<MaintenanceSystem>, c: Check[]): MaintenanceSystem {
-  const next = c.find((x) => x.state !== "done" && x.state !== "unscheduled") ?? null;
+  const next = c.find((x) => x.state !== "done" && x.state !== "unscheduled" && x.state !== "record") ?? null;
   const s: MaintenanceSystem = {
     id,
     address: "1 Sample Road",
@@ -85,8 +90,8 @@ export function mockSystem(id: number): MaintenanceDetail {
     canStart: true,
     // One system has maintenance under way (started by its manager; the homeowner has been told).
     maintenance:
-      s.id === SYSTEMS[1]?.id
-        ? { id: 41, checkKey: s.checks.find((c) => c.key.startsWith("year_") && c.state !== "done")?.key ?? null, label: "Maintenance", status: "started", note: "Inverter fan noisy at the last visit", startedAt: new Date(Date.now() - 2 * DAY).toISOString(), finishedAt: null, visit: null }
+      s.id === 201
+        ? { id: 41, checkKey: "year_3", label: "Year 3 check", status: "started", note: "Inverter fan noisy at the last visit", startedAt: new Date(Date.now() - 2 * DAY).toISOString(), finishedAt: null, visit: null }
         : null,
     bookWith: [5],
     managers: MANAGERS,

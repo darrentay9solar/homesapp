@@ -153,5 +153,6 @@ describe("dates", () => {
 
 describe("checkLabel", () => {
   it("names a yearly check", () => assert.equal(checkLabel("year_2", "en"), "Year 2 check"));
-  it("names anything else a maintenance check", () => assert.equal(checkLabel("six_month", "en"), "Maintenance check"));
+  it("names the office's 6-month record", () => assert.equal(checkLabel("six_month", "en"), "6-month check"));
+  it("names anything else a maintenance check", () => assert.equal(checkLabel("one_year", "en"), "Maintenance check"));
 });

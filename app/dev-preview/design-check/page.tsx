@@ -69,6 +69,8 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Project page · maintenance", path: "/dev-preview/projects/107", kind: "app" },
   { name: "Project page · installation archived", path: "/dev-preview/projects/107?tab=milestones", kind: "app" },
   { name: "Book a Check dialog", path: "/dev-preview/maintenance/201", kind: "app", click: "[data-testid=book-year_3]" },
+  { name: "Start Maintenance dialog", path: "/dev-preview/maintenance/204", kind: "app", click: "[data-testid=start-other]" },
+  { name: "Project page · maintenance (homeowner)", path: "/dev-preview/projects/107?as=homeowner", kind: "app" },
   { name: "Project page · details", path: "/dev-preview/projects/101?tab=details", kind: "app" },
   { name: "Project page · site visits", path: "/dev-preview/projects/101?tab=visits", kind: "app" },
   { name: "Edit Project dialog", path: "/dev-preview/projects/101?tab=details", kind: "app", click: "Edit" },

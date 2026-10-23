@@ -13,7 +13,8 @@ import type { SystemExtras } from "./records";
  * is due n × 12 months after turn-on, for the plan's (else the contract's) years
  * (api/_lib/checks.py).
  */
-export type CheckKey = `year_${number}`;
+/** A yearly check ("year_2"...), or the office's 6-month record. */
+export type CheckKey = `year_${number}` | "six_month";
 /** "record": the 6-month check, a record for the office (never late or due). */
 export type CheckState = "done" | "overdue" | "due_soon" | "scheduled" | "unscheduled" | "record";
 /** A visit booked for a check (a maintenance-check meeting); agreed once everyone has accepted. */
