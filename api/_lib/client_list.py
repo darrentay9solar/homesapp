@@ -493,7 +493,15 @@ def write(cur: psycopg.Cursor, wb: Workbook, today: date, geocode: bool = True, 
             continue
 
         # Signed, not yet turned on: a project in progress, waiting for a manager.
-        existing = cur.execute("select project_id from projects where project_code = %s", (c.code,)).fetchone() if c.code else None
+        # By its code; one with no code by the import that made it, or its postal code (none has two).
+        existing = (
+            cur.execute("select project_id from projects where project_code = %s", (c.code,)).fetchone()
+            if c.code
+            else cur.execute(
+                "select project_id from projects where project_code is null and (import_ref = %s or (postal_code = %s and import_ref like 'clients-%%'))",
+                (c.ref, c.postal),
+            ).fetchone()
+        )
         start, end, note = c.start, c.end, None
         if not start and not end:
             start, end = today, today + timedelta(days=21)
