@@ -29,7 +29,7 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
     "milestones": ("milestone_complete", "signature_request", "signed", "project_closed"),
     "people": ("account_request", "role_request"),
     "meetings": ("meeting_request", "meeting_response", "meeting_changed", "meeting_reminder"),
-    "maintenance": ("maintenance_due",),
+    "maintenance": ("maintenance_due", "maintenance_started", "maintenance_done"),
     "warnings": ("project_late", "escalation"),
     "summary": ("daily_summary",),
     "support": ("support_request", "support_message", "support_added", "support_settled"),

@@ -11,8 +11,9 @@ export const ACCESS: Record<Role, { yes: string[]; no: string[] }> = {
       "E-sign the handover certificate when the work is done",
       "Get alerts about your installation on your phone",
       "See what your solar system makes: now, today, this month and since it was turned on",
+      "Hear when 9 Solar Home starts maintenance on your system, accept its visit, and hear when it's done",
     ],
-    no: ["See other people's projects or change project fields"],
+    no: ["See other people's projects or change project fields", "See your system's maintenance schedule (your project manager arranges it)"],
   },
   contractor: {
     yes: [

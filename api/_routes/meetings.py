@@ -45,7 +45,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from _lib import checks, notify, onemap, repeat, video
+from _lib import checks, maintenance_jobs, notify, onemap, repeat, video
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.web import active
@@ -147,7 +147,11 @@ def contacts(acct: Account) -> list[dict[str, Any]]:
 
 
 def busy(
-    uids: list[int], start: datetime, end: datetime, *, except_meeting: int | None = None,
+    uids: list[int],
+    start: datetime,
+    end: datetime,
+    *,
+    except_meeting: int | None = None,
     except_meetings: list[int] | None = None,
 ) -> dict[int, list[tuple[datetime, datetime]]]:
     """Each person's busy stretches between two times: meetings they've accepted, and blocked-out time."""
@@ -377,7 +381,9 @@ class MeetingIn(BaseModel):
     checkKey: str | None = None  # a yearly check, "year_2"... (_lib/checks.py)
     # Minutes before the start; none given is an hour before, an empty list is none.
     reminders: list[int] | None = None
-    repeat: Literal["daily", "weekdays", "weekly", "fortnightly", "monthly_day", "monthly_weekday", "yearly"] | None = None
+    repeat: Literal["daily", "weekdays", "weekly", "fortnightly", "monthly_day", "monthly_weekday", "yearly"] | None = (
+        None
+    )
     repeatUntil: str | None = None
     repeatCount: int | None = None
 
@@ -470,7 +476,9 @@ def _busy_refusal(clashes: list[tuple[datetime, list[int]]], me: int, series: bo
                              else "You're already busy then. Choose another time.")  # fmt: skip
     who = sorted({u for _s, us in clashes for u in us})
     if series:
-        return HTTPException(409, f"Busy on {_days([s for s, _w in clashes])}: {_names(who)}. Choose another time, or change the repeat.")
+        return HTTPException(
+            409, f"Busy on {_days([s for s, _w in clashes])}: {_names(who)}. Choose another time, or change the repeat."
+        )
     return HTTPException(409, f"Busy then: {_names(who)}. Choose another time.")
 
 
@@ -502,7 +510,9 @@ def _system_check(acct: Account, body: MeetingIn) -> dict[str, Any] | None:
 @router.post("/meetings")
 def arrange(body: MeetingIn, acct: Account = Depends(active)) -> dict[str, Any]:
     if acct.role == "homeowner":
-        raise HTTPException(403, "Your project manager arranges meetings with you. Block out the times you can't do in your calendar.")
+        raise HTTPException(
+            403, "Your project manager arranges meetings with you. Block out the times you can't do in your calendar."
+        )
     title = _text(body.title, 120, "title")
     if not title:
         raise HTTPException(400, "Give the meeting a title.")
@@ -532,6 +542,9 @@ def arrange(body: MeetingIn, acct: Account = Depends(active)) -> dict[str, Any]:
     postal = _postal(body.postalCode) if place == "physical" else None
     notes = _text(body.notes, 1000, "note")
     project_id = body.projectId if body.projectId is not None else (system["project_id"] if system else None)
+    if system and not maintenance_jobs.open_job(system["system_id"]):
+        # A visit for a check is maintenance under way: the homeowner hears it's starting (migration 0057).
+        maintenance_jobs.start(system, body.checkKey, acct.uid)
     with transaction(acct.uid) as cur:
         sid = None
         if series:
@@ -559,7 +572,8 @@ def arrange(body: MeetingIn, acct: Account = Depends(active)) -> dict[str, Any]:
             mid = row["meeting_id"]
             ids.append(mid)
             cur.execute(
-                "insert into meeting_people (meeting_id, user_id, response) values (%s, %s, 'accepted')", (mid, acct.uid)
+                "insert into meeting_people (meeting_id, user_id, response) values (%s, %s, 'accepted')",
+                (mid, acct.uid),
             )
             for u in invited:
                 cur.execute("insert into meeting_people (meeting_id, user_id) values (%s, %s)", (mid, u))
@@ -762,7 +776,11 @@ def respond(mid: int, body: Answer, acct: Account = Depends(active)) -> dict[str
         if skipped:
             msg += f" You're busy on {_days(skipped)}, so those are still to answer."
     else:
-        msg = f"Declined {len(targets)} meetings. The organiser has been told." if many else "Declined. The organiser has been told."
+        msg = (
+            f"Declined {len(targets)} meetings. The organiser has been told."
+            if many
+            else "Declined. The organiser has been told."
+        )
     return {"message": msg, "meeting": _for(acct, _one(acct, mid))}
 
 

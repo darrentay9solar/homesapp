@@ -231,10 +231,12 @@ GOOD: list[tuple[str, Any, str, Any]] = [
     ("roofAccess", None, "roofAccess", None),
     ("urgent", True, "urgent", True),
     ("notes", "  ", "notes", None),
-    ("turnedOn", "2026-02-28", "checks.0.due", "2028-02-28"),
-    ("turnedOn", "2024-02-29", "checks.0.due", "2026-02-28"),
-    ("turnedOn", "2024-02-29", "checks.2.due", "2028-02-29"),
-    ("turnedOn", "2025-08-31", "checks.3.due", "2030-08-31"),
+    # The office's list starts with the 6-month record (six months on), then the yearly checks.
+    ("turnedOn", "2026-02-28", "checks.0.due", "2026-08-28"),
+    ("turnedOn", "2026-02-28", "checks.1.due", "2028-02-28"),
+    ("turnedOn", "2024-02-29", "checks.1.due", "2026-02-28"),
+    ("turnedOn", "2024-02-29", "checks.3.due", "2028-02-29"),
+    ("turnedOn", "2025-08-31", "checks.4.due", "2030-08-31"),
     ("turnedOn", None, "checks.0.due", None),
 ]
 BAD: list[tuple[str, Any, int]] = [
@@ -350,8 +352,10 @@ def test_the_checks_are_the_plans_years_from_the_second(api, world, scratch, pla
     sid = scratch(turned_on_on=on, plan_years=plan, ppa_kind="ppa" if ppa else None, ppa_years=ppa)
     s = api.get(f"/api/py/maintenance/{sid}", headers=world.h("pm")).json()["system"]
     years = spec.check_years(plan, ppa)
-    assert [c["key"] for c in s["checks"]] == [f"year_{y}" for y in years]
-    assert [c["due"] for c in s["checks"]] == [date(*spec.check_due(on.year, on.month, on.day, y)).isoformat() for y in years]
+    assert s["checks"][0]["key"] == "six_month" and s["checks"][0]["state"] == "record", "the office's 6-month record"
+    yearly_checks = s["checks"][1:]
+    assert [c["key"] for c in yearly_checks] == [f"year_{y}" for y in years]
+    assert [c["due"] for c in yearly_checks] == [date(*spec.check_due(on.year, on.month, on.day, y)).isoformat() for y in years]
 
 
 DONE_ON = [(-300, 400), (-201, 400), (-200, 200), (-17, 200), (0, 200), (1, 400), (30, 400)]
@@ -371,7 +375,7 @@ def test_marking_a_check_done(api, world, scratch, which, on, status) -> None:
         assert next(x for x in r.json()["system"]["checks"] if x["key"] == which)["doneOn"] is None
 
 
-@pytest.mark.parametrize("which", ["year_1", "year_6", "year_41", "six_month", "one_year", "three_month", "two_year", "six-month", ""])
+@pytest.mark.parametrize("which", ["year_1", "year_6", "year_41", "one_year", "three_month", "two_year", "six-month", ""])
 def test_there_are_only_the_plans_yearly_checks(api, world, recs, which) -> None:
     r = api.post(f"/api/py/maintenance/{recs['pm']}/checks/{which}", headers=world.h("pm"), json={"doneOn": None})
     assert r.status_code in (404, 405)

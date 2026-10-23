@@ -82,6 +82,12 @@ export function mockSystem(id: number): MaintenanceDetail {
     canEdit: true,
     canAssign: true,
     canBook: true,
+    canStart: true,
+    // One system has maintenance under way (started by its manager; the homeowner has been told).
+    maintenance:
+      s.id === SYSTEMS[1]?.id
+        ? { id: 41, checkKey: s.checks.find((c) => c.key.startsWith("year_") && c.state !== "done")?.key ?? null, label: "Maintenance", status: "started", note: "Inverter fan noisy at the last visit", startedAt: new Date(Date.now() - 2 * DAY).toISOString(), finishedAt: null, visit: null }
+        : null,
     bookWith: [5],
     managers: MANAGERS,
     ...mockRecord(),
@@ -120,6 +126,16 @@ export function mockProjectMaintenance(pid: number): MaintenanceDetail {
   const s = SYSTEMS.find((x) => x.project?.id === pid) ?? SYSTEMS[3];
   const start = `${day(5)}T09:00:00+08:00`;
   const end = `${day(5)}T11:00:00+08:00`;
-  const checks = s.checks.map((c, i) => (i === 0 && c.state !== "done" ? { ...c, booked: { meetingId: 305, startsAt: start, endsAt: end, agreed: false } } : c));
-  return { ...mockSystem(s.id), system: { ...s, checks, notes: null }, canEdit: false, canAssign: false, bookWith: [1] };
+  // The homeowner's view: no check schedule; the maintenance their manager started, its visit, the last one done.
+  return {
+    ...mockSystem(s.id),
+    system: { ...s, checks: [], next: null, notes: null, attention: false },
+    canEdit: false,
+    canAssign: false,
+    canBook: false,
+    canStart: false,
+    bookWith: [],
+    maintenance: { id: 42, checkKey: null, label: "Maintenance", status: "started", note: null, startedAt: new Date(Date.now() - 3 * DAY).toISOString(), finishedAt: null, visit: { meetingId: 305, startsAt: start, endsAt: end, agreed: false } },
+    lastMaintained: new Date(Date.now() - 380 * DAY).toISOString(),
+  };
 }

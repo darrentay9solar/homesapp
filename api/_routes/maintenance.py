@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from _lib import checks as yearly
+from _lib import maintenance_jobs as jobs
 from _lib import records
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
@@ -94,6 +95,8 @@ def row(
     today: date,
     booked: dict[tuple[int, str], dict[str, Any]] | None = None,
     done: dict[int, dict[int, date]] | None = None,
+    *,
+    office: bool = True,
 ) -> dict[str, Any]:
     if done is None:
         done = yearly.done([r["system_id"]])
@@ -104,12 +107,15 @@ def row(
             "label": yearly.label(c.key),
             "due": c.due.isoformat() if c.due else None,
             "doneOn": c.done_on.isoformat() if c.done_on else None,
-            "state": check_state(c.due, c.done_on, today),
+            # The 6-month check is a record: it's done or not, never late or due (checks.py).
+            "state": ("done" if c.done_on else "record")
+            if c.key == yearly.SIX_MONTH
+            else check_state(c.due, c.done_on, today),
             "booked": None if c.done_on else (booked or {}).get((r["system_id"], c.key)),
         }
-        for c in yearly.for_system(r, done.get(r["system_id"]))
+        for c in yearly.for_system(r, done.get(r["system_id"]), office=office)
     ]
-    pending = [c for c in checks if c["state"] not in ("done", "unscheduled")]
+    pending = [c for c in checks if c["state"] not in ("done", "unscheduled", "record")]
     overdue = any(c["state"] == "overdue" for c in checks)
     panels = r["panels"] or []
     return {
@@ -220,10 +226,30 @@ def detail(acct: Account, r: dict[str, Any]) -> dict[str, Any]:
             if sig and sig["certificate_url"]
             else None,
         }
-    system = row(r, proj.today(), bookings([r["system_id"]]))
+    booked = bookings([r["system_id"]])
+    system = row(r, proj.today(), booked, office=not homeowner)
+    job = jobs.open_job(r["system_id"])
+    current = jobs.for_screen(job)
+    if current:
+        # Its visit, once booked: the meeting for its check.
+        current["visit"] = booked.get((r["system_id"], job["check_key"])) if job and job["check_key"] else None
     if homeowner:
-        # The homeowner sees their system and its checks, not the office's notes.
-        system["notes"] = None
+        # The homeowner doesn't see the check schedule, when anything's due, or the office's notes: only
+        # maintenance their project manager has started, its visit, and when it was last done.
+        system.update(checks=[], next=None, attention=False, notes=None, urgent=False, urgentNote=None)
+        last = jobs.latest(r["system_id"])
+        return {
+            "system": system,
+            "project": project,
+            "maintenance": current,
+            "lastMaintained": last["finished_at"].isoformat() if last else None,
+            "canEdit": False,
+            "canAssign": False,
+            "canBook": False,
+            "canStart": False,
+            "bookWith": [],
+            "managers": [],
+        }
     # A check is booked by the office, with the homeowner when they have an account. The homeowner
     # doesn't book: they're invited, and block out the times they can't do.
     with_whom = [r["homeowner_id"]] if r["homeowner_id"] and not homeowner else []
@@ -233,6 +259,8 @@ def detail(acct: Account, r: dict[str, Any]) -> dict[str, Any]:
         "canEdit": can_edit(acct, r),
         "canAssign": superadmin,
         "canBook": can_edit(acct, r),
+        "canStart": can_edit(acct, r),
+        "maintenance": current,
         "bookWith": [u for u in with_whom if u != acct.uid],
         "managers": _managers() if superadmin else [],
     }
@@ -367,18 +395,75 @@ class Done(BaseModel):
     doneOn: date | None
 
 
+class StartIn(BaseModel):
+    checkKey: str | None = None
+    note: str | None = None
+
+
+@router.post("/maintenance/{sid}/jobs")
+def start_maintenance(sid: int, body: StartIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
+    """The project manager starts maintenance (for a yearly check, or not tied to one): the homeowner hears."""
+    r = _one(acct, sid)
+    if not can_edit(acct, r):
+        raise HTTPException(403, "This system is looked after by another project manager.")
+    if body.checkKey is not None:
+        year = yearly.year_of(body.checkKey)
+        if year is None or year not in yearly.years(yearly.term(r)):
+            raise HTTPException(400, "That isn't one of the system's yearly checks.")
+    try:
+        jobs.start(r, body.checkKey, acct.uid, _clean(body.note, 1000))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return system(sid, acct)
+
+
+class FinishIn(BaseModel):
+    outcome: Literal["done", "cancelled"]
+
+
+@router.post("/maintenance/{sid}/jobs/{jid}/finish")
+def finish_maintenance(sid: int, jid: int, body: FinishIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
+    """Done (its check recorded as done today) or called off; the homeowner hears either way."""
+    r = _one(acct, sid)
+    if not can_edit(acct, r):
+        raise HTTPException(403, "This system is looked after by another project manager.")
+    job = jobs.open_job(sid)
+    if not job or job["job_id"] != jid:
+        raise HTTPException(404, "There's no maintenance under way with that number.")
+    jobs.finish(r, job, body.outcome, acct.uid)
+    year = yearly.year_of(job["check_key"] or "")
+    if body.outcome == "done" and year is not None:
+        with transaction(acct.uid) as cur:
+            cur.execute(
+                "insert into maintenance_checks (system_id, year, done_on) values (%s, %s, %s) on conflict do nothing",
+                (sid, year, proj.today()),
+            )
+    return system(sid, acct)
+
+
 @router.post("/maintenance/{sid}/checks/{check}")
 def check_done(sid: int, check: str, body: Done, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     r = _one(acct, sid)
     if not can_edit(acct, r):
         raise HTTPException(403, "This system is looked after by another project manager.")
+    six = check == yearly.SIX_MONTH
     year = yearly.year_of(check)
-    if year is None or year not in yearly.years(yearly.term(r)):
+    if not six and (year is None or year not in yearly.years(yearly.term(r))):
         raise HTTPException(404, "There's no such check.")
     if body.doneOn and body.doneOn > proj.today():
         raise HTTPException(400, "A check can't be done in the future.")
     if body.doneOn and r["turned_on_on"] and body.doneOn < r["turned_on_on"]:
         raise HTTPException(400, "A check can't be done before the system was turned on.")
+    if six:
+        # The office's record of the 6-month check (migration 0057).
+        with transaction(acct.uid) as cur:
+            cur.execute(
+                "update maintenance_systems set six_month_done_on = %s where system_id = %s", (body.doneOn, sid)
+            )
+        return system(sid, acct)
+    job = jobs.open_job(sid)
+    if body.doneOn and job and job["check_key"] == check:
+        jobs.finish(r, job, "done", acct.uid)
     with transaction(acct.uid) as cur:
         if body.doneOn:
             cur.execute(

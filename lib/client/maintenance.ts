@@ -14,7 +14,8 @@ import type { SystemExtras } from "./records";
  * (api/_lib/checks.py).
  */
 export type CheckKey = `year_${number}`;
-export type CheckState = "done" | "overdue" | "due_soon" | "scheduled" | "unscheduled";
+/** "record": the 6-month check, a record for the office (never late or due). */
+export type CheckState = "done" | "overdue" | "due_soon" | "scheduled" | "unscheduled" | "record";
 /** A visit booked for a check (a maintenance-check meeting); agreed once everyone has accepted. */
 export type Booking = { meetingId: number; startsAt: string; endsAt: string; agreed: boolean };
 export type Check = { key: CheckKey; year: number; label: string; due: string | null; doneOn: string | null; state: CheckState; booked?: Booking | null };
@@ -51,8 +52,27 @@ export type MaintenanceSystem = {
 
 export type Manager = { uid: number; name: string };
 export type MaintenanceList = { systems: MaintenanceSystem[]; today: string; canAssign: boolean; managers: Manager[] };
+/** Maintenance the project manager started (migration 0057): for a yearly check, or not tied to one. */
+export type MaintenanceJob = {
+  id: number;
+  checkKey: string | null;
+  label: string;
+  status: "started" | "done" | "cancelled";
+  note: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  /** Its visit, once booked. */
+  visit?: Booking | null;
+};
+
 export type MaintenanceDetail = {
   system: MaintenanceSystem;
+  /** Maintenance under way, if any. */
+  maintenance?: MaintenanceJob | null;
+  /** A homeowner's: when maintenance was last done. */
+  lastMaintained?: string | null;
+  /** May start maintenance: the system's managers. */
+  canStart?: boolean;
   project: { id: number; name: string | null; signedAt: string | null; closedAt: string | null; certificate: string | null } | null;
   canEdit: boolean;
   canAssign: boolean;
@@ -67,6 +87,7 @@ export type MaintenanceDetail = {
 
 /** "Year 2 check" for "year_2" (any other key: "Maintenance check"). */
 export function checkLabel(key: string | null | undefined, lang: Lang = currentLang()): string {
+  if (key === "six_month") return interpolate("6-month check", undefined, lang);
   const n = /^year_(\d+)$/.exec(key ?? "")?.[1];
   return n ? interpolate("Year {n} check", { n: Number(n) }, lang) : interpolate("Maintenance check", undefined, lang);
 }

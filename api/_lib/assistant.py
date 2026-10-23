@@ -26,8 +26,7 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from _lib import checks as yearly
-from _lib import demo
+from _lib import demo, maintenance_jobs
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one
 from _lib.i18n import tr
@@ -115,14 +114,13 @@ def project_facts(project_id: int | None) -> list[str]:
                 f"Maintenance plan: {s['plan_years']} years"
                 + (" excluding the 1st year" if s["plan_excludes_first_year"] else " free")
             )
-        lines.append("Maintenance checks: none in the first year, then one a year from 24 months after turn-on.")
-        for c in yearly.for_system(s, yearly.done([s["system_id"]]).get(s["system_id"])):
-            name = yearly.label(c.key)
-            if c.done_on:
-                lines.append(f"{name}: done on {c.done_on.isoformat()}")
-            elif c.due:
-                state = "overdue since" if c.due < today else "due"
-                lines.append(f"{name}: {state} {c.due.isoformat()}")
+        # Not the check schedule: the homeowner hears when their project manager starts maintenance.
+        lines.append("Maintenance: arranged by their project manager, who tells them when it starts.")
+        job = maintenance_jobs.open_job(s["system_id"])
+        if job:
+            lines.append(f"Maintenance under way since {job['started_at'].date().isoformat()}.")
+        elif last := maintenance_jobs.latest(s["system_id"]):
+            lines.append(f"Last maintained: {last['finished_at'].date().isoformat()}.")
         if s["urgent"]:
             lines.append("An urgent issue is open on this system.")
     return lines
@@ -279,16 +277,16 @@ def reply(uid: int, project_id: int | None, history: list[dict[str, Any]], lang:
 # (warranty, billing, cleaning, ...) on the Answers tab.
 STARTER: list[tuple[str, str, str, str]] = [
     (
-        "When is my next maintenance check?",
-        "Your 6-month and 1-year checks are on your project's Maintenance tab, each with its date. A reminder comes 14 days before and on the day.",
-        "我的下一次维护检查是什么时候？",
-        "您的6个月和1年检查在项目的“维护”标签页中，每项都有日期。我们会在14天前和当天提醒您。",
+        "How does maintenance work?",
+        "Your project manager looks after your system's maintenance. When it's time, they start it and you get a message; they then invite you to a visit, and you hear again when it's done. You'll see it on your project's Maintenance tab.",
+        "维护是怎么安排的？",
+        "您的项目经理负责系统的维护。到时候，他们会开始维护，您会收到通知；随后会邀请您安排上门时间，完成后您也会收到通知。您可以在项目的“维护”标签页中查看。",
     ),
     (
         "How do I book a maintenance visit?",
-        "Open your project's Maintenance tab and tap Book a visit on the check. Pick a time that suits you; your project manager confirms it.",
+        "You don't need to: when your project manager starts your system's maintenance, they invite you to a visit. Accept it in your calendar, or block out the times you can't do.",
         "如何预约维护上门？",
-        "打开项目的“维护”标签页，在检查项上点按“预约上门”，选择合适的时间，项目经理会确认。",
+        "您无需自行预约：项目经理开始维护时会邀请您安排上门时间。您可以在日历中接受邀请，或标出您不方便的时间。",
     ),
     (
         "How do I sign the handover certificate?",

@@ -9,10 +9,11 @@ yet done, three reminders, each sent once (maintenance_reminders):
             which are a list to work through, not news)
 
 They go to the system's project manager (the superadmins while it has
-none) and to its homeowner when they have an account, each linked to where
-they act on it: the manager to the system, to book a time with the homeowner;
-the homeowner to their project's Maintenance tab (the manager arranges the
-visit and invites them). A check already booked says so.
+none), linked to the system, to start its maintenance and book a time with the
+homeowner. A check already booked says so. The homeowner gets none of these:
+they don't see the check schedule, and hear only when maintenance is started
+(_lib/maintenance_jobs.py, migration 0057). The 6-month check is a record and
+has no reminders.
 """
 
 from __future__ import annotations
@@ -86,13 +87,8 @@ def _send(s: dict[str, Any], label: str, due: date, stage: str, when: datetime |
     booking = f" It's booked for {when.astimezone(SG).strftime('%d %b %Y, %H:%M')}." if when else None
     n = 0
     for uid in [s["run_by"]] if s["run_by"] else admins:
-        body = what + (booking or " Book a time with the homeowner in the calendar.")
+        body = what + (booking or " Start its maintenance and book a time with the homeowner.")
         notify.notify(uid, "maintenance_due", title, body, project_id=s["project_id"],
                       link=f"/maintenance/{s['system_id']}", urgent=stage == "overdue")  # fmt: skip
-        n += 1
-    if s["homeowner_id"]:
-        body = what + (booking or " Your project manager will arrange a time with you.")
-        link = f"/projects/{s['project_id']}?tab=maintenance" if s["project_id"] else "/calendar"
-        notify.notify(s["homeowner_id"], "maintenance_due", title, body, project_id=s["project_id"], link=link)
         n += 1
     return n

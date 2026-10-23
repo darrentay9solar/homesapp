@@ -13,8 +13,10 @@ visit (meetings.check_key) and a reminder carry. What's stored is when each
 one was done (maintenance_checks); when it's due follows from the turn-on
 date, so moving that date moves them all.
 
-The 6-month and 1-year checks from before (maintenance_systems.six_month_*,
-one_year_*) are no longer used; their history stays in the audit log.
+The 6-month check is a record for the office only (maintenance_systems.six_month_due
+and six_month_done_on, migration 0057): six months after turn-on unless the client
+list gave its own date, recorded when done; no reminders, no workflow, and never
+shown to the homeowner. The old 1-year check (one_year_*) is no longer used.
 """
 
 from __future__ import annotations
@@ -27,7 +29,8 @@ from typing import Any
 
 from _lib.db import fetch_all
 
-FIRST_YEAR = 2  # no check in the first year
+FIRST_YEAR = 2  # no yearly check in the first year
+SIX_MONTH = "six_month"
 KEY = re.compile(r"^year_([2-9]|[1-3][0-9]|40)$")
 
 
@@ -50,6 +53,8 @@ def year_of(key: str) -> int | None:
 
 def label(key: str) -> str:
     """'Year 2 check' (put through TR()/tr() where it's shown)."""
+    if key == SIX_MONTH:
+        return "6-month check"
     n = year_of(key)
     return f"Year {n} check" if n else "Maintenance check"
 
@@ -89,10 +94,20 @@ def done(system_ids: list[int]) -> dict[int, dict[int, date]]:
     return out
 
 
-def for_system(s: dict[str, Any], done_years: dict[int, date] | None = None) -> list[Check]:
-    """A maintenance_systems row's checks, in order."""
+def six_month(s: dict[str, Any]) -> Check | None:
+    """The 6-month check, for the office's record: its own date from the client list, or 6 months after turn-on."""
+    due = s.get("six_month_due") or (add_months(s["turned_on_on"], 6) if s.get("turned_on_on") else None)
+    if not due and not s.get("six_month_done_on"):
+        return None
+    return Check(SIX_MONTH, 0, due, s.get("six_month_done_on"))
+
+
+def for_system(s: dict[str, Any], done_years: dict[int, date] | None = None, *, office: bool = False) -> list[Check]:
+    """A maintenance_systems row's yearly checks, in order; for the office, the 6-month check first."""
     got = done_years or {}
-    return [Check(key_for(y), y, due_on(s["turned_on_on"], y), got.get(y)) for y in years(term(s))]
+    yearly = [Check(key_for(y), y, due_on(s["turned_on_on"], y), got.get(y)) for y in years(term(s))]
+    first = six_month(s) if office else None
+    return [first, *yearly] if first else yearly
 
 
 def open_checks(s: dict[str, Any], done_years: dict[int, date] | None = None) -> list[Check]:

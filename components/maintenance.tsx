@@ -46,12 +46,13 @@ import { DetailRow } from "@/components/projects";
 import { EdgeCard, gradText } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
-import { useApp } from "@/lib/client/app-state";
+import { useApp, useMe } from "@/lib/client/app-state";
 import { whenText } from "@/lib/client/calendar";
 import { T, TR, useLang } from "@/lib/client/i18n";
 import {
   addMonths,
   type Check,
+  checkLabel,
   kwpText,
   type MaintenanceDetail,
   type MaintenanceSystem,
@@ -470,6 +471,7 @@ export const CHECK_STATE: Record<Check["state"], string> = {
   due_soon: "Due soon",
   scheduled: "Scheduled",
   unscheduled: "Not scheduled",
+  record: "Record only",
 };
 
 /**
@@ -494,7 +496,9 @@ export function ChecksCard({
   const { lang } = useLang();
   const meetingHref = useMeetingHref();
   const [booking, setBooking] = useState<Check | null>(null);
+  const [starting, setStarting] = useState<{ key: string | null } | null>(null);
   const today = sgToday();
+  const job = d.maintenance ?? null;
   return (
     <Card sx={{ p: { xs: 2, sm: 2.5 } }} data-testid="system-checks">
       <Typography component="h2" sx={[{ fontWeight: 600, fontSize: 17 }, gradText()]}>
@@ -504,8 +508,9 @@ export function ChecksCard({
         {nextCheckText(s)}
       </Typography>
       <Typography variant="caption" component="p" sx={{ color: "text.secondary", mt: 0.25 }}>
-        {T("None in the first year; then one a year, the first 24 months after turn-on.")}
+        {T("None in the first year; then one a year, the first 24 months after turn-on. The homeowner doesn't see these: they hear when you start maintenance.")}
       </Typography>
+      <MaintenanceUnderWay d={d} onChanged={onBooked} onStart={(key) => setStarting({ key })} />
       <Stack sx={{ mt: 1.5 }} divider={<Divider />}>
         {s.checks.map((c) => (
           <Box key={c.key} sx={{ py: 1.25 }} data-testid={`check-${c.key}`}>
@@ -536,7 +541,15 @@ export function ChecksCard({
                   </Button>
                 ))}
             </Stack>
-            {c.state !== "done" && (c.booked || d.canBook) && (
+            {/* Not done and not the 6-month record: start its maintenance, or book the visit once it's started. */}
+            {c.state !== "done" && c.state !== "record" && !c.booked && d.canStart && !job && (
+              <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 1, ml: { xs: 0, sm: 4.5 }, flexWrap: "wrap" }}>
+                <Button size="small" variant="outlined" startIcon={<HandymanRoundedIcon />} onClick={() => setStarting({ key: c.key })} data-testid={`start-${c.key}`}>
+                  {T("Start maintenance")}
+                </Button>
+              </Stack>
+            )}
+            {c.state !== "done" && c.state !== "record" && (c.booked || (d.canBook && job?.checkKey === c.key)) && (
               <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 1, ml: { xs: 0, sm: 4.5 }, flexWrap: "wrap" }}>
                 {c.booked ? (
                   <Button
@@ -561,6 +574,7 @@ export function ChecksCard({
           </Box>
         ))}
       </Stack>
+      {starting && <StartMaintenanceDialog systemId={s.id} checkKey={starting.key} onClose={() => setStarting(null)} onStarted={() => { setStarting(null); onBooked(); }} />}
       {booking && (
         <MeetingDialog
           draft={{
@@ -585,6 +599,152 @@ export function ChecksCard({
   );
 }
 
+/**
+ * The maintenance under way on a system (the office's view): what it's for, since when, its visit, and
+ * finishing it. With none under way, a way to start maintenance that isn't one of the yearly checks.
+ */
+function MaintenanceUnderWay({ d, onChanged, onStart }: { d: MaintenanceDetail; onChanged: () => void; onStart: (key: string | null) => void }) {
+  const fetcher = useFetcher();
+  const { toast } = useApp();
+  const { lang } = useLang();
+  const meetingHref = useMeetingHref();
+  const [busy, setBusy] = useState(false);
+  const job = d.maintenance ?? null;
+  const finish = async (outcome: "done" | "cancelled") => {
+    if (!job) return;
+    setBusy(true);
+    try {
+      await fetcher(`/maintenance/${d.system.id}/jobs/${job.id}/finish`, { method: "POST", json: { outcome } });
+      toast(outcome === "done" ? T("Done. The homeowner has been told.") : T("Called off. The homeowner has been told."));
+      onChanged();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : T("Something went wrong. Please try again."), "bad");
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!job) {
+    return d.canStart ? (
+      <Button size="small" startIcon={<HandymanRoundedIcon />} onClick={() => onStart(null)} sx={{ mt: 1 }} data-testid="start-other">
+        {T("Start other maintenance")}
+      </Button>
+    ) : null;
+  }
+  return (
+    <Alert
+      severity="info"
+      icon={<HandymanRoundedIcon />}
+      sx={{ mt: 1.5 }}
+      data-testid="maintenance-under-way"
+      action={
+        d.canStart ? (
+          <Stack direction="row" sx={{ gap: 0.5, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Button size="small" variant="contained" disabled={busy} onClick={() => void finish("done")} data-testid="maintenance-done">
+              {T("Done")}
+            </Button>
+            <Button size="small" color="inherit" disabled={busy} onClick={() => void finish("cancelled")} data-testid="maintenance-call-off">
+              {T("Call off")}
+            </Button>
+          </Stack>
+        ) : undefined
+      }
+    >
+      <Typography sx={{ fontWeight: 600, fontSize: 14.5 }}>{T("{what} under way since {date}", { what: TR(job.checkKey ? checkLabel(job.checkKey) : "Maintenance"), date: d2s(job.startedAt.slice(0, 10)) })}</Typography>
+      <Typography variant="body2">
+        {job.visit ? (
+          <Link href={meetingHref(job.visit.meetingId)}>{job.visit.agreed ? T("Visit agreed: {when}", { when: whenText(job.visit, lang) }) : T("Visit asked for: {when}", { when: whenText(job.visit, lang) })}</Link>
+        ) : (
+          T("The homeowner has been told. Book the visit with them next.")
+        )}
+      </Typography>
+      {job.note && (
+        <Typography variant="body2" sx={{ mt: 0.5, overflowWrap: "anywhere" }}>
+          {job.note}
+        </Typography>
+      )}
+    </Alert>
+  );
+}
+
+/** Starting maintenance: the homeowner is told now, and invited to the visit when it's booked. */
+function StartMaintenanceDialog({ systemId, checkKey, onClose, onStarted }: { systemId: number; checkKey: string | null; onClose: () => void; onStarted: () => void }) {
+  const fetcher = useFetcher();
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const start = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await fetcher(`/maintenance/${systemId}/jobs`, { method: "POST", json: { checkKey, note: note.trim() || null } });
+      onStarted();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : T("Something went wrong. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <MDialog
+      title={T("Start maintenance")}
+      heading={checkKey ? checkLabel(checkKey) : T("Other maintenance")}
+      subtitle={T("The homeowner gets a message that maintenance is starting, and that you'll arrange a visit with them. They don't see the check schedule.")}
+      onClose={onClose}
+      maxWidth="xs"
+    >
+      <Field label={T("Note for the record (optional)")} value={note} onChange={(e) => setNote(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 1000, "data-testid": "start-note" } }} />
+      {err && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {err}
+        </Alert>
+      )}
+      <Button variant="contained" size="large" fullWidth disabled={busy} onClick={() => void start()} sx={{ mt: 3 }} data-testid="start-confirm">
+        {busy ? T("Starting…") : T("Start and tell the homeowner")}
+      </Button>
+    </MDialog>
+  );
+}
+
+/**
+ * A homeowner's view of their system's maintenance: nothing about the check schedule (only the office
+ * sees that), just maintenance their project manager has started, its visit, and when it was last done.
+ */
+function HomeownerMaintenance({ d }: { d: MaintenanceDetail }) {
+  const { lang } = useLang();
+  const meetingHref = useMeetingHref();
+  const job = d.maintenance ?? null;
+  return (
+    <Card sx={{ p: { xs: 2, sm: 2.5 } }} data-testid="homeowner-maintenance">
+      <Typography component="h2" sx={[{ fontWeight: 600, fontSize: 17 }, gradText()]}>
+        {T("Maintenance")}
+      </Typography>
+      {job ? (
+        <>
+          <Typography sx={{ fontWeight: 600, mt: 1 }}>{T("Maintenance started on {date}", { date: d2s(job.startedAt.slice(0, 10)) })}</Typography>
+          {job.visit ? (
+            <Button size="small" variant="outlined" color={job.visit.agreed ? "success" : "warning"} startIcon={<EventAvailableRoundedIcon />} component={Link} href={meetingHref(job.visit.meetingId)} sx={{ mt: 1, textAlign: "left" }} data-testid="homeowner-visit">
+              {job.visit.agreed ? T("Visit agreed: {when}", { when: whenText(job.visit, lang) }) : T("Visit asked for: {when}", { when: whenText(job.visit, lang) })}
+            </Button>
+          ) : (
+            <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+              {T("Your project manager will invite you to a visit. Accept it in your calendar, or block out the times you can't do.")}
+            </Typography>
+          )}
+        </>
+      ) : (
+        <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+          {T("Your project manager looks after your system's maintenance. When it's time, you'll get a message, then an invitation to a visit.")}
+        </Typography>
+      )}
+      {d.lastMaintained && (
+        <Typography variant="caption" component="p" sx={{ color: "text.secondary", mt: 1.25 }}>
+          {T("Last maintained on {date}", { date: d2s(d.lastMaintained.slice(0, 10)) })}
+        </Typography>
+      )}
+    </Card>
+  );
+}
+
 /** A meeting in the calendar: inside the dev preview when browsing it, otherwise the app. */
 export function useMeetingHref() {
   const preview = usePathname().startsWith("/dev-preview");
@@ -599,6 +759,7 @@ export function useMeetingHref() {
 export function ProjectMaintenance({ pid }: { pid: number }) {
   const { data, error, reload } = useApi<MaintenanceDetail>(`/projects/${pid}/maintenance`);
   const href = useMaintenanceHref();
+  const me = useMe();
   if (error)
     return (
       <Alert severity="info" sx={{ mt: 1 }}>
@@ -609,7 +770,7 @@ export function ProjectMaintenance({ pid }: { pid: number }) {
   const s = data.system;
   return (
     <Stack sx={{ gap: 2 }} data-testid="project-maintenance">
-      <ChecksCard d={data} onBooked={() => void reload()} />
+      {me?.role === "homeowner" ? <HomeownerMaintenance d={data} /> : <ChecksCard d={data} onBooked={() => void reload()} />}
       <Card sx={{ px: 2, py: 0.5 }} data-testid="system-details">
         <DetailRow icon={<SolarPowerRoundedIcon />} k="System size">
           {kwpText(s.kwp) ?? "—"}

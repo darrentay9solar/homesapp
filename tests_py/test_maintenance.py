@@ -216,8 +216,9 @@ def test_the_next_check_is_the_first_not_done(client, fx, team, systems) -> None
     sid = systems(turned_on_on=on)
     fx.conn.execute("insert into maintenance_checks (system_id, year, done_on) values (%s, 2, %s)", (sid, t - timedelta(days=50)))
     s = client.get(f"/api/py/maintenance/{sid}", headers=h(team["pm"])).json()["system"]
-    assert [c["key"] for c in s["checks"]] == ["year_2", "year_3", "year_4", "year_5"]
-    assert [c["state"] for c in s["checks"]] == ["done", "scheduled", "scheduled", "scheduled"]
+    # The office sees the 6-month check first, as a record: never next, due or late (migration 0057).
+    assert [c["key"] for c in s["checks"]] == ["six_month", "year_2", "year_3", "year_4", "year_5"]
+    assert [c["state"] for c in s["checks"]] == ["record", "done", "scheduled", "scheduled", "scheduled"]
     assert s["next"]["key"] == "year_3" and s["next"]["label"] == "Year 3 check" and not s["attention"]
 
 
@@ -241,11 +242,13 @@ def test_an_overdue_check_needs_attention(client, team, systems) -> None:  # noq
 def test_checks_are_yearly_from_the_second_year_for_the_plans_years(client, team, systems, plan, ppa, keys) -> None:  # noqa: F811
     sid = systems(plan_years=plan, ppa_kind="ppa" if ppa else None, ppa_years=ppa, turned_on_on=date(2026, 5, 11))
     s = client.get(f"/api/py/maintenance/{sid}", headers=h(team["pm"])).json()["system"]
-    assert [c["key"] for c in s["checks"]] == keys
+    assert s["checks"][0]["key"] == "six_month" and s["checks"][0]["due"] == "2026-11-11", "the record, 6 months on"
+    yearly_checks = s["checks"][1:]
+    assert [c["key"] for c in yearly_checks] == keys
     assert s["checkYears"] == (plan or ppa)
     if keys:
-        assert s["checks"][0]["due"] == "2028-05-11", "the first check is 24 months after turn-on"
-        assert s["checks"][-1]["due"] == f"{2026 + len(keys) + 1}-05-11", "the last in the term's final year"
+        assert yearly_checks[0]["due"] == "2028-05-11", "the first check is 24 months after turn-on"
+        assert yearly_checks[-1]["due"] == f"{2026 + len(keys) + 1}-05-11", "the last in the term's final year"
 
 
 def test_without_a_turn_on_date_the_checks_have_no_dates(client, team, systems) -> None:  # noqa: F811
@@ -302,7 +305,8 @@ def test_a_new_turn_on_date_moves_the_checks(client, team, systems) -> None:  # 
     sid = systems(run_by=team["pm"]["uid"])
     s = client.patch(f"/api/py/maintenance/{sid}", headers=h(team["pm"]), json={"turnedOn": "2024-02-29"}).json()["system"]
     assert s["turnedOn"] == "2024-02-29"
-    assert [c["due"] for c in s["checks"]] == ["2026-02-28", "2027-02-28", "2028-02-29", "2029-02-28"], "the month's last day when it's shorter"
+    yearly_checks = [c for c in s["checks"] if c["key"] != "six_month"]
+    assert [c["due"] for c in yearly_checks] == ["2026-02-28", "2027-02-28", "2028-02-29", "2029-02-28"], "the month's last day when it's shorter"
 
 
 def test_the_old_check_dates_are_no_longer_taken(client, team, systems) -> None:  # noqa: F811
@@ -377,10 +381,10 @@ def test_a_check_is_marked_done_and_undone(client, fx, team, systems) -> None:  
     sid = systems(run_by=team["pm"]["uid"], turned_on_on=yearly.add_months(t, -25))
     r = client.post(f"/api/py/maintenance/{sid}/checks/year_2", headers=h(team["pm"]), json={"doneOn": t.isoformat()})
     assert r.status_code == 200, r.text
-    c = r.json()["system"]["checks"][0]
-    assert c["key"] == "year_2" and c["state"] == "done" and c["doneOn"] == t.isoformat() and not r.json()["system"]["attention"]
+    c = next(c for c in r.json()["system"]["checks"] if c["key"] == "year_2")
+    assert c["state"] == "done" and c["doneOn"] == t.isoformat() and not r.json()["system"]["attention"]
     r = client.post(f"/api/py/maintenance/{sid}/checks/year_2", headers=h(team["pm"]), json={"doneOn": None})
-    assert r.json()["system"]["checks"][0]["state"] == "overdue"
+    assert next(c for c in r.json()["system"]["checks"] if c["key"] == "year_2")["state"] == "overdue"
     log = fx.conn.execute(
         "select action::text as action, actor_uid from audit_log where entity_table = 'maintenance_checks' and entity_id = %s order by audit_id",
         (str(sid),),
@@ -395,7 +399,8 @@ def test_a_check_is_marked_done_and_undone(client, fx, team, systems) -> None:  
         ("year_2", -800, 400),  # before the turn-on
         ("year_1", 0, 404),  # the first year has none
         ("year_6", 0, 404),  # past the plan's 5 years
-        ("six_month", 0, 404),  # the old checks are gone
+        ("six_month", 0, 200),  # the 6-month check is recorded (0057)
+        ("one_year", 0, 404),  # the old 1-year check is gone
     ],
 )
 def test_a_check_cant_be_done_in_the_future_or_before_the_turn_on(client, team, systems, check, when, status) -> None:  # noqa: F811
