@@ -407,6 +407,13 @@
       "when": 1792310000000,
       "tag": "0057_maintenance_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1792320000000,
+      "tag": "0058_record_projects",
+      "breakpoints": true
     }
   ]
 }

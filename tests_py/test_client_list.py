@@ -321,6 +321,7 @@ def imported(fx):
     yield
     like = f"9SH{TAG}%"
     fx.conn.execute("delete from client_feedback where import_ref like %s", (f"feedback#{like}",))
+    fx.conn.execute("update maintenance_systems set project_id = null where project_code like %s", (like,))
     fx.conn.execute("delete from maintenance_systems where project_code like %s", (like,))
     fx.conn.execute("delete from projects where project_code like %s", (like,))
     fx.conn.execute("delete from inverter_models where model_key = %s", (icl.model_key(f"SUN2000-10KTL-MAP{TAG}"),))
@@ -346,8 +347,13 @@ def test_a_superadmin_checks_then_imports_the_list_in_the_app(client, fx, tmp_pa
     r = client.post(url, headers=h, content=data, params={"apply": 1, "fileName": "Project List-2026-10-14.xlsx"})
     assert r.status_code == 200, r.text
     assert r.json()["applied"] is True and r.json()["counts"]["projectsAdded"] == 2
-    made = fx.conn.execute("select count(*) as n from projects where project_code like %s", (f"9SH{TAG}%",)).fetchone()
-    assert made["n"] == 2
+    made = fx.conn.execute(
+        "select count(*) filter (where import_ref not like 'record:%%') as n, count(*) filter (where import_ref like 'record:%%') as records "
+        "from projects where project_code like %s",
+        (f"9SH{TAG}%",),
+    ).fetchone()
+    assert made["n"] == 2 and made["records"] == 1, "and a record project for the system turned on"
+    assert r.json()["counts"]["recordProjects"] == 1
     actors = fx.conn.execute(
         "select distinct actor_uid from audit_log where entity_table = 'projects' and action = 'insert' "
         "and changes -> 'project_code' ->> 'to' like %s",

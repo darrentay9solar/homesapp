@@ -91,7 +91,10 @@ def main() -> None:
     verb = "would be" if a.dry_run else "were"
     print(f"{a.target}: systems {k.systems_updated} updated and {k.systems_added} added; projects {k.projects_added} added and "
           f"{k.projects_updated} updated; {k.output_months} months of output; {k.billing_months} billing months; "
-          f"{k.feedback} feedback; {k.warranties} inverter models — {verb} written.")  # fmt: skip
+          f"{k.feedback} feedback; {k.warranties} inverter models; {k.records} record projects for imported systems — {verb} written.")  # fmt: skip
+    if any(pm for _, _, pm in k.made):
+        # The alert goes out from the app (api/_lib/to_fill.py) when a manager is given a record; here, list them.
+        print("  record projects already run by a manager:", ", ".join(str(pid) for pid, _, pm in k.made if pm))
     for n in wb.notes + k.notes:
         print("  note:", n)
     if a.dry_run:

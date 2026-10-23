@@ -3,6 +3,7 @@
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalServicesRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
@@ -30,7 +31,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ClientRecord, FeedbackCard, installRows, OutputCard, recordRows, serialRows, WarrantyCard } from "@/components/client-record";
-import { CheckDoneDialog, ChecksCard, EditSystemDialog, useMaintenanceHref } from "@/components/maintenance";
+import { CheckDoneDialog, ChecksCard, EditSystemDialog, toFill, useMaintenanceHref } from "@/components/maintenance";
 import { DetailRow, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { TopBar, gradText } from "@/components/topbar";
@@ -116,6 +117,42 @@ function Body({ d, reload }: { d: MaintenanceDetail; reload: () => Promise<void>
                 {T("{check} overdue since {date}", { check: TR(c.label), date: d2s(c.due) })}
               </Typography>
             ))}
+          </Alert>
+        )}
+
+        {s.toFill && toFill(s) > 0 && (
+          <Alert severity="warning" icon={<EditNoteRoundedIcon />} data-testid="system-to-fill">
+            <AlertTitle sx={{ fontWeight: 600 }}>{T("Fields to fill: {n}", { n: toFill(s) })}</AlertTitle>
+            <Typography variant="body2">{T("Imported from 9 Solar Home's lists, so the app doesn't have all of it yet.")}</Typography>
+            {s.toFill.system.length > 0 && (
+              <>
+                <Typography variant="body2" sx={{ mt: 1, fontWeight: 600 }}>
+                  {T("On this maintenance record:")}
+                </Typography>
+                <Stack direction="row" sx={{ gap: 0.5, flexWrap: "wrap", mt: 0.5 }}>
+                  {s.toFill.system.map((x) => (
+                    <Chip key={x} size="small" color="warning" variant="outlined" label={TR(x)} />
+                  ))}
+                </Stack>
+              </>
+            )}
+            {s.toFill.project > 0 && (
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                {T("On its project record: {n}, highlighted on the project's milestones.", { n: s.toFill.project })}
+              </Typography>
+            )}
+            <Stack direction="row" sx={{ gap: 1, mt: 1.25, flexWrap: "wrap" }}>
+              {d.canEdit && s.toFill.system.length > 0 && (
+                <Button size="small" variant="outlined" color="warning" startIcon={<EditRoundedIcon />} onClick={() => setEditing(true)}>
+                  {T("Fill in the record")}
+                </Button>
+              )}
+              {d.project && s.toFill.project > 0 && (
+                <Button size="small" variant="outlined" color="warning" component={Link} href={`${projectHref(d.project.id)}?tab=milestones`} startIcon={<FolderOpenRoundedIcon />}>
+                  {T("Open the project record")}
+                </Button>
+              )}
+            </Stack>
           </Alert>
         )}
 

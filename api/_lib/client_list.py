@@ -378,7 +378,10 @@ class Counts:
     billing_months: int = 0
     feedback: int = 0
     warranties: int = 0
+    records: int = 0
     notes: list[str] = field(default_factory=list)
+    # Systems given a record project now, and who runs them (to be told what's still to fill).
+    made: list[tuple[int, int, int | None]] = field(default_factory=list)
 
 
 def record(c: Client) -> dict[str, Any]:
@@ -408,7 +411,10 @@ def duplicates(cur: psycopg.Cursor, wb: Workbook, allow_shared_postal: bool = Fa
             problems.append(f"the list has the same {kind} for {', '.join(tags)}")
     # Against the app: anything already at this postal code must be the very record the list updates.
     systems = cur.execute("select system_id, address, postal_code, project_code from maintenance_systems").fetchall()
-    projects = cur.execute("select project_id, address, postal_code, project_code from projects").fetchall()
+    # A system's record project (record_projects) is the system itself, not another client.
+    projects = cur.execute(
+        "select project_id, address, postal_code, project_code from projects where import_ref is null or import_ref not like 'record:%'"
+    ).fetchall()
     by_house = {house_key(s["address"], s["postal_code"]) for s in systems}
     for c in wb.clients:
         if not c.postal or allow_shared_postal:
@@ -587,4 +593,89 @@ def write(cur: psycopg.Cursor, wb: Workbook, today: date, geocode: bool = True, 
             w,
         )
         k.warranties += 1
+    k.made = record_projects(cur)
+    k.records = len(k.made)
     return k
+
+
+RECORD_NOTE = (
+    "Made from the maintenance record imported from 9 Solar Home's lists, so the project's part of the flow "
+    "can be completed. Inverter collected, grid connection and the SP application follow from it being turned on; "
+    "everything else still empty is highlighted to fill in."
+)
+
+
+def record_projects(cur: psycopg.Cursor, system_ids: list[int] | None = None) -> list[tuple[int, int, int | None]]:
+    """A handed-over project for each imported maintenance system that has none: the record of its
+    installation (pre-Milestone 1 to the handover), filled from what the lists say, so the system has the
+    whole flow like one handed over in the app. Its project manager is the system's. Returns
+    (project, system, manager) for each made."""
+    made = []
+    for s in cur.execute(
+        "select * from maintenance_systems where project_id is null and import_ref is not null "
+        "and (%(ids)s::int[] is null or system_id = any(%(ids)s)) order by system_id",
+        {"ids": system_ids},
+    ).fetchall():
+        same = (
+            cur.execute(
+                "select p.project_id from projects p where p.project_code = %s "
+                "and not exists (select 1 from maintenance_systems m where m.project_id = p.project_id)",
+                (s["project_code"],),
+            ).fetchone()
+            if s["project_code"]
+            else None
+        )
+        if same:
+            # Already a project in the app (signed in an earlier list, turned on in this one): that's its record.
+            cur.execute("update maintenance_systems set project_id = %s where system_id = %s", (same["project_id"], s["system_id"]))
+            continue
+        panels = s["panels"] or []
+        count = sum(int(x.get("count") or 0) for x in panels) or None
+        wps = {int(x["wp"]) for x in panels if x.get("wp")}
+        on = s["turned_on_on"]
+        # A project needs its dates (projects_required_on_create): what the lists say, else when it was imported.
+        start = s["installation_start"] or s["installation_end"] or on or s["created_at"].date()
+        end = max(s["installation_end"] or on or start, start)
+        cur.execute(
+            """
+            insert into projects (name, address, postal_code, homeowner_id, homeowner_name, homeowner_contact_no,
+              contractor_text, project_manager_id, sales, installation_start_date, target_end_date, installation_end_date,
+              panel_quantity_estimate, panel_quantity_actual, panel_capacity, inverter_to_order, inverter_collected,
+              inverter_serial_number, inverter_commission_grid_connection, sp_application_status, sp_turn_on_inspection_date,
+              project_code, salutation, homeowner_email, signed_on, referrer, solar_plan, rate_per_kwh, ppa_kind, ppa_years,
+              phase, dongle_serial, import_ref, record_note, status)
+            values (%(name)s, %(address)s, %(postal)s, %(ho)s, %(ho_name)s, %(contact)s, %(epc)s, %(pm)s, %(sales)s,
+              %(start)s, %(end)s, %(installed)s, %(count)s, %(count2)s, %(wp)s, %(inverter)s, %(collected)s, %(serial)s,
+              %(grid)s, %(sp)s, %(on)s, %(code)s, %(salutation)s, %(email)s, %(signed_on)s, %(referrer)s, %(plan)s,
+              %(rate)s, %(ppa_kind)s, %(ppa_years)s, %(phase)s, %(dongle)s, %(ref)s, %(note)s, 'in_progress')
+            returning project_id
+            """,
+            {
+                "name": s["address"], "address": s["address"], "postal": s["postal_code"], "ho": s["homeowner_id"],
+                "ho_name": s["homeowner_name"] or ("Homeowner" if not s["homeowner_id"] else None),
+                "contact": s["homeowner_contact_no"] or "Not in the list", "epc": s["epc"], "pm": s["run_by"],
+                "sales": (s["salesperson"] or "")[:160] or None, "start": start, "end": end,
+                "installed": s["installation_end"], "count": count, "count2": count, "wp": wps.pop() if len(wps) == 1 else None,
+                "inverter": " + ".join(x for x in s["inverters"] or [] if x) or None,
+                "collected": True if s["inverters"] else None,
+                "serial": (" + ".join(x for x in s["inverter_serials"] or [] if x))[:120] or None,
+                "grid": True if on else None, "sp": 2 if on else 3, "on": on, "code": s["project_code"],
+                "salutation": s["salutation"], "email": s["homeowner_email"], "signed_on": s["signed_on"],
+                "referrer": s["referrer"], "plan": s["solar_plan"], "rate": s["rate_per_kwh"], "ppa_kind": s["ppa_kind"],
+                "ppa_years": s["ppa_years"], "phase": s["phase"],
+                "dongle": " + ".join(x for x in s["dongle_serials"] or [] if x) or None,
+                "ref": f"record:{s['import_ref']}", "note": RECORD_NOTE,
+            },
+        )  # fmt: skip
+        pid = cur.fetchone()["project_id"]
+        # Linked first, then handed over: the handover's trigger finds the system already there.
+        cur.execute("update maintenance_systems set project_id = %s where system_id = %s", (pid, s["system_id"]))
+        cur.execute("update projects set status = 'maintenance' where project_id = %s", (pid,))
+        if on:
+            # Handed over when it was turned on (the handover stamps today; the record keeps its real day).
+            cur.execute(
+                "update projects set closed_at = %s::date::timestamp at time zone 'Asia/Singapore' where project_id = %s",
+                (on, pid),
+            )
+        made.append((pid, s["system_id"], s["run_by"]))
+    return made

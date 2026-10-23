@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 
 from _lib import checks as yearly
 from _lib import maintenance_jobs as jobs
-from _lib import records
+from _lib import records, to_fill
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.web import active, role
@@ -97,6 +97,7 @@ def row(
     done: dict[int, dict[int, date]] | None = None,
     *,
     office: bool = True,
+    gaps: dict[int, int] | None = None,
 ) -> dict[str, Any]:
     if done is None:
         done = yearly.done([r["system_id"]])
@@ -151,6 +152,13 @@ def row(
         "urgentNote": r["urgent_note"],
         "notes": r["notes"],
         "attention": bool(r["urgent"] or overdue),
+        # Imported from the lists: what's still empty, here and on its record project, for its manager.
+        "toFill": {
+            "system": to_fill.system_gaps(r) if to_fill.imported(r) else [],
+            "project": (gaps if gaps is not None else to_fill.project_counts([r["project_id"]])).get(r["project_id"], 0)
+            if r["project_id"]
+            else 0,
+        },
         "updatedAt": r["updated_at"].isoformat(),
     }
 
@@ -181,8 +189,9 @@ def systems(acct: Account = Depends(looks)) -> dict[str, Any]:
     superadmin = acct.role == "superadmin"
     sids = [r["system_id"] for r in rows]
     booked, done = bookings(sids), yearly.done(sids)
+    gaps = to_fill.project_counts([r["project_id"] for r in rows if r["project_id"]])
     return {
-        "systems": [row(r, today, booked, done) for r in rows],
+        "systems": [row(r, today, booked, done, gaps=gaps) for r in rows],
         "today": today.isoformat(),
         "canAssign": superadmin,
         "managers": _managers() if superadmin else [],
@@ -236,7 +245,7 @@ def detail(acct: Account, r: dict[str, Any]) -> dict[str, Any]:
     if homeowner:
         # The homeowner doesn't see the check schedule, when anything's due, or the office's notes: only
         # maintenance their project manager has started, its visit, and when it was last done.
-        system.update(checks=[], next=None, attention=False, notes=None, urgent=False, urgentNote=None)
+        system.update(checks=[], next=None, attention=False, notes=None, urgent=False, urgentNote=None, toFill=None)
         last = jobs.latest(r["system_id"])
         return {
             "system": system,
@@ -388,6 +397,14 @@ def change(sid: int, body: Change, acct: Account = Depends(pm_only)) -> dict[str
             f"update maintenance_systems set {', '.join(f'{k} = %({k})s' for k in sets)} where system_id = %(sid)s",
             {**sets, "sid": sid},
         )
+        if "run_by" in sets and r["project_id"]:
+            # Its record project (one imported from the lists) is run by whoever runs the system, to complete it.
+            cur.execute(
+                "update projects set project_manager_id = %s where project_id = %s and import_ref like %s",
+                (sets["run_by"], r["project_id"], to_fill.RECORD + "%"),
+            )
+    if sets.get("run_by") and sets["run_by"] != r["run_by"]:
+        to_fill.tell_manager(sets["run_by"], system_id=sid)
     return system(sid, acct)
 
 

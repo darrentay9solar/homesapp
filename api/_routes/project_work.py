@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from pydantic import BaseModel
 
-from _lib import duplicates, notify, onemap, project_fields, storage, sweep
+from _lib import duplicates, notify, onemap, project_fields, storage, sweep, to_fill
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.project_fields import FIELDS, GROUPS, MILESTONES, Field
@@ -121,11 +121,20 @@ def _state(p: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], int, set[
     return v, groups, project_fields.milestone_reached(groups), recorded
 
 
+def record(p: dict[str, Any]) -> bool:
+    """A record project made for a system imported from the lists (to_fill.RECORD): handed over without a
+    signed certificate, its fields are there to be completed."""
+    return (p.get("import_ref") or "").startswith(to_fill.RECORD)
+
+
 def section_lock(p: dict[str, Any], section: str, reached: int) -> str | None:
     if p["status"] in BEFORE_APPROVAL:
         return "Opens once the homeowner and a project manager have approved the project."
-    if p["status"] in ("awaiting_signature", "signed", "maintenance"):
+    if p["status"] in ("awaiting_signature", "signed", "maintenance") and not record(p):
         return "The project is at handover; its fields are now the signed record."
+    # Imported from the lists, a project is filled in whatever order its manager has the facts.
+    if to_fill.imported(p):
+        return None
     n = SECTION_MILESTONE[section]
     if n == 2 and reached < 1:
         return "Opens once Milestone 1 is complete."
@@ -151,6 +160,8 @@ def why_not_editable(rel: Relation, p: dict[str, Any], f: Field, reached: int, r
     if lock:
         return lock
     n = SECTION_MILESTONE[f.group]
+    if rel == "crew" and record(p):
+        return "Handed over: its project manager completes the record."
     if rel == "crew" and n in recorded:
         return f"Milestone {n} is complete. A project manager can correct it or reopen the milestone."
     return None
@@ -203,6 +214,9 @@ def fields(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
     rel = _need(acct, p)
     v, groups, reached, recorded = _state(p)
     files = _files(pid)
+    counts = {k: len(x) for k, x in files.items()}
+    # Imported from the lists: every required field still empty is flagged, for its manager to fill in.
+    gaps = {f.key for f in to_fill.fields(v, counts)} if to_fill.imported(p) and rel != "homeowner" else set()
     sections = []
     for key, name, sub in GROUPS:
         out = []
@@ -218,7 +232,8 @@ def fields(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
                     "required": f.required and f.kind != "auto",
                     "note": f.note,
                     "shown": shown,
-                    "filled": project_fields.is_filled(f, v, {k: len(x) for k, x in files.items()}),
+                    "filled": project_fields.is_filled(f, v, counts),
+                    "toFill": f.key in gaps,
                     "value": _value(f, v),
                     "files": files.get(f.key, []) if f.kind in project_fields.FILE_KINDS else None,
                     "lockedReason": why_not_editable(rel, p, f, reached, recorded),
@@ -231,6 +246,7 @@ def fields(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
                 "sub": sub,
                 "milestone": SECTION_MILESTONE[key],
                 "lockedReason": section_lock(p, key, reached),
+                "toFill": sum(1 for f in FIELDS if f.group == key and f.key in gaps),
                 **groups[key],
                 "fields": out,
             }  # fmt: skip
@@ -240,6 +256,8 @@ def fields(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
     return {
         "relation": rel,
         "sections": sections,
+        "imported": to_fill.imported(p),
+        "toFill": len(gaps),
         "milestoneReached": reached,
         "recordedMilestones": sorted(recorded),
         "retailers": retailers,
@@ -384,6 +402,9 @@ def _after_change(pid: int, acct: Account) -> str | None:
                 "on conflict do nothing",
                 (pid, n, acct.uid),
             )
+    if record(p):
+        # Already handed over: completing its record is no news, and there's nothing to sign.
+        return "Saved. This section of the record is complete."
     asked = 3 in new and request_signature(pid, acct)
     for n in new:
         title, text = MILESTONE_NEWS[n]
@@ -648,6 +669,7 @@ def take_on(pid: int, acct: Account = Depends(pm_only)) -> dict[str, Any]:
         )
         if not cur.rowcount:
             raise HTTPException(409, "Someone took it on just now.")
+    to_fill.tell_manager(acct.uid, project_id=pid)
     return {"message": f"You now run {p['name']}. It's in your projects."}
 
 
@@ -703,6 +725,8 @@ def edit_details(pid: int, body: proj.ProjectIn, acct: Account = Depends(pm_only
             )
 
     after = _project(pid)
+    if manager and manager != p["project_manager_id"]:
+        to_fill.tell_manager(manager, project_id=pid)
     for uid in _audience(after) - before_crew - {acct.uid, after["homeowner_id"]}:
         text = f"{after['name']} — {after['address']}"
         notify.notify(uid, "assignment", "New project assigned", text, project_id=pid)

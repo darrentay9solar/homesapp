@@ -22,6 +22,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { useMaintenanceHref } from "@/components/maintenance";
 import { ImportListDialog } from "@/components/import-list";
+import { ImportPhotosDialog } from "@/components/import-photos";
 import { NewProjectDialog, ProjectCard, useProjectHref } from "@/components/projects";
 import { ProjectsTable } from "@/components/projects-table";
 import { Page } from "@/components/shell";
@@ -56,7 +57,7 @@ function ProjectsScreen() {
   const [tab, setTab] = useTab<Tab | "table">([...TABS.map(([v]) => v), "table"], "all");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [importing, setImporting] = useState<false | "list" | "photos">(false);
 
   const homeowner = me?.role === "homeowner";
   const only = homeowner && data?.projects.length === 1 ? data.projects[0] : null;
@@ -85,7 +86,7 @@ function ProjectsScreen() {
               <ExportButton path="/export/projects.xlsx" name="GetHomeApps projects.xlsx" label="Download all projects (Excel)" testId="export-projects" />
               {me.role === "superadmin" && (
                 <Tooltip title={T("Import from Excel")}>
-                  <IconButton aria-label={T("Import from Excel")} onClick={() => setImporting(true)} data-testid="import-projects" sx={{ color: "#fff" }}>
+                  <IconButton aria-label={T("Import from Excel")} onClick={() => setImporting("list")} data-testid="import-projects" sx={{ color: "#fff" }}>
                     <UploadFileRoundedIcon />
                   </IconButton>
                 </Tooltip>
@@ -196,7 +197,8 @@ function ProjectsScreen() {
       </Box>
 
       {creating && <NewProjectDialog onClose={() => setCreating(false)} />}
-      {importing && <ImportListDialog onClose={() => setImporting(false)} onDone={reload} />}
+      {importing === "list" && <ImportListDialog onClose={() => setImporting(false)} onDone={reload} onPhotos={() => setImporting("photos")} />}
+      {importing === "photos" && <ImportPhotosDialog onClose={() => setImporting(false)} onDone={reload} />}
     </>
   );
 }

@@ -3,6 +3,7 @@
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import EngineeringRoundedIcon from "@mui/icons-material/EngineeringRounded";
+import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
@@ -144,9 +145,17 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
         {tab === "maintenance" && <ProjectMaintenance pid={p.id} />}
         {tab === "milestones" && (
           <>
-            {p.status === "maintenance" && (
+            {p.status === "maintenance" && !p.toFill && (
               <Alert severity="success" icon={<Inventory2RoundedIcon />} sx={{ mb: 1.5 }} data-testid="installation-archived">
                 {T("Archived: the installation is complete and handed over. It's kept here as a record.")}
+              </Alert>
+            )}
+            {p.imported && Boolean(p.toFill) && (
+              <Alert severity="warning" icon={<EditNoteRoundedIcon />} sx={{ mb: 1.5 }} data-testid="record-to-fill">
+                <AlertTitle sx={{ fontWeight: 600 }}>{T("Fields to fill: {n}", { n: p.toFill ?? 0 })}</AlertTitle>
+                {p.status === "maintenance"
+                  ? T("Imported from 9 Solar Home's lists: handed over before the app. Complete its record here; the fields still empty are highlighted.")
+                  : T("Imported from 9 Solar Home's lists. Fill in what the app hasn't recorded yet, in any order; the fields still empty are highlighted.")}
               </Alert>
             )}
             <MilestoneTrack p={p} />

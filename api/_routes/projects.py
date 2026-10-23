@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from _lib import duplicates, notify, onemap, project_fields, records
+from _lib import duplicates, notify, onemap, project_fields, records, to_fill
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.profile import clean_phone
@@ -150,7 +150,7 @@ def _load(acct: Account, project_id: int | None = None) -> list[dict[str, Any]]:
     # business: the homeowner sees its progress and status, never a timing verdict.
     if acct.role == "homeowner":
         for p in out:
-            p["flags"], p["attention"] = [], False
+            p["flags"], p["attention"], p["toFill"] = [], False, 0
     return out
 
 
@@ -171,6 +171,15 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
     if end and r["status"] != "maintenance" and t > end and pct < 100:
         flags.append({"kind": "overdue", "text": f"Target end date passed {(t - end).days} days ago"})
     flags += [{"kind": "no_show", "text": m} for m in missed]
+    # Imported from the lists: what the flow would have recorded and still hasn't, for its manager to fill.
+    gaps = len(to_fill.fields(p, files)) if to_fill.imported(r) else 0
+    if gaps:
+        text = (
+            "Imported from the lists: 1 required field to fill in"
+            if gaps == 1
+            else f"Imported from the lists: {gaps} required fields to fill in"
+        )
+        flags.append({"kind": "to_fill", "text": text})
 
     if r["contractor_group_id"]:
         contractor = {
@@ -220,6 +229,8 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
         "groups": groups,
         "flags": flags,
         "attention": bool(flags),
+        "imported": to_fill.imported(r),
+        "toFill": gaps,
         "createdAt": r["created_at"].isoformat(),
         # For the table's date filters ("handed over between..."): when it was signed, and handed over.
         "projectCode": r.get("project_code"),

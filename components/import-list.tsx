@@ -1,5 +1,6 @@
 "use client";
 
+import AddPhotoAlternateOutlinedIcon from "@mui/icons-material/AddPhotoAlternateOutlined";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import Alert from "@mui/material/Alert";
@@ -23,7 +24,7 @@ type Result = {
   clients: number;
   turnedOn: number;
   notTurnedOn: number;
-  counts: { projectsAdded: number; projectsUpdated: number; systemsAdded: number; systemsUpdated: number; outputMonths: number; billingMonths: number; feedback: number; warranties: number };
+  counts: { projectsAdded: number; projectsUpdated: number; systemsAdded: number; systemsUpdated: number; outputMonths: number; billingMonths: number; feedback: number; warranties: number; recordProjects: number };
   notes: string[];
 };
 
@@ -35,7 +36,7 @@ type Result = {
  * manager; turned-on ones go to Maintenance. Running it again updates rather
  * than duplicates.
  */
-export function ImportListDialog({ onClose, onDone }: { onClose: () => void; onDone: () => Promise<void> | void }) {
+export function ImportListDialog({ onClose, onDone, onPhotos }: { onClose: () => void; onDone: () => Promise<void> | void; onPhotos?: () => void }) {
   const fetcher = useFetcher();
   const { toast } = useApp();
   const input = useRef<HTMLInputElement>(null);
@@ -100,6 +101,7 @@ export function ImportListDialog({ onClose, onDone }: { onClose: () => void; onD
             </Typography>
             <Typography variant="body2">{T("Projects: {a} to add, {b} to update.", { a: c.projectsAdded, b: c.projectsUpdated })}</Typography>
             <Typography variant="body2">{T("Maintenance systems: {a} to add, {b} to update.", { a: c.systemsAdded, b: c.systemsUpdated })}</Typography>
+            {c.recordProjects > 0 && <Typography variant="body2">{T("Project records for imported systems: {n} to add, their empty fields flagged for their managers.", { n: c.recordProjects })}</Typography>}
             <Typography variant="body2">{T("Months of output {a}, billing months {b}, feedback {c}, inverter models {d}.", { a: c.outputMonths, b: c.billingMonths, c: c.feedback, d: c.warranties })}</Typography>
             {check.notes.length > 0 && (
               <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.5 }}>
@@ -120,6 +122,11 @@ export function ImportListDialog({ onClose, onDone }: { onClose: () => void; onD
             {busy && check ? T("Importing…") : T("Import")}
           </Button>
         </Stack>
+        {onPhotos && (
+          <Button variant="text" startIcon={<AddPhotoAlternateOutlinedIcon />} onClick={onPhotos} disabled={busy} sx={{ alignSelf: "center" }} data-testid="import-photos">
+            {T("Import installed photos instead")}
+          </Button>
+        )}
       </Stack>
     </MDialog>
   );

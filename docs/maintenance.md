@@ -29,3 +29,30 @@ How a system's maintenance runs once its project is handed over.
 
 One piece of maintenance is open on a system at a time. Each one stays on the record (migration
 0057, `maintenance_jobs`): started, by whom, finished or called off, and when.
+
+## Records imported from the lists
+
+Systems from 9 Solar Home's project listing and client list never went through the app. Each gets a
+**record project** (migration 0058, `client_list.record_projects`): a handed-over project holding the
+project's part of the flow, from before Milestone 1 to the handover, filled with what the lists say.
+Inverter collected, grid connection and the SP application follow from the system being turned on; its
+handover date is the turn-on date; it needs no admin-fee invoice and has no signed certificate. It's
+reached like any handed-over project: Maintenance → the system → *Project history* → *Open the project*.
+
+Every required field still empty on an imported record (`api/_lib/to_fill.py`) is flagged for its
+project manager:
+
+- on the project, a *Fields to fill* notice, each empty field marked *To fill*, and each section's count;
+  every section is open, in any order, though it's handed over (the crew can't change a record);
+- on the system, its own empty fields (postal code, homeowner, contact number, panels, size, phase,
+  inverters, turn-on date, PPA, plan, roof access) and how many are empty on its project record;
+- in the lists, a *Fields to fill* count on the system's card, and *Needs attention* on the project.
+
+When a superadmin hands an imported system to a project manager, or a manager takes on an imported
+project, that manager is alerted to what's still to fill. Homeowners see none of this.
+
+**Installed photos** come in through Projects → *Import from Excel* → *Import installed photos instead*
+(superadmins): the zip or the folder of `9SHnnnn-address` folders. Each folder goes to the project with
+that code (a system's record project first), only if the address agrees; a photo whose name or subfolder
+says inverter goes into *Installed Inverter Pictures*, the rest into *Installed Panel Pictures*; one
+already there isn't uploaded twice (`api/_lib/photo_import.py`).

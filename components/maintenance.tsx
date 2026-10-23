@@ -6,6 +6,7 @@ import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalServicesRounded";
 import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
 import EventRoundedIcon from "@mui/icons-material/EventRounded";
@@ -91,6 +92,11 @@ export function nextCheckText(s: Pick<MaintenanceSystem, "next" | "checks"> & Pa
   return T("{check} due {date}", { check: TR(n.label), date: d2s(n.due) });
 }
 
+/** Imported from the lists: how many fields are still empty, on the system and its record project. */
+export function toFill(s: Pick<MaintenanceSystem, "toFill">): number {
+  return s.toFill ? s.toFill.system.length + s.toFill.project : 0;
+}
+
 export function SystemCard({ s }: { s: MaintenanceSystem }) {
   const router = useRouter();
   const href = useMaintenanceHref();
@@ -141,6 +147,14 @@ export function SystemCard({ s }: { s: MaintenanceSystem }) {
               <BoltRoundedIcon sx={{ fontSize: 16, mt: "2px" }} />
               <Typography variant="caption" sx={{ lineHeight: 1.45, fontWeight: 700 }}>
                 {s.urgentNote ? T("Urgent: {note}", { note: s.urgentNote }) : T("Urgent maintenance")}
+              </Typography>
+            </Stack>
+          )}
+          {toFill(s) > 0 && (
+            <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", color: "warning.main", mt: 0.75 }} data-testid="system-to-fill">
+              <EditNoteRoundedIcon sx={{ fontSize: 17 }} />
+              <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                {T("Fields to fill: {n}", { n: toFill(s) })}
               </Typography>
             </Stack>
           )}

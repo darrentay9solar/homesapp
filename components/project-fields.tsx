@@ -4,6 +4,7 @@ import AddPhotoAlternateOutlinedIcon from "@mui/icons-material/AddPhotoAlternate
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import LockOpenRoundedIcon from "@mui/icons-material/LockOpenRounded";
@@ -74,7 +75,13 @@ export function SectionPanel({ ctx, section: s, index, open, onToggle }: { ctx: 
             {s.lockedReason ? TR(s.lockedReason) : T("{done} of {total} required · {sub}", { done: s.done, total: s.total, sub: TR(s.sub) })}
           </Typography>
         </Box>
-        {s.complete ? <Chip size="small" color="success" label={T("Done")} /> : !s.lockedReason && <Chip size="small" variant="outlined" label={T("{n} to go", { n: s.total - s.done })} />}
+        {s.complete ? (
+          <Chip size="small" color="success" label={T("Done")} />
+        ) : s.toFill ? (
+          <Chip size="small" color="warning" icon={<EditNoteRoundedIcon />} label={T("{n} to fill", { n: s.toFill })} data-testid="section-to-fill" />
+        ) : (
+          !s.lockedReason && <Chip size="small" variant="outlined" label={T("{n} to go", { n: s.total - s.done })} />
+        )}
         <ExpandMoreRoundedIcon sx={{ color: "text.secondary", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </ButtonBase>
       <Collapse in={open} unmountOnExit>
@@ -151,6 +158,7 @@ function FieldRow({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
         {f.required ? <Box component="span" sx={{ color: "error.main" }}> *</Box> : <Chip component="span" size="small" label={T("Optional")} variant="outlined" sx={{ ml: 0.75, height: 18, fontSize: 10 }} />}
       </Typography>
       {f.filled && <CheckRoundedIcon sx={{ fontSize: 17, color: "primary.main" }} aria-label={T("Filled")} />}
+      {f.toFill && <Chip component="span" size="small" color="warning" label={T("To fill")} sx={{ height: 20, fontSize: 11 }} />}
       {locked && (
         <Tooltip title={locked}>
           <LockOutlinedIcon sx={{ fontSize: 16, color: "text.disabled" }} aria-label={locked} />
@@ -167,8 +175,14 @@ function FieldRow({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
   else if (f.kind === "retailer") control = <Retailer ctx={ctx} f={f} />;
   else control = <Typed ctx={ctx} f={f} />;
 
+  // Imported from the lists and still empty: marked for its manager to fill in.
   return (
-    <Box data-testid="project-field" data-key={f.key}>
+    <Box
+      data-testid="project-field"
+      data-key={f.key}
+      data-to-fill={f.toFill || undefined}
+      sx={f.toFill ? (t) => ({ borderLeft: `3px solid ${t.palette.warning.main}`, bgcolor: alpha(t.palette.warning.main, 0.06), borderRadius: 1, pl: 1.25, pr: 1, py: 1, mx: -1 }) : undefined}
+    >
       {label}
       {control}
       {f.note && (

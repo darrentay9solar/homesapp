@@ -331,7 +331,38 @@ const PROJECTS = [
       groups: { pre1: G(8, 8), pre1b: G(11, 11), m1: G(5, 5), m2: G(4, 4), m3: G(4, 4), post: G(5, 5) },
     })
   ),
+  // A system imported from the lists, handed over before the app: its record project, still to complete.
+  proj(109, {
+    name: "41 Preview Walk",
+    address: "41 Preview Walk",
+    postalCode: "486001",
+    status: "maintenance",
+    statusLabel: "In Maintenance",
+    homeowner: { uid: null, name: "Mr Lim", linked: false },
+    contactNo: null,
+    contractor: { type: "text", label: "Apex Solar Contractors" },
+    team: [{ uid: 1, name: "Wei Ming Tan", role: "project_manager" }],
+    startDate: day(-1230), endDate: day(-1200), daysElapsed: 30, progress: 100, milestone: 0, currentMilestone: 1,
+    groups: { pre1: G(1, 8), pre1b: G(8, 11), m1: G(0, 5), m2: G(1, 4), m3: G(1, 4), post: G(0, 5) },
+    imported: true,
+    toFill: 21,
+    attention: true,
+    flags: [{ kind: "to_fill", text: "Imported from the lists: 21 required fields to fill in" }],
+  }),
 ];
+
+/** What the lists gave the imported record project (109); the rest is to fill. */
+const RECORD_VALUES: Record<string, unknown> = {
+  sp_application_status: 2,
+  sales: "K. Chandra",
+  panel_quantity_estimate: 20,
+  panel_capacity: 620,
+  inverter_to_order: "SUN2000-10K-MAP0",
+  inverter_collected: true,
+  inverter_serial_number: "HV2310044821",
+  inverter_commission_grid_connection: true,
+  sp_turn_on_inspection_date: day(-1200),
+};
 
 /** The handover for the three projects at the end of the flow (105 signing, 106 signed, 107 closed). */
 function handoverFor(pid: number) {
@@ -367,7 +398,7 @@ function handoverFor(pid: number) {
     signature: signed ? { name: "Jasmine Lee", at: iso(1500) } : null,
     pdf: signed ? "/dev-preview/projects" : null,
     closed: status === "maintenance" ? { at: iso(200), by: "Wei Ming Tan" } : null,
-    maintenance: status === "maintenance" ? 204 : null,
+    maintenance: status === "maintenance" ? (pid === 109 ? 205 : 204) : null,
     actions: { sign: status === "awaiting_signature", request: false, remind: false, close: status === "signed" },
   };
 }
@@ -427,7 +458,10 @@ function projectFields(pid: number) {
   const reached = p.milestone as number;
   const sections = FIELD_GROUPS.map(([key, name, sub]) => {
     const n = SECTION_MS[key];
-    const lockedReason = !approved
+    const imported = Boolean((p as { imported?: boolean }).imported);
+    const lockedReason = imported
+      ? null
+      : !approved
       ? "Opens once the homeowner and a project manager have approved the project."
       : ["awaiting_signature", "signed", "maintenance"].includes(p.status as string)
         ? "The project is at handover; its fields are now the signed record."
@@ -438,23 +472,27 @@ function projectFields(pid: number) {
           : null;
     const fields = FIELD_DEFS.filter((f) => f[2] === key).map(([k, label, , kind, required, note]) => {
       const sample = approved && pid === 101;
-      const value = sample ? (SAMPLE_VALUES[k] ?? null) : null;
-      const files = kind === "file" || kind === "photos" ? (sample && SAMPLE_FILES.includes(k) ? [{ id: 900 + k.length, name: `${k}.pdf`, type: "application/pdf", size: 120000, at: iso(3000), by: "Priya Nair" }] : []) : null;
+      const value = sample ? (SAMPLE_VALUES[k] ?? null) : imported ? (RECORD_VALUES[k] ?? null) : null;
+      const photo = imported && (k === "panel_pictures" || k === "inverter_pictures");
+      const files = kind === "file" || kind === "photos" ? ((sample && SAMPLE_FILES.includes(k)) || photo ? [{ id: 900 + k.length, name: `${k}.pdf`, type: "application/pdf", size: 120000, at: iso(3000), by: "Priya Nair" }] : []) : null;
       const shown = k === "inverter_date" ? value !== null : k === "commission_date" ? sample : k === "rcb_breaker_replacement_date" || k === "fusion_solar_access" || k === "retailer_contract_end_date" ? false : true;
       const filled = Boolean((files && files.length) || (value !== null && kind !== "auto"));
       const recorded = sample && n === 1;
       return {
         key: k, label, kind, required: required && kind !== "auto", note, shown, filled, value, files,
         lockedReason: lockedReason ?? (kind === "auto" ? "Calculated by the system." : k === "homeowner.email" ? "From the homeowner's account." : recorded ? null : null),
+        toFill: imported && required && kind !== "auto" && shown && !filled,
       };
     });
     const need = fields.filter((f) => f.required && f.shown);
     const done = need.filter((f) => f.filled).length;
-    return { key, name, sub, milestone: n, lockedReason, done, total: need.length, complete: done === need.length, fields };
+    return { key, name, sub, milestone: n, lockedReason, toFill: fields.filter((f) => f.toFill).length, done, total: need.length, complete: done === need.length, fields };
   });
   return {
     relation: "pm",
     sections,
+    imported: Boolean((p as { imported?: boolean }).imported),
+    toFill: sections.reduce((a, s) => a + s.toFill, 0),
     milestoneReached: reached,
     recordedMilestones: reached >= 1 ? Array.from({ length: reached }, (_, i) => i + 1) : [],
     retailers: [{ id: 1, name: "SP Group" }, { id: 2, name: "Geneco" }, { id: 3, name: "Keppel Electric" }, { id: 4, name: "Senoko Energy" }],

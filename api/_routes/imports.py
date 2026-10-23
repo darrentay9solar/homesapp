@@ -2,6 +2,7 @@
 
   POST /import/client-list?apply=0   check it: what it would add and change, and anything that stops it
   POST /import/client-list?apply=1   write it (the same checks first)
+  POST /import/photos/check          Import photos: which project each installed-photos folder goes to
 
 The body is the .xlsx file itself. A superadmin's alone: it adds projects and
 maintenance systems for anyone. It runs the import the command line runs
@@ -21,8 +22,10 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 
 from _lib import client_list as cl
+from _lib import photo_import
 from _lib.account import Account
 from _lib.db import transaction
 from _lib.web import role
@@ -95,6 +98,33 @@ async def import_client_list(
             "billingMonths": counts.billing_months,
             "feedback": counts.feedback,
             "warranties": counts.warranties,
+            "recordProjects": counts.records,
         },
         "notes": wb.notes + counts.notes,
     }
+
+
+# ------------------------------------------------------------------ installed photos
+
+
+class PhotoIn(BaseModel):
+    path: str = Field(max_length=500)
+    name: str = Field(max_length=200)
+    size: int = Field(ge=0)
+    type: str = Field(default="", max_length=100)
+
+
+class PhotoFolderIn(BaseModel):
+    folder: str = Field(max_length=300)
+    files: list[PhotoIn] = Field(max_length=500)
+
+
+class PhotosIn(BaseModel):
+    folders: list[PhotoFolderIn] = Field(max_length=1000)
+
+
+@router.post("/import/photos/check")
+def import_photos_check(body: PhotosIn, acct: Account = Depends(superadmin_only)) -> dict[str, Any]:
+    """Projects → Import photos: where each folder's photos would go (_lib/photo_import.py). Nothing is
+    written; the browser then uploads each photo to its project as any project file is."""
+    return photo_import.plan([f.model_dump() for f in body.folders])

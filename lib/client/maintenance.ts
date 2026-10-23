@@ -48,6 +48,8 @@ export type MaintenanceSystem = {
   urgentNote: string | null;
   notes: string | null;
   attention: boolean;
+  /** Imported from the lists: the record's own fields still empty, and how many on its record project. */
+  toFill?: { system: string[]; project: number } | null;
   updatedAt: string;
 };
 

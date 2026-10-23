@@ -20,7 +20,7 @@ export type ProjectStatus =
   | "signed"
   | "maintenance";
 
-export type Flag = { kind: "overdue" | "no_show"; text: string };
+export type Flag = { kind: "overdue" | "no_show" | "to_fill"; text: string };
 export type GroupState = { done: number; total: number; complete: boolean };
 
 export type ProjectRow = {
@@ -45,6 +45,9 @@ export type ProjectRow = {
   groups: Record<string, GroupState>;
   flags: Flag[];
   attention: boolean;
+  /** Imported from 9 Solar Home's lists, and how many required fields are still empty on it. */
+  imported?: boolean;
+  toFill?: number;
   createdAt: string;
   projectCode?: string | null;
   /** When the homeowner signed the handover, and when it was handed over (closed). */
@@ -218,6 +221,8 @@ export type FieldDef = {
   files: StoredFile[] | null;
   /** Why it can't be changed by you right now, or null if it can. */
   lockedReason: string | null;
+  /** Required, still empty, on a record imported from the lists: highlighted for its manager to fill in. */
+  toFill?: boolean;
 };
 
 export type Section = {
@@ -226,6 +231,8 @@ export type Section = {
   sub: string;
   milestone: 1 | 2 | 3;
   lockedReason: string | null;
+  /** How many of its fields are flagged to fill (imported records only). */
+  toFill?: number;
   done: number;
   total: number;
   complete: boolean;
@@ -235,6 +242,8 @@ export type Section = {
 export type ProjectFields = {
   relation: "pm" | "crew" | "homeowner";
   sections: Section[];
+  imported?: boolean;
+  toFill?: number;
   milestoneReached: number;
   recordedMilestones: number[];
   retailers: Array<{ id: number; name: string }>;
