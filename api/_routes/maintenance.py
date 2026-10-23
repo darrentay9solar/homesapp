@@ -24,6 +24,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from _lib import address as addr
 from _lib import checks as yearly
 from _lib import maintenance_jobs as jobs
 from _lib import records, to_fill
@@ -331,7 +332,7 @@ def change(sid: int, body: Change, acct: Account = Depends(pm_only)) -> dict[str
     given = body.model_fields_set
     sets: dict[str, Any] = {}
     if "address" in given:
-        address = _clean(body.address, 300)
+        address = _clean(addr.street(body.address), 300)
         if not address:
             raise HTTPException(400, "The address can't be empty.")
         sets["address"] = address

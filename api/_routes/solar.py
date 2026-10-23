@@ -26,8 +26,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from _lib import address, weather
 from _lib import fusionsolar as fs
-from _lib import weather
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
 from _lib.solar_sync import INVERTERS, SG
@@ -80,7 +80,8 @@ def _connection() -> dict[str, Any]:
 PLANT_COLUMNS = (
     "p.station_code, p.name, p.address, p.latitude, p.longitude, coalesce(p.capacity_kwp, m.kwp) as capacity_kwp, p.grid_connected_on, p.health, p.current_kw, p.today_kwh, "
     "p.month_kwh, p.year_kwh, p.total_kwh, p.today_income, p.total_income, p.today_feed_in_kwh, p.today_use_kwh, p.live_at, p.system_id, p.linked_by, "
-    "m.rate_per_kwh, m.project_code, m.homeowner_name, m.run_by, u.full_name as homeowner_full_name"
+    "m.rate_per_kwh, m.project_code, m.homeowner_name, m.run_by, u.full_name as homeowner_full_name, "
+    "m.address as system_address, m.postal_code as system_postal"
 )
 FROM = "from solar_plants p left join maintenance_systems m on m.system_id = p.system_id left join users u on u.uid = m.homeowner_id"
 
@@ -91,7 +92,10 @@ def _row(r: dict[str, Any], now: datetime) -> dict[str, Any]:
     return {
         "code": r["station_code"],
         "name": r["name"],
-        "address": r["address"],
+        # The system's own address once linked; else FusionSolar's, tidied ("SingaporeSingapore…" once, one postal code).
+        "address": address.one_line(r["system_address"], r["system_postal"])
+        if r.get("system_address")
+        else address.tidy(r["address"]),
         "capacityKwp": _f(cap),
         "latitude": _f(r["latitude"]),
         "longitude": _f(r["longitude"]),

@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from _lib import address as addr
 from _lib import duplicates, notify, onemap, project_fields, records, to_fill
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
@@ -374,7 +375,8 @@ def _validate(body: ProjectIn) -> dict[str, Any]:
     postal = body.postalCode.strip()
     if not onemap.SG_POSTAL.match(postal):
         raise HTTPException(400, "Enter the site's 6-digit postal code.")
-    address = body.address.strip()
+    # The street only: the postal code is its own field, so a screen never shows it twice.
+    address = addr.street(body.address)
     if len(address) < 5:
         raise HTTPException(400, "Enter the project's address.")
 

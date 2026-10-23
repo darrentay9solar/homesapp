@@ -40,6 +40,7 @@ from typing import Any
 import psycopg
 
 from _lib import onemap
+from _lib.address import street
 from _lib.profile import clean_phone
 
 CLIENT_HEADER = [
@@ -272,7 +273,8 @@ def _read(wb: Any, path: Path, ref_date: date) -> Workbook:
                 raise RowError("the project code is repeated")
             if code:
                 seen.add(code)
-            address = text(r[3])
+            # The street only ("…, Singapore 648815" in the list would show the postal code twice).
+            address = street(text(r[3]) or "")
             if not address:
                 raise RowError("Address is empty")
             kind, years = ppa(r[12])
