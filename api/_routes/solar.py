@@ -137,9 +137,17 @@ def overview(acct: Account = Depends(staff)) -> dict[str, Any]:
         vals = [p[key] for p in plants if p[key] is not None]
         return round(sum(vals), digits) if vals else None
 
+    # The panels' DC power now, all plants together: each live inverter's input (the energy flow's first stage).
+    dc = fetch_one(
+        "select sum((readings->>'mppt_power')::numeric) filter (where live_at > %s) as kw, count(*)::int as inverters "
+        "from solar_devices where station_code = any(%s) and type_id = any(%s)",
+        (now - STALE, codes, list(INVERTERS)),
+    )
     return {
         "connection": _connection(),
         "kpis": {
+            "inputKw": _f(dc["kw"]) if dc and dc["kw"] is not None else None,
+            "inverters": dc["inverters"] if dc else 0,
             "currentKw": total("currentKw"),
             "todayKwh": total("todayKwh"),
             "todayRevenue": total("todayRevenue", 2),

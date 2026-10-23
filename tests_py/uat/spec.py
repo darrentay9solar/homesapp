@@ -211,7 +211,31 @@ TABLE_EXPORTS = {
     "invoices": {"finance"},
     "site_visits": {"project_manager"},
     "people": {"project_manager"},
+    "solar": {"project_manager", "finance"},
+    "solar_report": {"project_manager", "finance"},
 }
+
+
+# ------------------------------------------------------------------ solar, maintenance, security (Oct 2026)
+
+
+def solar_staff(actor: str) -> int:
+    """Solar's screens: superadmins, managers and Admin; nobody else, and nobody switched off."""
+    if actor == "inactive":
+        return 403
+    return 200 if ROLE[actor] in ("superadmin", "project_manager", "finance") else 403
+
+
+def starts_maintenance(actor: str, owner: str) -> int:
+    """Starting or finishing maintenance on a system: as editing it (its manager, any manager while nobody
+    runs it, a superadmin). Another manager's system isn't found."""
+    return maintenance_edit(actor, owner)
+
+
+def two_step_blocked(actor: str) -> bool:
+    """With REQUIRE_STAFF_MFA on, a sign-in without the second step opens only the person's own account:
+    everyone on staff, not homeowners (and not anyone switched off, who is refused anyway)."""
+    return actor != "inactive" and ROLE[actor] != "homeowner"
 
 
 def table_export(actor: str, what: str) -> int:
