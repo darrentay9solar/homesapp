@@ -25,7 +25,17 @@ import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from _lib import maintenance_reminders, meeting_reminders, notify, retention, solar_sync, sweep, watch
+from _lib import (
+    maintenance_reminders,
+    meeting_reminders,
+    notify,
+    retention,
+    solar_reports,
+    solar_sync,
+    sweep,
+    tariff,
+    watch,
+)
 from _lib.account import Account, apply_schedule
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
@@ -447,6 +457,14 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
     except Exception as exc:  # FusionSolar being away mustn't stop the reminders
         print(f"[cron] solar sync failed: {exc}")
         out["solar"] = {"error": "failed; see the logs"}
+    # SP Group's tariff (twice a day at most), and last month's solar reports (once, from the 1st).
+    jobs = (("tariff", tariff.sync), ("solar_reports", solar_reports.run))
+    for key, job in jobs:
+        try:
+            out[key] = job(datetime.now(SG))
+        except Exception as exc:  # never in the way of the reminders
+            print(f"[cron] {key} failed: {type(exc).__name__}: {exc}")
+            out[key] = {"error": "failed; see the logs"}
     # Once a day: non-essential data more than a year old (_lib/retention, migration 0045).
     try:
         out["retention"] = retention.run()

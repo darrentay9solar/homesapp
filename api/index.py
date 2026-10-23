@@ -44,6 +44,7 @@ from _routes import (
     sites,
     solar,
     support,
+    tariffs,
 )
 
 app = FastAPI(
@@ -78,6 +79,7 @@ app.include_router(finance.router, prefix=PREFIX)
 app.include_router(demo.router, prefix=PREFIX)
 app.include_router(imports.router, prefix=PREFIX)
 app.include_router(solar.router, prefix=PREFIX)
+app.include_router(tariffs.router, prefix=PREFIX)
 
 
 @app.get(f"{PREFIX}/ping")

@@ -361,12 +361,14 @@ def test_project_managers_export_to_excel_and_it_is_audited(client, fx, pm, owne
     wb = load_workbook(io.BytesIO(r.content))
     # The company's client list first, sheet for sheet as it was sent; then the app's details.
     assert wb.sheetnames == ["Clients List", "Actual Solar Output (kWh)", "Billing Period", "Feedback",
-                             "Inverter Warranties", "Project details", "Maintenance"]  # fmt: skip
+                             "Inverter Warranties", "Projects in progress", "Handed over", "Maintenance"]  # fmt: skip
     clients = wb["Clients List"]
     assert [c.value for c in clients[2]][:5] == ["Project Code", "Salutation", "Homeowner", "Address", "Postal Code"]
     assert clients["A1"].value == clients.max_row - 2, "the count above the headings, as the list has it"
-    head = [c.value for c in wb["Project details"][1]]
+    head = [c.value for c in wb["Projects in progress"][1]]
     assert head[:3] == ["S/N", "Project", "Status"] and "Turn On Date (SP inspection)" in head
+    # Handed over, a project is complete: its own sheet, with the same columns.
+    assert [c.value for c in wb["Handed over"][1]] == head
 
     r = client.get("/api/py/export/people.xlsx", headers=h(pm))
     assert r.status_code == 200

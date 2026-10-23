@@ -24,7 +24,7 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from _lib import address, weather
 from _lib import fusionsolar as fs
@@ -202,6 +202,7 @@ def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
     ]
     out["alarms"] = [
         {
+            "id": a["alarm_id"],
             "level": a["level"],
             "name": a["name"],
             "device": a["device"] or None,
@@ -211,9 +212,18 @@ def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
             "clearedAt": a["cleared_at"].isoformat() if a["cleared_at"] else None,
             # FusionSolar's own alarm, or the app's output check (solar_sync.check_output).
             "source": a["source"],
+            # Who saw it, when, and what they noted; the homeowner sees only that it's in hand.
+            "acknowledged": {
+                "at": a["acknowledged_at"].isoformat(),
+                "by": a["ack_name"] if acct.role != "homeowner" else None,
+                "note": a["ack_note"] if acct.role != "homeowner" else None,
+            }
+            if a["acknowledged_at"]
+            else None,
         }
         for a in fetch_all(
-            "select * from solar_alarms where station_code = %s and (cleared_at is null or cleared_at > now() - interval '90 days') "
+            "select a.*, u.full_name as ack_name from solar_alarms a left join users u on u.uid = a.acknowledged_by "
+            "where station_code = %s and (cleared_at is null or cleared_at > now() - interval '90 days') "
             "order by cleared_at is not null, raised_at desc limit 100",
             (r["station_code"],),
         )
@@ -288,9 +298,22 @@ def plant(code: str, acct: Account = Depends(staff)) -> dict[str, Any]:
 Period = Literal["day", "month", "year", "lifetime"]
 
 
-def _series(codes: list[str], rate: Any, period: Period, day: date, dev_id: int | None = None) -> dict[str, Any]:
+def _year_before(day: date) -> date:
+    """The same day a year earlier (28 Feb for 29 Feb)."""
+    return (
+        day.replace(year=day.year - 1, day=min(day.day, 28))
+        if (day.month, day.day) == (2, 29)
+        else day.replace(year=day.year - 1)
+    )
+
+
+def _series(
+    codes: list[str], rate: Any, period: Period, day: date, dev_id: int | None = None, compare: bool = True
+) -> dict[str, Any]:
     """Yield by hour, day, month or year for one plant (with its contract's revenue), several (summed),
-    or one inverter (``dev_id``: by day, month or year; FusionSolar's device report has no hours)."""
+    or one inverter (``dev_id``: by day, month or year; FusionSolar's device report has no hours). With the
+    same period a year earlier beside it, slot by slot (by its label: the hour, the day of the month, the
+    month), as FusionSolar's reports compare them."""
     if period == "day":
         start = datetime(day.year, day.month, day.day, tzinfo=SG)
         end, step, fmt = start + timedelta(days=1), "hour", "%H:%M"
@@ -347,13 +370,35 @@ def _series(codes: list[str], rate: Any, period: Period, day: date, dev_id: int 
             }
         )
     known = [p["kwh"] for p in points if p["kwh"] is not None]
+    total = round(sum(known), 3) if known else None
+    previous = None
+    if compare and period != "lifetime":
+        before = _series(codes, rate, period, _year_before(day), dev_id, compare=False)
+        by_label = {p["label"]: p["kwh"] for p in before["points"]}
+        previous = {
+            "date": before["date"],
+            "totalKwh": before["totalKwh"],
+            "kwh": [by_label.get(p["label"]) for p in points],
+            # Up or down on a year before, over the slots both have (a month still running isn't a whole month).
+            "change": _change(
+                [p["kwh"] for p in points if p["kwh"] is not None and by_label.get(p["label"]) is not None],
+                [by_label[p["label"]] for p in points if p["kwh"] is not None and by_label.get(p["label"]) is not None],
+            ),
+        }
     return {
         "period": period,
         "date": day.isoformat(),
         "by": step,
         "points": points,
-        "totalKwh": round(sum(known), 3) if known else None,
+        "totalKwh": total,
+        "previous": previous,
     }
+
+
+def _change(now: list[float], before: list[float]) -> float | None:
+    """Percent up (or down) on the same slots a year earlier; none without a year before to compare."""
+    b = sum(before)
+    return round((sum(now) - b) / b * 100, 1) if before and b > 0 else None
 
 
 @router.get("/solar/plants/{code}/energy")
@@ -569,6 +614,32 @@ def device_energy(
 ) -> dict[str, Any]:
     _plant(code, acct)
     return _device_yield(code, dev_id, period, on)
+
+
+class AckIn(BaseModel):
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/solar/plants/{code}/alarms/{alarm_id}/acknowledge")
+def acknowledge(
+    code: str, alarm_id: int, body: AckIn, acct: Account = Depends(role("project_manager"))
+) -> dict[str, Any]:
+    """A manager has seen an alarm and says what's being done (FusionSolar's own acknowledging can't be reached:
+    the app only reads FusionSolar). Kept with who and when, in the audit log; the homeowner sees it's in hand."""
+    _plant(code, acct)
+    a = fetch_one(
+        "select alarm_id, acknowledged_at from solar_alarms where alarm_id = %s and station_code = %s", (alarm_id, code)
+    )
+    if not a:
+        raise HTTPException(404, "No such alarm on this plant.")
+    note = (body.note or "").strip()[:500] or None
+    with transaction(acct.uid) as cur:
+        cur.execute(
+            "update solar_alarms set acknowledged_at = coalesce(acknowledged_at, now()), acknowledged_by = coalesce(acknowledged_by, %s), "
+            "ack_note = coalesce(%s, ack_note) where alarm_id = %s",
+            (acct.uid, note, alarm_id),
+        )
+    return {"message": "Acknowledged. Everyone who sees the plant can see it's in hand."}
 
 
 class LinkIn(BaseModel):

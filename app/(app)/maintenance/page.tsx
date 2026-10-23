@@ -5,20 +5,25 @@ import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
 import PersonOffRoundedIcon from "@mui/icons-material/PersonOffRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
+import UploadFileRoundedIcon from "@mui/icons-material/UploadFileRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
+import IconButton from "@mui/material/IconButton";
 import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { StatTile, TILE_GRID } from "@/components/charts";
+import { ImportListDialog } from "@/components/import-list";
+import { ImportPhotosDialog } from "@/components/import-photos";
 import { Page } from "@/components/shell";
 import { SystemCard } from "@/components/maintenance";
 import { MaintenanceTable } from "@/components/maintenance-table";
-import { GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
+import { ExportButton, GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
 import { kwp as kwpFigure, num } from "@/lib/client/analytics";
 import { useApi } from "@/lib/client/api";
 import { isAdmin, useMe } from "@/lib/client/app-state";
@@ -40,7 +45,10 @@ function MaintenanceScreen() {
   useEffect(() => {
     if (me && !admin) router.replace("/");
   }, [me, admin, router]);
-  const { data, error } = useApi<MaintenanceList>(admin ? "/maintenance" : null);
+  const { data, error, reload } = useApi<MaintenanceList>(admin ? "/maintenance" : null);
+  // Download and import, as on Projects: the same workbook (projects in progress, handed over, maintenance).
+  const [importing, setImporting] = useState<false | "list" | "photos">(false);
+  const office = me?.role === "project_manager" || me?.role === "superadmin";
   // The open tab is in the address (?tab=table); Table is every system with Excel's filters.
   const [tab, setTab] = useTab<MTab | "table">([...MTABS.map(([v]) => v), "table"], "all");
   const table = tab === "table";
@@ -56,6 +64,20 @@ function MaintenanceScreen() {
     <>
       <TopBar
         title={T("Maintenance")}
+        action={
+          office && (
+            <>
+              <ExportButton path="/export/projects.xlsx" name="GetHomeApps projects.xlsx" label="Download projects and maintenance (Excel)" testId="export-maintenance" />
+              {me?.role === "superadmin" && (
+                <Tooltip title={T("Import from Excel")}>
+                  <IconButton aria-label={T("Import from Excel")} onClick={() => setImporting("list")} data-testid="import-maintenance" sx={{ color: "#fff" }}>
+                    <UploadFileRoundedIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </>
+          )
+        }
         search={table ? undefined : <SearchBox value={q} onChange={setQ} placeholder={T("Search addresses, inverters, homeowners")} testId="maintenance-search" />}
         tabs={
           <SegTabs
@@ -121,6 +143,8 @@ function MaintenanceScreen() {
           )}
         </Page>
       </Box>
+      {importing === "list" && <ImportListDialog onClose={() => setImporting(false)} onDone={reload} onPhotos={() => setImporting("photos")} />}
+      {importing === "photos" && <ImportPhotosDialog onClose={() => setImporting(false)} onDone={reload} />}
     </>
   );
 }

@@ -602,5 +602,17 @@ def msg_solar_alarm(
     return {"email": (t(f"Solar alarm: {plant}"), h, x), "title": f"Solar alarm: {plant}", "body": body}
 
 
+def msg_solar_report(name: str | None, title: str, lines: list[str], url: str, lang: str = "en") -> dict[str, Any]:
+    """A month's solar summary (_lib/solar_reports.py): the in-app note, and the email beside it."""
+    t = _l(lang)
+    h, x = email_shell(
+        title,
+        [f"Hi {name}," if name else "Hi there,", title, *lines],
+        ("Open GetHomeApps", url),
+        lang,
+    )
+    return {"email": (t(title), h, x), "title": title, "body": " ".join(lines)}
+
+
 def msg_verification_code(code: str, minutes: int, lang: str = "en") -> str:
     return _l(lang)(f"{code} is your GetHomeApps verification code. It expires in {minutes} minutes. Don't share it.")

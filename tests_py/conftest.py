@@ -118,6 +118,17 @@ def _no_real_weather(monkeypatch: pytest.MonkeyPatch) -> None:
             "updated": None,
             "stations": [{"name": "Toa Payoh Lorong 4", "lat": 1.33, "lng": 103.85, "c": 31.4}],
             "temperatureAt": None,
+            "periods": [
+                {
+                    "start": "2099-01-01T06:00:00+08:00",
+                    "end": "2099-01-01T12:00:00+08:00",
+                    "regions": {"central": "Cloudy", "east": "Fair"},
+                }
+            ],
+            "today": {"low": 25, "high": 33},
+            "outlook": [
+                {"date": "2099-01-02", "text": "Thundery Showers", "summary": "Showers", "low": 24, "high": 33}
+            ],
         },
     )
 

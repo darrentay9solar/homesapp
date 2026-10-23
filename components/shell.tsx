@@ -1,15 +1,19 @@
 "use client";
 
 import AccountCircleRoundedIcon from "@mui/icons-material/AccountCircleRounded";
+import AdminPanelSettingsRoundedIcon from "@mui/icons-material/AdminPanelSettingsRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
+import ElectricBoltRoundedIcon from "@mui/icons-material/ElectricBoltRounded";
+import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
 import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
+import HomeWorkRoundedIcon from "@mui/icons-material/HomeWorkRounded";
+import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
 import InsightsRoundedIcon from "@mui/icons-material/InsightsRounded";
-import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PhonelinkLockRoundedIcon from "@mui/icons-material/PhonelinkLockRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
@@ -23,11 +27,13 @@ import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
+import ListSubheader from "@mui/material/ListSubheader";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -47,87 +53,70 @@ import { RoleAvatar } from "./m";
 import { T, TR } from "@/lib/client/i18n";
 import { leaveDemo } from "@/lib/client/demo";
 /**
- * phone: false puts a tab under More on the phone's bottom bar. Every role's
- * bar has the same shape: its own main screens, then Alerts, then More
- * (five at most). Files and Account are always under More. The desktop
- * drawer lists every tab.
+ * Every role's screens in three groups, as 9 Solar Home asked (23 Oct 2026): Homes (the homes and their
+ * money, and support), Admin (people, records and one's own tools), Info (FusionSolar and SP Power). The
+ * desktop drawer lists them under their group's heading. A phone's bottom bar shows someone's screens
+ * themselves when they have five or fewer; more, and it has the groups, each a dropdown (a group with one
+ * screen opens it straight away).
  */
-type Tab = { href: string; label: string; icon: ReactNode; phone?: false };
+const BAR_MOST = 5;
+type Group = "homes" | "admin" | "info";
+type Tab = { href: string; label: string; icon: ReactNode; group: Group };
 
-const CALENDAR: Tab = { href: "/calendar", label: "Calendar", icon: <CalendarMonthRoundedIcon /> };
-const ALERTS: Tab = { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon /> };
-const ACCOUNT: Tab = { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, phone: false };
-// Help (a homeowner asks) and Support (everyone else answers or helps): both under More on a phone.
-const HELP: Tab = { href: "/support", label: "Help", icon: <SupportAgentRoundedIcon />, phone: false };
-const SUPPORT: Tab = { href: "/support", label: "Support", icon: <SupportAgentRoundedIcon />, phone: false };
+const GROUPS: Array<{ key: Group; label: string; icon: ReactNode }> = [
+  { key: "homes", label: "Homes", icon: <HomeWorkRoundedIcon /> },
+  { key: "admin", label: "Admin", icon: <AdminPanelSettingsRoundedIcon /> },
+  { key: "info", label: "Info", icon: <InfoRoundedIcon /> },
+];
+
+const DASHBOARD: Tab = { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon />, group: "homes" };
+const PROJECTS: Tab = { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon />, group: "homes" };
+const MAINTENANCE: Tab = { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, group: "homes" };
 // Payments: a homeowner's invoices and the QR; for managers, whether each month is issued and paid.
-const PAYMENTS: Tab = { href: "/payments", label: "Payments", icon: <ReceiptLongRoundedIcon /> };
-const FINANCE: Tab = { href: "/finance", label: "Payments", icon: <ReceiptLongRoundedIcon /> };
+const PAYMENTS: Tab = { href: "/payments", label: "Payments", icon: <ReceiptLongRoundedIcon />, group: "homes" };
+const FINANCE: Tab = { href: "/finance", label: "Payments", icon: <ReceiptLongRoundedIcon />, group: "homes" };
+const ACCOUNT: Tab = { href: "/account", label: "Account", icon: <AccountCircleRoundedIcon />, group: "admin" };
+const PEOPLE: Tab = { href: "/people", label: "People", icon: <GroupsRoundedIcon />, group: "admin" };
+const AUDIT: Tab = { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, group: "admin" };
+// Help (a homeowner asks) and Support (everyone else answers or helps).
+const HELP: Tab = { href: "/support", label: "Help", icon: <SupportAgentRoundedIcon />, group: "homes" };
+const SUPPORT: Tab = { href: "/support", label: "Support", icon: <SupportAgentRoundedIcon />, group: "homes" };
+const ALERTS: Tab = { href: "/alerts", label: "Alerts", icon: <NotificationsRoundedIcon />, group: "admin" };
+const CALENDAR: Tab = { href: "/calendar", label: "Calendar", icon: <CalendarMonthRoundedIcon />, group: "admin" };
+const FILES: Tab = { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, group: "admin" };
+// FusionSolar's figures for every plant (a project manager: those they run); SP Group's tariff, for everyone.
+const FUSIONSOLAR: Tab = { href: "/solar", label: "FusionSolar", icon: <WbSunnyRoundedIcon />, group: "info" };
+const SP_POWER: Tab = { href: "/sp-power", label: "SP Power", icon: <ElectricBoltRoundedIcon />, group: "info" };
 
-/** Tabs per role, from the prototype. Audit is project managers' and the superadmin's only. */
-// FusionSolar's figures for every plant (a project manager: those they run).
-const SOLAR: Tab = { href: "/solar", label: "Solar", icon: <WbSunnyRoundedIcon />, phone: false };
+const OFFICE: Tab[] = [DASHBOARD, PROJECTS, MAINTENANCE, FINANCE, SUPPORT, ACCOUNT, PEOPLE, AUDIT, ALERTS, CALENDAR, FILES, FUSIONSOLAR, SP_POWER];
 
 const TABS: Record<Role, Tab[]> = {
-  homeowner: [{ href: "/", label: "My Project", icon: <HomeRoundedIcon /> }, PAYMENTS, CALENDAR, HELP, ALERTS, { href: "/my-solar", label: "My Solar", icon: <WbSunnyRoundedIcon />, phone: false }, ACCOUNT],
-  project_manager: [
-    // The dashboard is their opening screen ("/" takes them there); the Projects list is /projects.
-    { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
-    { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
-    CALENDAR,
-    ALERTS,
-    { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
-    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
-    SOLAR,
-    { ...FINANCE, phone: false },
-    { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
-    SUPPORT,
-    { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
+  homeowner: [
+    { href: "/", label: "My Project", icon: <HomeRoundedIcon />, group: "homes" },
+    PAYMENTS,
+    HELP,
     ACCOUNT,
+    ALERTS,
+    CALENDAR,
+    { href: "/my-solar", label: "My FusionSolar", icon: <WbSunnyRoundedIcon />, group: "info" },
+    SP_POWER,
   ],
+  // The dashboard is a manager's opening screen ("/" takes them there); the Projects list is /projects.
+  project_manager: OFFICE,
   // Everything a project manager has, over every project.
-  superadmin: [
-    { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon /> },
-    { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
-    CALENDAR,
-    ALERTS,
-    { href: "/people", label: "People", icon: <GroupsRoundedIcon />, phone: false },
-    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
-    SOLAR,
-    { ...FINANCE, phone: false },
-    { href: "/audit", label: "Audit", icon: <FactCheckRoundedIcon />, phone: false },
-    SUPPORT,
-    { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
-    ACCOUNT,
-  ],
+  superadmin: OFFICE,
   // Admin (finance): payments first; every project and system to look at, read-only.
-  finance: [
-    FINANCE,
-    { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
-    CALENDAR,
-    ALERTS,
-    { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, phone: false },
-    SOLAR,
-    SUPPORT,
-    { href: "/files", label: "My Files", icon: <FolderOpenRoundedIcon />, phone: false },
-    ACCOUNT,
-  ],
-  contractor: [
-    { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
-    CALENDAR,
-    ALERTS,
-    SUPPORT,
-    { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon />, phone: false },
-    ACCOUNT,
-  ],
+  finance: [FINANCE, PROJECTS, MAINTENANCE, SUPPORT, ACCOUNT, ALERTS, CALENDAR, FILES, FUSIONSOLAR, SP_POWER],
+  contractor: [{ ...PROJECTS, href: "/" }, SUPPORT, ACCOUNT, ALERTS, CALENDAR, { ...FILES, label: "Files" }, SP_POWER],
   epc_team: [
-    { href: "/", label: "Projects", icon: <FormatListBulletedRoundedIcon /> },
-    { href: "/sites", label: "Sites", icon: <PlaceRoundedIcon /> },
-    CALENDAR,
-    ALERTS,
+    { ...PROJECTS, href: "/" },
+    { href: "/sites", label: "Sites", icon: <PlaceRoundedIcon />, group: "homes" },
     SUPPORT,
-    { href: "/files", label: "Files", icon: <FolderOpenRoundedIcon />, phone: false },
     ACCOUNT,
+    ALERTS,
+    CALENDAR,
+    { ...FILES, label: "Files" },
+    SP_POWER,
   ],
 };
 
@@ -158,7 +147,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { me: state } = useApp();
   const pathname = usePathname();
   const router = useRouter();
-  const [more, setMore] = useState(false);
+  // The phone's group whose dropdown is open, and the button it hangs from.
+  const [menu, setMenu] = useState<{ group: Group; at: HTMLElement } | null>(null);
   if (!me) return null;
   const tabs = TABS[me.role];
   const current = activeHref(pathname, tabs);
@@ -166,9 +156,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   // A dot on Alerts for unread alerts, on Help or Support for a new answer or someone waiting.
   const support = (state?.supportUnread ?? 0) + (state?.supportWaiting ?? 0) > 0;
   const dot = (href: string) => (href === "/alerts" && unread) || (href === "/support" && support);
-  const bar = tabs.filter((t) => t.phone !== false);
-  const extra = tabs.filter((t) => t.phone === false);
-  const inMore = extra.some((t) => t.href === current);
+  const groups = GROUPS.map((g) => ({ ...g, tabs: tabs.filter((t) => t.group === g.key) })).filter((g) => g.tabs.length);
+  const here = tabs.find((t) => t.href === current)?.group ?? "homes";
 
   return (
     <Box sx={{ display: "flex", minHeight: "100dvh", bgcolor: "background.default" }}>
@@ -200,24 +189,37 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Typography>
           </Box>
         </Stack>
-        <List sx={{ display: "grid", gap: 0.5, p: 0 }}>
-          {tabs.map((t) => (
-            <ListItemButton
-              key={t.href}
-              component={Link}
-              href={t.href}
-              selected={current === t.href}
-              sx={{
-                minHeight: 46,
-                "&.Mui-selected": { bgcolor: "action.selected", "& .MuiListItemIcon-root": { color: "primary.main" } },
-              }}
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", mx: -1, px: 1 }}>
+          {groups.map((g) => (
+            <List
+              key={g.key}
+              sx={{ display: "grid", gap: 0.25, p: 0, mb: 1.5 }}
+              aria-label={TR(g.label)}
+              data-testid={`nav-group-${g.key}`}
+              subheader={
+                <ListSubheader disableSticky sx={{ bgcolor: "transparent", lineHeight: 1.6, px: 1, pb: 0.5, fontSize: 11.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "text.secondary" }}>
+                  {TR(g.label)}
+                </ListSubheader>
+              }
             >
-              <ListItemIcon sx={{ minWidth: 40 }}>{withBadge(t.icon, dot(t.href))}</ListItemIcon>
-              <ListItemText primary={TR(t.label)} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: 14.5 } } }} />
-            </ListItemButton>
+              {g.tabs.map((t) => (
+                <ListItemButton
+                  key={t.href}
+                  component={Link}
+                  href={t.href}
+                  selected={current === t.href}
+                  sx={{
+                    minHeight: 42,
+                    "&.Mui-selected": { bgcolor: "action.selected", "& .MuiListItemIcon-root": { color: "primary.main" } },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 40 }}>{withBadge(t.icon, dot(t.href))}</ListItemIcon>
+                  <ListItemText primary={TR(t.label)} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: 14.5 } } }} />
+                </ListItemButton>
+              ))}
+            </List>
           ))}
-        </List>
-        <Box sx={{ flex: 1 }} />
+        </Box>
         <Stack
           direction="row"
           component={Link}
@@ -261,55 +263,54 @@ export function AppShell({ children }: { children: ReactNode }) {
           backdropFilter: "blur(18px)",
         }}
       >
-        <BottomNavigation
-          showLabels
-          value={inMore ? "more" : current}
-          onChange={(_, v: string) => (v === "more" ? setMore(true) : router.push(v))}
-          sx={{ height: 64, bgcolor: "transparent" }}
-        >
-          {bar.map((t) => (
+        {tabs.length <= BAR_MOST ? (
+          <BottomNavigation showLabels value={current} onChange={(_, v: string) => router.push(v)} sx={{ height: 64, bgcolor: "transparent" }}>
+            {tabs.map((t) => (
+              <BottomNavigationAction key={t.href} value={t.href} label={TR(t.label)} icon={withBadge(t.icon, dot(t.href))} />
+            ))}
+          </BottomNavigation>
+        ) : (
+        <BottomNavigation showLabels value={menu?.group ?? here} sx={{ height: 64, bgcolor: "transparent" }}>
+          {groups.map((g) => (
             <BottomNavigationAction
-              key={t.href}
-              value={t.href}
-              label={TR(t.label)}
-              icon={withBadge(t.icon, dot(t.href))}
+              key={g.key}
+              value={g.key}
+              label={TR(g.label)}
+              data-testid={`nav-${g.key}`}
+              aria-haspopup="menu"
+              aria-expanded={menu?.group === g.key}
+              icon={withBadge(menu?.group === g.key ? <ExpandLessRoundedIcon /> : g.icon, g.tabs.some((t) => dot(t.href)))}
+              onClick={(e) => (g.tabs.length === 1 ? router.push(g.tabs[0].href) : setMenu({ group: g.key, at: e.currentTarget }))}
             />
           ))}
-          {extra.length > 0 && (
-            <BottomNavigationAction
-              value="more"
-              label={T("More")}
-              data-testid="nav-more"
-              icon={withBadge(<MoreHorizRoundedIcon />, extra.some((t) => dot(t.href)))}
-            />
-          )}
         </BottomNavigation>
+        )}
       </Paper>
 
-      {/* Phones: the tabs that don't fit on the bar, as a sheet from the bottom. */}
-      <Drawer
-        anchor="bottom"
-        open={more}
-        onClose={() => setMore(false)}
-        slotProps={{ paper: { sx: { borderTopLeftRadius: DESIGN.radius.dialog, borderTopRightRadius: DESIGN.radius.dialog, pb: "calc(12px + env(safe-area-inset-bottom))" } } }}
+      {/* Phones: each group's screens as a dropdown from its button on the bar. */}
+      <Menu
+        open={Boolean(menu)}
+        anchorEl={menu?.at}
+        onClose={() => setMenu(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "center" }}
+        slotProps={{ paper: { sx: { minWidth: 220, maxWidth: "calc(100vw - 32px)", mb: 1 } }, list: { "aria-label": menu ? TR(GROUPS.find((x) => x.key === menu.group)?.label ?? "") : undefined, dense: false } as object }}
+        data-testid="nav-menu"
       >
-        <Box sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: "divider", mx: "auto", mt: 1.25, mb: 1 }} />
-        <List sx={{ px: 1.5 }} data-testid="more-sheet" aria-label={T("More")}>
-          {extra.map((t) => (
-            <ListItemButton
-              key={t.href}
-              component={Link}
-              href={t.href}
-              selected={current === t.href}
-              onClick={() => setMore(false)}
-              sx={{ minHeight: 52, "&.Mui-selected": { bgcolor: "action.selected", "& .MuiListItemIcon-root": { color: "primary.main" } } }}
-            >
-              <ListItemIcon sx={{ minWidth: 44 }}>{withBadge(t.icon, dot(t.href))}</ListItemIcon>
-              <ListItemText primary={TR(t.label)} slotProps={{ primary: { sx: { fontWeight: 500, fontSize: 15.5 } } }} />
-            </ListItemButton>
-          ))}
-        </List>
-      </Drawer>
+        {(groups.find((g) => g.key === menu?.group)?.tabs ?? []).map((t) => (
+          <MenuItem
+            key={t.href}
+            component={Link}
+            href={t.href}
+            selected={current === t.href}
+            onClick={() => setMenu(null)}
+            sx={{ minHeight: 48, gap: 1.5 }}
+          >
+            <Box sx={{ display: "grid", color: current === t.href ? "primary.main" : "text.secondary" }}>{withBadge(t.icon, dot(t.href))}</Box>
+            <Typography sx={{ fontWeight: 500, fontSize: 15.5 }}>{TR(t.label)}</Typography>
+          </MenuItem>
+        ))}
+      </Menu>
     </Box>
   );
 }

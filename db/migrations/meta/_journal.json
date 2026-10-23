@@ -414,6 +414,13 @@
       "when": 1792320000000,
       "tag": "0058_record_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1792330000000,
+      "tag": "0059_tariffs_reports_acks",
+      "breakpoints": true
     }
   ]
 }

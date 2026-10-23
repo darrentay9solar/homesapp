@@ -75,7 +75,22 @@ export function mockPlant(code: string): PlantDetail {
   const faulty = p.health === "faulty";
   return {
     ...p,
-    weather: { area: "Toa Payoh", forecast: p.health === "faulty" ? "Light Showers" : "Partly Cloudy (Day)", valid: "12 pm to 2 pm", temperatureC: 31.4, station: "Toa Payoh Lorong 4", at: iso(12) },
+    weather: {
+      area: "Toa Payoh",
+      forecast: p.health === "faulty" ? "Light Showers" : "Partly Cloudy (Day)",
+      valid: "12 pm to 2 pm",
+      temperatureC: 31.4,
+      station: "Toa Payoh Lorong 4",
+      at: iso(12),
+      region: "central",
+      next: [
+        { start: `${sgDay()}T18:00:00+08:00`, end: `${sgDay(1)}T06:00:00+08:00`, forecast: "Cloudy" },
+        { start: `${sgDay(1)}T06:00:00+08:00`, end: `${sgDay(1)}T12:00:00+08:00`, forecast: "Fair (Day)" },
+        { start: `${sgDay(1)}T12:00:00+08:00`, end: `${sgDay(1)}T18:00:00+08:00`, forecast: "Thundery Showers" },
+      ],
+      today: { low: 25, high: 34 },
+      outlook: [1, 2, 3, 4].map((d, i) => ({ date: sgDay(d), text: ["Thundery Showers", "Partly Cloudy (Day)", "Showers", "Fair (Day)"][i], summary: null, low: 24 + (i % 2), high: 32 + (i % 3) })),
+    },
     yearKwh: Math.round((p.totalKwh ?? 0) * 0.62),
     benefits: { coalTons: Math.round((p.totalKwh ?? 0) * 0.4) / 1000, co2Tons: Math.round((p.totalKwh ?? 0) * 0.475) / 1000, trees: Math.round(((p.totalKwh ?? 0) * 0.475) / 18.3) },
     devices: [
@@ -98,9 +113,9 @@ export function mockPlant(code: string): PlantDetail {
     ],
     alarms: faulty
       ? [
-          { level: "major", name: "Output below expected", device: null, cause: "Making 0.79 kW against about 3.21 kW expected (25% of what similar plants are making now)", suggestion: "Check the inverter and its alarms; then look for shading, dirty panels, a tripped breaker or a faulty string (Devices, then the inverter's PV strings).", raisedAt: iso(35), clearedAt: null, source: "app" },
-          { level: "major", name: "Grid Overvoltage", device: "INV-1", cause: "The grid voltage is above the inverter's limit.", suggestion: "If it keeps happening, ask the grid operator to check the voltage.", raisedAt: iso(140), clearedAt: null },
-          { level: "minor", name: "Low Insulation Resistance", device: "INV-1", cause: "Moisture on the strings after rain.", suggestion: "Usually clears as panels dry; check the cabling if it doesn't.", raisedAt: iso(60 * 50), clearedAt: iso(60 * 46) },
+          { id: 9001, level: "major", name: "Output below expected", device: null, cause: "Making 0.79 kW against about 3.21 kW expected (25% of what similar plants are making now)", suggestion: "Check the inverter and its alarms; then look for shading, dirty panels, a tripped breaker or a faulty string (Devices, then the inverter's PV strings).", raisedAt: iso(35), clearedAt: null, source: "app" },
+          { id: 9002, level: "major", name: "Grid Overvoltage", device: "INV-1", cause: "The grid voltage is above the inverter's limit.", suggestion: "If it keeps happening, ask the grid operator to check the voltage.", raisedAt: iso(140), clearedAt: null, acknowledged: { at: iso(90), by: "Wei Ming Tan", note: "Asked SP to check the voltage at the substation" } },
+          { id: 9003, level: "minor", name: "Low Insulation Resistance", device: "INV-1", cause: "Moisture on the strings after rain.", suggestion: "Usually clears as panels dry; check the cabling if it doesn't.", raisedAt: iso(60 * 50), clearedAt: iso(60 * 46) },
         ]
       : [],
     connection: { connected: true, lastSync: iso(7) },
@@ -158,7 +173,11 @@ export function mockEnergy(search: URLSearchParams): EnergySeries {
   else points = [y - 2, y - 1, y].map((yy, i) => ({ at: `${yy}-01-01`, label: String(yy), kwh: [9800, 17200, 14100][i], revenue: null }));
   for (const p of points) p.revenue = p.kwh === null ? null : Math.round(p.kwh * 0.265 * 100) / 100;
   const total = points.reduce((n, p) => n + (p.kwh ?? 0), 0);
-  return { period, date, by: period === "day" ? "hour" : period === "month" ? "day" : period === "year" ? "month" : "year", points, totalKwh: Math.round(total * 1000) / 1000 };
+  // A year before: a little less, slot by slot (none for lifetime).
+  const before = points.map((p) => (p.kwh === null ? null : Math.round(p.kwh * 0.92 * 10) / 10));
+  const beforeTotal = before.reduce<number>((n, v) => n + (v ?? 0), 0);
+  const previous = period === "lifetime" ? null : { date: `${y - 1}${date.slice(4)}`, totalKwh: Math.round(beforeTotal * 1000) / 1000, kwh: before, change: Math.round((total / beforeTotal - 1) * 1000) / 10 };
+  return { period, date, by: period === "day" ? "hour" : period === "month" ? "day" : period === "year" ? "month" : "year", points, totalKwh: Math.round(total * 1000) / 1000, previous };
 }
 
 /** Power every 5 minutes through a day: a sunny curve with passing clouds, up to now for today. */

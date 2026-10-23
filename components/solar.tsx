@@ -15,9 +15,11 @@ import ForestRoundedIcon from "@mui/icons-material/ForestRounded";
 import FactoryRoundedIcon from "@mui/icons-material/FactoryRounded";
 import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
+import NotesRoundedIcon from "@mui/icons-material/NotesRounded";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import SavingsRoundedIcon from "@mui/icons-material/SavingsRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
+import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import WbSunnyRoundedIcon from "@mui/icons-material/WbSunnyRounded";
 import Alert from "@mui/material/Alert";
@@ -25,10 +27,12 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Chip from "@mui/material/Chip";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
+import Switch from "@mui/material/Switch";
 import type { Theme } from "@mui/material/styles";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
@@ -36,15 +40,15 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
-import { AreaChart, ChartCard, ColumnChart, DataTable as PlainTable, StatTile, TILE_GRID } from "@/components/charts";
+import { AreaChart, ChartCard, ColumnChart, DataTable as PlainTable, seriesColor, StatTile, TILE_GRID } from "@/components/charts";
 import { DataTable, type TableCol } from "@/components/data-table";
 import { Field, MDialog } from "@/components/m";
 import { Page } from "@/components/shell";
 import { SegTabs, TopBar } from "@/components/topbar";
 import { ago, dt2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
-import { useMe } from "@/lib/client/app-state";
-import { T, TR } from "@/lib/client/i18n";
+import { useApp, useMe } from "@/lib/client/app-state";
+import { locale, T, TR } from "@/lib/client/i18n";
 import { useTab } from "@/lib/client/tabs";
 import {
   type AlarmLevel,
@@ -60,6 +64,7 @@ import {
   LEVELS,
   inverterStatus,
   KIND_LABEL,
+  type PlantAlarm,
   type PlantDetail,
   type PlantDevice,
   type PlantWeather,
@@ -440,7 +445,64 @@ export function PlantOverview({ p, base }: { p: PlantDetail; base: string }) {
           {p.address && <Fact label={T("Address")} value={p.address} />}
         </Card>
       </Box>
+      <WeatherAhead w={p.weather} />
     </>
+  );
+}
+
+const REGION: Record<string, string> = { north: "the north", south: "the south", east: "the east", west: "the west", central: "central Singapore" };
+const sgTime = (iso: string) => new Date(iso).toLocaleTimeString(locale(), { hour: "numeric", timeZone: "Asia/Singapore" });
+const sgDay = (iso: string) => new Date(`${iso}T00:00:00+08:00`).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short", timeZone: "Asia/Singapore" });
+
+/** NEA's next 24 hours for the plant's part of Singapore, then its 4-day outlook (as FusionSolar shows the days ahead). */
+export function WeatherAhead({ w }: { w: PlantWeather | null | undefined }) {
+  const next = w?.next ?? [];
+  const days = w?.outlook ?? [];
+  if (!next.length && !days.length) return null;
+  const cell = { p: 1.25, borderRadius: 1.5, bgcolor: "action.hover", minWidth: 0, overflowWrap: "anywhere" } as const;
+  return (
+    <Card sx={{ p: 2.25, mt: 1.5 }} data-testid="plant-weather-ahead">
+      <Typography component="h2" sx={{ fontWeight: 600, fontSize: 15.5 }}>
+        {T("Weather ahead")}
+      </Typography>
+      <Typography variant="body2" sx={{ color: "text.secondary", mb: 1.25 }}>
+        {w?.region ? T("NEA's forecast for {part}, then Singapore's 4-day outlook.", { part: T(REGION[w.region]) }) : T("From NEA")}
+        {w?.today && w.today.low !== null && w.today.high !== null ? ` ${T("Today {low}–{high} °C.", { low: w.today.low, high: w.today.high })}` : ""}
+      </Typography>
+      <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))" }}>
+        {next.map((p) => (
+          <Box key={p.start} sx={cell} data-testid="weather-period">
+            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+              {T("{from} to {to}", { from: sgTime(p.start), to: sgTime(p.end) })}
+            </Typography>
+            <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mt: 0.25, color: "primary.main" }}>
+              {weatherIcon(p.forecast)}
+              <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary", minWidth: 0 }}>
+                {TR(p.forecast)}
+              </Typography>
+            </Stack>
+          </Box>
+        ))}
+        {days.map((d) => (
+          <Box key={d.date} sx={cell} data-testid="weather-day">
+            <Typography variant="caption" sx={{ color: "text.secondary", display: "block" }}>
+              {sgDay(d.date)}
+            </Typography>
+            <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mt: 0.25, color: "primary.main" }}>
+              {weatherIcon(d.text ?? "")}
+              <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary", minWidth: 0 }}>
+                {d.low !== null && d.high !== null ? `${d.low}–${d.high} °C` : "—"}
+              </Typography>
+            </Stack>
+            {d.text && (
+              <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mt: 0.25 }}>
+                {TR(d.text)}
+              </Typography>
+            )}
+          </Box>
+        ))}
+      </Box>
+    </Card>
   );
 }
 
@@ -498,6 +560,10 @@ export function EnergyPanel({ base, periods = ["day", "month", "year", "lifetime
   const [day, setDay] = useState(() => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10));
   const { data, error } = useApi<EnergySeries>(`${base}/energy?period=${period}&date=${day}`);
   const hasRevenue = Boolean(data?.points.some((p) => p.revenue !== null));
+  // Beside the same period a year earlier, slot by slot, as FusionSolar's reports compare them.
+  const [compare, setCompare] = useState(false);
+  const before = compare && period !== "lifetime" ? (data?.previous ?? null) : null;
+  const change = before?.change ?? null;
   return (
     <Box sx={{ mt: 1.5 }}>
       <Stack direction="row" sx={{ gap: 1, rowGap: 1, alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
@@ -511,6 +577,13 @@ export function EnergyPanel({ base, periods = ["day", "month", "year", "lifetime
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
+        {period !== "lifetime" && (
+          <FormControlLabel
+            control={<Switch size="small" checked={compare} onChange={(e) => setCompare(e.target.checked)} slotProps={{ input: { "data-testid": "energy-compare" } as object }} />}
+            label={<Typography variant="body2">{T("Compare with a year before")}</Typography>}
+            sx={{ mr: 0, ml: 0 }}
+          />
+        )}
         {period !== "lifetime" && (
           <Stack direction="row" sx={{ alignItems: "center", maxWidth: "100%", ml: { sm: "auto" } }}>
             <IconButton aria-label={T("Earlier")} onClick={() => setDay((d) => shiftDate(d, period, -1))}>
@@ -528,11 +601,28 @@ export function EnergyPanel({ base, periods = ["day", "month", "year", "lifetime
       {data && (
         <ChartCard
           title={TR(title)}
-          sub={data.totalKwh !== null ? energy(data.totalKwh) : T("No figures for this period yet")}
-          table={{ head: [T("Period"), "kWh", ...(hasRevenue ? [T("Revenue (S$)")] : [])], rows: data.points.filter((p) => p.kwh !== null).map((p) => [p.label, p.kwh ?? 0, ...(hasRevenue ? [p.revenue ?? 0] : [])]) }}
+          sub={[
+            data.totalKwh !== null ? energy(data.totalKwh) : T("No figures for this period yet"),
+            before ? (before.totalKwh !== null ? T("{kwh} a year before", { kwh: energy(before.totalKwh) }) : T("Nothing recorded a year before")) : null,
+            change !== null ? (change >= 0 ? T("up {n}% on the same days", { n: change }) : T("down {n}% on the same days", { n: -change })) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          legend={before ? [{ label: "This period (kWh)", color: (t) => seriesColor(t, 0) }, { label: "A year before (kWh)", color: (t) => seriesColor(t, 1) }] : undefined}
+          table={{
+            head: [T("Period"), "kWh", ...(before ? [T("A year before (kWh)")] : []), ...(hasRevenue ? [T("Revenue (S$)")] : [])],
+            rows: data.points
+              .map((p, i) => ({ p, prev: before?.kwh[i] ?? null }))
+              .filter(({ p, prev }) => p.kwh !== null || prev !== null)
+              .map(({ p, prev }) => [p.label, p.kwh ?? 0, ...(before ? [prev ?? 0] : []), ...(hasRevenue ? [p.revenue ?? 0] : [])]),
+          }}
           testId={testId}
         >
-          <ColumnChart data={data.points.map((p) => ({ label: p.label, values: [p.kwh ?? 0] }))} series={["Yield (kWh)"]} height={240} />
+          <ColumnChart
+            data={data.points.map((p, i) => ({ label: p.label, values: before ? [p.kwh ?? 0, before.kwh[i] ?? 0] : [p.kwh ?? 0] }))}
+            series={before ? ["This period (kWh)", "A year before (kWh)"] : ["Yield (kWh)"]}
+            height={240}
+          />
         </ChartCard>
       )}
     </Box>
@@ -742,7 +832,8 @@ function Fig({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function AlarmsPanel({ p }: { p: PlantDetail }) {
+export function AlarmsPanel({ p, base, canAck, onDone }: { p: PlantDetail; base?: string; canAck?: boolean; onDone?: () => Promise<void> | void }) {
+  const [acking, setAcking] = useState<PlantAlarm | null>(null);
   if (!p.alarms.length) {
     return (
       <Card sx={{ p: 3, mt: 1.5, textAlign: "center", color: "text.secondary" }} data-testid="alarms-empty">
@@ -774,9 +865,59 @@ export function AlarmsPanel({ p }: { p: PlantDetail }) {
               {T("What to do: {text}", { text: TR(a.suggestion) })}
             </Typography>
           )}
+          {a.acknowledged ? (
+            <Alert severity="success" icon={<TaskAltRoundedIcon fontSize="small" />} sx={{ mt: 1, py: 0.25 }} data-testid="alarm-acknowledged">
+              {a.acknowledged.by ? T("Acknowledged by {name}, {when}", { name: a.acknowledged.by, when: dt2s(a.acknowledged.at) }) : T("Being looked at by 9 Solar Home since {when}", { when: dt2s(a.acknowledged.at) })}
+              {a.acknowledged.note && (
+                <Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>
+                  {a.acknowledged.note}
+                </Typography>
+              )}
+            </Alert>
+          ) : (
+            canAck &&
+            !a.clearedAt &&
+            a.id !== undefined && (
+              <Button size="small" variant="outlined" startIcon={<TaskAltRoundedIcon />} onClick={() => setAcking(a)} sx={{ mt: 1 }} data-testid="alarm-ack">
+                {T("Acknowledge")}
+              </Button>
+            )
+          )}
         </Card>
       ))}
+      {acking && base && <AckDialog base={base} alarm={acking} onClose={() => setAcking(null)} onDone={onDone} />}
     </Stack>
+  );
+}
+
+/** A manager notes that an alarm is in hand, and what's being done; the homeowner sees only that it is. */
+function AckDialog({ base, alarm, onClose, onDone }: { base: string; alarm: PlantAlarm; onClose: () => void; onDone?: () => Promise<void> | void }) {
+  const fetcher = useFetcher();
+  const { toast } = useApp();
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try {
+      const r = await fetcher<{ message: string }>(`${base}/alarms/${alarm.id}/acknowledge`, { method: "POST", json: { note } });
+      toast(r.message);
+      await onDone?.();
+      onClose();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Something went wrong.", "bad");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <MDialog title={T("Acknowledge")} heading={TR(alarm.name)} subtitle={T("Say it's in hand, and what's being done. The homeowner sees only that it's being looked at.")} onClose={onClose}>
+      <Stack sx={{ gap: 2 }}>
+        <Field label={T("What's being done (optional)")} icon={<NotesRoundedIcon />} value={note} onChange={(e) => setNote(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 500, "data-testid": "ack-note" } }} />
+        <Button size="large" variant="contained" disabled={busy} onClick={() => void save()} data-testid="ack-save">
+          {T("Acknowledge")}
+        </Button>
+      </Stack>
+    </MDialog>
   );
 }
 
@@ -898,7 +1039,7 @@ function PlantTabs({ base, staff, onBack }: { base: string; staff: boolean; onBa
   return (
     <>
       <TopBar
-        title={p?.name ?? T(staff ? "Plant" : "My solar")}
+        title={p?.name ?? T(staff ? "Plant" : "My FusionSolar")}
         sub={p ? <HealthChip health={p.health} /> : undefined}
         onBack={onBack}
         action={
@@ -933,7 +1074,7 @@ function PlantTabs({ base, staff, onBack }: { base: string; staff: boolean; onBa
               {tab === "overview" && <PlantOverview p={p} base={staff ? base : "/me/solar"} />}
               {tab === "energy" && <EnergyPanel base={staff ? base : "/me/solar"} />}
               {tab === "devices" && <DevicesPanel p={p} base={staff ? base : "/me/solar"} />}
-              {tab === "alarms" && <AlarmsPanel p={p} />}
+              {tab === "alarms" && <AlarmsPanel p={p} base={base} canAck={canLink} onDone={reload} />}
               {tab === "report" && <ReportPanel base={staff ? base : "/me/solar"} exportable={staff} plantName={p.name} />}
             </>
           )}

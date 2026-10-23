@@ -49,7 +49,19 @@ export type SolarOverview = {
 };
 
 /** source: FusionSolar's own alarm, or the app's output check (a plant making much less than similar plants). */
-export type PlantAlarm = { level: AlarmLevel; name: string; device: string | null; cause: string | null; suggestion: string | null; raisedAt: string; clearedAt: string | null; source?: "fusionsolar" | "app" };
+export type PlantAlarm = {
+  id?: number;
+  level: AlarmLevel;
+  name: string;
+  device: string | null;
+  cause: string | null;
+  suggestion: string | null;
+  raisedAt: string;
+  clearedAt: string | null;
+  source?: "fusionsolar" | "app";
+  /** A manager has seen it and noted what's being done (who and the note: staff only). */
+  acknowledged?: { at: string; by: string | null; note: string | null } | null;
+};
 export type DeviceKind = "inverter" | "dongle" | "meter" | "battery" | "device";
 export type DeviceState = "producing" | "standby" | "offline";
 /** An inverter's live readings as FusionSolar shows them (only what it reports). */
@@ -86,7 +98,19 @@ export type PlantDevice = {
 };
 
 /** Singapore's weather where the plant is (NEA): its area's 2-hour forecast and the nearest temperature. */
-export type PlantWeather = { area: string | null; forecast: string | null; valid: string | null; temperatureC: number | null; station: string | null; at: string };
+export type PlantWeather = {
+  area: string | null;
+  forecast: string | null;
+  valid: string | null;
+  temperatureC: number | null;
+  station: string | null;
+  at: string;
+  /** NEA's 24-hour forecast for the plant's part of Singapore, and the 4-day outlook. */
+  region?: "north" | "south" | "east" | "west" | "central";
+  next?: Array<{ start: string; end: string; forecast: string }>;
+  today?: { low: number | null; high: number | null } | null;
+  outlook?: Array<{ date: string; text: string | null; summary: string | null; low: number | null; high: number | null }>;
+};
 
 export type PlantDetail = PlantRow & {
   weather?: PlantWeather | null;
@@ -98,7 +122,15 @@ export type PlantDetail = PlantRow & {
 };
 
 export type EnergyPeriod = "day" | "month" | "year" | "lifetime";
-export type EnergySeries = { period: EnergyPeriod; date: string; by: string; points: Array<{ at: string; label: string; kwh: number | null; revenue: number | null }>; totalKwh: number | null };
+export type EnergySeries = {
+  period: EnergyPeriod;
+  date: string;
+  by: string;
+  points: Array<{ at: string; label: string; kwh: number | null; revenue: number | null }>;
+  totalKwh: number | null;
+  /** The same period a year earlier, slot by slot, and the change on it in percent. */
+  previous?: { date: string; totalKwh: number | null; kwh: Array<number | null>; change: number | null } | null;
+};
 export type ReportBy = "hour" | "day" | "month" | "year";
 /** One of an inverter's readings every 5 minutes through a day, and which readings it has. */
 export type DeviceHistory = { date: string; signals: string[]; signal: string | null; points: Array<{ label: string; value: number | null }> };

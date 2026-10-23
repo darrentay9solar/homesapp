@@ -52,11 +52,11 @@ function SolarScreen() {
   return (
     <>
       <TopBar
-        title={T("Solar")}
+        title={T("FusionSolar")}
         search={tab === "overview" ? <SearchBox value={q} onChange={setQ} placeholder={T("Search plants, addresses, homeowners")} testId="solar-search" /> : undefined}
         tabs={
           <SegTabs
-            label={T("Solar")}
+            label={T("FusionSolar")}
             value={tab}
             onChange={setTab}
             options={[

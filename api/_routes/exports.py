@@ -205,13 +205,16 @@ def export_projects(acct: Account = Depends(pm_only)) -> Response:
         s["project_id"]: s for s in fetch_all("select * from maintenance_systems where project_id = any(%s)", (ids,))
     }
     system_done = yearly.done([s["system_id"] for s in systems.values()])
-    rows = []
-    for n, pid in enumerate(sorted(ids, key=lambda i: listed[i]["createdAt"]), start=1):
+    rows, handed = [], []
+    for pid in sorted(ids, key=lambda i: listed[i]["createdAt"]):
         p, r, s = listed[pid], raw[pid], systems.get(pid)
+        # Handed over, a project is complete: on its own sheet, beside the ones still in progress.
+        into = handed if p["status"] == "maintenance" else rows
+        n = len(into) + 1
         crew = ", ".join(t["name"] or "" for t in p["team"] if t["role"] in ("contractor", "epc_team"))
         count = r["panel_quantity_actual"] or r["panel_quantity_estimate"]
         kwp = round(count * r["panel_capacity"] / 1000, 3) if count and r["panel_capacity"] else None
-        rows.append([
+        into.append([
             n, r["name"], p["statusLabel"], r["address"], r["postal_code"], p["homeowner"]["name"],
             r["homeowner_contact_no"], r["h_email"], p["pm"]["name"], p["contractor"]["label"], crew or None,
             local(r["created_at"]), r["installation_start_date"], r["target_end_date"], p["daysElapsed"], p["progress"],
@@ -233,14 +236,14 @@ def export_projects(acct: Account = Depends(pm_only)) -> Response:
     upkeep = maintenance_rows(acct)
     lang = (acct.user or {}).get("language") or "en"
     # First, the company's own client list, sheet for sheet as it was sent (and as the import reads it);
-    # then the app's project details and maintenance, one row per project and per system.
+    # then the app's projects (in progress, and handed over) and maintenance, one row per project and per system.
     client = client_sheets(acct, list(listed.values()))
     data = workbook(
-        [*client, ("Project details", PROJECT_HEAD, rows), ("Maintenance", MAINT_HEAD, upkeep)],
+        [*client, ("Projects in progress", PROJECT_HEAD, rows), ("Handed over", PROJECT_HEAD, handed), ("Maintenance", MAINT_HEAD, upkeep)],
         lang,
         as_sent=frozenset(c[0] for c in client),
     )
-    _record(acct, "projects", len(rows) + len(upkeep))
+    _record(acct, "projects", len(rows) + len(handed) + len(upkeep))
     return _send(data, "GetHomeApps projects")
 
 

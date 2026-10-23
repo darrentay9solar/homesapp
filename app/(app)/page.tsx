@@ -83,7 +83,7 @@ function ProjectsScreen() {
         action={
           data?.canCreate && (
             <>
-              <ExportButton path="/export/projects.xlsx" name="GetHomeApps projects.xlsx" label="Download all projects (Excel)" testId="export-projects" />
+              <ExportButton path="/export/projects.xlsx" name="GetHomeApps projects.xlsx" label="Download projects and maintenance (Excel)" testId="export-projects" />
               {me.role === "superadmin" && (
                 <Tooltip title={T("Import from Excel")}>
                   <IconButton aria-label={T("Import from Excel")} onClick={() => setImporting("list")} data-testid="import-projects" sx={{ color: "#fff" }}>
