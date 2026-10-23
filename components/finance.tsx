@@ -600,15 +600,15 @@ export function InvoicePreview({ s }: { s: Settings }) {
           </Box>
         </Stack>
         {s.intro && <Typography sx={{ fontSize: 11, mt: 1.5, whiteSpace: "pre-line" }}>{s.intro}</Typography>}
-        <Box sx={{ mt: 1.5, bgcolor: "#eef2f0", px: 1, py: 0.75, display: "flex", fontSize: 9, fontWeight: 700, color: grey }}>
-          <Box sx={{ flex: 1, minWidth: 0 }}>DESCRIPTION</Box>
-          {s.show.kwh && <Box sx={{ flex: "0 1 70px", minWidth: 0, textAlign: "right" }}>KWH</Box>}
-          <Box sx={{ flex: "0 1 80px", minWidth: "fit-content", pl: 1, textAlign: "right" }}>AMOUNT</Box>
-        </Box>
-        <Box sx={{ display: "flex", px: 1, py: 1, borderBottom: "1px solid #ddd" }}>
-          <Box sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", fontWeight: 700 }}>Solar power generated, October 2026</Box>
-          {s.show.kwh && <Box sx={{ flex: "0 1 70px", minWidth: 0, pl: 1, textAlign: "right" }}>{sample.kwh}</Box>}
-          <Box sx={{ flex: "0 1 80px", minWidth: "fit-content", pl: 1, textAlign: "right", whiteSpace: "nowrap" }}>{money(amount)}</Box>
+        {/* One grid for the heading and the line, so the columns line up: the figures take what they need,
+            the description the rest, wrapping (large text on a narrow phone). */}
+        <Box sx={{ mt: 1.5, display: "grid", gridTemplateColumns: s.show.kwh ? "minmax(0, 1fr) auto auto" : "minmax(0, 1fr) auto", columnGap: 1, "& > *": { px: 0.5 } }}>
+          <Box sx={{ bgcolor: "#eef2f0", py: 0.75, fontSize: 9, fontWeight: 700, color: grey, minWidth: 0, overflowWrap: "anywhere" }}>DESCRIPTION</Box>
+          {s.show.kwh && <Box sx={{ bgcolor: "#eef2f0", py: 0.75, fontSize: 9, fontWeight: 700, color: grey, textAlign: "right" }}>KWH</Box>}
+          <Box sx={{ bgcolor: "#eef2f0", py: 0.75, fontSize: 9, fontWeight: 700, color: grey, textAlign: "right" }}>AMOUNT</Box>
+          <Box sx={{ py: 1, borderBottom: "1px solid #ddd", minWidth: 0, overflowWrap: "anywhere", fontWeight: 700 }}>Solar power generated, October 2026</Box>
+          {s.show.kwh && <Box sx={{ py: 1, borderBottom: "1px solid #ddd", textAlign: "right", whiteSpace: "nowrap" }}>{sample.kwh}</Box>}
+          <Box sx={{ py: 1, borderBottom: "1px solid #ddd", textAlign: "right", whiteSpace: "nowrap" }}>{money(amount)}</Box>
         </Box>
         <Stack direction="row" sx={{ justifyContent: "flex-end", gap: 2, rowGap: 0, mt: 1, alignItems: "baseline", flexWrap: "wrap" }}>
           <Typography sx={{ fontSize: 10, fontWeight: 700, color: grey }}>TOTAL DUE</Typography>
