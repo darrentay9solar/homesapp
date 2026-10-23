@@ -67,6 +67,17 @@ As FusionSolar draws them, and the screens update themselves every minute:
 - **Yield** by hour, day, month, year and lifetime (columns): each plant's
   Energy tab, with revenue at its contract's rate, and all plants together
   on Solar.
+- **Solar's home page** as FusionSolar's: power and yield for all plants,
+  plant status, alarms, a **plant ranking** (today's kWh per kWp, lowest or
+  best five) and **environmental benefits for all plants**; a **Map** tab with
+  every plant coloured by status.
+- **Each inverter** (Devices → Details): its power through the day, the
+  **history of any reading** (a string's or phase's voltage and current,
+  temperature, efficiency, frequency; every 5 minutes, kept 31 days), and its
+  own **yield by day, month and year** (FusionSolar's device report).
+- **Reports** by hour, day, month and year, with Excel.
+- Plant sizes: FusionSolar's plant list has none for most plants; each
+  inverter reports its own, and a plant with none takes their total.
 
 ## How the figures come in
 

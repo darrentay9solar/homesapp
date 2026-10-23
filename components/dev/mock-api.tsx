@@ -3,7 +3,7 @@
 import { mockAnalytics } from "./mock-analytics";
 import { mockBusy, mockCalendar, mockContacts, mockMeeting, mockUpcoming } from "./mock-calendar";
 import { asFinance, MOCK_SETTINGS, mockFinanceMe, mockInvoice, mockInvoices, mockMyPayments, mockOverview, mockProjectPayments, mockRun } from "./mock-finance";
-import { mockEnergy, mockPlant, mockPower, mockReport, mockSolarOverview } from "./mock-solar";
+import { mockDeviceHistory, mockEnergy, mockPlant, mockPower, mockReport, mockSolarOverview } from "./mock-solar";
 import { mockMaintenance, mockProjectMaintenance, mockRecord, mockSystem } from "./mock-maintenance";
 import { asHomeowner, mockAnswers, mockAssistantThread, mockInbox, mockSupportMe, mockSupportPeople, mockThread } from "./mock-support";
 import { usePathname } from "next/navigation";
@@ -726,6 +726,8 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "GET /solar/power") return mockPower(search, 142);
   if (key === "GET /me/solar/power" || /^GET \/me\/solar\/devices\/\d+\/power$/.test(key)) return mockPower(search);
   if (/^GET \/solar\/plants\/[^/]+\/(power|devices\/\d+\/power)$/.test(key)) return mockPower(search);
+  if (/^GET (\/solar\/plants\/[^/]+|\/me\/solar)\/devices\/\d+\/history$/.test(key)) return mockDeviceHistory(search);
+  if (/^GET (\/solar\/plants\/[^/]+|\/me\/solar)\/devices\/\d+\/energy$/.test(key)) return mockEnergy(search);
   if (key === "GET /me/solar/report") return mockReport(search);
   const plant = path.match(/^\/solar\/plants\/([^/]+)(\/energy|\/report|\/link)?$/);
   if (plant && plant[2] === "/energy") return mockEnergy(search);

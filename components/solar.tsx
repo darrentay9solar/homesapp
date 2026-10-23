@@ -65,7 +65,9 @@ import {
   type PlantWeather,
   periodTitle,
   type PowerSeries,
+  type DeviceHistory,
   type DeviceReadings,
+  signalLabel,
   power,
   reading,
   type ReportBy,
@@ -424,16 +426,7 @@ export function PlantOverview({ p, base }: { p: PlantDetail; base: string }) {
         <StatTile label="Total yield" value={energy(p.totalKwh)} icon={<SavingsRoundedIcon />} sub={p.totalRevenue !== null ? T("{amount} in all", { amount: sgd(p.totalRevenue) }) : undefined} testId="ptile-total" />
       </Box>
       <Box sx={{ display: "grid", gap: 1.5, mt: 1.5, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "1fr 1fr" } }}>
-        <Card sx={{ p: 2.25 }} data-testid="plant-benefits">
-          <Typography component="h2" sx={{ fontWeight: 600, fontSize: 15.5, mb: 1.5 }}>
-            {T("Environmental benefits")}
-          </Typography>
-          <Stack sx={{ gap: 1.5 }}>
-            <Benefit icon={<FactoryRoundedIcon />} value={p.benefits.coalTons === null ? "—" : T("{n} tonnes", { n: p.benefits.coalTons })} label={T("Standard coal saved")} />
-            <Benefit icon={<Co2RoundedIcon />} value={p.benefits.co2Tons === null ? "—" : T("{n} tonnes", { n: p.benefits.co2Tons })} label={T("CO₂ avoided")} />
-            <Benefit icon={<ForestRoundedIcon />} value={p.benefits.trees === null ? "—" : String(p.benefits.trees)} label={T("Equivalent trees planted")} />
-          </Stack>
-        </Card>
+        <BenefitsCard benefits={p.benefits} testId="plant-benefits" />
         <Card sx={{ p: 2.25 }} data-testid="plant-facts">
           <Typography component="h2" sx={{ fontWeight: 600, fontSize: 15.5, mb: 1 }}>
             {T("Plant")}
@@ -448,6 +441,22 @@ export function PlantOverview({ p, base }: { p: PlantDetail; base: string }) {
         </Card>
       </Box>
     </>
+  );
+}
+
+/** Lifetime yield as standard coal saved, CO2 avoided and trees planted (FusionSolar's factors). */
+export function BenefitsCard({ benefits, title = "Environmental benefits", testId }: { benefits: { coalTons: number | null; co2Tons: number | null; trees: number | null }; title?: string; testId?: string }) {
+  return (
+    <Card sx={{ p: 2.25 }} data-testid={testId}>
+      <Typography component="h2" sx={{ fontWeight: 600, fontSize: 15.5, mb: 1.5 }}>
+        {TR(title)}
+      </Typography>
+      <Stack sx={{ gap: 1.5 }}>
+        <Benefit icon={<FactoryRoundedIcon />} value={benefits.coalTons === null ? "—" : T("{n} tonnes", { n: benefits.coalTons })} label={T("Standard coal saved")} />
+        <Benefit icon={<Co2RoundedIcon />} value={benefits.co2Tons === null ? "—" : T("{n} tonnes", { n: benefits.co2Tons })} label={T("CO₂ avoided")} />
+        <Benefit icon={<ForestRoundedIcon />} value={benefits.trees === null ? "—" : String(benefits.trees)} label={T("Equivalent trees planted")} />
+      </Stack>
+    </Card>
   );
 }
 
@@ -484,8 +493,8 @@ const PERIODS: Array<[EnergyPeriod, string]> = [
 ];
 
 /** Yield by hour of a day, day of a month, month of a year, or by year; with the revenue it earned. */
-export function EnergyPanel({ base }: { base: string }) {
-  const [period, setPeriod] = useState<EnergyPeriod>("day");
+export function EnergyPanel({ base, periods = ["day", "month", "year", "lifetime"], title = "Yield", testId = "energy-chart" }: { base: string; periods?: EnergyPeriod[]; title?: string; testId?: string }) {
+  const [period, setPeriod] = useState<EnergyPeriod>(periods[0]);
   const [day, setDay] = useState(() => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10));
   const { data, error } = useApi<EnergySeries>(`${base}/energy?period=${period}&date=${day}`);
   const hasRevenue = Boolean(data?.points.some((p) => p.revenue !== null));
@@ -494,7 +503,7 @@ export function EnergyPanel({ base }: { base: string }) {
       <Stack direction="row" sx={{ gap: 1, rowGap: 1, alignItems: "center", flexWrap: "wrap", mb: 1.5 }}>
         {/* The four share the row; with large text their words shrink to fit (components/auto-fit). */}
         <ToggleButtonGroup exclusive size="small" value={period} onChange={(_, v: EnergyPeriod | null) => v && setPeriod(v)} aria-label={T("Period")} sx={{ flex: "1 1 260px", maxWidth: { xs: "100%", sm: 360 }, minWidth: 0 }}>
-          {PERIODS.map(([v, l]) => (
+          {PERIODS.filter(([v]) => periods.includes(v)).map(([v, l]) => (
             <ToggleButton key={v} value={v} data-testid={`energy-${v}`} sx={{ flex: 1, minWidth: 0, px: 0.75 }}>
               <Box component="span" data-fit sx={{ maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {T(l)}
@@ -518,10 +527,10 @@ export function EnergyPanel({ base }: { base: string }) {
       {!data && !error && <Skeleton variant="rounded" height={260} />}
       {data && (
         <ChartCard
-          title={T("Yield")}
+          title={TR(title)}
           sub={data.totalKwh !== null ? energy(data.totalKwh) : T("No figures for this period yet")}
           table={{ head: [T("Period"), "kWh", ...(hasRevenue ? [T("Revenue (S$)")] : [])], rows: data.points.filter((p) => p.kwh !== null).map((p) => [p.label, p.kwh ?? 0, ...(hasRevenue ? [p.revenue ?? 0] : [])]) }}
-          testId="energy-chart"
+          testId={testId}
         >
           <ColumnChart data={data.points.map((p) => ({ label: p.label, values: [p.kwh ?? 0] }))} series={["Yield (kWh)"]} height={240} />
         </ChartCard>
@@ -594,6 +603,8 @@ function DeviceDialog({ d, base, onClose }: { d: PlantDevice; base: string; onCl
           </Alert>
         )}
         {d.kind === "inverter" && <PowerPanel path={`${base}/devices/${d.id}/power`} title="Power" compact testId="device-power-chart" />}
+        {d.kind === "inverter" && <DeviceHistoryPanel path={`${base}/devices/${d.id}/history`} />}
+        {d.kind === "inverter" && <EnergyPanel base={`${base}/devices/${d.id}`} periods={["month", "year", "lifetime"]} title="This inverter's yield" testId="device-energy-chart" />}
         {r && (
           <>
             <DeviceSection title="Status">
@@ -650,6 +661,62 @@ function DeviceDialog({ d, base, onClose }: { d: PlantDevice; base: string; onCl
         </DeviceSection>
       </Box>
     </MDialog>
+  );
+}
+
+/**
+ * Any one of an inverter's readings through a day, as FusionSolar's device history: a string's
+ * voltage or current, a phase's, the temperature, the efficiency... (kept 31 days).
+ */
+function DeviceHistoryPanel({ path }: { path: string }) {
+  const [day, setDay] = useState(today);
+  const [signal, setSignal] = useState<string | null>(null);
+  const { data, error } = useApi<DeviceHistory>(`${path}?date=${day}${signal ? `&signal=${encodeURIComponent(signal)}` : ""}`);
+  const chosen = data?.signal ?? null;
+  const meta = chosen ? signalLabel(chosen) : null;
+  const known = data?.points.filter((p) => p.value !== null) ?? [];
+  return (
+    <Box sx={{ mt: 1.5 }} data-testid="device-history">
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, rowGap: 0.5, flexWrap: "wrap", mb: 0.5 }}>
+        <Field
+          select
+          label={T("Reading")}
+          value={chosen ?? ""}
+          onChange={(e) => setSignal(e.target.value)}
+          disabled={!data?.signals.length}
+          sx={{ flex: "1 1 200px", minWidth: 0 }}
+          slotProps={{ select: { displayEmpty: true }, htmlInput: { "data-testid": "history-signal" } }}
+        >
+          {!data?.signals.length && <MenuItem value="">{T("No readings for this day")}</MenuItem>}
+          {(data?.signals ?? []).map((k) => (
+            <MenuItem key={k} value={k}>
+              {TR(signalLabel(k).label)}
+            </MenuItem>
+          ))}
+        </Field>
+        <Stack direction="row" sx={{ alignItems: "center", ml: "auto", maxWidth: "100%" }}>
+          <IconButton aria-label={T("Earlier")} onClick={() => setDay((d) => shiftDate(d, "day", -1))}>
+            <ChevronLeftRoundedIcon />
+          </IconButton>
+          <Typography sx={{ fontWeight: 600, minWidth: 0, overflowWrap: "anywhere", textAlign: "center" }}>{day === today() ? T("Today") : periodTitle(day, "day")}</Typography>
+          <IconButton aria-label={T("Later")} disabled={day === today()} onClick={() => setDay((d) => shiftDate(d, "day", 1))}>
+            <ChevronRightRoundedIcon />
+          </IconButton>
+        </Stack>
+      </Stack>
+      {error && <Alert severity="error">{error.message}</Alert>}
+      {!data && !error && <Skeleton variant="rounded" height={200} />}
+      {data && (
+        <ChartCard
+          title={meta ? TR(meta.label) : T("History")}
+          sub={known.length ? T("{n} readings, every 5 minutes", { n: known.length }) : T("No readings for this day")}
+          table={{ head: [T("Time"), meta?.unit || T("Value")], rows: known.map((p) => [p.label, p.value ?? 0]) }}
+          testId="device-history-chart"
+        >
+          <AreaChart points={data.points.map((p) => ({ label: p.label, value: p.value }))} series={meta?.label ?? "History"} unit={meta?.unit ?? ""} height={170} tickEvery={48} />
+        </ChartCard>
+      )}
+    </Box>
   );
 }
 
@@ -736,6 +803,7 @@ export function ReportPanel({ base, exportable, plantName }: { base: string; exp
         <MenuItem value="hour">{T("Hour (today)")}</MenuItem>
         <MenuItem value="day">{T("Day (last 31 days)")}</MenuItem>
         <MenuItem value="month">{T("Month (last 12 months)")}</MenuItem>
+        <MenuItem value="year">{T("Year (every year)")}</MenuItem>
       </Field>
       {error && <Alert severity="error">{error.message}</Alert>}
       {!data && !error && <Skeleton variant="rounded" height={200} />}

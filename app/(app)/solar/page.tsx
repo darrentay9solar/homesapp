@@ -11,21 +11,23 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Card from "@mui/material/Card";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
+import { useTheme } from "@mui/material/styles";
 import Typography from "@mui/material/Typography";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 
-import { StatTile, TILE_GRID } from "@/components/charts";
+import { BarList, StatTile, TILE_GRID } from "@/components/charts";
 import { DataTable, type TableCol } from "@/components/data-table";
 import { Page } from "@/components/shell";
-import { AlarmsCard, ConnectionNote, EnergyPanel, HealthCard, HealthChip, PowerPanel, useEvery } from "@/components/solar";
+import { MapView, type Pin } from "@/components/map";
+import { AlarmsCard, BenefitsCard, ConnectionNote, EnergyPanel, HealthCard, HealthChip, PowerPanel, useEvery } from "@/components/solar";
 import { GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
 import { useApi } from "@/lib/client/api";
 import { T, TR } from "@/lib/client/i18n";
-import { capacity, energy, HEALTH_LABEL, type PlantRow, power, sgd, type SolarOverview } from "@/lib/client/solar";
+import { capacity, energy, HEALTH, HEALTH_LABEL, type PlantRow, power, sgd, type SolarOverview } from "@/lib/client/solar";
 import { useTab } from "@/lib/client/tabs";
 
-type Tab = "overview" | "table";
+type Tab = "overview" | "map" | "table";
 const ORDER = { faulty: 0, disconnected: 1, unknown: 2, normal: 3 } as const;
 
 /**
@@ -37,7 +39,7 @@ function SolarScreen() {
   const preview = usePathname().startsWith("/dev-preview");
   const { data, error, reload } = useApi<SolarOverview>("/solar");
   useEvery(reload); // live, as FusionSolar is
-  const [tab, setTab] = useTab<Tab>(["overview", "table"], "overview");
+  const [tab, setTab] = useTab<Tab>(["overview", "map", "table"], "overview");
   const [q, setQ] = useState("");
   const open = (p: PlantRow) => router.push(`${preview ? "/dev-preview" : ""}/solar/${encodeURIComponent(p.code)}`);
   const shown = useMemo(() => {
@@ -59,6 +61,7 @@ function SolarScreen() {
             onChange={setTab}
             options={[
               { value: "overview" as const, label: "Overview" },
+              { value: "map" as const, label: "Map" },
               { value: "table" as const, label: "Table" },
             ]}
           />
@@ -80,6 +83,7 @@ function SolarScreen() {
           )}
           {data && <ConnectionNote connection={data.connection} staff />}
           {data && tab === "table" && <PlantsTable plants={data.plants} onOpen={open} />}
+          {data && tab === "map" && <PlantsMap plants={data.plants} onOpen={open} />}
           {data && tab === "overview" && k && (
             <>
               <Box sx={{ ...TILE_GRID, mt: 1.5 }}>
@@ -95,6 +99,8 @@ function SolarScreen() {
               <Box sx={{ display: "grid", gap: 1.5, mt: 1.5, gridTemplateColumns: { xs: "minmax(0, 1fr)", md: "1fr 1fr" } }}>
                 <HealthCard health={data.health} />
                 <AlarmsCard alarms={data.alarms} />
+                <Ranking plants={data.plants} onOpen={open} />
+                {data.benefits && <BenefitsCard benefits={data.benefits} title="Environmental benefits (all plants)" testId="all-benefits" />}
               </Box>
               {data.unlinked > 0 && (
                 <Alert severity="info" sx={{ mt: 1.5 }} data-testid="solar-unlinked">
@@ -118,6 +124,78 @@ function SolarScreen() {
         </Page>
       </Box>
     </>
+  );
+}
+
+/**
+ * Plants ranked by today's yield for each kWp installed (FusionSolar's plant ranking): the best and,
+ * more usefully, the worst, so a plant that's struggling shows up even when it isn't alarming.
+ */
+function Ranking({ plants, onOpen }: { plants: PlantRow[]; onOpen: (p: PlantRow) => void }) {
+  const [worst, setWorst] = useState(true);
+  const ranked = plants.filter((p) => p.specificYield !== null && (p.capacityKwp ?? 0) > 0).sort((a, b) => (a.specificYield ?? 0) - (b.specificYield ?? 0));
+  const rows = (worst ? ranked : [...ranked].reverse()).slice(0, 5);
+  const byCode = new Map(plants.map((p) => [p.code, p]));
+  return (
+    <Card sx={{ p: 2.25 }} data-testid="solar-ranking">
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, rowGap: 0.5, flexWrap: "wrap", mb: 1 }}>
+        <Box sx={{ mr: "auto", minWidth: 0 }}>
+          <Typography component="h2" sx={{ fontWeight: 600, fontSize: 15.5 }}>
+            {T("Plant ranking")}
+          </Typography>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {T("Today's yield for each kWp installed")}
+          </Typography>
+        </Box>
+        <ButtonBase onClick={() => setWorst((w) => !w)} data-testid="ranking-flip" sx={{ fontFamily: "inherit", color: "primary.main", fontWeight: 600, fontSize: 13.5, px: 1, py: 0.5, borderRadius: 1 }}>
+          {worst ? T("Show the best") : T("Show the lowest")}
+        </ButtonBase>
+      </Stack>
+      <BarList
+        rows={rows.map((p) => ({ key: p.code, label: p.name, value: p.specificYield ?? 0, note: capacity(p.capacityKwp) }))}
+        format={(v) => `${v.toFixed(2)} kWh/kWp`}
+        onPick={(code) => {
+          const p = byCode.get(code);
+          if (p) onOpen(p);
+        }}
+        emptyText="No plant has a size and today's yield yet."
+      />
+    </Card>
+  );
+}
+
+/** Every plant on the map of Singapore, coloured by its status; tap one for its figures. */
+function PlantsMap({ plants, onOpen }: { plants: PlantRow[]; onOpen: (p: PlantRow) => void }) {
+  const theme = useTheme();
+  const [picked, setPicked] = useState<string | null>(null);
+  const colour = { normal: theme.palette.success.main, faulty: theme.palette.error.main, disconnected: theme.palette.text.disabled, unknown: theme.palette.text.disabled };
+  const placed = plants.filter((p) => p.latitude != null && p.longitude != null);
+  const pins: Pin[] = placed.map((p) => ({ id: p.code, lat: p.latitude as number, lng: p.longitude as number, kind: "site", label: p.name, color: colour[p.health], dim: p.health === "disconnected" }));
+  const shown = placed.find((p) => p.code === picked) ?? null;
+  return (
+    <Box sx={{ mt: 1.5 }} data-testid="solar-map">
+      <Stack direction="row" sx={{ gap: 2, rowGap: 0.5, flexWrap: "wrap", mb: 1 }}>
+        {HEALTH.filter(([k]) => k !== "unknown").map(([k, l]) => (
+          <Stack key={k} direction="row" sx={{ alignItems: "center", gap: 0.75 }}>
+            <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: colour[k] }} />
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              {TR(l)}
+            </Typography>
+          </Stack>
+        ))}
+      </Stack>
+      <MapView pins={pins} picked={picked} onPick={setPicked} height={{ xs: 380, md: 520 }} testId="solar-map-view" />
+      {placed.length < plants.length && (
+        <Typography variant="caption" component="p" sx={{ color: "text.secondary", mt: 1 }}>
+          {T("{n} plants have no location in FusionSolar, so aren't on the map.", { n: plants.length - placed.length })}
+        </Typography>
+      )}
+      {shown && (
+        <Box sx={{ mt: 1.5, maxWidth: 520 }}>
+          <PlantCard p={shown} onOpen={() => onOpen(shown)} />
+        </Box>
+      )}
+    </Box>
   );
 }
 

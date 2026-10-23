@@ -3,7 +3,7 @@
  * Never real customers or real FusionSolar plants: invented names and addresses only.
  */
 
-import type { DeviceReadings, EnergySeries, Health, PlantDetail, PlantRow, PowerSeries, SolarOverview, SolarReport } from "@/lib/client/solar";
+import type { DeviceHistory, DeviceReadings, EnergySeries, Health, PlantDetail, PlantRow, PowerSeries, SolarOverview, SolarReport } from "@/lib/client/solar";
 
 const NOW = Date.now();
 const iso = (minAgo: number) => new Date(NOW - minAgo * 60_000).toISOString();
@@ -30,6 +30,9 @@ function plantRow(i: number): PlantRow {
     code: `NE=DEMO${100 + i}`,
     name,
     address: `${name}, Singapore ${460000 + i * 1111}`,
+    // Made-up places across Singapore, for the map.
+    latitude: Math.round((1.3 + ((i * 37) % 11) * 0.012) * 1e4) / 1e4,
+    longitude: Math.round((103.72 + ((i * 53) % 13) * 0.018) * 1e4) / 1e4,
     capacityKwp: kwp,
     gridConnectedOn: sgDay(-200 - i * 37),
     health,
@@ -61,6 +64,7 @@ export function mockSolarOverview(): SolarOverview {
     kpis: { currentKw: sum("currentKw"), todayKwh: sum("todayKwh"), todayRevenue: sum("todayRevenue"), totalKwh: sum("totalKwh"), capacityKwp: sum("capacityKwp") },
     health,
     alarms: { critical: 0, major: 2, minor: 1, warning: 0 },
+    benefits: { coalTons: Math.round(sum("totalKwh") * 0.4) / 1000, co2Tons: Math.round(sum("totalKwh") * 0.475) / 1000, trees: Math.round((sum("totalKwh") * 0.475) / 18.3) },
     plants: PLANTS,
     unlinked: PLANTS.filter((p) => p.systemId === null).length,
   };
@@ -176,6 +180,20 @@ export function mockPower(search: URLSearchParams, kwp = 15.2): PowerSeries {
   return { date, by: "5min", points, peakKw: peak?.kw ?? null, peakAt: peak?.label ?? null, latestKw: isToday && known.length ? known[known.length - 1].kw : null };
 }
 
+/** One of an inverter's readings through a day (made up from the same sunny curve). */
+export function mockDeviceHistory(search: URLSearchParams): DeviceHistory {
+  const power = mockPower(search);
+  const signals = ["temperature", "efficiency", "elec_freq", "a_u", "a_i", "pv1_u", "pv1_i", "pv2_u", "pv2_i"];
+  const signal = search.get("signal") && signals.includes(search.get("signal")!) ? search.get("signal")! : "temperature";
+  const at = (kw: number | null): number | null => {
+    if (kw === null) return null;
+    const share = kw / 10.9;
+    const v: Record<string, number> = { temperature: 31 + 22 * share, efficiency: 96 + 2.5 * share, elec_freq: 49.98, a_u: 231 + share, a_i: (kw * 1000) / 3 / 231, pv1_u: 470 + 45 * share, pv1_i: (kw * 500) / 500, pv2_u: 465 + 44 * share, pv2_i: (kw * 495) / 500 };
+    return Math.round(v[signal] * 100) / 100;
+  };
+  return { date: power.date, signals, signal, points: power.points.map((p) => ({ label: p.label, value: at(p.kw) })) };
+}
+
 export function mockReport(search: URLSearchParams): SolarReport {
   const by = (search.get("by") ?? "day") as SolarReport["by"];
   const rows =
@@ -183,7 +201,9 @@ export function mockReport(search: URLSearchParams): SolarReport {
       ? Array.from({ length: 24 }, (_, h) => ({ period: `${sgDay()} ${String(h).padStart(2, "0")}:00`, kwh: hourly(15.2, h) }))
       : by === "day"
         ? Array.from({ length: 31 }, (_, i) => ({ period: sgDay(i - 30), kwh: Math.round((48 + ((i * 37) % 23)) * 10) / 10 }))
-        : Array.from({ length: 12 }, (_, i) => ({ period: `M${i + 1}`, kwh: Math.round(1400 + 300 * Math.sin(i / 2)) }));
+        : by === "month"
+          ? Array.from({ length: 12 }, (_, i) => ({ period: `M${i + 1}`, kwh: Math.round(1400 + 300 * Math.sin(i / 2)) }))
+          : [2024, 2025, 2026].map((y, i) => ({ period: String(y), kwh: [9800, 17200, 14100][i] }));
   return {
     by,
     start: sgDay(-30),

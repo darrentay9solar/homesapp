@@ -29,7 +29,7 @@ export type Pin = {
   lng: number;
   kind: "site" | "person";
   label: string;
-  /** Person pins: their initials and role colour, or a picture. */
+  /** Person pins: their initials and role colour, or a picture. Site pins: a colour other than green (a plant's status). */
   initials?: string;
   color?: string;
   avatar?: string | null;
@@ -69,7 +69,7 @@ function esc(s: string): string {
 function pinHtml(p: Pin, picked: boolean, green: string): string {
   if (p.kind === "site") {
     const size = picked ? 46 : 26;
-    return `<div class="gha-pin gha-site${picked ? " on" : ""}${p.dim ? " dim" : ""}" style="--g:${green};width:${size}px;height:${size}px"><span></span></div>`;
+    return `<div class="gha-pin gha-site${picked ? " on" : ""}${p.dim ? " dim" : ""}" style="--g:${p.color ?? green};width:${size}px;height:${size}px"><span></span></div>`;
   }
   const face = p.avatar
     ? `<img src="${esc(p.avatar)}" alt="" />`

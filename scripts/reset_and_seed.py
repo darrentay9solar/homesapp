@@ -67,6 +67,7 @@ URLS = {"dev": "MIGRATION_DATABASE_URL", "test": "TEST_MIGRATION_DATABASE_URL", 
 # Everything a project or a person owns. TRUNCATE skips row triggers (no audit
 # entry per row) and CASCADE takes anything else that points at these.
 WIPE = [
+    "solar_device_yield",
     "solar_device_power",
     "solar_plant_power",
     "solar_alarms",
@@ -1517,6 +1518,14 @@ def solar(c: psycopg.Connection) -> None:
             "values (%s, %s, 'Dongle-1', %s, 62, 'SDongleA-05', 'V100R001C00SPC127')",
             (950000 + n, code, f"HD22{410000 + n * 7}"),
         )
+        # The inverter's own report: its size, and its kWh by day, month and year (one inverter: the plant's).
+        c.execute("update solar_devices set installed_kwp = %s where dev_id = %s", (round(kwp, 3), 900000 + n))
+        with c.cursor() as cur:
+            cur.executemany(
+                "insert into solar_device_yield (dev_id, period, at, kwh) "
+                "select %s, period, at, kwh from solar_readings where station_code = %s and period = %s",
+                [(900000 + n, code, period) for period in ("day", "month", "year")],
+            )
         # Power every 5 minutes, yesterday and today so far (the charts FusionSolar draws): its inverter's and the plant's.
         if health != "disconnected":
             points = []
@@ -1530,7 +1539,19 @@ def solar(c: psycopg.Connection) -> None:
                     cloud = 0.9 + 0.1 * math.sin(i * 0.23 + n) * math.cos(i * 0.07)
                     points.append((at, round(kwp * 0.72 * sun * cloud * (0.3 if health == "faulty" and back == 0 else 1), 3)))
             with c.cursor() as cur:
-                cur.executemany("insert into solar_device_power (dev_id, at, kw) values (%s, %s, %s)", [(900000 + n, at, kw) for at, kw in points])
+                # With its other readings (made up, in step with its power): for the inverter's history chart.
+                def signals(kw: float, kwp: float = kwp, health: str = health) -> str:
+                    share = kw / max(kwp * 0.72, 0.1)
+                    return json.dumps({
+                        "temperature": round(31 + 22 * share, 1), "efficiency": round(96 + 2.5 * share, 2), "elec_freq": 49.98,
+                        "a_u": round(231 + share, 1), "a_i": round(kw * 1000 / 3 / 231, 2),
+                        "pv1_u": round(470 + 45 * share, 1), "pv1_i": round(kw * 500 / 500, 2),
+                        "pv2_u": round(465 + 44 * share, 1), "pv2_i": round(kw * 495 / 500 * (0.1 if health == "faulty" else 1), 2),
+                    })
+                cur.executemany(
+                    "insert into solar_device_power (dev_id, at, kw, readings) values (%s, %s, %s, %s)",
+                    [(900000 + n, at, kw, signals(kw)) for at, kw in points],
+                )
                 cur.executemany("insert into solar_plant_power (station_code, at, kw) values (%s, %s, %s)", [(code, at, kw) for at, kw in points])
         if health == "faulty":
             # The app's own check: this plant is making far less than the others right now.

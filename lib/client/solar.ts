@@ -12,6 +12,8 @@ export type PlantRow = {
   name: string;
   address: string | null;
   capacityKwp: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   gridConnectedOn: string | null;
   health: Health;
   live: boolean;
@@ -40,6 +42,8 @@ export type SolarOverview = {
   kpis: { currentKw: number | null; todayKwh: number | null; todayRevenue: number | null; totalKwh: number | null; capacityKwp: number | null };
   health: Record<Health, number>;
   alarms: Record<AlarmLevel, number>;
+  /** Every plant's lifetime yield as coal, CO2 and trees. */
+  benefits?: { coalTons: number | null; co2Tons: number | null; trees: number | null };
   plants: PlantRow[];
   unlinked: number;
 };
@@ -95,7 +99,29 @@ export type PlantDetail = PlantRow & {
 
 export type EnergyPeriod = "day" | "month" | "year" | "lifetime";
 export type EnergySeries = { period: EnergyPeriod; date: string; by: string; points: Array<{ at: string; label: string; kwh: number | null; revenue: number | null }>; totalKwh: number | null };
-export type ReportBy = "hour" | "day" | "month";
+export type ReportBy = "hour" | "day" | "month" | "year";
+/** One of an inverter's readings every 5 minutes through a day, and which readings it has. */
+export type DeviceHistory = { date: string; signals: string[]; signal: string | null; points: Array<{ label: string; value: number | null }> };
+
+/** A reading's name and unit, as FusionSolar names it (pv3_u, a_i, temperature...). */
+export function signalLabel(key: string): { label: string; unit: string } {
+  const pv = key.match(/^pv(\d+)_([ui])$/);
+  if (pv) return { label: pv[2] === "u" ? `PV${pv[1]} voltage` : `PV${pv[1]} current`, unit: pv[2] === "u" ? "V" : "A" };
+  const phase = key.match(/^([abc])_([ui])$/);
+  if (phase) return { label: `Phase ${phase[1].toUpperCase()} ${phase[2] === "u" ? "voltage" : "current"}`, unit: phase[2] === "u" ? "V" : "A" };
+  const line = key.match(/^(ab|bc|ca)_u$/);
+  if (line) return { label: `Voltage ${line[1].toUpperCase()}`, unit: "V" };
+  const named: Record<string, { label: string; unit: string }> = {
+    temperature: { label: "Inverter temperature", unit: "°C" },
+    efficiency: { label: "Efficiency", unit: "%" },
+    elec_freq: { label: "Grid frequency", unit: "Hz" },
+    power_factor: { label: "Power factor", unit: "" },
+    reactive_power: { label: "Reactive power", unit: "kvar" },
+    mppt_power: { label: "Input power (DC)", unit: "kW" },
+  };
+  return named[key] ?? { label: key, unit: "" };
+}
+
 /** Power through a day: every 5 minutes (FusionSolar's curve), or by the hour for days older than 90. */
 export type PowerSeries = {
   date: string;
