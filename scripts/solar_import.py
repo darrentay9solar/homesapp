@@ -116,6 +116,24 @@ def main() -> None:
     while m <= today.date():
         fetch("day", datetime(m.year, m.month, 15, tzinfo=sync.SG), f"day:{m:%Y-%m}")
         m = (m.replace(day=28) + timedelta(days=4)).replace(day=1)
+    # Each inverter's kWh by year, month and day (FusionSolar's device report), and so its size.
+    print("Each inverter by year, month and day…", flush=True)
+
+    def device(period: str, when: datetime, key: str) -> None:
+        if done(key) and not key.endswith(f"{today:%Y-%m}") and not key.endswith(str(today.year)):
+            return
+        n = patient(key, lambda: sync.device_yield(period, when))
+        print(f"  {key}: {n} new or changed", flush=True)
+        mark(key)
+
+    device("year", today, f"inverters:year:{today.year}")
+    for y in years:
+        device("month", datetime(y, 6, 1, tzinfo=sync.SG), f"inverters:month:{y}")
+    m = date(first.year, first.month, 1)
+    while m <= today.date():
+        device("day", datetime(m.year, m.month, 15, tzinfo=sync.SG), f"inverters:day:{m:%Y-%m}")
+        m = (m.replace(day=28) + timedelta(days=4)).replace(day=1)
+
     print("By hour…", flush=True)
     for back in range(a.hours, -1, -1):
         d = (today - timedelta(days=back)).replace(hour=12, minute=0, second=0, microsecond=0)

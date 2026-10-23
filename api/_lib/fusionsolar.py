@@ -195,6 +195,22 @@ def five_minutes(dev_ids: list[int], type_id: int, day: datetime) -> list[dict[s
     return out
 
 
+DEVICE_KPI_PATH = {
+    "day": "/thirdData/getDevKpiDay",
+    "month": "/thirdData/getDevKpiMonth",
+    "year": "/thirdData/getDevKpiYear",
+}
+
+
+def device_history(period: str, dev_ids: list[int], type_id: int, when: datetime) -> list[dict[str, Any]]:
+    """Each inverter's kWh by day (of ``when``'s month), month (of its year) or year: FusionSolar's device report."""
+    out: list[dict[str, Any]] = []
+    for i in range(0, len(dev_ids), 50):
+        body = {"devIds": ",".join(str(d) for d in dev_ids[i : i + 50]), "devTypeId": type_id, "collectTime": _ms(when)}
+        out.extend(call(DEVICE_KPI_PATH[period], body) or [])
+    return out
+
+
 def alarms(codes: list[str], since: datetime, until: datetime | None = None) -> list[dict[str, Any]]:
     until = until or datetime.now(UTC)
     out: list[dict[str, Any]] = []

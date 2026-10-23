@@ -93,6 +93,8 @@ def _row(r: dict[str, Any], now: datetime) -> dict[str, Any]:
         "name": r["name"],
         "address": r["address"],
         "capacityKwp": _f(cap),
+        "latitude": _f(r["latitude"]),
+        "longitude": _f(r["longitude"]),
         "gridConnectedOn": r["grid_connected_on"].isoformat() if r["grid_connected_on"] else None,
         "health": r["health"] or "unknown",
         "live": live,
@@ -146,6 +148,8 @@ def overview(acct: Account = Depends(staff)) -> dict[str, Any]:
         },
         "health": health,
         "alarms": by_level,
+        # Every plant's lifetime yield as coal, CO2 and trees, as FusionSolar's home page shows.
+        "benefits": _benefits(Decimal(str(total("totalKwh") or 0))),
         "plants": plants,
         "unlinked": sum(1 for p in plants if p["systemId"] is None),
     }
@@ -272,8 +276,9 @@ def plant(code: str, acct: Account = Depends(staff)) -> dict[str, Any]:
 Period = Literal["day", "month", "year", "lifetime"]
 
 
-def _series(codes: list[str], rate: Any, period: Period, day: date) -> dict[str, Any]:
-    """Yield by hour, day, month or year for one plant (with its contract's revenue) or several (summed)."""
+def _series(codes: list[str], rate: Any, period: Period, day: date, dev_id: int | None = None) -> dict[str, Any]:
+    """Yield by hour, day, month or year for one plant (with its contract's revenue), several (summed),
+    or one inverter (``dev_id``: by day, month or year; FusionSolar's device report has no hours)."""
     if period == "day":
         start = datetime(day.year, day.month, day.day, tzinfo=SG)
         end, step, fmt = start + timedelta(days=1), "hour", "%H:%M"
@@ -290,10 +295,18 @@ def _series(codes: list[str], rate: Any, period: Period, day: date) -> dict[str,
         )
     else:
         start, end, step, fmt = datetime(2000, 1, 1, tzinfo=SG), datetime(2100, 1, 1, tzinfo=SG), "year", "%Y"
-    rows = fetch_all(
-        "select at, sum(kwh) as kwh, sum(income) as income from solar_readings "
-        "where station_code = any(%s) and period = %s and at >= %s and at < %s group by at order by at",
-        (codes, step, start, end),
+    rows = (
+        fetch_all(
+            "select at, kwh, null::numeric as income from solar_device_yield "
+            "where dev_id = %s and period = %s and at >= %s and at < %s order by at",
+            (dev_id, step, start, end),
+        )
+        if dev_id is not None
+        else fetch_all(
+            "select at, sum(kwh) as kwh, sum(income) as income from solar_readings "
+            "where station_code = any(%s) and period = %s and at >= %s and at < %s group by at order by at",
+            (codes, step, start, end),
+        )
     )
     have = {r["at"].astimezone(SG): r for r in rows}
     points: list[dict[str, Any]] = []
@@ -351,7 +364,7 @@ def _day(v: str | None) -> date:
 @router.get("/solar/plants/{code}/report")
 def report(
     code: str,
-    by: Literal["hour", "day", "month"] = "day",
+    by: Literal["hour", "day", "month", "year"] = "day",
     start: str | None = None,
     end: str | None = None,
     acct: Account = Depends(staff),
@@ -363,10 +376,10 @@ def report(
 def _report(r: dict[str, Any], by: str, start: str | None, end: str | None) -> dict[str, Any]:
     today = datetime.now(SG).date()
     last = _day(end) if end else today
-    first = _day(start) if start else last - timedelta(days={"hour": 0, "day": 30, "month": 364}[by])
+    first = _day(start) if start else last - timedelta(days={"hour": 0, "day": 30, "month": 364, "year": 36500}[by])
     if first > last:
         raise HTTPException(400, "The start comes after the end.")
-    if (last - first).days > {"hour": 31, "day": 366, "month": 3660}[by]:
+    if (last - first).days > {"hour": 31, "day": 366, "month": 3660, "year": 36600}[by]:
         raise HTTPException(400, "That's too long a stretch for this table; choose a shorter one.")
     rows = fetch_all(
         "select at, kwh, income, specific_yield from solar_readings "
@@ -378,7 +391,7 @@ def _report(r: dict[str, Any], by: str, start: str | None, end: str | None) -> d
             datetime(last.year, last.month, last.day, tzinfo=SG) + timedelta(days=1),
         ),
     )
-    fmt = {"hour": "%Y-%m-%d %H:00", "day": "%Y-%m-%d", "month": "%Y-%m"}[by]
+    fmt = {"hour": "%Y-%m-%d %H:00", "day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}[by]
     cap = r["capacity_kwp"]
     return {
         "by": by,
@@ -489,6 +502,63 @@ def device_power(
     return _device_power(code, dev_id, on)
 
 
+def _device_history(code: str, dev_id: int, signal: str | None, on: str | None) -> dict[str, Any]:
+    """One reading of an inverter (a string's voltage, its temperature...) every 5 minutes through a day,
+    and which readings it has that day, for its history chart."""
+    if not fetch_one("select 1 from solar_devices where dev_id = %s and station_code = %s", (dev_id, code)):
+        raise HTTPException(404, "No such device on this plant.")
+    day = _day(on)
+    start = datetime(day.year, day.month, day.day, tzinfo=SG)
+    rows = fetch_all(
+        "select at, readings from solar_device_power where dev_id = %s and at >= %s and at < %s and readings is not null",
+        (dev_id, start, start + timedelta(days=1)),
+    )
+    have = sorted(
+        {k for r in rows for k in r["readings"]}, key=lambda k: (k.rstrip("_ui").rstrip("0123456789"), len(k), k)
+    )
+    chosen = signal if signal in have else ("temperature" if "temperature" in have else (have[0] if have else None))
+    at = {r["at"].astimezone(SG).strftime("%H:%M"): r["readings"].get(chosen) for r in rows} if chosen else {}
+    slots = [(start + timedelta(minutes=5 * i)).strftime("%H:%M") for i in range(288)]
+    return {
+        "date": day.isoformat(),
+        "signals": have,
+        "signal": chosen,
+        "points": [{"label": t, "value": at.get(t)} for t in slots],
+    }
+
+
+def _device_yield(code: str, dev_id: int, period: Period, on: str | None) -> dict[str, Any]:
+    if not fetch_one("select 1 from solar_devices where dev_id = %s and station_code = %s", (dev_id, code)):
+        raise HTTPException(404, "No such device on this plant.")
+    if period == "day":
+        raise HTTPException(400, "An inverter's yield is by day, month or year (choose month, year or lifetime).")
+    return _series([], None, period, _day(on), dev_id=dev_id)
+
+
+@router.get("/solar/plants/{code}/devices/{dev_id}/history")
+def device_history(
+    code: str,
+    dev_id: int,
+    signal: str | None = None,
+    on: str | None = Query(None, alias="date"),
+    acct: Account = Depends(staff),
+) -> dict[str, Any]:
+    _plant(code, acct)
+    return _device_history(code, dev_id, signal, on)
+
+
+@router.get("/solar/plants/{code}/devices/{dev_id}/energy")
+def device_energy(
+    code: str,
+    dev_id: int,
+    period: Period = "month",
+    on: str | None = Query(None, alias="date"),
+    acct: Account = Depends(staff),
+) -> dict[str, Any]:
+    _plant(code, acct)
+    return _device_yield(code, dev_id, period, on)
+
+
 class LinkIn(BaseModel):
     systemId: int | None = None
 
@@ -543,7 +613,7 @@ def my_energy(
 
 @router.get("/me/solar/report")
 def my_report(
-    by: Literal["hour", "day", "month"] = "day",
+    by: Literal["hour", "day", "month", "year"] = "day",
     start: str | None = None,
     end: str | None = None,
     acct: Account = Depends(active),
@@ -570,3 +640,23 @@ def my_device_power(
     if not r:
         raise HTTPException(404, "There's no plant on your system yet.")
     return _device_power(r["station_code"], dev_id, on)
+
+
+@router.get("/me/solar/devices/{dev_id}/history")
+def my_device_history(
+    dev_id: int, signal: str | None = None, on: str | None = Query(None, alias="date"), acct: Account = Depends(active)
+) -> dict[str, Any]:
+    r = _own(acct) if acct.role == "homeowner" else None
+    if not r:
+        raise HTTPException(404, "There's no plant on your system yet.")
+    return _device_history(r["station_code"], dev_id, signal, on)
+
+
+@router.get("/me/solar/devices/{dev_id}/energy")
+def my_device_energy(
+    dev_id: int, period: Period = "month", on: str | None = Query(None, alias="date"), acct: Account = Depends(active)
+) -> dict[str, Any]:
+    r = _own(acct) if acct.role == "homeowner" else None
+    if not r:
+        raise HTTPException(404, "There's no plant on your system yet.")
+    return _device_yield(r["station_code"], dev_id, period, on)

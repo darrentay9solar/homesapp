@@ -44,6 +44,9 @@ PACE = {
     "live": timedelta(minutes=5),
     "power": timedelta(minutes=5),
     "weather": timedelta(minutes=30),
+    "device_days": timedelta(hours=6),
+    "device_months": timedelta(hours=24),
+    "device_years": timedelta(days=7),
     "alarms": timedelta(minutes=5),
     "hours": timedelta(hours=1),
     "days": timedelta(hours=6),
@@ -288,21 +291,80 @@ def save_device_live(rows: list[dict[str, Any]], now: datetime) -> None:
 # ------------------------------------------------------------------ power through the day
 
 
+# The readings kept every 5 minutes for an inverter's history charts (migration 0056): strings, phases,
+# temperature, efficiency... Its running totals and on/off times are kept only as its live figures.
+SIGNAL = re.compile(
+    r"^(temperature|efficiency|elec_freq|power_factor|reactive_power|mppt_power|[abc]_[ui]|(ab|bc|ca)_u|pv\d+_[ui])$"
+)
+
+
 def save_device_power(rows: list[dict[str, Any]]) -> int:
-    """Each inverter's kW at each 5 minutes (migration 0054)."""
-    points = [
-        (int(r["devId"]), at, _num((r.get("dataItemMap") or {}).get("active_power")))
-        for r in rows
-        if r.get("devId") is not None and (at := _when(r.get("collectTime")))
-    ]
+    """Each inverter's kW at each 5 minutes (migration 0054), with its other readings (0056)."""
+    points = []
+    for r in rows:
+        if r.get("devId") is None or not (at := _when(r.get("collectTime"))):
+            continue
+        m = r.get("dataItemMap") or {}
+        signals = {k: v for k, v in _readings(m).items() if SIGNAL.match(k)}
+        points.append((int(r["devId"]), at, _num(m.get("active_power")), json.dumps(signals) if signals else None))
     with transaction(None) as cur:
         cur.executemany(
-            "insert into solar_device_power (dev_id, at, kw) select %s, %s, %s "
+            "insert into solar_device_power (dev_id, at, kw, readings) select %s, %s, %s, %s "
             "where exists (select 1 from solar_devices where dev_id = %s) "
-            "on conflict (dev_id, at) do update set kw = excluded.kw where solar_device_power.kw is distinct from excluded.kw",
-            [(d, at, kw, d) for d, at, kw in points],
+            "on conflict (dev_id, at) do update set kw = excluded.kw, readings = excluded.readings "
+            "where solar_device_power.kw is distinct from excluded.kw "
+            "or solar_device_power.readings is distinct from excluded.readings",
+            [(d, at, kw, sig, d) for d, at, kw, sig in points],
         )
     return len(points)
+
+
+def save_device_yield(period: str, rows: list[dict[str, Any]]) -> int:
+    """Each inverter's kWh by day, month or year (FusionSolar's device report), and its installed size;
+    a plant with no size of its own takes the sum of its inverters' (migration 0056)."""
+    n = 0
+    sizes: dict[int, Decimal] = {}
+    with transaction(None) as cur:
+        for r in rows:
+            m = r.get("dataItemMap") or {}
+            at = _when(r.get("collectTime"))
+            if r.get("devId") is None or not at:
+                continue
+            dev = int(r["devId"])
+            if size := _kwp(m.get("installed_capacity")):
+                sizes[dev] = size
+            kwh = _num(m.get("product_power"))
+            if kwh is None:
+                continue
+            cur.execute(
+                "insert into solar_device_yield (dev_id, period, at, kwh) select %s, %s, %s, %s "
+                "where exists (select 1 from solar_devices where dev_id = %s) "
+                "on conflict (dev_id, period, at) do update set kwh = excluded.kwh "
+                "where solar_device_yield.kwh is distinct from excluded.kwh",
+                (dev, period, _start(period, at), kwh, dev),
+            )
+            n += cur.rowcount
+        for dev, size in sizes.items():
+            cur.execute(
+                "update solar_devices set installed_kwp = %s where dev_id = %s and installed_kwp is distinct from %s",
+                (size, dev, size),
+            )
+        cur.execute(
+            "update solar_plants p set capacity_kwp = s.kwp from (select station_code, sum(installed_kwp) as kwp "
+            "from solar_devices where installed_kwp > 0 group by 1) s "
+            "where s.station_code = p.station_code and p.capacity_kwp is null"
+        )
+    return n
+
+
+def device_yield(period: str, when: datetime) -> int:
+    """Every inverter's kWh for ``period`` around ``when`` (both kinds)."""
+    n = 0
+    for kind in INVERTERS:
+        ids = [r["dev_id"] for r in fetch_all("select dev_id from solar_devices where type_id = %s", (kind,))]
+        if ids:
+            n += save_device_yield(period, fs.device_history(period, ids, kind, when))
+    return n
 
 
 def plant_power(day: date) -> int:
@@ -675,6 +737,10 @@ def run(now: datetime | None = None) -> dict[str, Any]:
         out["alerts"] = f"failed: {exc}"
     # Singapore's weather where each plant is (NEA, data.gov.sg), for the plant screens.
     step("weather", lambda: weather.save(now))
+    # Each inverter's kWh by day, month and year (its report), and its size.
+    step("device_days", lambda: device_yield("day", local))
+    step("device_months", lambda: device_yield("month", local))
+    step("device_years", lambda: device_yield("year", local))
     step("hours", lambda: save_history("hour", fs.history("hour", codes(), local)))
     step("days", lambda: save_history("day", fs.history("day", codes(), local)))
     step("months", lambda: save_history("month", fs.history("month", codes(), local)))
