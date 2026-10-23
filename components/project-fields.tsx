@@ -152,8 +152,8 @@ function useSave(ctx: Ctx, f: FieldDef) {
 function FieldRow({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
   const locked = f.lockedReason;
   const label = (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, mb: 0.75 }}>
-      <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: "text.secondary", flex: 1, minWidth: 0 }}>
+    <Stack direction="row" sx={{ alignItems: "center", gap: 0.75, rowGap: 0.5, mb: 0.75, flexWrap: f.toFill ? "wrap" : "nowrap" }}>
+      <Typography sx={{ fontSize: 13.5, fontWeight: 600, color: "text.secondary", flex: f.toFill ? "1 1 140px" : 1, minWidth: 0, overflowWrap: "anywhere" }}>
         {TR(f.label)}
         {f.required ? <Box component="span" sx={{ color: "error.main" }}> *</Box> : <Chip component="span" size="small" label={T("Optional")} variant="outlined" sx={{ ml: 0.75, height: 18, fontSize: 10 }} />}
       </Typography>
@@ -181,7 +181,7 @@ function FieldRow({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
       data-testid="project-field"
       data-key={f.key}
       data-to-fill={f.toFill || undefined}
-      sx={f.toFill ? (t) => ({ borderLeft: `3px solid ${t.palette.warning.main}`, bgcolor: alpha(t.palette.warning.main, 0.06), borderRadius: 1, pl: 1.25, pr: 1, py: 1, mx: -1 }) : undefined}
+      sx={f.toFill ? (t) => ({ borderLeft: `3px solid ${t.palette.warning.main}`, bgcolor: alpha(t.palette.warning.main, 0.06), borderRadius: 1, pl: 1, pr: 1, py: 1, mx: -1.25 }) : undefined}
     >
       {label}
       {control}
@@ -275,9 +275,10 @@ function SpStatus({ ctx, f }: { ctx: Ctx; f: FieldDef }) {
   const v = f.value === 1 || f.value === 2 ? String(f.value) : null;
   return (
     <Stack direction="row" sx={{ alignItems: "center", gap: 1.5 }}>
-      <ToggleButtonGroup exclusive value={v} onChange={(_, next: string | null) => next && next !== v && void save(Number(next))} aria-label={TR(f.label)} sx={{ flex: 1 }}>
+      <ToggleButtonGroup exclusive value={v} onChange={(_, next: string | null) => next && next !== v && void save(Number(next))} aria-label={TR(f.label)} sx={{ flex: 1, minWidth: 0 }}>
         {[1, 2].map((n) => (
-          <ToggleButton key={n} value={String(n)} sx={{ flex: 1, fontSize: 13 }} color="primary">
+          // Large text on a narrow phone: the choice wraps inside its button rather than running off.
+          <ToggleButton key={n} value={String(n)} sx={{ flex: "1 1 0", minWidth: 0, fontSize: 13, lineHeight: 1.3, overflowWrap: "anywhere" }} color="primary">
             {TR(SP_STATUS[n])}
           </ToggleButton>
         ))}
