@@ -688,7 +688,18 @@ export function DesignPanel() {
     <Field label={label} value={s[k] ?? ""} onChange={(e) => set(k)(e.target.value)} multiline={rows > 0} minRows={rows || undefined} />
   );
   return (
-    <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) minmax(0, 1fr)" }, alignItems: "start" }} data-testid="invoice-design">
+    <Box
+      sx={{
+        display: "grid",
+        gap: 3,
+        gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) minmax(0, 1fr)" },
+        alignItems: "start",
+        // A long label ("Admin fee (S$), paid before handover") on a narrow phone with large text: the
+        // outline's hidden copy of it stays inside the field instead of widening the page.
+        "& .MuiOutlinedInput-notchedOutline legend > span": { maxWidth: "100%", overflow: "hidden" },
+      }}
+      data-testid="invoice-design"
+    >
       <Stack sx={{ gap: 2 }}>
         <Typography sx={{ fontWeight: 700 }}>{T("Company")}</Typography>
         {text("companyName", T("Company name"))}
