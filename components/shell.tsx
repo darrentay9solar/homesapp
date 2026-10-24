@@ -180,11 +180,30 @@ export function AppShell({ children }: { children: ReactNode }) {
           bgcolor: "background.paper",
         }}
       >
-        <Stack direction="row" component={Link} href="/" sx={{ alignItems: "center", gap: 1.5, px: 1, pb: 3 }}>
-          <Logo size={36} />
-          <Box>
-            <Typography sx={{ fontWeight: 600, letterSpacing: "0.2em", fontSize: 13.5 }}>{T("GETHOMEAPPS")}</Typography>
-            <Typography sx={{ color: "text.secondary", letterSpacing: "0.22em", fontSize: 8.5, fontWeight: 600 }}>
+        {/* The brand on the same green as every page's header: the sidebar starts where the page does. */}
+        <Stack
+          direction="row"
+          component={Link}
+          href="/"
+          data-testid="nav-brand"
+          sx={{
+            alignItems: "center",
+            gap: 1.5,
+            mx: -2,
+            mt: -3,
+            mb: 2.5,
+            px: 3,
+            py: 2.75,
+            color: "#fff",
+            textDecoration: "none",
+            background: DESIGN.headerGradient,
+            "&:focus-visible": { outline: "2px solid #fff", outlineOffset: -4 },
+          }}
+        >
+          <Logo size={36} color="#fff" />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 600, letterSpacing: "0.2em", fontSize: 13.5, color: "#fff" }}>{T("GETHOMEAPPS")}</Typography>
+            <Typography sx={{ color: "rgba(255,255,255,0.78)", letterSpacing: "0.22em", fontSize: 8.5, fontWeight: 600 }}>
               {T("9 SOLAR HOME · 九太阳家")}
             </Typography>
           </Box>
