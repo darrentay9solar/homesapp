@@ -61,7 +61,9 @@ def test_a_year_beside_the_year_before(client, fx, plant) -> None:
         _month(fx, plant["code"], 2024, m, kwh)
     for m, kwh in ((1, 900), (2, 1000)):
         _month(fx, plant["code"], 2023, m, kwh)
-    got = client.get(f"/api/py/solar/plants/{plant['code']}/energy?period=year&date=2024-05-01", headers=h(plant["pm"])).json()
+    got = client.get(
+        f"/api/py/solar/plants/{plant['code']}/energy?period=year&date=2024-05-01", headers=h(plant["pm"])
+    ).json()
     prev = got["previous"]
     assert prev["date"] == "2023-05-01" and prev["totalKwh"] == 1900
     assert prev["kwh"][:3] == [900, 1000, None]
@@ -80,7 +82,9 @@ def test_a_homeowner_compares_their_own(client, fx, plant) -> None:
     assert got["previous"]["kwh"][0] == 500 and got["previous"]["change"] is None
 
 
-@pytest.mark.parametrize(("day", "want"), [(date(2024, 2, 29), date(2023, 2, 28)), (date(2025, 3, 31), date(2024, 3, 31))])
+@pytest.mark.parametrize(
+    ("day", "want"), [(date(2024, 2, 29), date(2023, 2, 28)), (date(2025, 3, 31), date(2024, 3, 31))]
+)
 def test_the_same_day_a_year_before(day, want) -> None:
     from _routes.solar import _year_before
 
@@ -95,11 +99,22 @@ def test_the_weather_ahead_for_the_plants_part_of_singapore(client, fx, plant) -
 
     weather.save(datetime.now(SG))
     w = client.get(f"/api/py/solar/plants/{plant['code']}", headers=h(plant["pm"])).json()["weather"]
-    assert w["region"] == "east" and w["next"] == [{"start": "2099-01-01T06:00:00+08:00", "end": "2099-01-01T12:00:00+08:00", "forecast": "Fair"}]
+    assert w["region"] == "east" and w["next"] == [
+        {"start": "2099-01-01T06:00:00+08:00", "end": "2099-01-01T12:00:00+08:00", "forecast": "Fair"}
+    ]
     assert w["outlook"][0]["text"] == "Thundery Showers" and w["today"] == {"low": 25, "high": 33}
 
 
-@pytest.mark.parametrize(("lat", "lng", "part"), [(1.3521, 103.8198, "central"), (1.44, 103.80, "north"), (1.35, 103.95, "east"), (1.34, 103.70, "west"), (1.27, 103.83, "south")])
+@pytest.mark.parametrize(
+    ("lat", "lng", "part"),
+    [
+        (1.3521, 103.8198, "central"),
+        (1.44, 103.80, "north"),
+        (1.35, 103.95, "east"),
+        (1.34, 103.70, "west"),
+        (1.27, 103.83, "south"),
+    ],
+)
 def test_a_place_is_in_its_part_of_singapore(lat, lng, part) -> None:
     from _lib import weather
 
@@ -118,9 +133,15 @@ def alarm(fx, plant):
 
 
 def test_a_manager_acknowledges_an_alarm(client, fx, plant, alarm) -> None:
-    r = client.post(f"/api/py/solar/plants/{plant['code']}/alarms/{alarm}/acknowledge", headers=h(plant["pm"]), json={"note": "Crew going Friday"})
+    r = client.post(
+        f"/api/py/solar/plants/{plant['code']}/alarms/{alarm}/acknowledge",
+        headers=h(plant["pm"]),
+        json={"note": "Crew going Friday"},
+    )
     assert r.status_code == 200, r.text
-    staff = client.get(f"/api/py/solar/plants/{plant['code']}", headers=h(plant["pm"])).json()["alarms"][0]["acknowledged"]
+    staff = client.get(f"/api/py/solar/plants/{plant['code']}", headers=h(plant["pm"])).json()["alarms"][0][
+        "acknowledged"
+    ]
     assert staff["note"] == "Crew going Friday" and staff["by"] and staff["at"]
     mine = client.get("/api/py/me/solar", headers=h(plant["ho"])).json()["plant"]["alarms"][0]["acknowledged"]
     assert mine["at"] and mine["by"] is None and mine["note"] is None, "the homeowner sees only that it's in hand"
@@ -139,7 +160,12 @@ def test_only_a_manager_acknowledges(client, fx, plant, alarm, who) -> None:
 
 def test_another_managers_plant_isnt_theirs_to_acknowledge(client, fx, plant, alarm) -> None:
     other = fx.user("project_manager")
-    assert client.post(f"/api/py/solar/plants/{plant['code']}/alarms/{alarm}/acknowledge", headers=h(other), json={}).status_code == 404
+    assert (
+        client.post(
+            f"/api/py/solar/plants/{plant['code']}/alarms/{alarm}/acknowledge", headers=h(other), json={}
+        ).status_code
+        == 404
+    )
 
 
 # ------------------------------------------------------------------- reports
@@ -157,9 +183,15 @@ def test_a_months_report_goes_once_to_the_homeowner_and_the_manager(fx, plant) -
             ([plant["ho"]["uid"], plant["pm"]["uid"]],),
         ).fetchall()
         by = {g["recipient_uid"]: g for g in got}
-        assert by[plant["ho"]["uid"]]["title"] == "Your solar in January 2099" and "1,234 kWh" in by[plant["ho"]["uid"]]["body"]
+        assert (
+            by[plant["ho"]["uid"]]["title"] == "Your solar in January 2099"
+            and "1,234 kWh" in by[plant["ho"]["uid"]]["body"]
+        )
         assert "23% more than January 2098" in by[plant["ho"]["uid"]]["body"]
-        assert by[plant["pm"]["uid"]]["title"] == "Solar in January 2099" and by[plant["pm"]["uid"]]["link"] == "/solar?tab=report"
+        assert (
+            by[plant["pm"]["uid"]]["title"] == "Solar in January 2099"
+            and by[plant["pm"]["uid"]]["link"] == "/solar?tab=report"
+        )
         assert solar_reports.run(datetime(2099, 2, 2, 9, tzinfo=SG)) == {"skipped": "already sent"}
     finally:
         fx.conn.execute("delete from solar_sync where key = %s", (key,))
@@ -177,7 +209,11 @@ PAGE = """<div><p>31.16 cents/kWh</p><p>28.59 cents/kWh (w/o GST)</p><h3>ELECTRI
 def test_sps_page_is_read_and_checked() -> None:
     got = tariff.read_sp(PAGE)
     assert (got["starts_on"], got["ends_on"]) == (date(2026, 10, 1), date(2026, 12, 31))
-    assert (got["cents_with_gst"], got["cents_without_gst"], got["network_cents"]) == (Decimal("31.16"), Decimal("28.59"), Decimal("6.10"))
+    assert (got["cents_with_gst"], got["cents_without_gst"], got["network_cents"]) == (
+        Decimal("31.16"),
+        Decimal("28.59"),
+        Decimal("6.10"),
+    )
 
 
 def test_parts_that_dont_add_up_are_left_out() -> None:
@@ -191,9 +227,27 @@ def test_a_changed_page_says_so() -> None:
 
 
 def test_data_gov_sgs_months() -> None:
-    body = json.dumps({"result": {"records": [{"DataSeries": "Low Tension Supplies - Domestic", "2026Jun": "27.27", "2026May": "27.27", "2012Jan": "27.59"}, {"DataSeries": "Other", "2026Jun": "1"}]}})
+    body = json.dumps(
+        {
+            "result": {
+                "records": [
+                    {
+                        "DataSeries": "Low Tension Supplies - Domestic",
+                        "2026Jun": "27.27",
+                        "2026May": "27.27",
+                        "2012Jan": "27.59",
+                    },
+                    {"DataSeries": "Other", "2026Jun": "1"},
+                ]
+            }
+        }
+    )
     got = tariff.read_history(body)
-    assert [(r["starts_on"], r["cents_without_gst"]) for r in got] == [(date(2012, 1, 1), Decimal("27.59")), (date(2026, 5, 1), Decimal("27.27")), (date(2026, 6, 1), Decimal("27.27"))]
+    assert [(r["starts_on"], r["cents_without_gst"]) for r in got] == [
+        (date(2012, 1, 1), Decimal("27.59")),
+        (date(2026, 5, 1), Decimal("27.27")),
+        (date(2026, 6, 1), Decimal("27.27")),
+    ]
 
 
 @pytest.fixture
@@ -201,7 +255,10 @@ def quarters(fx):
     """Two quarters in 2098-99 (so nothing real gets in the way), and months before them."""
     fx.conn.execute("delete from sp_tariffs where starts_on >= '2098-01-01'")
     for m in range(1, 7):
-        fx.conn.execute("insert into sp_tariffs (starts_on, ends_on, cents_without_gst, source) values (%s, %s, 25, 'data_gov_sg')", (date(2098, m, 1), date(2098, m, 28)))
+        fx.conn.execute(
+            "insert into sp_tariffs (starts_on, ends_on, cents_without_gst, source) values (%s, %s, 25, 'data_gov_sg')",
+            (date(2098, m, 1), date(2098, m, 28)),
+        )
     fx.conn.execute(
         "insert into sp_tariffs (starts_on, ends_on, cents_without_gst, cents_with_gst, energy_cents, network_cents, mss_cents, market_admin_cents, source) values "
         "('2098-07-01', '2098-09-30', 30, 32.70, 23.69, 6, 0.23, 0.08, 'sp_group'), ('2098-10-01', '2098-12-31', 28, 30.52, 21.69, 6, 0.23, 0.08, 'sp_group')"
@@ -213,7 +270,13 @@ def quarters(fx):
 def test_the_quarter_selling_buying_and_the_12_month_average(quarters) -> None:
     o = tariff.overview(date(2098, 11, 15))
     c = o["current"]
-    assert (c["startsOn"], c["buying"], c["withoutGst"], c["selling"], c["parts"]["network"]) == ("2098-10-01", 30.52, 28.0, 22.0, 6.0)
+    assert (c["startsOn"], c["buying"], c["withoutGst"], c["selling"], c["parts"]["network"]) == (
+        "2098-10-01",
+        30.52,
+        28.0,
+        22.0,
+        6.0,
+    )
     last = o["history"][-1]
     assert last == {"month": "2098-11", "withoutGst": 28.0, "withGst": 30.52, "selling": 22.0, "source": "sp_group"}
     a = o["average12"]
@@ -232,7 +295,10 @@ def test_everyone_signed_in_sees_the_tariffs(client, fx, who) -> None:
 
 def test_a_homeowner_sees_what_their_solar_saves(client, fx, plant) -> None:
     month = datetime.now(SG).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    fx.conn.execute("insert into solar_readings (station_code, period, at, kwh) values (%s, 'month', %s, 800)", (plant["code"], month))
+    fx.conn.execute(
+        "insert into solar_readings (station_code, period, at, kwh) values (%s, 'month', %s, 800)",
+        (plant["code"], month),
+    )
     got = client.get("/api/py/tariffs", headers=h(plant["ho"])).json()
     mine = got["mine"]
     assert mine["rateCents"] == 22.0 and mine["monthKwh"] == 800

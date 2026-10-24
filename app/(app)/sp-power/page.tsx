@@ -42,7 +42,7 @@ type Tariffs = {
   source: { sp: string; history: string };
 };
 
-const cents = (v: number | null | undefined) => (v === null || v === undefined ? "—" : T("{n}¢ per kWh", { n: v.toFixed(2) }));
+const cents = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${v.toFixed(2)}¢`);
 const monthName = (ym: string, opts: Intl.DateTimeFormatOptions) => new Date(`${ym}-01T00:00:00+08:00`).toLocaleDateString(locale(), { ...opts, timeZone: "Asia/Singapore" });
 const day = (iso: string) => new Date(`${iso}T00:00:00+08:00`).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Singapore" });
 
@@ -99,10 +99,10 @@ export default function SpPowerPage() {
                 {T("Updated by SP Group each quarter; read from its tariff page.")}
               </Typography>
               <Box sx={{ ...TILE_GRID }}>
-                <StatTile label="Buying from SP" value={cents(c.buying)} icon={<CallReceivedRoundedIcon />} sub={T("The tariff a home pays, with {gst}% GST", { gst: c.gstRate })} testId="sp-buying" />
-                <StatTile label="Selling to SP" value={cents(c.selling)} icon={<CallMadeRoundedIcon />} sub={T("What SP pays for solar sent to the grid: the tariff less network costs, before GST")} testId="sp-selling" />
-                <StatTile label="Tariff before GST" value={cents(c.withoutGst)} icon={<BoltRoundedIcon />} testId="sp-tariff" />
-                <StatTile label="Network costs" value={cents(c.parts.network)} icon={<CellTowerRoundedIcon />} sub={T("Kept by SP Group for its grid, so not paid for solar sent to it")} testId="sp-network" />
+                <StatTile label="Buying from SP, per kWh" value={cents(c.buying)} icon={<CallReceivedRoundedIcon />} sub={T("The tariff a home pays, with {gst}% GST", { gst: c.gstRate })} testId="sp-buying" />
+                <StatTile label="Selling to SP, per kWh" value={cents(c.selling)} icon={<CallMadeRoundedIcon />} sub={T("What SP pays for solar sent to the grid: the tariff less network costs, before GST")} testId="sp-selling" />
+                <StatTile label="Tariff before GST, per kWh" value={cents(c.withoutGst)} icon={<BoltRoundedIcon />} testId="sp-tariff" />
+                <StatTile label="Network costs, per kWh" value={cents(c.parts.network)} icon={<CellTowerRoundedIcon />} sub={T("Kept by SP Group for its grid, so not paid for solar sent to it")} testId="sp-network" />
               </Box>
 
               {data.mine && data.mine.rateCents !== null && (
@@ -136,10 +136,10 @@ export default function SpPowerPage() {
                     {T("Averages over {n} months.", { n: a?.months ?? 0 })}
                   </Typography>
                   <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
-                    <StatTile label="Buying, with GST" value={cents(a?.withGst)} icon={<EventRepeatRoundedIcon />} testId="sp-avg-buying" />
-                    <StatTile label="Before GST" value={cents(a?.withoutGst)} icon={<EventRepeatRoundedIcon />} testId="sp-avg-tariff" />
+                    <StatTile label="Buying, with GST, per kWh" value={cents(a?.withGst)} icon={<EventRepeatRoundedIcon />} testId="sp-avg-buying" />
+                    <StatTile label="Before GST, per kWh" value={cents(a?.withoutGst)} icon={<EventRepeatRoundedIcon />} testId="sp-avg-tariff" />
                     <StatTile
-                      label="Selling to SP"
+                      label="Selling to SP, per kWh"
                       value={cents(a?.selling)}
                       icon={<EventRepeatRoundedIcon />}
                       sub={a && a.sellingMonths < (a.months || 0) ? T("Over the {n} months SP's network costs are known", { n: a.sellingMonths }) : undefined}

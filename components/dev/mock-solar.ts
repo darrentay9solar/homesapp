@@ -236,3 +236,41 @@ export function mockReport(search: URLSearchParams): SolarReport {
     })),
   };
 }
+
+/** SP Power: SP Group's tariff this quarter, its parts, five years of months, and (a homeowner) their own solar. */
+export function mockTariffs(homeowner: boolean) {
+  const history: Array<{ month: string; withoutGst: number; withGst: number; selling: number | null; source: string }> = [];
+  const now = new Date(NOW + 8 * 3600_000);
+  for (let i = 59; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const q = Math.floor(i / 3);
+    const without = Math.round((27.4 + 2.6 * Math.sin(q / 2.2) + (q % 4) * 0.35) * 100) / 100;
+    const gst = d.getUTCFullYear() <= 2022 ? 1.07 : d.getUTCFullYear() === 2023 ? 1.08 : 1.09;
+    history.push({ month: d.toISOString().slice(0, 7), withoutGst: without, withGst: Math.round(without * gst * 100) / 100, selling: i < 3 ? Math.round((without - 6.1) * 100) / 100 : null, source: i < 6 ? "sp_group" : "data_gov_sg" });
+  }
+  const last = history[history.length - 1];
+  const last12 = history.slice(-12);
+  const avg = (xs: Array<number | null>) => {
+    const v = xs.filter((x): x is number => x !== null);
+    return v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) / 100 : null;
+  };
+  const q0 = new Date(Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth() / 3) * 3, 1));
+  const q1 = new Date(Date.UTC(q0.getUTCFullYear(), q0.getUTCMonth() + 3, 0));
+  return {
+    current: {
+      startsOn: q0.toISOString().slice(0, 10),
+      endsOn: q1.toISOString().slice(0, 10),
+      withGst: last.withGst,
+      withoutGst: last.withoutGst,
+      buying: last.withGst,
+      selling: last.selling,
+      parts: { energy: Math.round((last.withoutGst - 6.1 - 0.31) * 100) / 100, network: 6.1, mss: 0.23, marketAdmin: 0.08 },
+      gstRate: 9,
+      checkedAt: iso(180),
+    },
+    history,
+    average12: { months: 12, withGst: avg(last12.map((m) => m.withGst)), withoutGst: avg(last12.map((m) => m.withoutGst)), selling: avg(last12.map((m) => m.selling)), sellingMonths: last12.filter((m) => m.selling !== null).length },
+    mine: homeowner ? { rateCents: 22, monthKwh: 1032.4, savedSgd: Math.round(1032.4 * (last.withGst - 22)) / 100, cheaperCents: Math.round((last.withGst - 22) * 100) / 100 } : null,
+    source: { sp: "https://www.spgroup.com.sg/our-services/utilities/tariff-information", history: "https://data.gov.sg/datasets/d_61eac3cdb086814af485dcc682b75ae9/view" },
+  };
+}
