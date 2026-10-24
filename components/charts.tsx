@@ -429,8 +429,18 @@ export function AreaChart({
     return Math.min(points.length - 1, Math.max(0, i));
   };
   const shown = hover !== null ? points[hover] : null;
-  // Label every tickEvery-th point, as long as the words fit between them.
-  const step = Math.max(tickEvery, Math.ceil(46 / Math.max(1, plotW / n)));
+  // Label every tickEvery-th point (or a multiple of it), as far apart as the widest label needs, with a gap.
+  const widest = Math.max(30, ...points.map((p) => labelWidth(p.label))) + 14;
+  const perPoint = Math.max(0.001, plotW / n);
+  const step = tickEvery * Math.max(1, Math.ceil(widest / (perPoint * tickEvery)));
+  // Kept inside the chart: the first and last labels sit half a label in from its edges.
+  const half = widest / 2;
+  const labelX = (i: number) => Math.min(w - half, Math.max(left + half, x(i)));
+  // A label that would land on the one before it (pushed in from an edge) is left out.
+  const placed: number[] = [];
+  for (let i = 0; i < points.length; i += step) {
+    if (!placed.length || labelX(i) - labelX(placed[placed.length - 1]) >= widest) placed.push(i);
+  }
 
   return (
     <Box ref={ref} sx={{ position: "relative", width: "100%", minWidth: 0, height }} onPointerLeave={() => setHover(null)}>
@@ -464,13 +474,11 @@ export function AreaChart({
               <path d={line(run)} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
             </g>
           ))}
-          {points.map((p, i) =>
-            i % step === 0 ? (
-              <text key={p.label} x={Math.min(w - 16, Math.max(left + 16, x(i)))} y={height - 6} textAnchor="middle" fontSize={11} fill={muted}>
-                {p.label}
-              </text>
-            ) : null
-          )}
+          {placed.map((i) => (
+            <text key={points[i].label} x={labelX(i)} y={height - 6} textAnchor="middle" fontSize={11} fill={muted}>
+              {points[i].label}
+            </text>
+          ))}
           {shown && hover !== null && (
             <g>
               <line x1={x(hover)} x2={x(hover)} y1={6} y2={6 + plotH} stroke={muted} strokeWidth={1} strokeDasharray="3 3" />

@@ -11,17 +11,19 @@ import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
+import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 
 import { AreaChart, BarList, ChartCard, StatTile, TILE_GRID } from "@/components/charts";
 import { Page } from "@/components/shell";
-import { Heading, TopBar } from "@/components/topbar";
+import { SegTabs, TopBar } from "@/components/topbar";
 import { dt2s } from "@/components/ui";
 import { useApi } from "@/lib/client/api";
 import { locale, T } from "@/lib/client/i18n";
+import { useTab } from "@/lib/client/tabs";
 
 type Month = { month: string; withoutGst: number | null; withGst: number | null; selling: number | null; source: string };
 type Tariffs = {
@@ -53,8 +55,10 @@ type Range = "12" | "60" | "all";
  * sent to the grid, the 12 months' average and the history (api/_lib/tariff.py). Everyone signed in sees it;
  * a homeowner also sees what their own solar costs beside it.
  */
-export default function SpPowerPage() {
+function SpPowerScreen() {
   const { data, error } = useApi<Tariffs>("/tariffs");
+  // This quarter, or the history: one at a time (the template's sections in tabs), in the address (?tab=history).
+  const [tab, setTab] = useTab<"quarter" | "history">(["quarter", "history"], "quarter");
   const [range, setRange] = useState<Range>("60");
   const c = data?.current;
   const a = data?.average12;
@@ -72,7 +76,21 @@ export default function SpPowerPage() {
     : [];
   return (
     <>
-      <TopBar title={T("SP Power")} sub={c ? T("SP Group's electricity tariff, {from} to {to}", { from: day(c.startsOn), to: c.endsOn ? day(c.endsOn) : "…" }) : undefined} />
+      <TopBar
+        title={T("SP Power")}
+        sub={c ? T("SP Group's electricity tariff, {from} to {to}", { from: day(c.startsOn), to: c.endsOn ? day(c.endsOn) : "…" }) : undefined}
+        tabs={
+          <SegTabs
+            label={T("SP Power")}
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "quarter" as const, label: "This quarter" },
+              { value: "history" as const, label: "History" },
+            ]}
+          />
+        }
+      />
       <Box sx={{ position: "relative", bgcolor: "background.default", flex: 1 }}>
         <Page>
           {error && (
@@ -94,8 +112,9 @@ export default function SpPowerPage() {
           )}
           {data && c && (
             <>
-              <Heading title="This quarter" />
-              <Typography variant="body2" sx={{ color: "text.secondary", mt: -0.75, mb: 1.25 }}>
+              {tab === "quarter" && (
+              <>
+              <Typography variant="body2" sx={{ color: "text.secondary", mt: 2, mb: 1.25 }}>
                 {T("Updated by SP Group each quarter; read from its tariff page.")}
               </Typography>
               <Box sx={{ ...TILE_GRID }}>
@@ -149,16 +168,22 @@ export default function SpPowerPage() {
                 </Card>
               </Box>
 
-              <Heading
-                title="History"
-                action={
+              </>
+              )}
+              {tab === "history" && (
+              <>
+              <Stack direction="row" sx={{ alignItems: "center", gap: 1, rowGap: 0.75, flexWrap: "wrap", mt: 2, mb: 1.25 }}>
+                <Typography variant="body2" sx={{ color: "text.secondary", flex: "1 1 200px", minWidth: 0 }}>
+                  {T("The household tariff each month, with GST; the table adds what SP pays for solar.")}
+                </Typography>
+                {
                   <ToggleButtonGroup exclusive size="small" value={range} onChange={(_, v: Range | null) => v && setRange(v)} aria-label={T("Period")}>
                     <ToggleButton value="12">{T("12 months")}</ToggleButton>
                     <ToggleButton value="60">{T("5 years")}</ToggleButton>
                     <ToggleButton value="all">{T("All")}</ToggleButton>
                   </ToggleButtonGroup>
                 }
-              />
+              </Stack>
               <ChartCard
                 title={T("Household tariff each month, with GST")}
                 sub={shown.length ? T("{from} to {to}", { from: monthName(shown[0].month, { month: "short", year: "numeric" }), to: monthName(shown[shown.length - 1].month, { month: "short", year: "numeric" }) }) : undefined}
@@ -181,10 +206,20 @@ export default function SpPowerPage() {
                   {T("SP Group's tariffs")}
                 </Link>
               </Typography>
+              </>
+              )}
             </>
           )}
         </Page>
       </Box>
     </>
+  );
+}
+
+export default function SpPowerPage() {
+  return (
+    <Suspense>
+      <SpPowerScreen />
+    </Suspense>
   );
 }

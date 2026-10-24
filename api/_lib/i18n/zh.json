@@ -3383,5 +3383,6 @@
  "{from} to {to}": "{from} 至 {to}",
  "{kwh} a year before": "一年前 {kwh}",
  "{n}¢ per kWh before GST": "未含消费税每 kWh {n} 分",
- "¢ per kWh": "每 kWh 分"
+ "¢ per kWh": "每 kWh 分",
+ "The household tariff each month, with GST; the table adds what SP pays for solar.": "每月住宅电费（含消费税）；表格另列 SP 为太阳能支付的价格。"
 }
