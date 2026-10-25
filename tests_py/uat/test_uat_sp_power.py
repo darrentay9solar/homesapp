@@ -123,3 +123,27 @@ def test_every_energy_chart_has_the_year_before(api, world, plant, actor) -> Non
     m = api.get(f"/api/py/me/solar/energy?period=year&date={day}", headers=world.h(actor))
     if actor == "ho2":
         assert m.status_code == 200 and m.json()["previous"]["kwh"][plant["month"].month - 1] == 800
+
+
+@pytest.mark.parametrize("actor", spec.ACTORS)
+@pytest.mark.parametrize("q", ["from=2024-01-01&to=2024-12-31", "on=2024-06-15", "from=2024-12-31&to=2024-01-01"])
+def test_who_filters_sp_power_by_date(api, world, actor, q) -> None:
+    r = api.get(f"/api/py/tariffs?{q}", headers=world.h(actor))
+    if actor == "inactive":
+        assert r.status_code == 403
+    elif q.startswith("from=2024-12-31"):
+        assert r.status_code == 400 and "From comes after To" in r.text
+    else:
+        assert r.status_code == 200, r.text
+        got = r.json()
+        assert ("range" in got) is q.startswith("from") and ("on" in got) is q.startswith("on")
+        assert set(got["average8y"]) >= {
+            "withGst",
+            "withoutGst",
+            "selling",
+            "energy",
+            "network",
+            "mss",
+            "marketAdmin",
+            "months",
+        }

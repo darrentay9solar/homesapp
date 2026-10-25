@@ -89,6 +89,39 @@ def read_sp(page: str) -> dict[str, Any]:
     return out
 
 
+# The four parts as SP's pages have shown them: "Network Costs 6.10c/kWh" (since 2023) and, before,
+# ">>Network Costs >>5.77" (a chart's labels and values).
+PARTS = {
+    "energy_cents": r"Energy Costs\s*(?:>>)?\s*([\d.]+)",
+    "network_cents": r"Network Costs\s*(?:>>)?\s*([\d.]+)",
+    "mss_cents": r"MSS Fee\s*(?:>>)?\s*([\d.]+)",
+    "market_admin_cents": r"Market Admin(?:istration)? & PSO Fee\s*(?:>>)?\s*([\d.]+)",
+}
+
+
+def read_quarter(page: str) -> dict[str, Any] | None:
+    """A quarter's tariff from its parts, as SP's tariff pages label them ("Q1 2022 Electricity Tariff (before
+    GST)" beside energy, network and the two fees): the total before GST is their sum. None without all four.
+    For SP's pages of earlier quarters (kept by the Internet Archive), checked against SP's monthly totals."""
+    t = _text(page)
+    q = re.search(r"Q([1-4])\s*(\d{4})\s*Electricity Tariff\s*\(before GST\)", t, re.IGNORECASE)
+    found = {k: re.search(rx, t, re.IGNORECASE) for k, rx in PARTS.items()}
+    if not q or not all(found.values()):
+        return None
+    year, n = int(q.group(2)), int(q.group(1))
+    starts = date(year, 3 * (n - 1) + 1, 1)
+    ends = (starts.replace(day=28) + timedelta(days=4 + 62)).replace(day=1) - timedelta(days=1)
+    parts = {k: Decimal(m.group(1)) for k, m in found.items() if m}
+    total = sum(parts.values())
+    return {
+        "starts_on": starts,
+        "ends_on": ends,
+        "cents_without_gst": total,
+        "cents_with_gst": (total * (1 + gst_rate(starts))).quantize(Decimal("0.01")),
+        **parts,
+    }
+
+
 def read_history(body: str) -> list[dict[str, Any]]:
     """Each month's household tariff before GST from data.gov.sg (SP Group's series)."""
     rows = json.loads(body)["result"]["records"]
@@ -172,8 +205,9 @@ def _month_end(d: date) -> date:
 
 
 def monthly(today: date) -> list[dict[str, Any]]:
-    """Each month up to this one: the tariff before and with GST, and what SP pays for solar where the
-    network costs are known. A quarter SP published covers its three months."""
+    """Each month up to this one: the tariff before and with GST, its four parts and what SP pays for solar
+    where they're known. A quarter SP published covers its three months; before those, a month has SP's
+    total from data.gov.sg and (2018 to mid-2021) EMA's parts for its year."""
     rows = fetch_all("select * from sp_tariffs order by starts_on")
     quarters = [r for r in rows if r["source"] == "sp_group"]
     by_month = {r["starts_on"]: r for r in rows if r["source"] == "data_gov_sg"}
@@ -186,6 +220,9 @@ def monthly(today: date) -> list[dict[str, Any]]:
         r = q or by_month.get(m)
         if r:
             without = Decimal(r["cents_without_gst"])
+            # The parts: the quarter's own, else the month's (EMA's year); a quarter without them borrows none.
+            src = q if q and q["network_cents"] is not None else by_month.get(m) if not q else None
+            network = src["network_cents"] if src else None
             out.append(
                 {
                     "month": m.isoformat()[:7],
@@ -193,9 +230,13 @@ def monthly(today: date) -> list[dict[str, Any]]:
                     "withGst": _f(
                         r["cents_with_gst"] if q and r["cents_with_gst"] is not None else without * (1 + gst_rate(m))
                     ),
-                    "selling": _f(without - Decimal(r["network_cents"]))
-                    if q and r["network_cents"] is not None
-                    else None,
+                    "selling": _f(without - Decimal(network)) if network is not None else None,
+                    "energy": _f(src["energy_cents"]) if src else None,
+                    "network": _f(network),
+                    "mss": _f(src["mss_cents"]) if src else None,
+                    "marketAdmin": _f(src["market_admin_cents"]) if src else None,
+                    # Where the parts come from: SP's quarter, or EMA's year.
+                    "partsFrom": ("sp" if src is q else "ema") if src else None,
                     "source": r["source"],
                 }
             )
@@ -203,33 +244,58 @@ def monthly(today: date) -> list[dict[str, Any]]:
     return out
 
 
+def _months_back(today: date, n: int) -> str:
+    """The month n months before this one, as YYYY-MM."""
+    y, m = divmod(today.year * 12 + today.month - 1 - n, 12)
+    return f"{y:04d}-{m + 1:02d}"
+
+
+FIGURES = ("withGst", "withoutGst", "selling", "energy", "network", "mss", "marketAdmin")
+
+
 def _avg(xs: list[float | None]) -> float | None:
     vals = [x for x in xs if x is not None]
     return round(sum(vals) / len(vals), 2) if vals else None
 
 
-def overview(today: date) -> dict[str, Any]:
-    """The current quarter, its parts, the history month by month, and the last 12 months' averages."""
+def summary(months: list[dict[str, Any]]) -> dict[str, Any]:
+    """The average of every figure over these months, and how many months each average is over."""
+    return {
+        "months": len(months),
+        "from": months[0]["month"] if months else None,
+        "to": months[-1]["month"] if months else None,
+        **{k: _avg([m[k] for m in months]) for k in FIGURES},
+        "partsMonths": sum(1 for m in months if m["network"] is not None),
+    }
+
+
+def on_day(months: list[dict[str, Any]], day: date) -> dict[str, Any] | None:
+    """The tariff in force on a day: its month's figures (SP's tariff changes each quarter, never within a month)."""
+    key = day.isoformat()[:7]
+    return next(({**m, "date": day.isoformat()} for m in months if m["month"] == key), None)
+
+
+def overview(
+    today: date, start: date | None = None, end: date | None = None, day: date | None = None
+) -> dict[str, Any]:
+    """The current quarter and its parts; every month; the averages over the last 12 months and 8 years; and,
+    when asked, the averages between two dates and the figures on one day."""
     cur = fetch_one(
         "select * from sp_tariffs where source = 'sp_group' and starts_on <= %s order by starts_on desc limit 1",
         (today,),
     )
     months = monthly(today)
-    last12 = months[-12:]
     current = None
     if cur:
         without = Decimal(cur["cents_without_gst"])
         network = cur["network_cents"]
+        with_gst = cur["cents_with_gst"] if cur["cents_with_gst"] is not None else without * (1 + gst_rate(today))
         current = {
             "startsOn": cur["starts_on"].isoformat(),
             "endsOn": cur["ends_on"].isoformat() if cur["ends_on"] else None,
-            "withGst": _f(
-                cur["cents_with_gst"] if cur["cents_with_gst"] is not None else without * (1 + gst_rate(today))
-            ),
+            "withGst": _f(with_gst),
             "withoutGst": _f(without),
-            "buying": _f(
-                cur["cents_with_gst"] if cur["cents_with_gst"] is not None else without * (1 + gst_rate(today))
-            ),
+            "buying": _f(with_gst),
             "selling": _f(without - Decimal(network)) if network is not None else None,
             "parts": {
                 "energy": _f(cur["energy_cents"]),
@@ -240,15 +306,23 @@ def overview(today: date) -> dict[str, Any]:
             "gstRate": float(gst_rate(today)) * 100,
             "checkedAt": cur["fetched_at"].isoformat(),
         }
-    return {
+    # Calendar months up to this one (a month without figures isn't replaced by an older one).
+    last12 = [m for m in months if m["month"] >= _months_back(today, 11)]
+    out: dict[str, Any] = {
         "current": current,
         "history": months,
-        "average12": {
-            "months": len(last12),
-            "withGst": _avg([m["withGst"] for m in last12]),
-            "withoutGst": _avg([m["withoutGst"] for m in last12]),
-            "selling": _avg([m["selling"] for m in last12]),
-            "sellingMonths": sum(1 for m in last12 if m["selling"] is not None),
+        "average12": {**summary(last12), "sellingMonths": sum(1 for m in last12 if m["selling"] is not None)},
+        "average8y": summary([m for m in months if m["month"] >= _months_back(today, 95)]),
+        "source": {
+            "sp": SP_PAGE,
+            "history": "https://data.gov.sg/datasets/d_61eac3cdb086814af485dcc682b75ae9/view",
+            "parts": "https://data.gov.sg/datasets/d_b0b8f7a72f94e983fe42038b9aa4a464/view",
         },
-        "source": {"sp": SP_PAGE, "history": "https://data.gov.sg/datasets/d_61eac3cdb086814af485dcc682b75ae9/view"},
     }
+    if start or end:
+        lo = (start or date(2000, 1, 1)).isoformat()[:7]
+        hi = (end or today).isoformat()[:7]
+        out["range"] = summary([m for m in months if lo <= m["month"] <= hi])
+    if day:
+        out["on"] = on_day(months, day)
+    return out

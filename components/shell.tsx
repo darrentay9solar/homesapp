@@ -65,8 +65,8 @@ type Tab = { href: string; label: string; icon: ReactNode; group: Group };
 
 const GROUPS: Array<{ key: Group; label: string; icon: ReactNode }> = [
   { key: "homes", label: "Homes", icon: <HomeWorkRoundedIcon /> },
-  { key: "admin", label: "Admin", icon: <AdminPanelSettingsRoundedIcon /> },
   { key: "info", label: "Info", icon: <InfoRoundedIcon /> },
+  { key: "admin", label: "Admin", icon: <AdminPanelSettingsRoundedIcon /> },
 ];
 
 const DASHBOARD: Tab = { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon />, group: "homes" };
@@ -88,35 +88,36 @@ const FILES: Tab = { href: "/files", label: "My Files", icon: <FolderOpenRounded
 const FUSIONSOLAR: Tab = { href: "/solar", label: "FusionSolar", icon: <WbSunnyRoundedIcon />, group: "info" };
 const SP_POWER: Tab = { href: "/sp-power", label: "SP Power", icon: <ElectricBoltRoundedIcon />, group: "info" };
 
-const OFFICE: Tab[] = [DASHBOARD, PROJECTS, MAINTENANCE, FINANCE, SUPPORT, ACCOUNT, PEOPLE, AUDIT, ALERTS, CALENDAR, FILES, FUSIONSOLAR, SP_POWER];
+// Within a group in this order; the groups go Homes, Info, Admin, and Account is always Admin's last.
+const OFFICE: Tab[] = [DASHBOARD, PROJECTS, MAINTENANCE, FINANCE, SUPPORT, FUSIONSOLAR, SP_POWER, PEOPLE, AUDIT, ALERTS, CALENDAR, FILES, ACCOUNT];
 
 const TABS: Record<Role, Tab[]> = {
   homeowner: [
     { href: "/", label: "My Project", icon: <HomeRoundedIcon />, group: "homes" },
     PAYMENTS,
     HELP,
-    ACCOUNT,
-    ALERTS,
-    CALENDAR,
     { href: "/my-solar", label: "My FusionSolar", icon: <WbSunnyRoundedIcon />, group: "info" },
     SP_POWER,
+    ALERTS,
+    CALENDAR,
+    ACCOUNT,
   ],
   // The dashboard is a manager's opening screen ("/" takes them there); the Projects list is /projects.
   project_manager: OFFICE,
   // Everything a project manager has, over every project.
   superadmin: OFFICE,
   // Admin (finance): payments first; every project and system to look at, read-only.
-  finance: [FINANCE, PROJECTS, MAINTENANCE, SUPPORT, ACCOUNT, ALERTS, CALENDAR, FILES, FUSIONSOLAR, SP_POWER],
-  contractor: [{ ...PROJECTS, href: "/" }, SUPPORT, ACCOUNT, ALERTS, CALENDAR, { ...FILES, label: "Files" }, SP_POWER],
+  finance: [FINANCE, PROJECTS, MAINTENANCE, SUPPORT, FUSIONSOLAR, SP_POWER, ALERTS, CALENDAR, FILES, ACCOUNT],
+  contractor: [{ ...PROJECTS, href: "/" }, SUPPORT, SP_POWER, ALERTS, CALENDAR, { ...FILES, label: "Files" }, ACCOUNT],
   epc_team: [
     { ...PROJECTS, href: "/" },
     { href: "/sites", label: "Sites", icon: <PlaceRoundedIcon />, group: "homes" },
     SUPPORT,
-    ACCOUNT,
+    SP_POWER,
     ALERTS,
     CALENDAR,
     { ...FILES, label: "Files" },
-    SP_POWER,
+    ACCOUNT,
   ],
 };
 

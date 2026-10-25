@@ -278,10 +278,13 @@ def test_the_quarter_selling_buying_and_the_12_month_average(quarters) -> None:
         6.0,
     )
     last = o["history"][-1]
-    assert last == {"month": "2098-11", "withoutGst": 28.0, "withGst": 30.52, "selling": 22.0, "source": "sp_group"}
+    assert last == {
+        "month": "2098-11", "withoutGst": 28.0, "withGst": 30.52, "selling": 22.0, "energy": 21.69, "network": 6.0,
+        "mss": 0.23, "marketAdmin": 0.08, "partsFrom": "sp", "source": "sp_group",
+    }  # fmt: skip
     a = o["average12"]
-    # Jan-Jun 25 (data.gov.sg; 9% GST), Jul-Sep 30, Oct-Nov 28: 11 months known in the last 12.
-    assert a["months"] == 12 or a["months"] == 11
+    # Dec 2097 to Nov 2098: Jan-Jun 25 (data.gov.sg), Jul-Sep 30, Oct-Nov 28; December has no figures.
+    assert a["months"] == 11 and (a["from"], a["to"]) == ("2098-01", "2098-11")
     assert a["withoutGst"] == round((25 * 6 + 30 * 3 + 28 * 2) / 11, 2) and a["sellingMonths"] == 5
 
 
@@ -305,3 +308,76 @@ def test_a_homeowner_sees_what_their_solar_saves(client, fx, plant) -> None:
     if got["current"]:
         assert mine["cheaperCents"] == round(got["current"]["buying"] - 22.0, 2)
         assert mine["savedSgd"] == round(800 * (got["current"]["buying"] - 22.0) / 100, 2)
+
+
+def test_every_figure_averaged_over_12_months_and_8_years(quarters) -> None:
+    o = tariff.overview(date(2098, 11, 15))
+    for k in ("average12", "average8y"):
+        a = o[k]
+        assert set(a) >= {
+            "withGst",
+            "withoutGst",
+            "selling",
+            "energy",
+            "network",
+            "mss",
+            "marketAdmin",
+            "months",
+            "partsMonths",
+        }
+    a = o["average12"]
+    # The parts: only Jul-Nov (SP's quarters) in the last 12 months.
+    assert a["partsMonths"] == 5 and a["network"] == 6.0 and a["energy"] == round((23.69 * 3 + 21.69 * 2) / 5, 2)
+
+
+def test_the_averages_between_two_dates(quarters) -> None:
+    r = tariff.overview(date(2098, 11, 15), date(2098, 7, 10), date(2098, 10, 2))["range"]
+    assert (r["from"], r["to"], r["months"]) == ("2098-07", "2098-10", 4)
+    assert r["withoutGst"] == round((30 * 3 + 28) / 4, 2) and r["selling"] == round((24 * 3 + 22) / 4, 2)
+
+
+def test_the_figures_on_one_day(quarters) -> None:
+    on = tariff.overview(date(2098, 11, 15), day=date(2098, 8, 20))["on"]
+    assert (on["date"], on["month"], on["withoutGst"], on["network"], on["selling"]) == (
+        "2098-08-20",
+        "2098-08",
+        30.0,
+        6.0,
+        24.0,
+    )
+    assert tariff.overview(date(2098, 11, 15), day=date(1990, 1, 1))["on"] is None
+
+
+def test_emas_yearly_parts_fill_a_month_without_spts_quarter(fx, quarters) -> None:
+    fx.conn.execute(
+        "update sp_tariffs set network_cents = 5.4, energy_cents = 19, mss_cents = 0.4, market_admin_cents = 0.1 where starts_on = '2098-03-01'"
+    )
+    m = next(x for x in tariff.overview(date(2098, 11, 15))["history"] if x["month"] == "2098-03")
+    assert (m["network"], m["selling"], m["partsFrom"]) == (5.4, round(25 - 5.4, 2), "ema")
+
+
+@pytest.mark.parametrize(
+    ("q", "status"),
+    [("from=2098-12-01&to=2098-01-01", 400), ("on=31-12-2098", 400), ("from=2098-01-01", 200), ("on=2098-08-20", 200)],
+)
+def test_dates_are_checked(client, fx, q, status) -> None:
+    assert client.get(f"/api/py/tariffs?{q}", headers=h(fx.user("homeowner"))).status_code == status
+
+
+OLD_PAGE = """<p>There are four main cost components in the electricity tariff. They are:-</p><p>c/kWh</p>
+<span>>>Market Admin &amp; PSO Fee</span><span>>>0.06</span><span>>>a7a7a7</span><span>>>MSS Fee</span><span>>>0.40</span>
+<span>>>5a666e</span><span>>>Network Costs</span><span>>>5.77</span><span>>>62c8c6</span><span>>>Energy Costs</span><span>>>19.21</span>
+<span>>>0073ac</span><h4>Q1 2022 Electricity Tariff (before GST)</h4>"""
+
+
+def test_an_earlier_quarters_page_is_read_from_its_parts() -> None:
+    q = tariff.read_quarter(OLD_PAGE)
+    assert (q["starts_on"], q["ends_on"], q["cents_without_gst"], q["network_cents"]) == (
+        date(2022, 1, 1),
+        date(2022, 3, 31),
+        Decimal("25.44"),
+        Decimal("5.77"),
+    )
+    assert q["cents_with_gst"] == Decimal("27.22"), "7% GST in 2022"
+    assert tariff.read_quarter(PAGE)["cents_without_gst"] == Decimal("28.59"), "today's layout too"
+    assert tariff.read_quarter("<p>Q1 2022 Electricity Tariff (before GST)</p>") is None, "not without its parts"

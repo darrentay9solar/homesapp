@@ -758,7 +758,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (method !== "GET" && path.startsWith("/support")) return { message: "Preview only — nothing was sent.", id: 401, ok: true };
   if (key === "GET /maintenance") return mockMaintenance();
   if (key === "GET /solar") return mockSolarOverview();
-  if (key === "GET /tariffs") return mockTariffs(new URLSearchParams(window.location.search).get("as") === "homeowner");
+  if (key === "GET /tariffs") return mockTariffs(new URLSearchParams(window.location.search).get("as") === "homeowner", search);
   if (/^POST \/solar\/plants\/[^/]+\/alarms\/\d+\/acknowledge$/.test(key)) return { message: "Preview only — nothing was saved." };
   if (key === "GET /me/solar") return { plant: mockPlant("NE=DEMO100") };
   if (key === "GET /me/solar/energy") return mockEnergy(search);
