@@ -12,13 +12,14 @@ import Typography from "@mui/material/Typography";
 import ChevronLeftRoundedIcon from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRoundedIcon from "@mui/icons-material/ChevronRightRounded";
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
-import { DesignPanel, InvoiceDialog, InvoiceRow, IssuePanel, StatementPanel, StatusBoard } from "@/components/finance";
+import { DesignPanel, FeeIssueDialog, InvoiceDialog, InvoiceRow, IssuePanel, StatementPanel, StatusBoard } from "@/components/finance";
 import { Page } from "@/components/shell";
 import { GRID, SegTabs, TopBar } from "@/components/topbar";
-import { ApiError, useApi, useDownload, useFetcher } from "@/lib/client/api";
+import { ApiError, useApi, useDownload } from "@/lib/client/api";
 import { handlesPayments, useApp, useMe } from "@/lib/client/app-state";
 import { type Invoice, money, type Overview, STATE_LABEL } from "@/lib/client/finance";
 import { T } from "@/lib/client/i18n";
@@ -53,7 +54,6 @@ function Tile({ label, value, tone }: { label: string; value: string; tone?: str
  */
 function FinanceScreen() {
   const me = useMe();
-  const fetcher = useFetcher();
   const download = useDownload();
   const { toast } = useApp();
   const admin = handlesPayments(me?.role);
@@ -66,7 +66,8 @@ function FinanceScreen() {
   // Opened from an alert: /finance?invoice=12.
   const params = useSearchParams();
   const [open, setOpen] = useState<number | null>(() => Number(params.get("invoice")) || null);
-  const [busyFee, setBusyFee] = useState<number | null>(null);
+  // The check before admin fees are issued: one project's (from its row), or every one still to invoice.
+  const [feeCheck, setFeeCheck] = useState<{ only: number | null } | null>(null);
 
 
   if (!me) return null;
@@ -108,19 +109,6 @@ function FinanceScreen() {
       toast(e instanceof ApiError ? e.message : T("Something went wrong. Please try again."), "bad");
     }
   };
-  const issueFee = async (projectId: number) => {
-    setBusyFee(projectId);
-    try {
-      const r = await fetcher<{ message: string }>("/finance/admin-fee", { method: "POST", json: { projectId } });
-      toast(r.message);
-      await reload();
-    } catch (e) {
-      toast(e instanceof ApiError ? e.message : T("Something went wrong. Please try again."), "bad");
-    } finally {
-      setBusyFee(null);
-    }
-  };
-
   return (
     <>
       <TopBar title={T("Payments")} tabs={<SegTabs label={T("Payments")} value={shownTab} onChange={setTab} options={tabs.map((v) => ({ value: v, label: labels[v] }))} />} />
@@ -158,7 +146,12 @@ function FinanceScreen() {
                 </Box>
               )}
               {!data && !error && <Skeleton variant="rounded" height={260} />}
-              {data && <StatusBoard data={data} show={board} onOpen={admin ? setOpen : undefined} onIssueFee={admin ? (id) => void issueFee(id) : undefined} busyFee={busyFee} />}
+              {admin && board === "fees" && data?.projects.some((p) => p.fee.state === "to_issue" && p.status !== "maintenance") && (
+                <Button variant="contained" startIcon={<ReceiptLongRoundedIcon />} onClick={() => setFeeCheck({ only: null })} sx={{ alignSelf: "flex-start" }} data-testid="issue-fees">
+                  {T("Issue admin fees")}
+                </Button>
+              )}
+              {data && <StatusBoard data={data} show={board} onOpen={admin ? setOpen : undefined} onIssueFee={admin ? (id) => setFeeCheck({ only: id }) : undefined} />}
             </Stack>
           )}
           {shownTab === "invoices" && (
@@ -210,6 +203,7 @@ function FinanceScreen() {
         </Page>
       </Box>
       {open !== null && admin && <InvoiceDialog id={open} admin onClose={() => setOpen(null)} onChanged={again} />}
+      {feeCheck && <FeeIssueDialog only={feeCheck.only} onClose={() => setFeeCheck(null)} onIssued={again} />}
     </>
   );
 }

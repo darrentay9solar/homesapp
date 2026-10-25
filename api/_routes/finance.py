@@ -5,6 +5,8 @@
                                          (Admin and superadmins see the amounts; a project manager only
                                          the statuses, for the projects and systems they run)
   GET  /finance/invoices                every invoice, newest first (Admin)
+  GET  /finance/admin-fees              the admin fees to issue: who each is billed to and for what (Admin)
+  POST /finance/admin-fees              issue them, one or many {projectIds} (Admin; a check first, on screen)
   POST /finance/admin-fee               issue a project's admin fee {projectId} (Admin)
   GET  /finance/run?month=              the month's invoices to issue: each system, its kWh and amount (Admin)
   POST /finance/run                     issue them {month, items: [{systemId, kwh}]} (Admin)
@@ -331,6 +333,66 @@ def admin_fee(body: FeeIn, acct: Account = Depends(admin_only)) -> dict[str, Any
                      bill_to=p["homeowner"], bill_address=_bill_address(p), bill_email=p["email"], amount=s["admin_fee"])  # fmt: skip
     _tell_issued(inv)
     return {"message": f"Issued {inv['number']} for {iv.money(inv['amount'])}.", "invoice": _out(inv)}
+
+
+def _fee_rows(project_ids: list[int] | None = None) -> list[dict[str, Any]]:
+    """Each project whose admin fee isn't invoiced yet (or those asked for): exactly what its invoice would say."""
+    s = settings()
+    issued_on = today()
+    taken = {r["project_id"] for r in fetch_all("select project_id from invoices where kind = 'admin_fee' and status <> 'void'")}
+    # Every one still to invoice leaves out drafts, and the imported systems' projects (already in maintenance).
+    where, params = ("where p.project_id = any(%s)", (project_ids,)) if project_ids else ("where p.status::text not in ('draft', 'maintenance')", ())
+    rows = []
+    for p in fetch_all(PROJECTS + f" {where} order by p.project_code nulls last, p.name", params):
+        if p["project_id"] in taken and not project_ids:
+            continue
+        problem = (
+            "Its admin fee is already invoiced." if p["project_id"] in taken
+            else "Add the homeowner to the project first." if not p["homeowner"]
+            else None
+        )  # fmt: skip
+        rows.append({
+            "projectId": p["project_id"], "code": p["project_code"], "name": p["name"], "status": p["status"],
+            "billTo": p["homeowner"], "billAddress": _bill_address(p), "billEmail": p["email"],
+            "amount": str(s["admin_fee"]), "issuedOn": issued_on.isoformat(), "dueOn": iv.due(issued_on, s["due_days"]).isoformat(),
+            "problem": problem,
+        })  # fmt: skip
+    return rows
+
+
+@router.get("/finance/admin-fees")
+def fees_preview(acct: Account = Depends(admin_only)) -> dict[str, Any]:
+    """The check before issuing: every admin fee still to issue, as each invoice would read."""
+    return {"rows": _fee_rows()}
+
+
+class FeesIn(BaseModel):
+    projectIds: list[int]
+
+
+@router.post("/finance/admin-fees")
+def fees_issue(body: FeesIn, acct: Account = Depends(admin_only)) -> dict[str, Any]:
+    """Issues the admin fees chosen after the check, all together: none if any can't be issued."""
+    ids = list(dict.fromkeys(body.projectIds))
+    if not ids:
+        raise HTTPException(400, "Choose the projects to invoice.")
+    rows = {r["projectId"]: r for r in _fee_rows(ids)}
+    if missing := [i for i in ids if i not in rows]:
+        raise HTTPException(404, f"No such project: {missing[0]}.")
+    if bad := [r for r in rows.values() if r["problem"]]:
+        raise HTTPException(400, f"{bad[0]['code'] or bad[0]['name']}: {bad[0]['problem']}")
+    s = settings()
+    made: list[dict[str, Any]] = []
+    with transaction(acct.uid) as cur:
+        for pid in ids:
+            p = fetch_one(PROJECTS + " where p.project_id = %s", (pid,))
+            assert p is not None
+            made.append(_issue(cur, acct, s, kind="admin_fee", project_id=pid, homeowner_id=p["homeowner_id"],
+                               bill_to=p["homeowner"], bill_address=_bill_address(p), bill_email=p["email"], amount=s["admin_fee"]))  # fmt: skip
+    for inv in made:
+        _tell_issued(inv)
+    total = sum((i["amount"] for i in made), Decimal(0))
+    return {"message": f"Issued {len(made)} admin fee invoices, {iv.money(total)} in all.", "count": len(made)}
 
 
 def _run_rows(month: date) -> list[dict[str, Any]]:

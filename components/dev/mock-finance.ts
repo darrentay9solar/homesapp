@@ -119,3 +119,16 @@ export function mockProjectPayments(amounts: boolean) {
   const strip = (i: Invoice) => (amounts ? i : mockInvoice(i.id, false));
   return { fee: strip(INVOICES[3]), feePaid: true, months: INVOICES.filter((i) => i.kind === "monthly" && i.billTo === "Jasmine Lee").map(strip) };
 }
+
+/** The check before admin fees go out: each still to invoice, as its invoice will read. */
+export function mockAdminFees() {
+  const issued = new Date().toISOString().slice(0, 10);
+  const due = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const row = { amount: "3500.00", issuedOn: issued, dueOn: due, problem: null };
+  return {
+    rows: [
+      { ...row, projectId: 107, code: "9SH0107", name: "Siglap Garden House", status: "pm_approved", billTo: "Priya Raman", billAddress: "22 Example Walk, Singapore 455001", billEmail: "priya@example.com" },
+      { ...row, projectId: 110, code: "9SH0110", name: "Tampines Corner Terrace", status: "signed", billTo: "Wei Ling Ong", billAddress: "5 Sample Close, Singapore 529001", billEmail: null },
+    ],
+  };
+}

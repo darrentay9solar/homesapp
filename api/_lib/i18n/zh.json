@@ -3411,5 +3411,19 @@
  "The tariff less network costs, before GST": "电费减去电网成本，未含消费税",
  "With GST": "含消费税",
  "From comes after To.": "开始日期晚于结束日期。",
- "That isn't a date for {what} (YYYY-MM-DD).": "{what} 不是有效日期（YYYY-MM-DD）。"
+ "That isn't a date for {what} (YYYY-MM-DD).": "{what} 不是有效日期（YYYY-MM-DD）。",
+ "All {n}": "全部 {n} 项",
+ "Check before they're issued": "开具前请核对",
+ "Each invoice as it will be sent. Untick any that shouldn't go yet.": "每张发票将按此内容发出。请取消勾选暂不发出的发票。",
+ "Every project's admin fee is invoiced already.": "所有项目的管理费都已开具发票。",
+ "Issue admin fees": "开具管理费发票",
+ "Issue invoices": "开具发票",
+ "Issued {n} admin fee invoices, {total} in all.": "已开具 {n} 张管理费发票，共 {total}。",
+ "None: they'll see it in the app": "无：他们会在应用中看到",
+ "{month}: each invoice as it will be sent.": "{month}：每张发票将按此内容发出。",
+ "Its admin fee is already invoiced.": "其管理费已开具发票。",
+ "Choose the projects to invoice.": "请选择要开具发票的项目。",
+ "No such project: {id}.": "没有此项目：{id}。",
+ "{n} to issue, in all": "待开具 {n} 张，合计",
+ "Check before issuing": "开具前核对"
 }

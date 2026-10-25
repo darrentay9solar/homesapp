@@ -304,7 +304,7 @@ function MonthCell({ cell, month, onOpen }: { cell: Cell; month: string; onOpen?
 }
 
 /** Each project's admin fee, or each system's twelve months: issued? paid? (Amounts only for Admin.) */
-export function StatusBoard({ data, show, onOpen, onIssueFee, busyFee }: { data: Overview; show: "fees" | "monthly"; onOpen?: (id: number) => void; onIssueFee?: (projectId: number) => void; busyFee?: number | null }) {
+export function StatusBoard({ data, show, onOpen, onIssueFee }: { data: Overview; show: "fees" | "monthly"; onOpen?: (id: number) => void; onIssueFee?: (projectId: number) => void }) {
   const legend: Cell["state"][] = ["paid", "waiting", "overdue", "to_issue"];
   const fees = data.projects.filter((p) => p.status !== "maintenance" || p.fee.state !== "to_issue");
   return (
@@ -343,7 +343,7 @@ export function StatusBoard({ data, show, onOpen, onIssueFee, busyFee }: { data:
                     <StateChip state={p.fee.state} small />
                   )}
                   {onIssueFee && p.fee.state === "to_issue" && (
-                    <Button size="small" variant="outlined" disabled={busyFee === p.id} onClick={() => onIssueFee(p.id)} data-testid="issue-fee">
+                    <Button size="small" variant="outlined" onClick={() => onIssueFee(p.id)} data-testid="issue-fee">
                       {T("Issue")}
                     </Button>
                   )}
@@ -385,6 +385,93 @@ export function StatusBoard({ data, show, onOpen, onIssueFee, busyFee }: { data:
   );
 }
 
+// ------------------------------------------------------------------ issuing admin fees
+
+type FeeRow = { projectId: number; code: string | null; name: string; status: string; billTo: string | null; billAddress: string; billEmail: string | null; amount: string; issuedOn: string; dueOn: string; problem: string | null };
+
+/**
+ * The check before admin fees go out: each invoice exactly as it will read (who it's billed to, where, the
+ * amount, issued and due), ticked to issue. One project (from its row) or every one still to invoice; issued
+ * together, or none if any can't be.
+ */
+export function FeeIssueDialog({ only, onClose, onIssued }: { only?: number | null; onClose: () => void; onIssued: () => void | Promise<void> }) {
+  const fetcher = useFetcher();
+  const { toast } = useApp();
+  const { lang } = useLang();
+  const { data, error } = useApi<{ rows: FeeRow[] }>("/finance/admin-fees");
+  const rows = (data?.rows ?? []).filter((r) => !only || r.projectId === only);
+  const [off, setOff] = useState<Set<number>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const chosen = rows.filter((r) => !r.problem && !off.has(r.projectId));
+  const total = chosen.reduce((n, r) => n + Number(r.amount), 0);
+  const issue = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const r = await fetcher<{ message: string }>("/finance/admin-fees", { method: "POST", json: { projectIds: chosen.map((x) => x.projectId) } });
+      toast(r.message);
+      await onIssued();
+      onClose();
+    } catch (e) {
+      setProblem(e instanceof ApiError ? e.message : T("Something went wrong. Please try again."));
+      setBusy(false);
+    }
+  };
+  const toggle = (id: number, on: boolean) =>
+    setOff((s) => {
+      const n = new Set(s);
+      if (on) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  return (
+    <MDialog title={T("Issue admin fees")} heading={T("Check before they're issued")} subtitle={T("Each invoice as it will be sent. Untick any that shouldn't go yet.")} onClose={onClose}>
+      <Stack sx={{ gap: 1.5 }} data-testid="fee-issue">
+        {error && <Alert severity="error">{error.message}</Alert>}
+        {!data && !error && <Skeleton variant="rounded" height={200} />}
+        {data && rows.length === 0 && <Alert severity="info">{T("Every project's admin fee is invoiced already.")}</Alert>}
+        {!only && rows.length > 1 && (
+          <FormControlLabel
+            control={<Checkbox checked={off.size === 0} indeterminate={off.size > 0 && off.size < rows.length} onChange={(e) => setOff(e.target.checked ? new Set() : new Set(rows.map((r) => r.projectId)))} />}
+            label={<Typography variant="body2">{T("All {n}", { n: String(rows.filter((r) => !r.problem).length) })}</Typography>}
+          />
+        )}
+        {rows.map((r) => (
+          <Card key={r.projectId} sx={{ p: 1.5, opacity: r.problem ? 0.7 : 1 }} data-testid="fee-preview">
+            <Stack direction="row" sx={{ gap: 1, alignItems: "flex-start" }}>
+              {!r.problem && <Checkbox checked={!off.has(r.projectId)} onChange={(e) => toggle(r.projectId, e.target.checked)} sx={{ mt: -0.75, ml: -0.75 }} slotProps={{ input: { "aria-label": T("Include") } }} />}
+              <Box sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
+                <Typography sx={{ fontWeight: 600 }}>{[r.code, r.name].filter(Boolean).join(" · ")}</Typography>
+                <Row label={T("Billed to")}>{r.billTo ?? "—"}</Row>
+                <Row label={T("Address")}>{r.billAddress || "—"}</Row>
+                <Row label={T("Email")}>{r.billEmail ?? T("None: they'll see it in the app")}</Row>
+                <Row label={T("Issued")}>{dateText(r.issuedOn, lang)}</Row>
+                <Row label={T("Due")}>{dateText(r.dueOn, lang)}</Row>
+                <Row label={T("Amount")}>{money(r.amount)}</Row>
+                {r.problem && (
+                  <Typography variant="body2" sx={{ color: "warning.main", mt: 0.5 }}>
+                    {TR(r.problem)}
+                  </Typography>
+                )}
+              </Box>
+            </Stack>
+          </Card>
+        ))}
+        {problem && <Alert severity="error">{problem}</Alert>}
+        {rows.length > 0 && (
+          <>
+            <Row label={T("{n} to issue, in all", { n: String(chosen.length) })}>{money(total.toFixed(2))}</Row>
+            <Button variant="contained" size="large" disabled={busy || chosen.length === 0} onClick={() => void issue()} data-testid="confirm-fees">
+              {T("Issue invoices")}
+            </Button>
+          </>
+        )}
+      </Stack>
+    </MDialog>
+  );
+}
+
 // ------------------------------------------------------------------ issuing a month
 
 export function IssuePanel({ onIssued }: { onIssued: () => void | Promise<void> }) {
@@ -408,6 +495,8 @@ export function IssuePanel({ onIssued }: { onIssued: () => void | Promise<void> 
     });
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // The check before they go: the list as it will be issued, then Issue.
+  const [checking, setChecking] = useState(false);
 
   const open = (data?.rows ?? []).filter((r) => !r.invoice && !r.problem);
   const chosen = open.filter((r) => !skip.has(r.systemId) && monthlyAmount(kwh[r.systemId] ?? "", r.rate ?? "") !== null);
@@ -420,6 +509,7 @@ export function IssuePanel({ onIssued }: { onIssued: () => void | Promise<void> 
       const r = await fetcher<{ message: string }>("/finance/run", { method: "POST", json: { month, items: chosen.map((x) => ({ systemId: x.systemId, kwh: kwh[x.systemId] })) } });
       toast(r.message);
       setTyped({});
+      setChecking(false);
       await reload();
       await onIssued();
     } catch (e) {
@@ -476,9 +566,30 @@ export function IssuePanel({ onIssued }: { onIssued: () => void | Promise<void> 
       })}
       {problem && <Alert severity="error">{problem}</Alert>}
       {open.length > 0 && (
-        <Button variant="contained" size="large" disabled={busy || chosen.length === 0} onClick={() => void issue()} data-testid="issue-month">
-          {T("Issue {n} invoices · {total}", { n: String(chosen.length), total: money(total.toFixed(2)) })}
-        </Button>
+        <>
+          <Row label={T("{n} to issue, in all", { n: String(chosen.length) })}>{money(total.toFixed(2))}</Row>
+          <Button variant="contained" size="large" disabled={busy || chosen.length === 0} onClick={() => setChecking(true)} data-testid="issue-month">
+            {T("Check before issuing")}
+          </Button>
+        </>
+      )}
+      {checking && (
+        <MDialog title={T("Issue invoices")} heading={T("Check before they're issued")} subtitle={T("{month}: each invoice as it will be sent.", { month: data ? monthName(data.month, lang) : "" })} onClose={() => setChecking(false)}>
+          <Stack sx={{ gap: 1 }} data-testid="month-check">
+            {chosen.map((r) => (
+              <Card key={r.systemId} sx={{ p: 1.5 }}>
+                <Typography sx={{ fontWeight: 600, overflowWrap: "anywhere" }}>{[r.code, r.name ?? r.address].filter(Boolean).join(" · ")}</Typography>
+                <Row label={T("Generated")}>{`${kwh[r.systemId]} kWh × S$${r.rate}`}</Row>
+                <Row label={T("Amount")}>{money(monthlyAmount(kwh[r.systemId], r.rate ?? "0"))}</Row>
+              </Card>
+            ))}
+            {problem && <Alert severity="error">{problem}</Alert>}
+            <Row label={T("{n} to issue, in all", { n: String(chosen.length) })}>{money(total.toFixed(2))}</Row>
+            <Button variant="contained" size="large" disabled={busy} onClick={() => void issue()} data-testid="confirm-month">
+              {T("Issue invoices")}
+            </Button>
+          </Stack>
+        </MDialog>
       )}
     </Stack>
   );

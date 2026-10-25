@@ -163,6 +163,20 @@ def test_who_issues_an_admin_fee(api, world, actor) -> None:
 
 
 @pytest.mark.parametrize("actor", spec.ACTORS)
+def test_who_checks_and_issues_admin_fees_together(api, world, actor) -> None:
+    pid = world.project("homeowner_approved", name=f"UAT fees {actor}")
+    r = api.get("/api/py/finance/admin-fees", headers=world.h(actor, pid))
+    assert r.status_code == code_for(actor), r.text
+    if r.status_code == 200:
+        row = next(x for x in r.json()["rows"] if x["projectId"] == pid)
+        assert (row["amount"], row["problem"]) == ("3500.00", None), "the check shows the invoice as it will be issued"
+    r = api.post("/api/py/finance/admin-fees", headers=world.h(actor, pid), json={"projectIds": [pid]})
+    assert r.status_code == code_for(actor), r.text
+    if r.status_code == 200:
+        assert api.post("/api/py/finance/admin-fees", headers=world.h(actor, pid), json={"projectIds": [pid]}).status_code == 400, "once"
+
+
+@pytest.mark.parametrize("actor", spec.ACTORS)
 def test_who_marks_an_invoice_paid_or_void(api, world, actor) -> None:
     pid = world.project("homeowner_approved", name=f"UAT pay {actor}")
     fee = api.post("/api/py/finance/admin-fee", headers=world.h("fin"), json={"projectId": pid}).json()["invoice"]

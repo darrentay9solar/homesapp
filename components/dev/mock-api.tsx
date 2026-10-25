@@ -2,7 +2,7 @@
 
 import { mockAnalytics } from "./mock-analytics";
 import { mockBusy, mockCalendar, mockContacts, mockMeeting, mockUpcoming } from "./mock-calendar";
-import { asFinance, MOCK_SETTINGS, mockFinanceMe, mockInvoice, mockInvoices, mockMyPayments, mockOverview, mockProjectPayments, mockRun } from "./mock-finance";
+import { asFinance, MOCK_SETTINGS, mockAdminFees, mockFinanceMe, mockInvoice, mockInvoices, mockMyPayments, mockOverview, mockProjectPayments, mockRun } from "./mock-finance";
 import { mockDeviceHistory, mockEnergy, mockPlant, mockPower, mockReport, mockSolarOverview, mockTariffs } from "./mock-solar";
 import { mockMaintenance, mockProjectMaintenance, mockRecord, mockSystem } from "./mock-maintenance";
 import { asHomeowner, mockAnswers, mockAssistantThread, mockInbox, mockSupportMe, mockSupportPeople, mockThread } from "./mock-support";
@@ -813,6 +813,7 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   if (key === "GET /finance/overview") return mockOverview(money);
   if (key === "GET /finance/invoices") return mockInvoices(search);
   if (key === "GET /finance/run") return mockRun(search.get("month") ?? "2026-09");
+  if (key === "GET /finance/admin-fees") return mockAdminFees();
   if (key === "GET /finance/settings") return MOCK_SETTINGS;
   if (key === "GET /payments") return mockMyPayments();
   const invoiceId = path.match(/^\/invoices\/(\d+)$/);

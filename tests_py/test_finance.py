@@ -256,3 +256,56 @@ def test_one_homeowner_one_project(client, fx) -> None:
         assert r.status_code == 409 and r.json()["field"] == "homeowner"
     finally:
         fx.conn.execute("delete from projects where project_id = %s", (first.json().get("id"),))
+
+
+# ------------------------------------------------------------------ admin fees: checked, then issued together
+
+
+@pytest.fixture
+def projects(fx):
+    """Projects whose admin fee is still to invoice (one homeowner without an account), and one already in maintenance."""
+    ho, ho2 = fx.user("homeowner", full_name="Fee Homeowner"), fx.user("homeowner", full_name="Fee Homeowner Two")
+    made = []
+    for name, owner, status in (("Fee One", ho["uid"], "awaiting_homeowner"), ("Fee Two", ho2["uid"], "awaiting_homeowner"),
+                                ("Fee Named", None, "awaiting_homeowner"), ("Fee Imported", None, "maintenance")):  # fmt: skip
+        made.append(fx.conn.execute(
+            "insert into projects (name, address, postal_code, homeowner_id, homeowner_name, homeowner_contact_no, installation_start_date, target_end_date, status) "
+            "values (%s, '9 Fee Road', '466002', %s, case when %s::int is null then 'Named Homeowner' end, '+65 9123 4567', current_date, current_date + 30, %s) returning project_id",
+            (f"{name} {uuid.uuid4().hex[:6]}", owner, owner, status),
+        ).fetchone()["project_id"])  # fmt: skip
+    yield {"one": made[0], "two": made[1], "named": made[2], "imported": made[3], "ho": ho}
+    fx.conn.execute("delete from invoices where project_id = any(%s)", (made,))
+    fx.conn.execute("delete from projects where project_id = any(%s)", (made,))
+
+
+def test_the_check_shows_each_admin_fee_as_it_will_read(client, fin, projects) -> None:
+    rows = {r["projectId"]: r for r in client.get("/api/py/finance/admin-fees", headers=h(fin)).json()["rows"]}
+    one = rows[projects["one"]]
+    assert (one["billTo"], one["billEmail"], one["problem"]) == ("Fee Homeowner", projects["ho"]["email"], None)
+    assert one["billAddress"].startswith("9 Fee Road") and Decimal(one["amount"]) > 0 and one["dueOn"] > one["issuedOn"]
+    named = rows[projects["named"]]
+    assert (named["billTo"], named["billEmail"], named["problem"]) == ("Named Homeowner", None, None), "billed by name; they see it in the app"
+    assert projects["imported"] not in rows, "imported systems' projects aren't billed an admin fee"
+
+
+def test_admin_fees_go_out_together_or_not_at_all(client, fx, fin, projects) -> None:
+    count = lambda: fx.conn.execute("select count(*) as n from invoices where project_id = any(%s)", ([projects["one"], projects["two"], projects["named"]],)).fetchone()["n"]  # noqa: E731
+    _fee(client, fin, projects["named"])
+    r = client.post("/api/py/finance/admin-fees", headers=h(fin), json={"projectIds": [projects["one"], projects["named"]]})
+    assert r.status_code == 400 and "already invoiced" in r.text and count() == 1, "one that can't be issued stops them all"
+    assert client.post("/api/py/finance/admin-fees", headers=h(fin), json={"projectIds": []}).status_code == 400
+    assert client.post("/api/py/finance/admin-fees", headers=h(fx.user("project_manager")), json={"projectIds": [projects["one"]]}).status_code == 403
+    r = client.post("/api/py/finance/admin-fees", headers=h(fin), json={"projectIds": [projects["one"], projects["two"]]})
+    assert r.status_code == 200 and r.json()["count"] == 2 and count() == 3, r.text
+    told = fx.conn.execute("select 1 from notifications where recipient_uid = %s and kind = 'invoice_issued'", (projects["ho"]["uid"],)).fetchall()
+    assert told
+    again = client.post("/api/py/finance/admin-fees", headers=h(fin), json={"projectIds": [projects["one"]]})
+    assert again.status_code == 400 and count() == 3
+    left = {r["projectId"] for r in client.get("/api/py/finance/admin-fees", headers=h(fin)).json()["rows"]}
+    assert projects["one"] not in left and projects["two"] not in left
+
+
+def _fee(client, fin, pid) -> dict:
+    r = client.post("/api/py/finance/admin-fee", headers=h(fin), json={"projectId": pid})
+    assert r.status_code == 200, r.text
+    return r.json()["invoice"]
