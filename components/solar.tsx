@@ -338,7 +338,7 @@ export function EnergyFlow({ p }: { p: PlantDetail }) {
         {T("Energy flow")}
       </Typography>
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "minmax(0, 1fr) minmax(40px, 0.5fr) minmax(0, 1fr) minmax(40px, 0.5fr) minmax(0, 1fr)" }, alignItems: "center", mt: 1 }}>
-        <FlowNode icon={<SolarPowerRoundedIcon />} label={T("Solar panels")} value={dc !== null ? power(dc) : p.live ? "—" : T("Not live")} sub={capacity(p.capacityKwp)} />
+        <FlowNode icon={<SolarPowerRoundedIcon />} label={T("Solar panels")} value={dc !== null ? power(dc) : p.live ? "—" : p.liveAt ? T("Updated {when}", { when: ago(p.liveAt) }) : T("Not live")} sub={capacity(p.capacityKwp)} />
         <FlowLine on={(dc ?? ac ?? 0) > 0} />
         <FlowNode
           icon={<ElectricalServicesRoundedIcon />}
@@ -424,7 +424,7 @@ export function PlantOverview({ p, base }: { p: PlantDetail; base: string }) {
       <EnergyFlow p={p} />
       <PowerPanel path={`${base}/power`} />
       <Box sx={{ ...TILE_GRID, mt: 1.5 }}>
-        <StatTile label="Power now" value={p.live ? power(p.currentKw) : "—"} icon={<BoltRoundedIcon />} sub={p.live ? undefined : T("Not live just now")} testId="ptile-power" />
+        <StatTile label="Power now" value={p.live ? power(p.currentKw) : "—"} icon={<BoltRoundedIcon />} sub={p.live ? undefined : p.liveAt ? T("Updated {when}", { when: ago(p.liveAt) }) : T("Not live just now")} testId="ptile-power" />
         <StatTile label="Yield today" value={energy(p.todayKwh)} icon={<WbSunnyRoundedIcon />} sub={p.todayRevenue !== null ? T("{amount} today", { amount: sgd(p.todayRevenue) }) : undefined} testId="ptile-today" />
         <StatTile label="Yield this month" value={energy(p.monthKwh)} icon={<SolarPowerRoundedIcon />} testId="ptile-month" />
         <StatTile label="Yield this year" value={energy(p.yearKwh)} icon={<SolarPowerRoundedIcon />} testId="ptile-year" />

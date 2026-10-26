@@ -54,6 +54,11 @@ PACE = {
     "years": timedelta(days=7),
     "invoices": timedelta(hours=24),
 }
+# The scheduler is meant to run every 15 minutes, but GitHub's free one runs hours apart. So opening
+# a FusionSolar page fetches the live figures itself once they're older than this: every plant's in
+# one call (FusionSolar limits how often each call is made), by whoever opens a page first.
+LIVE_ON_VIEW = timedelta(minutes=10)
+VIEW_TIMEOUT = 8  # seconds a call may take then, so a slow FusionSolar doesn't hold the page up
 
 
 # ------------------------------------------------------------------ small helpers
@@ -674,6 +679,42 @@ def check_output(now: datetime) -> dict[str, Any]:
     return {"judged": judged, "opened": opened, "cleared": cleared}
 
 
+def save_inverters_live(now: datetime, timeout: float = 30) -> int:
+    """Every inverter's readings now (and so each plant's power now)."""
+    n = 0
+    for kind in INVERTERS:
+        ids = [r["dev_id"] for r in fetch_all("select dev_id from solar_devices where type_id = %s", (kind,))]
+        if ids:
+            save_device_live(fs.device_live(ids, kind, timeout), now)
+            n += len(ids)
+    return n
+
+
+def refresh_on_view(now: datetime | None = None) -> bool:
+    """Someone's opening a FusionSolar page: if the live figures are older than LIVE_ON_VIEW, fetch them
+    now. Whether it did. Never raises; when FusionSolar is slow or says too often, the page shows the
+    figures it has, with when they're from."""
+    now = now or datetime.now(UTC)
+    if not fs.configured():
+        return False
+    # Claimed before asking, so people opening pages at the same moment ask FusionSolar once between them.
+    with transaction(None) as cur:
+        cur.execute(
+            "insert into solar_sync (key, value, at) values ('ran:live', %s, %s) on conflict (key) do update "
+            "set value = excluded.value, at = excluded.at where solar_sync.at <= %s returning key",
+            (json.dumps("on view"), now, now - LIVE_ON_VIEW),
+        )
+        if cur.fetchone() is None:
+            return False
+    try:
+        save_live(fs.live(codes(), VIEW_TIMEOUT), now)
+        save_inverters_live(now, VIEW_TIMEOUT)
+    except Exception as exc:  # FusionSolar away, slow or limiting: the page carries on with what it has
+        print(f"[solar] live on view: {type(exc).__name__}: {exc}")
+        return False
+    return True
+
+
 # ------------------------------------------------------------------ the job
 
 
@@ -702,18 +743,9 @@ def run(now: datetime | None = None) -> dict[str, Any]:
     step("devices", lambda: save_devices(fs.devices(codes())))
     step("live", lambda: save_live(fs.live(codes()), now))
 
-    def inverters() -> int:
-        n = 0
-        for kind in INVERTERS:
-            ids = [r["dev_id"] for r in fetch_all("select dev_id from solar_devices where type_id = %s", (kind,))]
-            if ids:
-                save_device_live(fs.device_live(ids, kind), now)
-                n += len(ids)
-        return n
-
     if _due("live", now) or "live" in out:
         try:
-            out["inverters"] = inverters()
+            out["inverters"] = save_inverters_live(now)
         except fs.FusionSolarError as exc:
             out["inverters"] = f"failed: {exc}"
     step("alarms", lambda: save_alarms(fs.alarms(codes(), now - timedelta(days=30), now), now))

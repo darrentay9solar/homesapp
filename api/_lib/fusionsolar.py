@@ -56,7 +56,9 @@ def _base() -> str:
     return url
 
 
-def _post(path: str, body: dict[str, Any], token: str | None) -> tuple[dict[str, Any], dict[str, str]]:
+def _post(
+    path: str, body: dict[str, Any], token: str | None, timeout: float = 30
+) -> tuple[dict[str, Any], dict[str, str]]:
     req = urllib.request.Request(
         _base() + path,
         data=json.dumps(body).encode(),
@@ -64,7 +66,7 @@ def _post(path: str, body: dict[str, Any], token: str | None) -> tuple[dict[str,
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=30) as res:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
             headers = {k.lower(): v for k, v in res.headers.items()}
             cookies = res.headers.get_all("Set-Cookie") or []
             for c in cookies:
@@ -107,13 +109,13 @@ def _token() -> str:
     return _login()
 
 
-def call(path: str, body: dict[str, Any]) -> Any:
-    """One Northbound call; returns its "data". Logs in (again) when needed."""
+def call(path: str, body: dict[str, Any], timeout: float = 30) -> Any:
+    """One Northbound call; returns its "data". Logs in (again) when needed. ``timeout`` is in seconds."""
     if not configured():
         raise NotConfiguredError("FusionSolar isn't connected yet (docs/solar.md).")
     token = _token()
     for attempt in (1, 2):
-        data, _ = _post(path, body, token)
+        data, _ = _post(path, body, token, timeout)
         if data.get("success"):
             return data.get("data")
         code = data.get("failCode")
@@ -146,11 +148,11 @@ def plants() -> list[dict[str, Any]]:
         page += 1
 
 
-def live(codes: list[str]) -> list[dict[str, Any]]:
+def live(codes: list[str], timeout: float = 30) -> list[dict[str, Any]]:
     """Each plant's figures now: today's, this month's and the total yield, income, health."""
     out: list[dict[str, Any]] = []
     for i in range(0, len(codes), 100):
-        out.extend(call("/thirdData/getStationRealKpi", {"stationCodes": ",".join(codes[i : i + 100])}) or [])
+        out.extend(call("/thirdData/getStationRealKpi", {"stationCodes": ",".join(codes[i : i + 100])}, timeout) or [])
     return out
 
 
@@ -178,11 +180,11 @@ def devices(codes: list[str]) -> list[dict[str, Any]]:
     return out
 
 
-def device_live(dev_ids: list[int], type_id: int) -> list[dict[str, Any]]:
+def device_live(dev_ids: list[int], type_id: int, timeout: float = 30) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for i in range(0, len(dev_ids), 100):
         body = {"devIds": ",".join(str(d) for d in dev_ids[i : i + 100]), "devTypeId": type_id}
-        out.extend(call("/thirdData/getDevRealKpi", body) or [])
+        out.extend(call("/thirdData/getDevRealKpi", body, timeout) or [])
     return out
 
 

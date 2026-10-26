@@ -186,9 +186,11 @@ class FakeFusionSolar:
         self.expire_once = False
         self.too_often: set[str] = set()
         self.kinds: list[int] = []
+        self.timeouts: list[float] = []
 
-    def post(self, path: str, body: dict[str, Any], token: str | None) -> tuple[dict[str, Any], dict[str, str]]:
+    def post(self, path: str, body: dict[str, Any], token: str | None, timeout: float = 30) -> tuple[dict[str, Any], dict[str, str]]:
         self.calls.append(path)
+        self.timeouts.append(timeout)
         if path == "/thirdData/login":
             self.logins += 1
             return {"success": True, "failCode": 0}, {"xsrf-token": f"tok{self.logins}"}
@@ -397,3 +399,50 @@ def test_power_every_5_minutes_adds_up_to_the_plants(fx, plant_codes) -> None:
     # Saving the same again changes nothing.
     sync.save_device_power(rows)
     assert sync.plant_power(noon.date()) == 0
+
+
+# ------------------------------------------------------------------ live when someone looks
+
+
+def _last_live(fx, at: datetime) -> None:
+    """The live figures were last fetched ``at``, for a plant (the fake's; it goes when the test ends)."""
+    fx.conn.execute("insert into solar_plants (station_code, name) values ('NE=FAKE1', 'Fake Plant') on conflict do nothing")
+    fx.conn.execute(
+        "insert into solar_sync (key, value, at) values ('ran:live', 'null', %s) on conflict (key) do update set at = excluded.at",
+        (at,),
+    )
+
+
+def test_opening_a_page_fetches_stale_figures_once(fx, fake) -> None:
+    _last_live(fx, NOW - timedelta(hours=4))  # the scheduler ran hours ago
+    assert sync.refresh_on_view(NOW) is True
+    asked = [t for c, t in zip(fake.calls, fake.timeouts, strict=True) if c == "/thirdData/getStationRealKpi"]
+    assert asked == [sync.VIEW_TIMEOUT], "asked once, and quickly, so the page isn't held up"
+    before = len(fake.calls)
+    assert sync.refresh_on_view(NOW + timedelta(minutes=1)) is False and len(fake.calls) == before, "the next viewer doesn't ask again"
+    assert sync.refresh_on_view(NOW + timedelta(minutes=11)) is True
+
+
+def test_fresh_figures_arent_fetched_again(fx, fake) -> None:
+    _last_live(fx, NOW - timedelta(minutes=3))
+    assert sync.refresh_on_view(NOW) is False and fake.calls == []
+
+
+def test_fusionsolar_refusing_never_breaks_the_page(fx, fake) -> None:
+    _last_live(fx, NOW - timedelta(hours=4))
+    fake.too_often.add("/thirdData/getStationRealKpi")
+    assert sync.refresh_on_view(NOW) is False
+
+
+def test_not_connected_never_asks(monkeypatch) -> None:
+    monkeypatch.setattr(fs, "configured", lambda: False)
+    assert sync.refresh_on_view(NOW) is False
+
+
+def test_the_fusionsolar_page_asks_when_its_figures_are_stale(client, fx, fake) -> None:
+    from conftest import bearer
+
+    _last_live(fx, datetime.now(UTC) - timedelta(hours=4))
+    pm = fx.user("project_manager")
+    assert client.get("/api/py/solar", headers=bearer(pm["clerk_user_id"])).status_code == 200
+    assert "/thirdData/getStationRealKpi" in fake.calls

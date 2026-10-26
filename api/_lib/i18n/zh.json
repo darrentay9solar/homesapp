@@ -3425,5 +3425,6 @@
  "Choose the projects to invoice.": "请选择要开具发票的项目。",
  "No such project: {id}.": "没有此项目：{id}。",
  "{n} to issue, in all": "待开具 {n} 张，合计",
- "Check before issuing": "开具前核对"
+ "Check before issuing": "开具前核对",
+ "Updated {when}": "更新于{when}"
 }

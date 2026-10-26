@@ -132,6 +132,7 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Solar: table", path: "/dev-preview/solar?tab=table", kind: "app" },
   { name: "Solar: map", path: "/dev-preview/solar?tab=map", kind: "app" },
   { name: "Solar: a plant", path: "/dev-preview/solar/NE%3DDEMO102", kind: "app" },
+  { name: "Solar: a plant not live", path: "/dev-preview/solar/NE%3DDEMO105", kind: "app" },
   { name: "Solar: a plant's energy", path: "/dev-preview/solar/NE%3DDEMO100?tab=energy", kind: "app" },
   { name: "Solar: a plant's devices", path: "/dev-preview/solar/NE%3DDEMO102?tab=devices", kind: "app" },
   { name: "Solar: an inverter's readings", path: "/dev-preview/solar/NE%3DDEMO102?tab=devices", kind: "app", click: "[data-testid=device-open]" },

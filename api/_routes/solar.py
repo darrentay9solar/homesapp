@@ -30,7 +30,7 @@ from _lib import address, weather
 from _lib import fusionsolar as fs
 from _lib.account import Account
 from _lib.db import fetch_all, fetch_one, transaction
-from _lib.solar_sync import INVERTERS, SG
+from _lib.solar_sync import INVERTERS, SG, refresh_on_view
 from _lib.web import active, role
 
 router = APIRouter()
@@ -124,6 +124,7 @@ def _row(r: dict[str, Any], now: datetime) -> dict[str, Any]:
 
 @router.get("/solar")
 def overview(acct: Account = Depends(staff)) -> dict[str, Any]:
+    refresh_on_view()
     where, params = _visible(acct)
     now = datetime.now(SG)
     plants = [_row(r, now) for r in fetch_all(f"select {PLANT_COLUMNS} {FROM} where {where} order by p.name", params)]
@@ -292,6 +293,8 @@ def _device(d: dict[str, Any], acct: Account, now: datetime) -> dict[str, Any]:
 
 @router.get("/solar/plants/{code}")
 def plant(code: str, acct: Account = Depends(staff)) -> dict[str, Any]:
+    _plant(code, acct)  # theirs to see, before FusionSolar's asked anything
+    refresh_on_view()
     return _detail(_plant(code, acct), acct)
 
 
@@ -680,6 +683,8 @@ def _own(acct: Account) -> dict[str, Any] | None:
 def my_solar(acct: Account = Depends(active)) -> dict[str, Any]:
     if acct.role != "homeowner":
         raise HTTPException(403, "Only a homeowner has a plant of their own.")
+    if _own(acct):
+        refresh_on_view()
     r = _own(acct)
     return {"plant": _detail(r, acct) if r else None}
 
