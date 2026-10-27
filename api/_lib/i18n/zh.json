@@ -3487,7 +3487,6 @@
  "Systems on FusionSolar": "FusionSolar 上的系统",
  "Systems running": "运行中的系统",
  "The average of {months} × 12. Lower than last month's while new systems are still being turned on.": "{months} 的平均值 × 12。在新系统陆续投运期间，会低于按上月计算的数字。",
- "The business in figures, to {date}. Each is worked out from the app's own records.": "截至 {date} 的业务数据，均根据应用自身的记录计算。",
  "The contract bills from one date to the next (e.g. 18 Jul to 17 Aug); the app bills calendar months.": "合同按日期区间计费（例如 7 月 18 日至 8 月 17 日）；应用按自然月计费。",
  "The same, for each of the last 12 finished months.": "同上，取过去 12 个完整月份。",
  "Their kWh comes only from the client list.": "它们的 kWh 只来自客户名单。",
@@ -3519,5 +3518,6 @@
  "{n} without a rate aren't counted.": "{n} 个没有费率的系统未计入。",
  "{n} years": "{n} 年",
  "{n} years left on average": "平均剩余 {n} 年",
- "{months} months left ÷ {systems} systems ÷ 12": "剩余 {months} 个月 ÷ {systems} 个系统 ÷ 12"
+ "{months} months left ÷ {systems} systems ÷ 12": "剩余 {months} 个月 ÷ {systems} 个系统 ÷ 12",
+ "Projected Analytics": "预测分析"
 }

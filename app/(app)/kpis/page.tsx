@@ -205,11 +205,10 @@ function KpiScreen() {
   return (
     <>
       <TopBar
-        title={T("KPIs")}
-        sub={k ? T("The business in figures, to {date}. Each is worked out from the app's own records.", { date: month(k.revenue.lastMonth.month) }) : undefined}
+        title={T("Projected Analytics")}
         tabs={
           <SegTabs
-            label={T("KPIs")}
+            label={T("Projected Analytics")}
             value={tab}
             onChange={setTab}
             options={[

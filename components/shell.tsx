@@ -89,7 +89,7 @@ const FILES: Tab = { href: "/files", label: "My Files", icon: <FolderOpenRounded
 const FUSIONSOLAR: Tab = { href: "/solar", label: "FusionSolar", icon: <WbSunnyRoundedIcon />, group: "info" };
 const SP_POWER: Tab = { href: "/sp-power", label: "SP Power", icon: <ElectricBoltRoundedIcon />, group: "info" };
 // The business in figures, amounts and all: superadmins and Admin.
-const KPIS: Tab = { href: "/kpis", label: "KPIs", icon: <QueryStatsRoundedIcon />, group: "info" };
+const KPIS: Tab = { href: "/kpis", label: "Projected Analytics", icon: <QueryStatsRoundedIcon />, group: "info" };
 
 // Within a group in this order; the groups go Homes, Info, Admin, and Account is always Admin's last.
 const OFFICE: Tab[] = [DASHBOARD, PROJECTS, MAINTENANCE, FINANCE, SUPPORT, FUSIONSOLAR, SP_POWER, PEOPLE, AUDIT, ALERTS, CALENDAR, FILES, ACCOUNT];

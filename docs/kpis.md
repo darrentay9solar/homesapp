@@ -1,6 +1,6 @@
-# KPIs: the business in figures
+# Projected Analytics: the business in figures
 
-The **KPIs** page (Info → KPIs; superadmins and Admin) works out each figure
+The **Projected Analytics** page (Info → Projected Analytics, at `/kpis`; superadmins and Admin) works out each figure
 from the app's own records and shows the calculation beside it, with the
 numbers put in. The API is `GET /api/py/kpis` (`api/_routes/kpis.py`); its
 tests are `tests_py/test_kpis.py` and `tests_py/uat/test_uat_kpis.py`.
