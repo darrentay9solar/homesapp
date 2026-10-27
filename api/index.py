@@ -31,6 +31,7 @@ from _routes import (
     finance,
     handover,
     imports,
+    kpis,
     location,
     maintenance,
     me,
@@ -76,6 +77,7 @@ app.include_router(profile.router, prefix=PREFIX)
 app.include_router(location.router, prefix=PREFIX)
 app.include_router(support.router, prefix=PREFIX)
 app.include_router(finance.router, prefix=PREFIX)
+app.include_router(kpis.router, prefix=PREFIX)
 app.include_router(demo.router, prefix=PREFIX)
 app.include_router(imports.router, prefix=PREFIX)
 app.include_router(solar.router, prefix=PREFIX)

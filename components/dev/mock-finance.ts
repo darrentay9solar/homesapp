@@ -132,3 +132,43 @@ export function mockAdminFees() {
     ],
   };
 }
+
+/** The business in figures, made up (a small fleet in its first year), for the KPI page's preview. */
+export function mockKpis() {
+  const months = ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"];
+  const systems = [2, 2, 3, 5, 8, 11, 15, 20, 26, 31, 36, 40];
+  const rows = months.map((month, i) => {
+    const kwh = systems[i] * 1480 + i * 37;
+    return { month, kwh, amount: Math.round(kwh * 0.2 * 100) / 100, systems: systems[i] };
+  });
+  const last = rows[rows.length - 1];
+  return {
+    asOf: "2026-10-27",
+    portfolio: { systems: 41, byPlan: [{ plan: "Example Plan", n: 41 }], kwp: 512.4, kwpKnown: 41, inProgress: 18, newIn12Months: 39, kwpNewIn12Months: 488.1, firstOn: "2025-10-06" },
+    generation: {
+      lifetimeKwh: 268_430,
+      lifetimePlants: 44,
+      lastMonth: last.month,
+      lastMonthKwh: last.kwh,
+      twelveMonthKwh: rows.reduce((a, r) => a + r.kwh, 0),
+      specificYield: { value: 3.84, kwh: last.kwh, kwp: 512.4, days: 30, systems: 40 },
+      vsEstimate: { pct: 96.2, actualKwh: 57_120, estimatedKwh: 59_376, systems: 39 },
+    },
+    revenue: {
+      lastMonth: { month: last.month, amount: last.amount, kwh: last.kwh, systems: 40, noRate: 0 },
+      runRate: { fromLastMonth: Math.round(last.amount * 12 * 100) / 100, fromThreeMonths: Math.round(((rows[9].amount + rows[10].amount + rows[11].amount) / 3) * 12 * 100) / 100, months: months.slice(-3) },
+      contracted: { amount: 845_200, systems: 40, monthsLeft: 3264, avgYearsLeft: 6.8, byActual: 31, byEstimate: 9, defaultYears: 8 },
+      adminFees: { fee: 3500, toCome: 18, toComeAmount: 63_000, issued: 23, paid: 21 },
+      invoices: { count: 214, monthly: 191, issued: 128_400.5, paid: 119_870.25, outstanding: 8530.25, overdue: 1210.4, overdueCount: 3, collectedPct: 93.4 },
+      months: rows,
+    },
+    customers: { avgRate: 0.2, spWithGst: 31.16, spFrom: "2026-10-01", cheaperPct: 35.8, saved12Months: 27_940, savedKwh: 251_380, co2Tons: 127.5, trees: 6967, co2PerKwh: 0.475, kgPerTree: 18.3 },
+    operations: { plants: 44, health: { normal: 41, faulty: 2, disconnected: 1, unknown: 0 }, normalPct: 93.2, alarms: { critical: 0, major: 2, minor: 1, warning: 2 }, monitored: 40, lastSync: new Date(Date.now() - 6 * 60_000).toISOString() },
+    checks: [
+      { key: "term_differs", n: 6, codes: ["9SH0103", "9SH0108", "9SH0112", "9SH0115", "9SH0121", "9SH0130"], years: 8 },
+      { key: "own_period", n: 2, codes: ["9SH0104", "9SH0119"] },
+      { key: "unlinked_plants", n: 4, codes: [] },
+      { key: "kwh_differs", n: 7, codes: [] },
+    ],
+  };
+}

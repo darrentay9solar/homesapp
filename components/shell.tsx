@@ -18,6 +18,7 @@ import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import PhonelinkLockRoundedIcon from "@mui/icons-material/PhonelinkLockRounded";
 import PlaceRoundedIcon from "@mui/icons-material/PlaceRounded";
 import PrivacyTipOutlinedIcon from "@mui/icons-material/PrivacyTipOutlined";
+import QueryStatsRoundedIcon from "@mui/icons-material/QueryStatsRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import WbSunnyRoundedIcon from "@mui/icons-material/WbSunnyRounded";
@@ -87,6 +88,8 @@ const FILES: Tab = { href: "/files", label: "My Files", icon: <FolderOpenRounded
 // FusionSolar's figures for every plant (a project manager: those they run); SP Group's tariff, for everyone.
 const FUSIONSOLAR: Tab = { href: "/solar", label: "FusionSolar", icon: <WbSunnyRoundedIcon />, group: "info" };
 const SP_POWER: Tab = { href: "/sp-power", label: "SP Power", icon: <ElectricBoltRoundedIcon />, group: "info" };
+// The business in figures, amounts and all: superadmins and Admin.
+const KPIS: Tab = { href: "/kpis", label: "KPIs", icon: <QueryStatsRoundedIcon />, group: "info" };
 
 // Within a group in this order; the groups go Homes, Info, Admin, and Account is always Admin's last.
 const OFFICE: Tab[] = [DASHBOARD, PROJECTS, MAINTENANCE, FINANCE, SUPPORT, FUSIONSOLAR, SP_POWER, PEOPLE, AUDIT, ALERTS, CALENDAR, FILES, ACCOUNT];
@@ -105,9 +108,9 @@ const TABS: Record<Role, Tab[]> = {
   // The dashboard is a manager's opening screen ("/" takes them there); the Projects list is /projects.
   project_manager: OFFICE,
   // Everything a project manager has, over every project.
-  superadmin: OFFICE,
+  superadmin: [...OFFICE.slice(0, OFFICE.indexOf(SP_POWER) + 1), KPIS, ...OFFICE.slice(OFFICE.indexOf(SP_POWER) + 1)],
   // Admin (finance): payments first; every project and system to look at, read-only.
-  finance: [FINANCE, PROJECTS, MAINTENANCE, SUPPORT, FUSIONSOLAR, SP_POWER, ALERTS, CALENDAR, FILES, ACCOUNT],
+  finance: [FINANCE, PROJECTS, MAINTENANCE, SUPPORT, FUSIONSOLAR, SP_POWER, KPIS, ALERTS, CALENDAR, FILES, ACCOUNT],
   contractor: [{ ...PROJECTS, href: "/" }, SUPPORT, SP_POWER, ALERTS, CALENDAR, { ...FILES, label: "Files" }, ACCOUNT],
   epc_team: [
     { ...PROJECTS, href: "/" },
