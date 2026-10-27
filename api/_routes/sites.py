@@ -451,10 +451,10 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
         "maintenance": maintenance_reminders.run(datetime.now(SG)),
         "meetings": meeting_reminders.run(datetime.now(SG)),
     }
-    # FusionSolar's figures: live every run, history at its own pace (_lib/solar_sync), within 18
+    # FusionSolar's figures: live every run, history at its own pace (_lib/solar_sync), within 10
     # seconds so the whole call answers before a scheduler stops waiting (cron-job.org: 30).
     try:
-        out["solar"] = solar_sync.run(budget=18)
+        out["solar"] = solar_sync.run(budget=10)
     except Exception as exc:  # FusionSolar being away mustn't stop the reminders
         print(f"[cron] solar sync failed: {exc}")
         out["solar"] = {"error": "failed; see the logs"}
