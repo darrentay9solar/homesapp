@@ -331,9 +331,9 @@ who hasn't agreed, and lets everyone download their own data. What only
 4. **Accept each provider's data processing agreement** in its dashboard:
    Clerk, Resend, Meta (WhatsApp), Twilio, Anthropic, Cloudflare, Neon,
    Vercel, Huawei (FusionSolar). This is what makes sending data outside Singapore lawful.
-5. **The laptop's backups**: `backups/` holds unencrypted copies of the
-   production database (real customers). Turn on BitLocker for that disk,
-   and delete restore points you no longer need.
+5. **The laptop's backups**: `backups/` holds encrypted copies of the
+   production database (since 22 Oct 2026). Keep BitLocker on for that disk
+   too, and delete restore points you no longer need.
 
 ## 10. Your own address (optional, but needed for step 9)
 

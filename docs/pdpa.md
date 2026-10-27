@@ -104,11 +104,11 @@ daily run may remove entries, and only those above.
   Until then it tells people to write through Help in the app.
 - **Read and approve the notice** at `/privacy`; it is a draft written from
   what the app actually does, not legal advice.
-- **Decide the retention rules** above; once decided, a nightly job can apply them.
+- **Retention**: decided (18 and 22 Oct 2026) and applied daily; see *Retention* above.
 - **Accept each provider's data processing agreement** (Clerk, Resend,
   Meta, Twilio, Anthropic, Cloudflare, Neon, Vercel, Huawei FusionSolar).
-- **Laptop backups**: the restore-point backups in `backups/` are not
-  encrypted and hold real customers' data. Keep that laptop's disk
-  encrypted (BitLocker) and delete restore points you no longer need.
+- **Laptop backups**: the restore points in `backups/` are encrypted (since
+  22 Oct 2026, backups.md). Keep that laptop's disk encrypted too (BitLocker)
+  and delete restore points you no longer need.
 - **Answer access and correction requests within 30 days**; most people can
   use *Download my data* themselves.
