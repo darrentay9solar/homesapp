@@ -1,14 +1,14 @@
 # Statement of Applicability (draft)
 
 ISO/IEC 27001:2022 Annex A, all 93 controls. For each: whether it applies,
-how it's met, and its state on **22 Oct 2026**.
+how it's met, and its state on **27 Oct 2026**.
 
 **State:** ✅ in place · 🟡 partly (what's left is named) · 🏢 for the
 company to do (outside the app) · ➖ not applicable (with the reason).
 
 "Suppliers" below means GetHomeApps' hosting and services: Vercel (app),
 Neon (database), Cloudflare R2 (files), Clerk (sign-in), GitHub (code, jobs),
-Resend, Meta, Twilio, Anthropic, Huawei FusionSolar, OneMap. Their data
+cron-job.org (the 15-minute schedule; sees no data), Resend, Meta, Twilio, Anthropic, Huawei FusionSolar, OneMap. Their data
 centres and staff are covered by their own certifications (ISO 27001 and/or
 SOC 2); keep their reports on file (A.5.19–5.23).
 
@@ -45,9 +45,9 @@ SOC 2); keep their reports on file (A.5.19–5.23).
 | 5.27 | Learning from incidents | Yes | Incident log with lessons (two recorded on 22 Oct 2026) | ✅ |
 | 5.28 | Collection of evidence | Yes | Audit log, exports log, Vercel and GitHub logs, Neon history; keep copies when an incident is opened | ✅ |
 | 5.29 | Information security during disruption | Yes | Security controls stay on during recovery (restores into dev first; no keys loosened) | ✅ |
-| 5.30 | ICT readiness for business continuity | Yes | Targets: back within 4 hours (RTO), at most 24 hours' data lost (RPO; usually minutes with Neon's restore). Nightly backups, restore tested | 🟡 yearly restore drill |
+| 5.30 | ICT readiness for business continuity | Yes | Targets: back within 4 hours (RTO), at most 24 hours' data lost (RPO; usually minutes with Neon's restore). Nightly backups; full restore tested on test data 12 Oct 2026; the latest production backup opened and every table's checksum matched, 27 Oct 2026 (records.md) | 🟡 yearly restore drill, incl. Neon point-in-time on a branch |
 | 5.31 | Legal and contractual requirements | Yes | PDPA (pdpa.md); Electronic Transactions Act for e-signatures; tax/records duties via retention rules | ✅ |
-| 5.32 | Intellectual property rights | Yes | Licensed fonts and open-source libraries only (licences in package.json/pyproject) | ✅ |
+| 5.32 | Intellectual property rights | Yes | Licensed fonts and open-source libraries only; licence report in licences.md (permissive, plus LGPL psycopg used unmodified) | ✅ · 🏢 IP assignment of the app to the company |
 | 5.33 | Protection of records | Yes | Append-only audit log; records kept 8 + 5 years then deleted automatically | ✅ |
 | 5.34 | Privacy and protection of PII | Yes | pdpa.md: consent, minimum data (NRIC last 4 only), download, retention, notice | 🟡 DPO named, DPAs accepted |
 | 5.35 | Independent review | Yes | Internal audit yearly (consultant), then the certification audits | 🏢 |
@@ -96,19 +96,19 @@ certifications). These controls apply to the office and the staff's devices.
 | 8.1 | User endpoint devices | Yes | Laptop rules (policies.md §7): encryption, lock, updates, antivirus, no shared logins | 🏢 |
 | 8.2 | Privileged access rights | Yes | Superadmins few and named; database owner and production keys only on the release laptop, never in Vercel; production changes need `--confirm` | ✅ |
 | 8.3 | Information access restriction | Yes | Database-enforced role and project rules; homeowners see only their own; files private | ✅ |
-| 8.4 | Access to source code | Yes | Private GitHub repository; two-step on GitHub accounts | 🟡 check GitHub two-step for everyone |
+| 8.4 | Access to source code | Yes | GitHub repository; no secrets or customer data in it or its history (scanned 27 Oct 2026); two-step on GitHub accounts | 🏢 the repository is **public**: move it to a company organisation and make it private · 🟡 check GitHub two-step for everyone |
 | 8.5 | Secure authentication | Yes | Clerk; two-step verification (authenticator app + backup codes), required for staff with `REQUIRE_STAFF_MFA=1`; idle sign-out; new-device email check | 🟡 turn on REQUIRE_STAFF_MFA |
 | 8.6 | Capacity management | Yes | Neon paid plan with spending cap; uptime check catches running out (as on 22 Oct 2026); tests moved off production's allowance | 🟡 separate test project |
 | 8.7 | Protection against malware | Yes | Uploads stored privately, never run; laptops with antivirus | 🟡 laptops |
-| 8.8 | Technical vulnerabilities | Yes | npm audit + pip-audit in CI; Dependabot weekly; fixed on 22 Oct 2026: 8 known issues in starlette/certifi | ✅ |
+| 8.8 | Technical vulnerabilities | Yes | npm audit + pip-audit in CI; Dependabot weekly; fixed on 22 Oct 2026: 8 known issues in starlette/certifi; on 27 Oct 2026: 3 Next.js advisories (2 critical) by moving to 16.4.1 | ✅ |
 | 8.9 | Configuration management | Yes | Settings in code (vercel.json, migrations, workflows) and reviewed like code; secrets listed by name in YOUR_STEPS | ✅ |
 | 8.10 | Information deletion | Yes | Automatic retention (pdpa.md); deleted files removed from storage | ✅ |
 | 8.11 | Data masking | Yes | NRIC: last 4 only; homeowners never see serial numbers or others' data; logs drop query strings | ✅ |
 | 8.12 | Data leakage prevention | Yes | Exports limited by role and recorded; no personal data in URLs; tests can't reach real services | ✅ |
-| 8.13 | Information backup | Yes | Nightly encrypted (30 days); encrypted restore point before each production change; Neon point-in-time restore | ✅ |
+| 8.13 | Information backup | Yes | Nightly encrypted (30 days); encrypted restore point before each production change; Neon point-in-time restore; backup integrity checked 27 Oct 2026 (records.md) | ✅ · 🟡 photos and documents (R2) not yet copied elsewhere |
 | 8.14 | Redundancy | Yes | Suppliers' managed redundancy (Neon storage, Vercel edge, R2) | ✅ |
 | 8.15 | Logging | Yes | Audit log (every change), exports log, sign-ins (Clerk), Vercel/GitHub logs | ✅ |
-| 8.16 | Monitoring activities | Yes | Uptime every 15 minutes; failed jobs emailed; CSP reports; alerts on failed backups | ✅ |
+| 8.16 | Monitoring activities | Yes | The live site and database called every 15 minutes by cron-job.org (failures emailed) and checked hourly by GitHub; failed jobs emailed; CSP reports; alerts on failed backups | ✅ |
 | 8.17 | Clock synchronisation | Yes | Suppliers' synchronised clocks; times stored in UTC with time zone | ✅ |
 | 8.18 | Privileged utility programs | Yes | Scripts that touch production need explicit flags (`--confirm`) and take a backup first | ✅ |
 | 8.19 | Software on operational systems | Yes | Only through releases (CI build); no manual changes on servers (there are none to log into) | ✅ |

@@ -21,6 +21,8 @@ consultant) should review them before the audit.
 | [incident-response.md](incident-response.md) | What to do when something goes wrong (outage, breach, lost laptop, leaked key), PDPA notification, the incident log | A.5.24–5.28, A.5.29–5.30, A.6.8 |
 | [../pdpa.md](../pdpa.md) | Personal data: what's held, where it goes, how long it's kept | A.5.34, A.8.10 |
 | [../backups.md](../backups.md) | Backups, restore points, restoring | A.8.13 |
+| [records.md](records.md) | Evidence the controls ran: backup and restore checks, fixes, incidents, access reviews, releases | 7.5, 9.1 |
+| [../licences.md](../licences.md) | The open-source licences of what the app ships | A.5.32 |
 | [../solar.md](../solar.md) | The FusionSolar connection (a supplier and a data flow) | A.5.19–5.22 |
 
 ## Scope (proposed)
