@@ -397,6 +397,49 @@ def power_on(day: datetime) -> int:
     return n
 
 
+POWER_TURN = "power:next"  # where the job's 5-minute power left off: {"day": "2026-10-27", "next": 3}
+
+
+def power_in_turn(day: datetime) -> int:
+    """The job's 5-minute power: FusionSolar takes 10 inverters a call and refuses calls that come too
+    often, so asking for every inverter at once was refused part-way and kept nothing. Instead each run
+    goes on from where the last left off, as many tens as FusionSolar will answer, keeping each as it
+    comes; when it says too often, the rest wait for the next run."""
+    on = day.astimezone(SG).date()
+    batches = []
+    for kind in INVERTERS:
+        ids = [
+            r["dev_id"]
+            for r in fetch_all("select dev_id from solar_devices where type_id = %s order by dev_id", (kind,))
+        ]
+        batches += [(kind, ids[i : i + 10]) for i in range(0, len(ids), 10)]
+    if not batches:
+        return 0
+    row = fetch_one("select value from solar_sync where key = %s", (POWER_TURN,))
+    mark = row["value"] if row and isinstance(row["value"], dict) else {}
+    start = int(mark.get("next", 0)) % len(batches) if mark.get("day") == on.isoformat() else 0
+    n, done, limited = 0, 0, False
+    for k in range(len(batches)):
+        kind, ids = batches[(start + k) % len(batches)]
+        try:
+            n += save_device_power(fs.five_minutes(ids, kind, day))
+        except fs.RateLimitedError:
+            limited = True
+            break
+        done += 1
+    with transaction(None) as cur:
+        cur.execute(
+            "insert into solar_sync (key, value, at) values (%s, %s, now()) "
+            "on conflict (key) do update set value = excluded.value, at = now()",
+            (POWER_TURN, json.dumps({"day": on.isoformat(), "next": (start + done) % len(batches)})),
+        )
+    if done:
+        plant_power(on)
+    elif limited:
+        raise fs.RateLimitedError("FusionSolar: 5-minute power was called too often; trying again on the next run.")
+    return n
+
+
 # ------------------------------------------------------------------ history
 
 
@@ -749,12 +792,9 @@ def run(now: datetime | None = None) -> dict[str, Any]:
         except fs.FusionSolarError as exc:
             out["inverters"] = f"failed: {exc}"
     step("alarms", lambda: save_alarms(fs.alarms(codes(), now - timedelta(days=30), now), now))
-    # Power through the day, for the charts; in the first half hour of a day, yesterday's last points too.
-    step(
-        "power",
-        lambda: (power_on(local - timedelta(hours=1)) if local.hour == 0 and local.minute < 30 else 0)
-        + power_on(local),
-    )
+    # Power through the day, for the charts, a few inverters a run; in the first hour of a day,
+    # yesterday's last points first.
+    step("power", lambda: power_in_turn(local - timedelta(hours=1) if local.hour == 0 else local))
     # With fresh power figures: is any plant making much less than similar plants are?
     if isinstance(out.get("power"), int):
         try:

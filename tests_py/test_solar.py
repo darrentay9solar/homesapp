@@ -187,6 +187,8 @@ class FakeFusionSolar:
         self.too_often: set[str] = set()
         self.kinds: list[int] = []
         self.timeouts: list[float] = []
+        self.five_left: int | None = None  # 5-minute power calls answered before "too often"
+        self.five_asked: list[str] = []
 
     def post(self, path: str, body: dict[str, Any], token: str | None, timeout: float = 30) -> tuple[dict[str, Any], dict[str, str]]:
         self.calls.append(path)
@@ -196,6 +198,11 @@ class FakeFusionSolar:
             return {"success": True, "failCode": 0}, {"xsrf-token": f"tok{self.logins}"}
         if path in self.too_often:
             return {"success": False, "failCode": 407}, {}
+        if path == "/thirdData/getDevFiveMinutes" and self.five_left is not None:
+            if self.five_left == 0:
+                return {"success": False, "failCode": 407}, {}
+            self.five_left -= 1
+            self.five_asked.append(body["devIds"])
         if self.expire_once:
             self.expire_once = False
             return {"success": False, "failCode": 305}, {}
@@ -446,3 +453,47 @@ def test_the_fusionsolar_page_asks_when_its_figures_are_stale(client, fx, fake) 
     pm = fx.user("project_manager")
     assert client.get("/api/py/solar", headers=bearer(pm["clerk_user_id"])).status_code == 200
     assert "/thirdData/getStationRealKpi" in fake.calls
+
+
+# ------------------------------------------------------------------ 5-minute power, a few tens a run
+
+
+@pytest.fixture
+def inverters(fx, fake):
+    """25 inverters on the fake's plant: three calls' worth (FusionSolar takes 10 a call)."""
+    fx.conn.execute("insert into solar_plants (station_code, name) values ('NE=FAKE1', 'Fake Plant') on conflict do nothing")
+    ids = list(range(880001, 880026))
+    for i in ids:
+        fx.conn.execute("insert into solar_devices (dev_id, station_code, type_id) values (%s, 'NE=FAKE1', 1) on conflict do nothing", (i,))
+    fx.conn.execute("delete from solar_sync where key = %s", (sync.POWER_TURN,))
+    yield ids
+    fx.conn.execute("delete from solar_sync where key = %s", (sync.POWER_TURN,))
+    fx.conn.execute("delete from solar_devices where dev_id = any(%s)", (ids,))
+
+
+def test_power_carries_on_where_fusionsolar_stopped_it(fake, inverters) -> None:
+    fake.five_left = 2  # FusionSolar answers two calls, then says too often
+    sync.power_in_turn(NOW)
+    assert len(fake.five_asked) == 2, "what it answered is kept"
+    fake.five_left = 2
+    sync.power_in_turn(NOW + timedelta(minutes=15))
+    third = fake.five_asked[2].split(",")
+    assert third[0] == "880021" and len(third) == 5, "the next run starts with the ones still waiting"
+    assert fake.five_asked[3].startswith("880001"), "then round again"
+
+
+def test_power_refused_from_the_start_is_put_off(fake, inverters) -> None:
+    fake.five_left = 0
+    with pytest.raises(fs.RateLimitedError):
+        sync.power_in_turn(NOW)
+    fake.five_left = 1
+    sync.power_in_turn(NOW + timedelta(minutes=15))
+    assert fake.five_asked[0].startswith("880001"), "nothing was skipped"
+
+
+def test_a_new_day_starts_from_the_first(fake, inverters) -> None:
+    fake.five_left = 1
+    sync.power_in_turn(NOW)
+    fake.five_left = 1
+    sync.power_in_turn(NOW + timedelta(days=1))
+    assert fake.five_asked == [fake.five_asked[0]] * 2
