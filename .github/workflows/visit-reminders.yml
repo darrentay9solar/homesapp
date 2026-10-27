@@ -1,7 +1,10 @@
 name: Visit reminders
 
-# Every 15 minutes, asks the live app to send any site-visit reminder that's
-# due: an hour before a visit, and an hour after one with no check-in.
+# Asks the live app to send any site-visit reminder that's due (an hour before a
+# visit, and an hour after one with no check-in) and to sync FusionSolar.
+# cron-job.org calls the same endpoint every 15 minutes (docs/YOUR_STEPS.md); GitHub's
+# scheduler runs hours late, so this is only the back-up, every two hours, which also
+# keeps a private repository inside GitHub's free minutes.
 # Vercel's free plan only runs scheduled jobs once a day, which is too rarely
 # for "an hour before", so GitHub's scheduler calls the endpoint instead. The
 # endpoint records each reminder, so calling it often never sends one twice.
@@ -13,7 +16,7 @@ name: Visit reminders
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "41 */2 * * *"
   workflow_dispatch:
 
 jobs:

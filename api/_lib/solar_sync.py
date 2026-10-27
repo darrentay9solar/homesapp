@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -400,11 +401,12 @@ def power_on(day: datetime) -> int:
 POWER_TURN = "power:next"  # where the job's 5-minute power left off: {"day": "2026-10-27", "next": 3}
 
 
-def power_in_turn(day: datetime) -> int:
+def power_in_turn(day: datetime, until: float | None = None) -> int:
     """The job's 5-minute power: FusionSolar takes 10 inverters a call and refuses calls that come too
     often, so asking for every inverter at once was refused part-way and kept nothing. Instead each run
     goes on from where the last left off, as many tens as FusionSolar will answer, keeping each as it
-    comes; when it says too often, the rest wait for the next run."""
+    comes; when it says too often (or the run's time is up, ``until`` on time.monotonic()), the rest
+    wait for the next run."""
     on = day.astimezone(SG).date()
     batches = []
     for kind in INVERTERS:
@@ -420,6 +422,8 @@ def power_in_turn(day: datetime) -> int:
     start = int(mark.get("next", 0)) % len(batches) if mark.get("day") == on.isoformat() else 0
     n, done, limited = 0, 0, False
     for k in range(len(batches)):
+        if until is not None and done and time.monotonic() > until:
+            break
         kind, ids = batches[(start + k) % len(batches)]
         try:
             n += save_device_power(fs.five_minutes(ids, kind, day))
@@ -761,15 +765,21 @@ def refresh_on_view(now: datetime | None = None) -> bool:
 # ------------------------------------------------------------------ the job
 
 
-def run(now: datetime | None = None) -> dict[str, Any]:
-    """One pass of whatever is due. Never raises: FusionSolar being away mustn't stop the other jobs."""
+def run(now: datetime | None = None, budget: float | None = None) -> dict[str, Any]:
+    """One pass of whatever is due. Never raises: FusionSolar being away mustn't stop the other jobs.
+    ``budget``: seconds this pass may take (a scheduler stops waiting at 30). What doesn't fit is still
+    due, so the next pass does it; the live figures and alarms come first."""
     now = now or datetime.now(UTC)
     if not fs.configured():
         return {"skipped": "FusionSolar isn't connected"}
     out: dict[str, Any] = {}
+    until = time.monotonic() + budget if budget is not None else None
 
     def step(kind: str, fn: Any) -> None:
         if not _due(kind, now):
+            return
+        if until is not None and time.monotonic() > until:
+            out.setdefault("next run", []).append(kind)
             return
         try:
             out[kind] = fn()
@@ -786,7 +796,7 @@ def run(now: datetime | None = None) -> dict[str, Any]:
     step("devices", lambda: save_devices(fs.devices(codes())))
     step("live", lambda: save_live(fs.live(codes()), now))
 
-    if _due("live", now) or "live" in out:
+    if (_due("live", now) or "live" in out) and (until is None or time.monotonic() <= until):
         try:
             out["inverters"] = save_inverters_live(now)
         except fs.FusionSolarError as exc:
@@ -794,7 +804,7 @@ def run(now: datetime | None = None) -> dict[str, Any]:
     step("alarms", lambda: save_alarms(fs.alarms(codes(), now - timedelta(days=30), now), now))
     # Power through the day, for the charts, a few inverters a run; in the first hour of a day,
     # yesterday's last points first.
-    step("power", lambda: power_in_turn(local - timedelta(hours=1) if local.hour == 0 else local))
+    step("power", lambda: power_in_turn(local - timedelta(hours=1) if local.hour == 0 else local, until))
     # With fresh power figures: is any plant making much less than similar plants are?
     if isinstance(out.get("power"), int):
         try:

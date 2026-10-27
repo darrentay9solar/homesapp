@@ -1,16 +1,18 @@
 name: Uptime
 
-# Every 15 minutes: is the live site up, and can it reach its database? (ISO 27001 A.8.16 monitoring,
+# Every hour: is the live site up, and can it reach its database? (ISO 27001 A.8.16 monitoring,
 # A.5.30 continuity.) It asks /api/py/health, which says only "ok" or "unavailable". A failed run is
 # emailed by GitHub to whoever last changed this schedule; the incident procedure is in
 # docs/iso/incident-response.md. On 22 Oct 2026 the database ran out of its plan's allowance and
-# nothing said so; this would have, within 15 minutes.
+# nothing said so; this would have. The 15-minute check is now cron-job.org's: its sync job calls the
+# live site (and so the database) every 15 minutes and emails when a call fails. This hourly one is
+# the second line, kept to an hour so a private repository stays inside GitHub's free minutes.
 #
 # Uses the APP_URL repository secret (the live site's address), as the 15-minute job does.
 
 on:
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
 
 permissions: {}

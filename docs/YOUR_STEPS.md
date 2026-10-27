@@ -180,6 +180,16 @@ To do it yourself:
 4. **Actions** → **Visit reminders** → **Run workflow** to try it. It should
    finish green.
 
+**27 Oct 2026: cron-job.org runs it now.** GitHub's free scheduler ran the
+"every 15 minutes" job only every 2 to 4½ hours, so the live figures went stale.
+The secret was replaced (in Vercel and GitHub) and a free cron-job.org job
+calls `POST https://homesapp-alpha.vercel.app/api/py/cron/visit-reminders` every
+15 minutes with the header `Authorization: Bearer <CRON_SECRET>`, and emails on
+a failed call. Each call answers within about 20 seconds (cron-job.org stops
+waiting at 30): FusionSolar's work that doesn't fit is done on the next call.
+GitHub's job stays as the back-up, every two hours. If the secret is ever
+changed, change it in all three places and redeploy Vercel.
+
 ## 6. Email (Resend)
 
 Used for invitations, approvals and decisions.

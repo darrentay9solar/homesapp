@@ -497,3 +497,10 @@ def test_a_new_day_starts_from_the_first(fake, inverters) -> None:
     fake.five_left = 1
     sync.power_in_turn(NOW + timedelta(days=1))
     assert fake.five_asked == [fake.five_asked[0]] * 2
+
+
+def test_a_run_out_of_time_leaves_the_rest_for_the_next(fake) -> None:
+    out = sync.run(NOW, budget=0)  # a scheduler that won't wait: nothing fits
+    assert "plants" in out["next run"] and "live" in out["next run"] and fake.calls == []
+    later = sync.run(NOW + timedelta(minutes=15))
+    assert "plants" in later and "live" in later, "still due, so done next time"
