@@ -1,6 +1,7 @@
 "use client";
 
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
+import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalServicesRounded";
 import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
 import SavingsRoundedIcon from "@mui/icons-material/SavingsRounded";
 import SolarPowerRoundedIcon from "@mui/icons-material/SolarPowerRounded";
@@ -90,6 +91,7 @@ function SolarScreen() {
                 <StatTile label="Power now" value={power(k.currentKw)} icon={<BoltRoundedIcon />} testId="stile-power" />
                 <StatTile label="Yield today" value={energy(k.todayKwh)} icon={<WbSunnyRoundedIcon />} testId="stile-today" />
                 <StatTile label="Revenue today" value={sgd(k.todayRevenue)} icon={<PaymentsRoundedIcon />} sub={T("At each contract's rate")} testId="stile-revenue" />
+                <StatTile label="Inverter rated power" value={k.inverterRatedKw != null ? power(k.inverterRatedKw) : "—"} icon={<ElectricalServicesRoundedIcon />} testId="stile-rated" />
                 <StatTile label="Total yield" value={energy(k.totalKwh)} icon={<SavingsRoundedIcon />} testId="stile-total" />
                 <StatTile label="Installed capacity" value={capacity(k.capacityKwp)} icon={<SolarPowerRoundedIcon />} sub={T(data.plants.length === 1 ? "1 plant" : "{n} plants", { n: data.plants.length })} testId="stile-capacity" />
               </Box>

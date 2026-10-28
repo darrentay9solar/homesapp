@@ -19,6 +19,7 @@ the system's contract (FusionSolar has no tariff set); without a linked system, 
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Literal
@@ -148,9 +149,18 @@ def overview(acct: Account = Depends(staff)) -> dict[str, Any]:
         "from solar_devices where station_code = any(%s) and type_id = any(%s)",
         (now - STALE, codes, list(INVERTERS)),
     )
+    # The inverters' rated power added up, as FusionSolar's home page shows it.
+    rated = [
+        rated_kw(d["model"])
+        for d in fetch_all(
+            "select model from solar_devices where station_code = any(%s) and type_id = any(%s)",
+            (codes, list(INVERTERS)),
+        )
+    ]
     return {
         "connection": _connection(),
         "kpis": {
+            "inverterRatedKw": round(sum(k for k in rated if k), 2) if any(rated) else None,
             "inputKw": _f(dc["kw"]) if dc and dc["kw"] is not None else None,
             "inverters": dc["inverters"] if dc else 0,
             "currentKw": total("currentKw"),
@@ -239,6 +249,12 @@ def _detail(r: dict[str, Any], acct: Account) -> dict[str, Any]:
 KINDS = {1: "inverter", 38: "inverter", 62: "dongle", 47: "meter", 39: "battery"}
 
 
+def rated_kw(model: str | None) -> float | None:
+    """An inverter's rated AC power from its model, as FusionSolar lists it: SUN2000-10K-LC0 is 10 kW."""
+    m = re.match(r"SUN2000-(\d+(?:\.\d+)?)K", model or "")
+    return float(m.group(1)) if m else None
+
+
 def _ms_iso(v: Any) -> str | None:
     return datetime.fromtimestamp(v / 1000, SG).isoformat() if isinstance(v, int | float) and v > 0 else None
 
@@ -259,6 +275,7 @@ def _device(d: dict[str, Any], acct: Account, now: datetime) -> dict[str, Any]:
         "kind": KINDS.get(d["type_id"], "device"),
         "serial": d["serial"] if acct.role != "homeowner" else None,
         "model": d["model"],
+        "ratedKw": rated_kw(d["model"]) if d["type_id"] in INVERTERS else None,
         "softwareVersion": d["software_version"],
         "optimizers": d["optimizers"] or None,
         "currentKw": _f(d["active_kw"]) if live else None,

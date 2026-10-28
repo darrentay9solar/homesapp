@@ -504,3 +504,13 @@ def test_a_run_out_of_time_leaves_the_rest_for_the_next(fake) -> None:
     assert "plants" in out["next run"] and "live" in out["next run"] and fake.calls == []
     later = sync.run(NOW + timedelta(minutes=15))
     assert "plants" in later and "live" in later, "still due, so done next time"
+
+
+@pytest.mark.parametrize(
+    ("model", "kw"),
+    [("SUN2000-10K-LC0", 10.0), ("SUN2000-5KTL-L1", 5.0), ("SUN2000-36KTL-M3", 36.0), ("SUN2000-8K-MAP0", 8.0), ("SDongleA-05", None), (None, None)],
+)
+def test_an_inverters_rated_power_is_read_from_its_model(model, kw) -> None:
+    from _routes.solar import rated_kw
+
+    assert rated_kw(model) == kw

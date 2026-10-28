@@ -1,5 +1,6 @@
 "use client";
 
+import BatteryChargingFullRoundedIcon from "@mui/icons-material/BatteryChargingFullRounded";
 import BoltRoundedIcon from "@mui/icons-material/BoltRounded";
 import CloudRoundedIcon from "@mui/icons-material/CloudRounded";
 import ElectricalServicesRoundedIcon from "@mui/icons-material/ElectricalServicesRounded";
@@ -48,6 +49,7 @@ import { SegTabs, TopBar } from "@/components/topbar";
 import { ago, dt2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp, useMe } from "@/lib/client/app-state";
+import { DESIGN } from "@/lib/client/design";
 import { locale, T, TR } from "@/lib/client/i18n";
 import { useTab } from "@/lib/client/tabs";
 import {
@@ -275,85 +277,119 @@ export function WeatherNow({ w }: { w: PlantWeather | null | undefined }) {
 }
 
 /** One stage of the energy flow: an icon, what it's doing now, and a line under it. */
-function FlowNode({ icon, label, value, sub }: { icon: ReactNode; label: string; value: string; sub?: string | null }) {
+type FlowKey = "pv" | "grid" | "load" | "battery";
+
+/** FusionSolar's colours for the energy flow: PV amber, the grid purple, the load blue, a battery green. */
+const flowColor = (t: Theme, k: FlowKey) => (t.palette.mode === "dark" ? DESIGN.flow[k].dark : DESIGN.flow[k].light);
+
+// Where each circle sits in the drawing (320 × 300 units), as FusionSolar lays it out: PV above, the
+// load below, the grid to the right and a battery (when there is one) to the left; the lines meet in
+// the middle.
+const SPOT: Record<FlowKey, { x: number; y: number }> = { pv: { x: 160, y: 58 }, grid: { x: 268, y: 150 }, load: { x: 160, y: 242 }, battery: { x: 52, y: 150 } };
+const RING = 40;
+const MID = { x: 160, y: 150 };
+
+/** A line from a circle's edge to the middle, or the other way: which way the dots run is which way power goes. */
+function flowPath(k: FlowKey, inward: boolean): string {
+  const s = SPOT[k];
+  const dx = Math.sign(MID.x - s.x);
+  const dy = Math.sign(MID.y - s.y);
+  const edge = { x: s.x + dx * RING, y: s.y + dy * RING };
+  return inward ? `M${edge.x} ${edge.y} L${MID.x} ${MID.y}` : `M${MID.x} ${MID.y} L${edge.x} ${edge.y}`;
+}
+
+function FlowCircle({ k, icon, label, value, known }: { k: FlowKey; icon: ReactNode; label: string; value: number | null; known: boolean }) {
+  const s = SPOT[k];
+  const labelAbove = k === "pv";
   return (
-    <Box sx={{ textAlign: "center", minWidth: 0, p: 1 }}>
-      <Box sx={(t) => ({ width: 48, height: 48, borderRadius: "50%", display: "grid", placeItems: "center", mx: "auto", color: "primary.main", bgcolor: alpha(t.palette.primary.main, 0.12) })}>{icon}</Box>
-      <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.75 }}>
+    <Box
+      data-testid={`flow-${k}`}
+      sx={{ position: "absolute", left: `${(s.x / 320) * 100}%`, top: `${(s.y / 300) * 100}%`, width: `${((2 * RING) / 320) * 100}%`, aspectRatio: "1", transform: "translate(-50%, -50%)" }}
+    >
+      <Typography variant="caption" sx={{ position: "absolute", left: "50%", transform: "translateX(-50%)", whiteSpace: "nowrap", color: "text.secondary", fontWeight: 600, ...(labelAbove ? { bottom: "calc(100% + 2px)" } : { top: "calc(100% + 2px)" }) }}>
         {label}
       </Typography>
-      <Typography sx={{ fontWeight: 700, fontSize: 18 }}>{value}</Typography>
-      {sub && (
-        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", overflowWrap: "anywhere" }}>
-          {sub}
-        </Typography>
-      )}
+      <Box
+        sx={(t) => ({
+          width: "100%",
+          height: "100%",
+          borderRadius: "50%",
+          border: `3px solid ${known ? flowColor(t, k) : t.palette.divider}`,
+          boxShadow: known ? `0 0 0 4px ${alpha(flowColor(t, k), 0.14)}` : "none",
+          bgcolor: alpha(known ? flowColor(t, k) : t.palette.text.secondary, 0.06),
+          display: "grid",
+          placeItems: "center",
+          alignContent: "center",
+          rowGap: "2px",
+          color: known ? flowColor(t, k) : "text.disabled",
+          "& svg": { fontSize: { xs: 18, sm: 22 } },
+          // On the narrowest screens (or the largest text) the circles are small: the figure stays, the icon goes.
+          "@container flow (max-width: 260px)": { "& svg": { display: "none" } },
+        })}
+      >
+        {icon}
+        <Typography sx={{ fontWeight: 700, fontSize: { xs: 12.5, sm: 14 }, lineHeight: 1.3, color: "text.primary" }}>{value === null ? "—" : value.toFixed(value >= 100 ? 0 : 2)}</Typography>
+        <Typography sx={{ fontSize: 10.5, lineHeight: 1.3, color: "text.secondary" }}>kW</Typography>
+      </Box>
     </Box>
   );
 }
 
-/** The line between two stages; it moves while power flows (not for those who'd rather it didn't). */
-function FlowLine({ on }: { on: boolean }) {
-  return (
-    <Box
-      aria-hidden
-      sx={(t) => ({
-        alignSelf: "center",
-        justifySelf: "center",
-        width: { xs: 3, sm: "100%" },
-        height: { xs: 28, sm: 3 },
-        minWidth: { sm: 40 },
-        borderRadius: 2,
-        backgroundImage: on
-          ? {
-              xs: `repeating-linear-gradient(180deg, ${t.palette.primary.main} 0 8px, transparent 8px 14px)`,
-              sm: `repeating-linear-gradient(90deg, ${t.palette.primary.main} 0 8px, transparent 8px 14px)`,
-            }
-          : `linear-gradient(${t.palette.divider}, ${t.palette.divider})`,
-        backgroundSize: { xs: "3px 14px", sm: "14px 3px" },
-        animation: on ? { xs: "gha-flow-down 0.9s linear infinite", sm: "gha-flow-right 0.9s linear infinite" } : "none",
-        "@keyframes gha-flow-right": { from: { backgroundPosition: "0 0" }, to: { backgroundPosition: "14px 0" } },
-        "@keyframes gha-flow-down": { from: { backgroundPosition: "0 0" }, to: { backgroundPosition: "0 14px" } },
-        "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-      })}
-    />
-  );
-}
-
 /**
- * Energy flow, as FusionSolar draws it, from what the plant reports: the panels' DC power into the
- * inverters, their AC output (and efficiency) out to the home and the grid. Without a meter, the split
- * between the home and the grid isn't known, so it's one stage; with one, today's split shows.
+ * Energy flow as FusionSolar draws it: PV, the grid, the load and a battery in a cross, the kW in each
+ * circle, the lines meeting in the middle; dots run along a line while power flows that way (as in the
+ * FusionSolar app), still for anyone who'd rather nothing moved. These plants have no meter, so
+ * FusionSolar can't tell how much the home used and how much went to the grid: those two show "—".
  */
 export function EnergyFlow({ p }: { p: PlantDetail }) {
-  const inverters = p.devices.filter((d) => d.kind === "inverter");
-  const inputs = inverters.map((d) => d.readings?.inputKw).filter((v): v is number => v !== null && v !== undefined);
-  const dc = p.live && inputs.length ? inputs.reduce((a, b) => a + b, 0) : null;
-  const ac = p.live ? p.currentKw : null;
-  const eff = dc && ac && dc > 0 ? Math.min(100, (ac / dc) * 100) : null;
+  const pv = p.live ? p.currentKw : null;
+  const battery = p.devices.some((d) => d.kind === "battery");
   const split = p.feedInTodayKwh != null || p.usedTodayKwh != null;
+  // What's known to be flowing now, and which way.
+  const flows: Array<{ k: FlowKey; inward: boolean }> = pv !== null && pv > 0 ? [{ k: "pv", inward: true }] : [];
+  const lines: FlowKey[] = ["pv", "grid", "load", ...(battery ? (["battery"] as FlowKey[]) : [])];
   return (
     <Card sx={{ p: 2, mt: 1.5 }} data-testid="energy-flow">
       <Typography component="h2" sx={{ fontWeight: 600, fontSize: 15.5 }}>
         {T("Energy flow")}
       </Typography>
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", sm: "minmax(0, 1fr) minmax(40px, 0.5fr) minmax(0, 1fr) minmax(40px, 0.5fr) minmax(0, 1fr)" }, alignItems: "center", mt: 1 }}>
-        <FlowNode icon={<SolarPowerRoundedIcon />} label={T("Solar panels")} value={dc !== null ? power(dc) : p.live ? "—" : p.liveAt ? T("Updated {when}", { when: ago(p.liveAt) }) : T("Not live")} sub={capacity(p.capacityKwp)} />
-        <FlowLine on={(dc ?? ac ?? 0) > 0} />
-        <FlowNode
-          icon={<ElectricalServicesRoundedIcon />}
-          label={T(inverters.length === 1 ? "Inverter" : "{n} inverters", { n: inverters.length })}
-          value={ac !== null ? power(ac) : "—"}
-          sub={eff !== null ? T("{pct}% efficient", { pct: eff.toFixed(1) }) : null}
-        />
-        <FlowLine on={(ac ?? 0) > 0} />
-        <FlowNode
-          icon={<HomeRoundedIcon />}
-          label={T("Home and grid")}
-          value={ac !== null ? power(ac) : "—"}
-          sub={split ? T("Today: {grid} to the grid, {home} used", { grid: energy(p.feedInTodayKwh ?? 0), home: energy(p.usedTodayKwh ?? 0) }) : T("No meter, so the split isn't measured")}
-        />
+      <Box
+        role="img"
+        aria-label={pv !== null ? T("PV {kw} kW now", { kw: pv.toFixed(2) }) : T("Not live")}
+        sx={{ position: "relative", width: "100%", maxWidth: 360, mx: "auto", mt: 2.5, mb: 2.5, aspectRatio: "320 / 300", containerType: "inline-size", containerName: "flow" }}
+      >
+        <Box component="svg" viewBox="0 0 320 300" aria-hidden sx={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}>
+          {lines.map((k) => (
+            <Box key={k} component="path" d={flowPath(k, true)} sx={(t) => ({ stroke: flows.some((f) => f.k === k) ? flowColor(t, k) : t.palette.divider, strokeWidth: 2.5, fill: "none" })} />
+          ))}
+          {flows.map((f) => (
+            <Box
+              key={`dots-${f.k}`}
+              component="path"
+              d={flowPath(f.k, f.inward)}
+              data-testid={`flow-dots-${f.k}`}
+              sx={(t) => ({
+                stroke: flowColor(t, f.k),
+                strokeWidth: 6,
+                strokeLinecap: "round",
+                strokeDasharray: "0.1 14",
+                fill: "none",
+                animation: "gha-flow-dots 0.9s linear infinite",
+                "@keyframes gha-flow-dots": { from: { strokeDashoffset: 14.1 }, to: { strokeDashoffset: 0 } },
+                "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+              })}
+            />
+          ))}
+          <Box component="circle" cx={MID.x} cy={MID.y} r={4} sx={(t) => ({ fill: pv ? flowColor(t, "pv") : t.palette.divider })} />
+        </Box>
+        <FlowCircle k="pv" icon={<SolarPowerRoundedIcon />} label={T("PV")} value={pv} known={pv !== null} />
+        <FlowCircle k="grid" icon={<ElectricalServicesRoundedIcon />} label={T("Grid")} value={null} known={false} />
+        <FlowCircle k="load" icon={<HomeRoundedIcon />} label={T("Load")} value={null} known={false} />
+        {battery && <FlowCircle k="battery" icon={<BatteryChargingFullRoundedIcon />} label={T("Battery")} value={null} known={false} />}
       </Box>
+      <Typography variant="body2" sx={{ color: "text.secondary", textAlign: "center", overflowWrap: "anywhere" }}>
+        {split ? T("Today: {grid} to the grid, {home} used", { grid: energy(p.feedInTodayKwh ?? 0), home: energy(p.usedTodayKwh ?? 0) }) : T("No meter, so the split between the home and the grid isn't measured.")}
+      </Typography>
     </Card>
   );
 }
@@ -445,6 +481,7 @@ export function PlantOverview({ p, base }: { p: PlantDetail; base: string }) {
           {p.address && <Fact label={T("Address")} value={p.address} />}
         </Card>
       </Box>
+      <EnergyPanel base={base} measure="revenue" periods={["month", "year", "lifetime"]} title="Revenue" testId="revenue-chart" />
       <WeatherAhead w={p.weather} />
     </>
   );
@@ -555,7 +592,12 @@ const PERIODS: Array<[EnergyPeriod, string]> = [
 ];
 
 /** Yield by hour of a day, day of a month, month of a year, or by year; with the revenue it earned. */
-export function EnergyPanel({ base, periods = ["day", "month", "year", "lifetime"], title = "Yield", testId = "energy-chart" }: { base: string; periods?: EnergyPeriod[]; title?: string; testId?: string }) {
+/**
+ * Yield by day, month, year or over the plant's life (or, with measure "revenue", what it earned, as
+ * FusionSolar's Revenue card shows it: each period's kWh at the contract's rate, else FusionSolar's own figure).
+ */
+export function EnergyPanel({ base, periods = ["day", "month", "year", "lifetime"], title = "Yield", testId = "energy-chart", measure = "kwh" }: { base: string; periods?: EnergyPeriod[]; title?: string; testId?: string; measure?: "kwh" | "revenue" }) {
+  const money = measure === "revenue";
   const [period, setPeriod] = useState<EnergyPeriod>(periods[0]);
   const [day, setDay] = useState(() => new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10));
   const { data, error } = useApi<EnergySeries>(`${base}/energy?period=${period}&date=${day}`);
@@ -577,7 +619,7 @@ export function EnergyPanel({ base, periods = ["day", "month", "year", "lifetime
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
-        {period !== "lifetime" && (
+        {period !== "lifetime" && !money && (
           <FormControlLabel
             control={<Switch size="small" checked={compare} onChange={(e) => setCompare(e.target.checked)} slotProps={{ input: { "data-testid": "energy-compare" } as object }} />}
             label={<Typography variant="body2">{T("Compare with a year before")}</Typography>}
@@ -598,7 +640,17 @@ export function EnergyPanel({ base, periods = ["day", "month", "year", "lifetime
       </Stack>
       {error && <Alert severity="error">{error.message}</Alert>}
       {!data && !error && <Skeleton variant="rounded" height={260} />}
-      {data && (
+      {data && money && (
+        <ChartCard
+          title={TR(title)}
+          sub={hasRevenue ? T("{amount} in all", { amount: sgd(data.points.reduce((n, p) => n + (p.revenue ?? 0), 0)) }) : T("No figures for this period yet")}
+          table={{ head: [T("Period"), T("Revenue (S$)")], rows: data.points.filter((p) => p.revenue !== null).map((p) => [p.label, p.revenue ?? 0]) }}
+          testId={testId}
+        >
+          <ColumnChart data={data.points.map((p) => ({ label: p.label, values: [p.revenue ?? 0] }))} series={["Revenue (S$)"]} height={240} />
+        </ChartCard>
+      )}
+      {data && !money && (
         <ChartCard
           title={TR(title)}
           sub={[

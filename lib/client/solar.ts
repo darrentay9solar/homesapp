@@ -39,7 +39,7 @@ export type Connection = { connected: boolean; lastSync: string | null };
 
 export type SolarOverview = {
   connection: Connection;
-  kpis: { currentKw: number | null; todayKwh: number | null; todayRevenue: number | null; totalKwh: number | null; capacityKwp: number | null };
+  kpis: { currentKw: number | null; todayKwh: number | null; todayRevenue: number | null; totalKwh: number | null; capacityKwp: number | null; inverterRatedKw?: number | null };
   health: Record<Health, number>;
   alarms: Record<AlarmLevel, number>;
   /** Every plant's lifetime yield as coal, CO2 and trees. */
@@ -87,6 +87,8 @@ export type PlantDevice = {
   kind: DeviceKind;
   serial: string | null;
   model: string | null;
+  /** An inverter's rated AC power, from its model (SUN2000-10K… is 10 kW). */
+  ratedKw?: number | null;
   softwareVersion: string | null;
   optimizers: number | null;
   currentKw: number | null;

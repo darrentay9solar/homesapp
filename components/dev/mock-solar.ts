@@ -61,7 +61,7 @@ export function mockSolarOverview(): SolarOverview {
   for (const p of PLANTS) health[p.health] += 1;
   return {
     connection: { connected: true, lastSync: iso(7) },
-    kpis: { currentKw: sum("currentKw"), todayKwh: sum("todayKwh"), todayRevenue: sum("todayRevenue"), totalKwh: sum("totalKwh"), capacityKwp: sum("capacityKwp") },
+    kpis: { currentKw: sum("currentKw"), todayKwh: sum("todayKwh"), todayRevenue: sum("todayRevenue"), totalKwh: sum("totalKwh"), capacityKwp: sum("capacityKwp"), inverterRatedKw: 80 },
     health,
     alarms: { critical: 0, major: 2, minor: 1, warning: 0 },
     benefits: { coalTons: Math.round(sum("totalKwh") * 0.4) / 1000, co2Tons: Math.round(sum("totalKwh") * 0.475) / 1000, trees: Math.round((sum("totalKwh") * 0.475) / 18.3) },
@@ -100,6 +100,7 @@ export function mockPlant(code: string): PlantDetail {
         kind: "inverter",
         serial: "HV2240012345",
         model: "SUN2000-10KTL-M1",
+        ratedKw: 10,
         softwareVersion: "V100R001C00SPC140",
         optimizers: null,
         currentKw: p.currentKw,

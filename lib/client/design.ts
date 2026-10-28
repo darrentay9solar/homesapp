@@ -101,6 +101,17 @@ export const DESIGN = {
   },
 
   /**
+   * The energy flow's circles and lines, in FusionSolar's colours: PV amber, the grid purple, the
+   * load blue, a battery green; each a step lighter on the dark theme.
+   */
+  flow: {
+    pv: { light: "#C98A0B", dark: "#F2B544" },
+    grid: { light: "#7C5CD6", dark: "#A78BFA" },
+    load: { light: "#2A78D6", dark: "#3987E5" },
+    battery: { light: "#0A9A63", dark: "#16C47F" },
+  },
+
+  /**
    * A project with an issue (late, a crew no-show): the whole card turns red,
    * not just its border, so it can't be missed in a list.
    */
