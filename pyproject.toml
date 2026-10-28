@@ -10,8 +10,8 @@ requires-python = ">=3.12"
 # Declared here rather than in requirements.txt so there is one source of
 # truth. uv reads this; so does `pip install .`.
 dependencies = [
-    "psycopg[binary]==3.2.3",
-    "fastapi==0.159.1",
+    "psycopg[binary]==3.3.6",
+    "fastapi==0.161.1",
     # Pinned for its security fixes (pip-audit in CI); FastAPI itself allows older ones.
     "starlette==1.9.0",
     "pyjwt[crypto]==2.15.1",
