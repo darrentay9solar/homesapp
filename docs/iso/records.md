@@ -15,6 +15,8 @@ customer's name, address or figures.
 | 25–27 Oct 2026 | Nightly encrypted backups (GitHub Actions) | Succeeded each night |
 | 27 Oct 2026 | The 25 Oct production backup opened and every table's checksum recomputed against its manifest (nothing restored) | 52 tables, 93,602 rows: all match |
 | 27 Oct 2026 | Restore point before the release | 52 tables, 105,734 rows |
+| 27 Oct 2026 | Restore point before the release | 52 tables, 120,996 rows |
+| 28 Oct 2026 | Restore point before the release | 52 tables, 157,539 rows |
 
 Next: a point-in-time restore of production into a new Neon branch, checked
 on the staging site (yearly; first one due before the audit).
@@ -25,6 +27,7 @@ on the staging site (yearly; first one due before the audit).
 |---|---|---|
 | 22 Oct 2026 | 8 known issues in starlette and certifi | Upgraded; pip-audit clean |
 | 27 Oct 2026 | 3 Next.js advisories: remote code execution in `use cache` and in image optimisation (critical), denial of service in server actions (high) | Next.js 16.4.1, released 27 Oct 2026; `npm audit` of what the site runs: none |
+| 28 Oct 2026 | Dependency updates: Next.js 16.4.3, React 19.3.1, MUI 9.5, Clerk 7.9.20, psycopg 3.3.6, FastAPI 0.161.1 (Dependabot) | Released 28 Oct 2026 after the full test suite and UAT; pip-audit clean |
 | 27 Oct 2026 | Whole repository history scanned for keys and passwords (database URLs, Clerk, Anthropic, Resend, AWS keys, private keys) | None found; the only matches were documentation and AWS's published example key in a test |
 
 ## Incidents (A.5.24–5.28)
@@ -53,3 +56,5 @@ restore point before any database change. Commit = the code that went live.
 | 24 Oct 2026 | df25735 | SP Power page; navigation groups |
 | 25 Oct 2026 | 6009542 | SP Power history and averages; invoice check before issuing; Chinese wording |
 | 27 Oct 2026 | 0f4ecf9 | Next.js security fix; scheduled job time limit; power charts; live figures on view; KPIs page |
+| 27 Oct 2026 | 28364d1 | Projected Analytics (renamed); 10-second sync budget; ISO records and licence report |
+| 28 Oct 2026 | 377febe | FusionSolar energy flow, revenue and rated power as FusionSolar shows them; dependency updates. Full UAT: 180,565 passed (a first run on 28 Oct failed 1,743 tests while the test database was slow; those passed on their own and in the full rerun) |
