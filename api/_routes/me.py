@@ -77,6 +77,7 @@ def me(acct: Account = Depends(account)) -> dict[str, Any]:
         out["settings"] = {
             "language": u.get("language") or "en",
             "notificationPrefs": prefs.normalise(u.get("notification_prefs")),
+            "showWarnings": bool(u.get("show_warnings")),
             "mobileVerifiedAt": u["mobile_verified_at"].isoformat() if u.get("mobile_verified_at") else None,
             "passwordChangedAt": u["password_changed_at"].isoformat() if u.get("password_changed_at") else None,
             # Staff who must sign in with two-step verification and this sign-in didn't (web.two_step_missing).

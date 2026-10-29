@@ -63,6 +63,8 @@ export type Me = {
   settings?: {
     language: Lang;
     notificationPrefs: Prefs;
+    /** Projects' and maintenance records' warnings on screen (lib/client/warnings.tsx). */
+    showWarnings?: boolean;
     /** Sharing this person's location with project managers (their own choice). */
     shareLocation?: boolean;
     mobileVerifiedAt: string | null;

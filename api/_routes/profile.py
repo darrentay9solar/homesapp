@@ -1,6 +1,6 @@
 """Your settings and profile pictures.
 
-  PATCH  /me/settings                       {language?, notificationPrefs?}
+  PATCH  /me/settings                       {language?, notificationPrefs?, showWarnings?}
   POST   /me/avatar/upload-link             a link to upload your picture
   POST   /me/avatar                         {key}: use what was uploaded
   DELETE /me/avatar                         remove your picture
@@ -39,6 +39,8 @@ router = APIRouter()
 class SettingsIn(BaseModel):
     language: str | None = None
     notificationPrefs: dict[str, Any] | None = None
+    # Projects' and maintenance records' warnings on screen (the switch on those pages; migration 0060).
+    showWarnings: bool | None = None
 
 
 @router.patch("/me/settings")
@@ -53,6 +55,8 @@ def save_settings(body: SettingsIn, acct: Account = Depends(active)) -> dict[str
             sets["notification_prefs"] = prefs.normalise(body.notificationPrefs)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+    if body.showWarnings is not None:
+        sets["show_warnings"] = body.showWarnings
     if not sets:
         raise HTTPException(400, "Nothing to save.")
     vals = {k: (Jsonb(v) if k == "notification_prefs" else v) for k, v in sets.items()}
@@ -64,6 +68,8 @@ def save_settings(body: SettingsIn, acct: Account = Depends(active)) -> dict[str
         out["notificationPrefs"] = sets["notification_prefs"]
     if "language" in sets:
         out["language"] = sets["language"]
+    if "show_warnings" in sets:
+        out["showWarnings"] = sets["show_warnings"]
     return out
 
 

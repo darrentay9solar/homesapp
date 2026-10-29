@@ -421,6 +421,13 @@
       "when": 1792330000000,
       "tag": "0059_tariffs_reports_acks",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792340000000,
+      "tag": "0060_show_warnings",
+      "breakpoints": true
     }
   ]
 }
