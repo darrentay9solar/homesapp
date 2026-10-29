@@ -3525,5 +3525,8 @@
  "PV {kw} kW now": "光伏当前 {kw} kW",
  "No meter, so the split between the home and the grid isn't measured.": "没有电表，因此无法测量家庭用电和上网电量的比例。",
  "Inverter rated power": "逆变器额定功率",
- "Show warnings": "显示警告"
+ "Show warnings": "显示警告",
+ "This part of the app isn't used here.": "此处不使用应用的这一部分。",
+ "HQ Staff": "总部员工",
+ "EPC Project Manager": "EPC 项目经理"
 }

@@ -29,6 +29,7 @@ from zoneinfo import ZoneInfo
 from _lib import demo, maintenance_jobs
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one
+from _lib.edition import BRAND
 from _lib.i18n import tr
 
 SG = ZoneInfo("Asia/Singapore")
@@ -189,7 +190,7 @@ def _instructions(rows: list[dict[str, Any]]) -> str:
         for r in rows
     )
     return (
-        "You are the support assistant in GetHomeApps, the app 9 Solar Home (a Singapore rooftop solar company) "
+        f"You are the support assistant in {BRAND['app']}, the app {BRAND['company']} (a Singapore rooftop solar company) "
         "uses with its homeowners. You talk with one homeowner about their own installation.\n\n"
         "How to answer:\n"
         "- Use only the ANSWERS below and the facts about this homeowner's project. Never guess dates, costs, "

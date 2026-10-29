@@ -17,6 +17,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from _lib import pdfdoc
+from _lib.edition import BRAND
 
 CENT = Decimal("0.01")
 
@@ -209,7 +210,7 @@ def pdf(inv: dict[str, Any], settings: dict[str, Any], *, logo: bytes | None = N
         drawn = pg.picture(logo, left, 784, 120, 46)
         if drawn:
             x = left + drawn[0] + 14
-    pg.text(x, 812, settings.get("company_name") or "9 Solar Home", 15, bold=True, rgb=(1, 1, 1))
+    pg.text(x, 812, settings.get("company_name") or BRAND["company"], 15, bold=True, rgb=(1, 1, 1))
     sub = [settings.get("company_address") or ""]
     if show.get("uen", True) and settings.get("company_uen"):
         sub.append(f"UEN {settings['company_uen']}")

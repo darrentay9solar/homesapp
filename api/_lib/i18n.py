@@ -17,6 +17,8 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
+from _lib.edition import rebrand
+
 LANGS = ("en", "zh")
 # Placeholders that are always one word (a count, a number): they never swallow
 # the rest of a line, so "Milestone {n}" can't match "Milestone 2 complete · …".
@@ -64,7 +66,12 @@ def _table() -> tuple[dict[str, str], list[tuple[re.Pattern[str], str, list[str]
 
 
 def tr(text: str | None, lang: str | None) -> str | None:
-    """``text`` in ``lang``; unchanged for English, or when there's no translation."""
+    """``text`` in ``lang`` (unchanged for English, or when there's no translation), as this edition
+    names things (_lib/edition)."""
+    return rebrand(_tr(text, lang))
+
+
+def _tr(text: str | None, lang: str | None) -> str | None:
     if not text or lang != "zh":
         return text
     exact, patterns = _table()
@@ -75,6 +82,6 @@ def tr(text: str | None, lang: str | None) -> str | None:
         if m:
             out = zh
             for n in names:
-                out = out.replace("{" + n + "}", tr(m.group(n), lang) or "")
+                out = out.replace("{" + n + "}", _tr(m.group(n), lang) or "")
             return out
     return text

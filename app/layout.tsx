@@ -5,6 +5,7 @@ import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { Fraunces, Poppins } from "next/font/google";
 import { cookies } from "next/headers";
 
+import { BRAND } from "@/lib/client/edition";
 import { Providers } from "@/components/providers";
 
 import { THEME_BOOT_SCRIPT } from "@/lib/client/theme";
@@ -31,10 +32,10 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "GetHomeApps — 9 Solar Home",
+  title: `${BRAND.app} — ${BRAND.company}`,
   description: "Rooftop solar, tracked to the day. Milestones, site visits, documents and handover.",
   manifest: "/manifest.webmanifest",
-  applicationName: "GetHomeApps",
+  applicationName: BRAND.app,
   icons: {
     icon: [{ url: "/favicon-32.png", sizes: "32x32", type: "image/png" }],
     // iOS reads this rather than the manifest's icon list.
@@ -43,7 +44,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     // iOS only honours standalone display through these tags, not the manifest.
     capable: true,
-    title: "GetHomeApps",
+    title: BRAND.app,
     // Paint under the status bar; the safe-area insets account for it.
     statusBarStyle: "black-translucent",
   },

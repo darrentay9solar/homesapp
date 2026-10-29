@@ -59,6 +59,7 @@ import { LocationRow, PeopleMap } from "@/components/people-map";
 import { Page } from "@/components/shell";
 import { EdgeCard, ExportButton, GRID, HERO_BG, SearchBox, SegTabs, TopBar, gradText, roleColor } from "@/components/topbar";
 import { ago, d2s, initials } from "@/components/ui";
+import { BRAND, FEATURES } from "@/lib/client/edition";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { canManage, grantableRoles, isAdmin, type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
@@ -163,7 +164,7 @@ type Data = { me: number; users: Person[]; groups: Group[]; requests: Request[];
 
 const CREW: Role[] = ["contractor", "epc_team"];
 type Section = "people" | "groups" | "requests" | "map";
-const SECTIONS: Section[] = ["people", "groups", "requests", "map"];
+const SECTIONS: Section[] = (["people", "groups", "requests", "map"] as Section[]).filter((s) => FEATURES.checkIn || s !== "map");
 const ROLE_FILTERS: Array<[Role | "all", string]> = [
   ["all", "All"],
   ["homeowner", "Homeowners"],
@@ -248,9 +249,9 @@ export default function PeoplePage() {
         title={T("People")}
         action={
           <>
-          {isAdmin(me?.role) && <ExportButton path="/export/people.xlsx" name="GetHomeApps people.xlsx" label="Download everyone (Excel)" testId="export-people" />}
+          {isAdmin(me?.role) && <ExportButton path="/export/people.xlsx" name={`${BRAND.app} people.xlsx`} label="Download everyone (Excel)" testId="export-people" />}
           {/* Each quarter: who can see what, signed off (docs/iso/access-control.md). */}
-          {me?.role === "superadmin" && <ExportButton path="/export/access-review.xlsx" name="GetHomeApps access review.xlsx" label="Access review (Excel)" testId="export-access-review" icon={<VerifiedUserRoundedIcon />} />}
+          {me?.role === "superadmin" && <ExportButton path="/export/access-review.xlsx" name={`${BRAND.app} access review.xlsx`} label="Access review (Excel)" testId="export-access-review" icon={<VerifiedUserRoundedIcon />} />}
           <Button
             onClick={() => setDialog({ kind: "newuser" })}
             startIcon={<PersonAddAlt1RoundedIcon />}
@@ -282,7 +283,7 @@ export default function PeoplePage() {
               { value: "people", label: "People", count: data ? searchable.length : undefined },
               { value: "groups", label: "Groups", count: data?.groups.length },
               { value: "requests", label: "Requests", count: data ? waiting : undefined },
-              { value: "map", label: "Map" },
+              ...(FEATURES.checkIn ? [{ value: "map" as const, label: "Map" }] : []),
             ]}
           />
         }

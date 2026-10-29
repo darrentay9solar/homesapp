@@ -12,6 +12,7 @@ import Typography from "@mui/material/Typography";
 
 import { useApi, useFetcher } from "./api";
 import { demoAs, leaveDemo } from "./demo";
+import { FEATURES } from "./edition";
 import { currentLang, type Lang, T, takeLangPicked, translate, useLang } from "./i18n";
 import type { Prefs } from "./prefs";
 import { registration, setBadge } from "./push";
@@ -25,7 +26,7 @@ export function isAdmin(role: Role | null | undefined): boolean {
 
 /** The roles an account can be given in the app: a superadmin gives any; a project manager every one but project manager. Superadmin is never given in the app. */
 export function grantableRoles(by: Role | null | undefined): Role[] {
-  const all: Role[] = ["homeowner", "contractor", "epc_team", "project_manager", "finance"];
+  const all: Role[] = (["homeowner", "contractor", "epc_team", "project_manager", "finance"] as Role[]).filter((r) => FEATURES.homeowners || r !== "homeowner");
   return by === "superadmin" ? all : all.filter((r) => r !== "project_manager" && r !== "finance");
 }
 

@@ -19,6 +19,7 @@
 import { createContext, Fragment, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import zh from "@/api/_lib/i18n/zh.json";
+import { rebrand } from "@/lib/client/edition";
 
 export type Lang = "en" | "zh";
 export const LANGS: Array<{ value: Lang; label: string; native: string }> = [
@@ -52,14 +53,18 @@ function patterns(): Pattern[] {
   return PATTERNS;
 }
 
-/** Text from outside the app's own code (the server), in `lang`. */
+/** Text from outside the app's own code (the server), in `lang`, as this edition names things. */
 export function translate(text: string | null | undefined, lang: Lang): string {
+  return rebrand(translated(text, lang));
+}
+
+function translated(text: string | null | undefined, lang: Lang): string {
   if (!text) return text ?? "";
   if (lang !== "zh") return text;
   if (EXACT[text]) return EXACT[text];
   for (const p of patterns()) {
     const m = p.rx.exec(text);
-    if (m) return p.names.reduce((out, n, i) => out.replace(`{${n}}`, translate(m[i + 1], lang)), p.zh);
+    if (m) return p.names.reduce((out, n, i) => out.replace(`{${n}}`, translated(m[i + 1], lang)), p.zh);
   }
   return text;
 }
@@ -69,12 +74,14 @@ type Params = Record<string, string | number | null | undefined>;
 /** The app's own text: the English key in `lang`, with values filled in (and translated if they're phrases). */
 export function interpolate(key: string, params: Params | undefined, lang: Lang): string {
   const base = lang === "zh" ? EXACT[key] || key : key;
-  if (!params) return base;
-  return base.replace(/\{(\w+)\}/g, (all, n: string) => {
-    const v = params[n];
-    if (v === null || v === undefined) return "";
-    return typeof v === "number" ? String(v) : translate(v, lang);
-  });
+  if (!params) return rebrand(base);
+  return rebrand(
+    base.replace(/\{(\w+)\}/g, (all, n: string) => {
+      const v = params[n];
+      if (v === null || v === undefined) return "";
+      return typeof v === "number" ? String(v) : translated(v, lang);
+    }),
+  );
 }
 
 // For code outside React (toasts, error messages, date helpers): the cookie

@@ -12,10 +12,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all
+from _lib.edition import FEATURES
 from _lib.web import role
 
 from .people import avatar_url
@@ -26,6 +27,8 @@ router = APIRouter()
 @router.get("/people/locations")
 def locations(acct: Account = Depends(role("project_manager"))) -> dict[str, Any]:
     """Every active EPC crew member, with where they last checked in or out (newest first)."""
+    if not FEATURES["check_in"]:
+        raise HTTPException(404, "Site check-in isn't used here.")
     scope = "true" if acct.role == "superadmin" else "p.project_manager_id = %(me)s"
     rows = fetch_all(
         f"""

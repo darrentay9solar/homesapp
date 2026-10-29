@@ -24,6 +24,7 @@ import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { type ClipboardEvent, createContext, type KeyboardEvent, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 
+import { BRAND, rebrand } from "@/lib/client/edition";
 import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
 
@@ -118,8 +119,8 @@ export function AuthShell({
                   <Logo size={36} color="#fff" />
                 </Box>
                 <Box>
-                  <Typography sx={{ fontWeight: 600, fontSize: 13.5, letterSpacing: "0.22em", color: "#fff" }}>GETHOMEAPPS</Typography>
-                  <Typography sx={{ fontWeight: 500, fontSize: 8.5, letterSpacing: "0.26em", color: "rgba(255,255,255,0.72)", mt: 0.25 }}>9 SOLAR HOME · 九太阳家</Typography>
+                  <Typography sx={{ fontWeight: 600, fontSize: 13.5, letterSpacing: "0.22em", color: "#fff" }}>{BRAND.app.toUpperCase()}</Typography>
+                  <Typography sx={{ fontWeight: 500, fontSize: 8.5, letterSpacing: "0.26em", color: "rgba(255,255,255,0.72)", mt: 0.25 }}>{rebrand("9 SOLAR HOME · 九太阳家")}</Typography>
                 </Box>
               </Stack>
               <LangButton onGreen />

@@ -28,6 +28,7 @@ import { NewProjectDialog, ProjectCard, useProjectHref } from "@/components/proj
 import { ProjectsTable } from "@/components/projects-table";
 import { Page } from "@/components/shell";
 import { ExportButton, GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
+import { BRAND } from "@/lib/client/edition";
 import { useApi } from "@/lib/client/api";
 import { isAdmin, useMe } from "@/lib/client/app-state";
 import { filterProjects, type ProjectList, sortProjects, type Tab, TABS } from "@/lib/client/projects";
@@ -86,7 +87,7 @@ function ProjectsScreen() {
         action={
           data?.canCreate && (
             <>
-              <ExportButton path="/export/projects.xlsx" name="GetHomeApps projects.xlsx" label="Download projects and maintenance (Excel)" testId="export-projects" />
+              <ExportButton path="/export/projects.xlsx" name={`${BRAND.app} projects.xlsx`} label="Download projects and maintenance (Excel)" testId="export-projects" />
               {me.role === "superadmin" && (
                 <Tooltip title={T("Import from Excel")}>
                   <IconButton aria-label={T("Import from Excel")} onClick={() => setImporting("list")} data-testid="import-projects" sx={{ color: "#fff" }}>

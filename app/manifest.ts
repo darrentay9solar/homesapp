@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { BRAND } from "@/lib/client/edition";
+
 /**
  * Served at /manifest.webmanifest. This is what turns "a bookmark" into "an
  * app": without it, Add to Home Screen still works but launches inside the
@@ -10,9 +12,9 @@ export default function manifest(): MetadataRoute.Manifest {
     // A stable id means an install survives a change of name or start_url
     // instead of appearing as a second, separate app.
     id: "/",
-    name: "GetHomeApps — 9 Solar Home",
+    name: `${BRAND.app} — ${BRAND.company}`,
     // Home screens truncate at roughly 12 characters.
-    short_name: "GetHomeApps",
+    short_name: BRAND.app,
     description:
       "Track rooftop solar installations: milestones, site visits, documents and handover.",
     start_url: "/",

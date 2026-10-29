@@ -24,6 +24,7 @@ import { Page } from "@/components/shell";
 import { SystemCard } from "@/components/maintenance";
 import { MaintenanceTable } from "@/components/maintenance-table";
 import { ExportButton, GRID, Heading, SearchBox, SegTabs, TopBar } from "@/components/topbar";
+import { BRAND } from "@/lib/client/edition";
 import { kwp as kwpFigure, num } from "@/lib/client/analytics";
 import { useApi } from "@/lib/client/api";
 import { isAdmin, useMe } from "@/lib/client/app-state";
@@ -69,7 +70,7 @@ function MaintenanceScreen() {
         action={
           office && (
             <>
-              <ExportButton path="/export/projects.xlsx" name="GetHomeApps projects.xlsx" label="Download projects and maintenance (Excel)" testId="export-maintenance" />
+              <ExportButton path="/export/projects.xlsx" name={`${BRAND.app} projects.xlsx`} label="Download projects and maintenance (Excel)" testId="export-maintenance" />
               {me?.role === "superadmin" && (
                 <Tooltip title={T("Import from Excel")}>
                   <IconButton aria-label={T("Import from Excel")} onClick={() => setImporting("list")} data-testid="import-maintenance" sx={{ color: "#fff" }}>

@@ -25,9 +25,11 @@ from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from _lib.edition import BRAND
+
 SG = ZoneInfo("Asia/Singapore")
 TITLE = "Installation Certificate"
-ISSUER = "9 Solar Home"
+ISSUER = BRAND["company"]
 STATEMENT = (
     "I confirm that the solar PV system described above has been installed at my property, "
     "that I have received the handover documents, and that I accept the installation as complete."
@@ -192,7 +194,7 @@ def pdf(cert: dict[str, Any], *, signature: bytes, signer: str, signed_at: datet
     pg.text(left, y, f"{signer} (homeowner)", 10.5, bold=True)
     y -= 14
     when = signed_at.astimezone(SG).strftime("%d %b %Y, %H:%M") + " Singapore time"
-    pg.text(left, y, f"Signed electronically in GetHomeApps on {when}", 9.5, grey=0.35)
+    pg.text(left, y, f"Signed electronically in {BRAND['app']} on {when}", 9.5, grey=0.35)
     pg.text(left, 64, "Certificate fingerprint (SHA-256)", 7.5, grey=0.45)
     pg.text(left, 54, fingerprint_hex, 7.5, grey=0.2)
     pg.text(left, 40, "The fingerprint identifies exactly what was signed; any change to the certificate changes it.",
@@ -216,7 +218,7 @@ def pdf(cert: dict[str, Any], *, signature: bytes, signer: str, signed_at: datet
         + b"\nendstream",
     ]
     title = _pdf_text(f"{cert['title']} {cert['number']}").encode("latin-1")
-    objects.append(b"<< /Title (" + title + b") /Producer (GetHomeApps) >>")
+    objects.append(b"<< /Title (" + title + b") /Producer (" + BRAND["app"].encode() + b") >>")
     out = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
     offsets = []
     for n, body in enumerate(objects, start=1):

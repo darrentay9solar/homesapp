@@ -4,6 +4,8 @@
  * describing the current state in a line.
  */
 
+import { FEATURES } from "./edition";
+
 export type Category = "approvals" | "visits" | "late" | "milestones" | "meetings" | "maintenance" | "warnings" | "summary" | "support" | "payments" | "solar" | "people" | "account";
 export type Prefs = {
   pausedUntil: string | null;
@@ -22,7 +24,8 @@ export const DEFAULT_PREFS: Prefs = {
 };
 
 /** The categories, in the order the screen lists them, with who they matter to. */
-export const CATEGORIES: Array<{ key: Category; label: string; sub: string; pm?: boolean }> = [
+export const CATEGORIES: Array<{ key: Category; label: string; sub: string; pm?: boolean }> = (
+  [
   { key: "approvals", label: "Approvals", sub: "Projects to approve, approved or declined" },
   { key: "visits", label: "Site visits", sub: "Visits scheduled for you, and the reminder an hour before" },
   { key: "late", label: "Crews running late", sub: "No check-in an hour after a visit's start, or a late arrival" },
@@ -36,7 +39,8 @@ export const CATEGORIES: Array<{ key: Category; label: string; sub: string; pm?:
   { key: "solar", label: "Solar alarms", sub: "An alarm from FusionSolar on a plant you look after, or a major one on your own system" },
   { key: "people", label: "People to review", sub: "New account and role requests", pm: true },
   { key: "account", label: "Your account", sub: "Your account or role approved, and changes reverted" },
-];
+  ] as Array<{ key: Category; label: string; sub: string; pm?: boolean }>
+).filter((c) => (FEATURES.checkIn || c.key !== "late") && (FEATURES.maintenance || c.key !== "maintenance"));
 
 export type PauseChoice = "off" | "1h" | "8h" | "morning" | "week";
 

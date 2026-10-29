@@ -6,6 +6,7 @@
  * (tests/calendar.test.ts).
  */
 
+import { BRAND } from "@/lib/client/edition";
 import type { Role } from "./app-state";
 import { currentLang, type Lang, locale } from "./i18n";
 
@@ -297,7 +298,7 @@ export function utcStamp(at: string): string {
 }
 
 function details(m: Meeting): string {
-  return [m.notes, m.onlineLink ? `Join: ${m.onlineLink}` : null, m.project?.name ? `Project: ${m.project.name}` : null, "Arranged in GetHomeApps"].filter(Boolean).join("\n");
+  return [m.notes, m.onlineLink ? `Join: ${m.onlineLink}` : null, m.project?.name ? `Project: ${m.project.name}` : null, `Arranged in ${BRAND.app}`].filter(Boolean).join("\n");
 }
 
 function where(m: Meeting): string {
@@ -358,7 +359,7 @@ export function icsFile(m: Meeting, now: number = Date.now()): string {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//9 Solar Home//GetHomeApps//EN",
+    `PRODID:-//${BRAND.company}//${BRAND.app}//EN`,
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     `UID:meeting-${m.id}@gethomeapps`,

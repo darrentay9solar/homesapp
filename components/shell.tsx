@@ -42,6 +42,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
+import { FEATURES } from "@/lib/client/edition";
 import { ACT_AS_KEY, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
@@ -154,7 +155,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   // The phone's group whose dropdown is open, and the button it hangs from.
   const [menu, setMenu] = useState<{ group: Group; at: HTMLElement } | null>(null);
   if (!me) return null;
-  const tabs = TABS[me.role];
+  // Pages this edition doesn't have (9 Solar Fintech: no Maintenance, no site check-in).
+  const tabs = TABS[me.role].filter((t) => (FEATURES.maintenance || t.href !== "/maintenance") && (FEATURES.checkIn || t.href !== "/sites"));
   const current = activeHref(pathname, tabs);
   const unread = (state?.unread ?? 0) > 0;
   // A dot on Alerts for unread alerts, on Help or Support for a new answer or someone waiting.

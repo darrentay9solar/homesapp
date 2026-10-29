@@ -10,8 +10,14 @@ from pydantic import BaseModel
 
 from _lib import onemap
 from _lib.db import fetch_one
+from _lib.edition import FEATURES
 
-ROLES = ("homeowner", "project_manager", "contractor", "epc_team", "finance")
+# An edition without homeowners (9 Solar Fintech) never gives the role (_lib/edition).
+ROLES = tuple(
+    r
+    for r in ("homeowner", "project_manager", "contractor", "epc_team", "finance")
+    if FEATURES["homeowners"] or r != "homeowner"
+)
 
 
 class ProfileIn(BaseModel):

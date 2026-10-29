@@ -43,6 +43,7 @@ import { StatusChip, useProjectHref } from "@/components/projects";
 import { Page } from "@/components/shell";
 import { alarmSx, GRID, SegTabs, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
+import { FEATURES } from "@/lib/client/edition";
 import { type Analytics, bucketLabel, customDays, days, deltaText, kwp, type MiniProject, MOST_DAYS, num, type Period, PERIODS, pct } from "@/lib/client/analytics";
 import { useApi } from "@/lib/client/api";
 import { isAdmin, type Role, useMe } from "@/lib/client/app-state";
@@ -60,6 +61,9 @@ type Open = { key: string; title: string; ids: number[] } | null;
  * now, how delivery is going, the crews on site, and sales. Every tile and
  * every bar of the pipeline opens the projects behind it.
  */
+/** The tabs this edition has: no Site work (it's check-in) or Maintenance without them. */
+const showTab = (t: Tab) => (t !== "site" || FEATURES.checkIn) && (t !== "maintenance" || FEATURES.maintenance);
+
 export default function DashboardPage() {
   const me = useMe();
   const router = useRouter();
@@ -73,7 +77,7 @@ export default function DashboardPage() {
   const { data, error } = useApi<Analytics>(admin ? `/analytics?period=${period}${pm ? `&pm=${pm}` : ""}` : null);
   // No projects in the app yet: Overview says so, with a way to Maintenance. It always opens on Overview.
   const noProjects = Boolean(data && data.pipeline.every((x) => x.count === 0));
-  const [tab, setTab] = useTab<Tab>(["overview", "delivery", "site", "sales", "maintenance"], "overview");
+  const [tab, setTab] = useTab<Tab>((["overview", "delivery", "site", "sales", "maintenance"] as Tab[]).filter(showTab), "overview");
   // The open list belongs to the tab and filters it was opened under.
   const [opened, setOpened] = useState<(NonNullable<Open> & { ctx: string }) | null>(null);
   useEffect(() => {
@@ -103,13 +107,15 @@ export default function DashboardPage() {
             label={T("Dashboard")}
             value={tab}
             onChange={setTab}
-            options={[
-              { value: "overview", label: "Overview" },
-              { value: "delivery", label: "Delivery" },
-              { value: "site", label: "Site work" },
-              { value: "sales", label: "Sales" },
-              { value: "maintenance", label: "Maintenance" },
-            ]}
+            options={(
+              [
+                { value: "overview", label: "Overview" },
+                { value: "delivery", label: "Delivery" },
+                { value: "site", label: "Site work" },
+                { value: "sales", label: "Sales" },
+                { value: "maintenance", label: "Maintenance" },
+              ] as Array<{ value: Tab; label: string }>
+            ).filter((o) => showTab(o.value))}
           />
         }
       />
@@ -254,7 +260,7 @@ function Overview({ d, open, toggle, onPm, onMaintenance }: Props & { onPm: (uid
   const noProjects = d.pipeline.every((x) => x.count === 0);
   return (
     <Stack sx={{ gap: { xs: 1.5, lg: 2 } }}>
-      {noProjects && <UpkeepSummary d={d} onOpen={onMaintenance} />}
+      {noProjects && FEATURES.maintenance && <UpkeepSummary d={d} onOpen={onMaintenance} />}
       <Box sx={{ ...TILE_GRID, gridAutoFlow: "row dense" }}>
         {tiles.map((x, i) => {
           const picked = i === at && open !== null;
@@ -279,7 +285,7 @@ function Overview({ d, open, toggle, onPm, onMaintenance }: Props & { onPm: (uid
           );
         })}
       </Box>
-      {!noProjects && <UpkeepSummary d={d} onOpen={onMaintenance} />}
+      {!noProjects && FEATURES.maintenance && <UpkeepSummary d={d} onOpen={onMaintenance} />}
 
       <Box sx={GRID}>
         <ChartCard

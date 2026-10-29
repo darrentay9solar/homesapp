@@ -39,6 +39,7 @@ from _lib import (
 from _lib.account import Account, apply_schedule
 from _lib.auth import env
 from _lib.db import fetch_all, fetch_one, transaction
+from _lib.edition import FEATURES
 from _lib.web import act_as_allowed, active
 from _routes.project_work import _need, _project
 from _routes.projects import SG, today
@@ -127,7 +128,7 @@ def visits(pid: int, acct: Account = Depends(active)) -> dict[str, Any]:
         "visits": out,
         "unscheduled": [_check_in_row(c) for c in checks if c["check_in_id"] not in linked],
         "canSchedule": rel in ("pm", "crew") and open_work,
-        "canCheckIn": epc_on_crew and open_work and p["site_lat"] is not None,
+        "canCheckIn": FEATURES["check_in"] and epc_on_crew and open_work and p["site_lat"] is not None,
         "myOpenCheckIn": _check_in_row(mine_open) if mine_open else None,
         "site": {
             "located": p["site_lat"] is not None,
@@ -198,11 +199,11 @@ def sites(acct: Account = Depends(active)) -> dict[str, Any]:
                 if nxt
                 else None,
                 "open": _check_in_row(o) if o else None,
-                "canCheckIn": epc and r["located"],
+                "canCheckIn": FEATURES["check_in"] and epc and r["located"],
             }
         )
     out.sort(key=lambda s: (s["open"] is None, not s["today"], s["name"]))
-    return {"sites": out, "canCheckIn": epc}
+    return {"sites": out, "canCheckIn": FEATURES["check_in"] and epc}
 
 
 # ------------------------------------------------------------------ scheduling
@@ -291,6 +292,8 @@ def _gps_error(exc: psycopg.Error) -> HTTPException:
 
 @router.post("/projects/{pid}/check-ins")
 def check_in(pid: int, body: FixIn, acct: Account = Depends(active)) -> dict[str, Any]:
+    if not FEATURES["check_in"]:
+        raise HTTPException(404, "Site check-in isn't used here.")
     p = _project(pid)
     _need(acct, p)
     if acct.role != "epc_team":
@@ -343,6 +346,8 @@ def _tell_if_late(p: dict[str, Any], visit: dict[str, Any], at: datetime, acct: 
 
 @router.post("/check-ins/{cid}/check-out")
 def check_out(cid: int, body: FixIn, acct: Account = Depends(active)) -> dict[str, Any]:
+    if not FEATURES["check_in"]:
+        raise HTTPException(404, "Site check-in isn't used here.")
     c = fetch_one("select * from site_check_ins where check_in_id = %s", (cid,))
     if not c or c["user_id"] != acct.uid:
         raise HTTPException(404, "That check-in isn't yours.")
@@ -411,7 +416,8 @@ def run_reminders(now: datetime) -> dict[str, int]:
             _mark(v["visit_id"], "before")
             sent["before"] += 1
         late = (start and now >= start + timedelta(hours=1)) or (not start and t > v["scheduled_date"])
-        if late and not v["sent_missed"] and not v["attended"]:
+        # Without check-in (9 Solar Fintech) there's nothing to tell a missed visit by.
+        if late and FEATURES["check_in"] and not v["sent_missed"] and not v["attended"]:
             for uid in {*epc, v["project_manager_id"]} - {None}:
                 notify.notify(
                     uid,
@@ -448,7 +454,8 @@ def reminders(authorization: str = Header(default="")) -> dict[str, Any]:
         "sent": run_reminders(datetime.now(SG)),
         "accounts": apply_schedule(),
         "uploads": sweep.sweep(),
-        "maintenance": maintenance_reminders.run(datetime.now(SG)),
+        # No Maintenance in an edition without it (9 Solar Fintech).
+        "maintenance": maintenance_reminders.run(datetime.now(SG)) if FEATURES["maintenance"] else {},
         "meetings": meeting_reminders.run(datetime.now(SG)),
     }
     # FusionSolar's figures: live every run, history at its own pace (_lib/solar_sync), within 10

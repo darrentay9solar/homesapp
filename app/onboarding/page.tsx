@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import { FieldError } from "@/components/m";
 import { AuthAlt, AuthBadge, AuthButton, AuthChoices, AuthConsent, AuthError, AuthField, AuthHeading, AuthPhoneField, AuthRules, AuthShell, AuthSteps, AuthSubtitle, Mark, PersonIcon } from "@/components/auth";
 import { d2s } from "@/components/ui";
+import { FEATURES } from "@/lib/client/edition";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import type { Role } from "@/lib/client/app-state";
 import { currentLang, T, TR } from "@/lib/client/i18n";
@@ -32,11 +33,11 @@ type MeState = {
 };
 
 const ROLES: Array<{ value: Role; label: string; desc: string; icon: React.ReactNode }> = [
-  { value: "homeowner", label: "Homeowner", desc: "My own installation", icon: <HomeOutlinedIcon /> },
-  { value: "contractor", label: "Contractor Admin", desc: "My company's projects", icon: <WorkOutlineRoundedIcon /> },
-  { value: "epc_team", label: "EPC Team", desc: "Site visits & check-in", icon: <SolarPowerOutlinedIcon /> },
-  { value: "project_manager", label: "Project Manager", desc: "9 Solar Home staff", icon: <ShieldOutlinedIcon /> },
-];
+  { value: "homeowner" as Role, label: "Homeowner", desc: "My own installation", icon: <HomeOutlinedIcon /> },
+  { value: "contractor" as Role, label: "Contractor Admin", desc: "My company's projects", icon: <WorkOutlineRoundedIcon /> },
+  { value: "epc_team" as Role, label: "EPC Team", desc: FEATURES.checkIn ? "Site visits & check-in" : "Site visits", icon: <SolarPowerOutlinedIcon /> },
+  { value: "project_manager" as Role, label: "Project Manager", desc: "9 Solar Home staff", icon: <ShieldOutlinedIcon /> },
+].filter((r) => FEATURES.homeowners || r.value !== "homeowner");
 
 /**
  * Step 3 of self sign-up, in the same template as Create Account: ask for
