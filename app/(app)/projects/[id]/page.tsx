@@ -43,6 +43,7 @@ import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { handlesPayments, isAdmin, useApp, useMe } from "@/lib/client/app-state";
 import { firstOpenSection, type ProjectFields, type ProjectRow, SECTIONS } from "@/lib/client/projects";
+import { useFlagged } from "@/lib/client/warnings";
 import { useTab } from "@/lib/client/tabs";
 import type { ProjectRecord } from "@/lib/client/records";
 import type { ProjectVisits } from "@/lib/client/sites";
@@ -116,6 +117,7 @@ type Tab = "maintenance" | "milestones" | "details" | "visits";
  * anything needing attention stay in view; the rest is one tab at a time.
  */
 function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: ProjectFields | null; visits: ProjectVisits | null; reload: () => Promise<void>; tab: Tab }) {
+  const flagged = useFlagged();
   const [editing, setEditing] = useState(false);
   const manager = isAdmin(useMe()?.role);
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -125,7 +127,7 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
   return (
     <Box sx={{ display: "grid", gap: { xs: 2, lg: 3 }, gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) minmax(0, 1.15fr)" }, alignItems: "start", mt: 1 }}>
       <Stack sx={{ gap: 2, minWidth: 0 }}>
-        {p.attention && (
+        {flagged(p.attention) && (
           <Alert severity="error" icon={<WarningAmberRoundedIcon />} data-testid="project-flags">
             <AlertTitle sx={{ fontWeight: 600 }}>{T("Needs attention")}</AlertTitle>
             {p.flags.map((f) => (
@@ -322,10 +324,11 @@ function DeclineDialog({ name, busy, onClose, onDecline }: { name: string; busy:
 }
 
 function Summary({ p }: { p: ProjectRow }) {
+  const flagged = useFlagged();
   return (
     <Card sx={{ p: { xs: 2, sm: 2.5 } }}>
       <Stack direction="row" sx={{ gap: { xs: 2, sm: 3 }, alignItems: "center", flexWrap: "wrap" }}>
-        <ProgressRing value={p.progress} color={p.attention ? "error" : "primary"} />
+        <ProgressRing value={p.progress} color={flagged(p.attention) ? "error" : "primary"} />
         <Stack sx={{ gap: 1.25, minWidth: 0, flex: "1 1 120px" }}>
           <Box>
             <Typography variant="overline" sx={{ color: "text.secondary", lineHeight: 1.6 }}>
@@ -352,7 +355,8 @@ function Summary({ p }: { p: ProjectRow }) {
 }
 
 function Details({ p }: { p: ProjectRow }) {
-  const overdue = p.flags.some((f) => f.kind === "overdue");
+  const flagged = useFlagged();
+  const overdue = flagged(true) && p.flags.some((f) => f.kind === "overdue");
   return (
     <Card sx={{ px: 2, py: 0.5 }} data-testid="project-details">
       <DetailRow icon={<PersonOutlineRoundedIcon />} k="Homeowner">

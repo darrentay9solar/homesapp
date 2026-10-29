@@ -29,6 +29,7 @@ import { useApi } from "@/lib/client/api";
 import { isAdmin, useMe } from "@/lib/client/app-state";
 import { T } from "@/lib/client/i18n";
 import { filterSystems, inMTab, type MaintenanceList, MTABS, type MTab, sortSystems } from "@/lib/client/maintenance";
+import { useFlagged, WarningsSwitch } from "@/lib/client/warnings";
 import { useTab } from "@/lib/client/tabs";
 
 /**
@@ -39,6 +40,7 @@ import { useTab } from "@/lib/client/tabs";
  * a check overdue) is red and first.
  */
 function MaintenanceScreen() {
+  const flagged = useFlagged();
   const me = useMe();
   const router = useRouter();
   const admin = isAdmin(me?.role);
@@ -107,11 +109,11 @@ function MaintenanceScreen() {
             <>
               <Box sx={{ ...TILE_GRID, mt: 1.5, mb: 1 }}>
                 <StatTile label="Systems looked after" value={num(all.length)} icon={<SolarPowerRoundedIcon />} sub={kwpFigure(capacity)} />
-                <StatTile label="Need attention" value={num(count("attention"))} icon={<WarningAmberRoundedIcon />} tone={count("attention") ? "bad" : "good"} sub={T("Urgent, or a check overdue")} open={tab === "attention"} onClick={() => pick("attention")} testId="mtile-attention" />
+                <StatTile label="Need attention" value={num(count("attention"))} icon={<WarningAmberRoundedIcon />} tone={flagged(true) ? (count("attention") ? "bad" : "good") : undefined} sub={T("Urgent, or a check overdue")} open={tab === "attention"} onClick={() => pick("attention")} testId="mtile-attention" />
                 <StatTile label="Checks due in 30 days" value={num(count("due"))} icon={<EventRoundedIcon />} tone={count("due") ? "warn" : undefined} sub={T("Yearly checks, from the second year")} open={tab === "due"} onClick={() => pick("due")} testId="mtile-due" />
                 <StatTile label="Unassigned" value={num(count("unassigned"))} icon={<PersonOffRoundedIcon />} sub={data.canAssign ? T("Give each one a project manager") : T("A superadmin assigns them")} open={tab === "unassigned"} onClick={() => pick("unassigned")} testId="mtile-unassigned" />
               </Box>
-              <Heading title={tab === "all" ? T("Systems") : (MTABS.find(([v]) => v === tab)?.[1] ?? T("Systems"))} count={shown.length} />
+              <Heading title={tab === "all" ? T("Systems") : (MTABS.find(([v]) => v === tab)?.[1] ?? T("Systems"))} count={shown.length} action={office && all.length > 0 ? <WarningsSwitch /> : undefined} />
               {shown.length === 0 ? (
                 <Card sx={{ p: 4, textAlign: "center" }} data-testid="maintenance-empty">
                   {all.length === 0 ? (

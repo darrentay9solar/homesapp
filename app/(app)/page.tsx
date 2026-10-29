@@ -15,6 +15,7 @@ import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
+import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -32,6 +33,7 @@ import { isAdmin, useMe } from "@/lib/client/app-state";
 import { filterProjects, type ProjectList, sortProjects, type Tab, TABS } from "@/lib/client/projects";
 
 import { T } from "@/lib/client/i18n";
+import { useFlagged, WarningsSwitch } from "@/lib/client/warnings";
 import { useTab } from "@/lib/client/tabs";
 /**
  * Projects. Project managers see every project and can create one; contractor
@@ -41,6 +43,7 @@ import { useTab } from "@/lib/client/tabs";
  * (finance) opens on Payments.
  */
 function ProjectsScreen() {
+  const flagged = useFlagged();
   const me = useMe();
   const router = useRouter();
   const pathname = usePathname();
@@ -133,12 +136,17 @@ function ProjectsScreen() {
                 count={shown.length}
                 action={
                   all.length > 0 &&
-                  !homeowner &&
-                  (red ? (
-                    <Chip size="small" color="error" label={T(red === 1 ? "{n} needs attention" : "{n} need attention", { n: red })} onClick={() => setTab("attention")} />
-                  ) : (
-                    <Chip size="small" color="success" variant="outlined" label={T("All on track")} />
-                  ))
+                  !homeowner && (
+                    <Stack direction="row" sx={{ gap: 1, rowGap: 0.5, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      {flagged(true) &&
+                        (red ? (
+                          <Chip size="small" color="error" label={T(red === 1 ? "{n} needs attention" : "{n} need attention", { n: red })} onClick={() => setTab("attention")} />
+                        ) : (
+                          <Chip size="small" color="success" variant="outlined" label={T("All on track")} />
+                        ))}
+                      <WarningsSwitch />
+                    </Stack>
+                  )
                 }
               />
               {shown.length === 0 ? (

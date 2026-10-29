@@ -3524,5 +3524,6 @@
  "Load": "负载",
  "PV {kw} kW now": "光伏当前 {kw} kW",
  "No meter, so the split between the home and the grid isn't measured.": "没有电表，因此无法测量家庭用电和上网电量的比例。",
- "Inverter rated power": "逆变器额定功率"
+ "Inverter rated power": "逆变器额定功率",
+ "Show warnings": "显示警告"
 }

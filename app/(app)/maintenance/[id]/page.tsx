@@ -40,6 +40,7 @@ import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { isAdmin, useApp, useMe } from "@/lib/client/app-state";
 import { T, TR } from "@/lib/client/i18n";
 import { type Check, inverterText, kwpText, type MaintenanceDetail, panelText, phaseText, planText, ppaText } from "@/lib/client/maintenance";
+import { useFlagged } from "@/lib/client/warnings";
 
 /**
  * One system in maintenance: its checks (with Mark done), what's on the roof,
@@ -77,6 +78,7 @@ export default function SystemPage() {
 }
 
 function Body({ d, reload }: { d: MaintenanceDetail; reload: () => Promise<void> }) {
+  const flagged = useFlagged();
   const s = d.system;
   const [editing, setEditing] = useState(false);
   const [marking, setMarking] = useState<Check | null>(null);
@@ -104,7 +106,7 @@ function Body({ d, reload }: { d: MaintenanceDetail; reload: () => Promise<void>
   return (
     <Box sx={{ display: "grid", gap: { xs: 2, lg: 3 }, gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) minmax(0, 1.15fr)" }, alignItems: "start", mt: 1 }}>
       <Stack sx={{ gap: 2, minWidth: 0 }}>
-        {s.attention && (
+        {flagged(s.attention) && (
           <Alert severity="error" icon={<WarningAmberRoundedIcon />} data-testid="system-flags">
             <AlertTitle sx={{ fontWeight: 600 }}>{T("Needs attention")}</AlertTitle>
             {s.urgent && (

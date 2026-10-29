@@ -48,6 +48,7 @@ import { useApi } from "@/lib/client/api";
 import { isAdmin, type Role, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
 import { T, TR } from "@/lib/client/i18n";
+import { useFlagged } from "@/lib/client/warnings";
 import { useTab } from "@/lib/client/tabs";
 
 type Tab = "overview" | "delivery" | "site" | "sales" | "maintenance";
@@ -205,6 +206,7 @@ type Props = { d: Analytics; open: Open; toggle: (key: string, title: string, id
  * what needs a decision. Tapping it opens the Maintenance tab.
  */
 function UpkeepSummary({ d, onOpen }: { d: Analytics; onOpen: () => void }) {
+  const flagged = useFlagged();
   const u = d.maintenance;
   if (!u?.tiles.systems.count) return null;
   const attention = new Set([...u.tiles.urgent.ids, ...u.tiles.overdue.ids]).size;
@@ -216,7 +218,7 @@ function UpkeepSummary({ d, onOpen }: { d: Analytics; onOpen: () => void }) {
         sx={(th) => ({ width: "100%", display: "grid", gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, minmax(0, 1fr)) auto" }, gap: { xs: 1, sm: 3 }, alignItems: "center", px: 1, py: 1, borderRadius: `${DESIGN.radius.listItem}px`, "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) } })}
       >
         <Figure n={u.tiles.systems.count} label="systems" />
-        <Figure n={attention} label="need attention" bad={attention > 0} />
+        <Figure n={attention} label="need attention" bad={flagged(true) && attention > 0} />
         <Figure n={u.tiles.dueSoon.count} label="checks in 30 days" />
         <Figure n={u.tiles.unassigned.count} label="unassigned" />
         <ChevronRightRoundedIcon sx={{ color: "text.secondary", display: { xs: "none", sm: "block" } }} />
@@ -433,6 +435,7 @@ function ProjectDrop({ d, open, onClose, flat, caret }: { d: Analytics; open: No
 }
 
 function ProjectRows({ list, empty }: { list: MiniProject[]; empty: string }) {
+  const flagged = useFlagged();
   const router = useRouter();
   const href = useProjectHref();
   if (!list.length) {
@@ -448,7 +451,7 @@ function ProjectRows({ list, empty }: { list: MiniProject[]; empty: string }) {
         <ButtonBase
           key={p.id}
           onClick={() => router.push(href(p.id))}
-          data-alarm={p.daysLate > 0 || p.flags.length > 0 || undefined}
+          data-alarm={flagged(p.daysLate > 0 || p.flags.length > 0) || undefined}
           sx={(th) => ({
             display: "flex",
             gap: 1.25,
@@ -459,14 +462,14 @@ function ProjectRows({ list, empty }: { list: MiniProject[]; empty: string }) {
             borderRadius: `${DESIGN.radius.listItem}px`,
             "&:hover": { bgcolor: alpha(th.palette.text.primary, 0.04) },
             // A project with an issue is red here too, as on the Projects list.
-            ...((p.daysLate > 0 || p.flags.length > 0) && { ...alarmSx(th), boxShadow: "none", mb: 0.5, "&:hover": { filter: "brightness(0.97)" } }),
+            ...(flagged(p.daysLate > 0 || p.flags.length > 0) && { ...alarmSx(th), boxShadow: "none", mb: 0.5, "&:hover": { filter: "brightness(0.97)" } }),
           })}
         >
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
               {p.name}
             </Typography>
-            <Typography variant="caption" noWrap component="p" sx={{ color: p.daysLate ? "error.main" : "text.secondary", fontWeight: p.daysLate ? 700 : 400 }}>
+            <Typography variant="caption" noWrap component="p" sx={{ color: flagged(p.daysLate > 0) ? "error.main" : "text.secondary", fontWeight: flagged(p.daysLate > 0) ? 700 : 400 }}>
               {p.daysLate ? T("{n} days late", { n: p.daysLate }) : p.endDate ? T("Target end {date}", { date: d2s(p.endDate) }) : TR("No target date")}
               {p.pm ? ` · ${p.pm}` : ""}
             </Typography>

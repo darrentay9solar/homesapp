@@ -48,6 +48,7 @@ import { EdgeCard, gradText } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { useApp, useMe } from "@/lib/client/app-state";
+import { useFlagged } from "@/lib/client/warnings";
 import { whenText } from "@/lib/client/calendar";
 import { T, TR, useLang } from "@/lib/client/i18n";
 import {
@@ -98,13 +99,14 @@ export function toFill(s: Pick<MaintenanceSystem, "toFill">): number {
 }
 
 export function SystemCard({ s }: { s: MaintenanceSystem }) {
+  const flagged = useFlagged();
   const router = useRouter();
   const href = useMaintenanceHref();
-  const edge = (t: Theme) => (s.attention ? t.palette.error.main : s.next?.state === "due_soon" ? t.palette.warning.main : t.palette.primary.main);
+  const edge = (t: Theme) => (flagged(s.attention) ? t.palette.error.main : s.next?.state === "due_soon" ? t.palette.warning.main : t.palette.primary.main);
   const facts = [kwpText(s.kwp), panelText(s.panels), phaseText(s.phase)].filter(Boolean) as string[];
   const n = s.next;
   return (
-    <EdgeCard color={edge} alarm={s.attention}>
+    <EdgeCard color={edge} alarm={flagged(s.attention)}>
       <CardActionArea onClick={() => router.push(href(s.id))} data-testid="system-card" sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "stretch" }}>
         <Box sx={{ p: 1.75, pl: 2.5, flex: 1 }}>
           <Stack direction="row" sx={{ alignItems: "flex-start", gap: 1 }}>
@@ -137,12 +139,12 @@ export function SystemCard({ s }: { s: MaintenanceSystem }) {
 
           <Stack direction="row" sx={{ gap: 0.75, alignItems: "center", mt: 1.25 }}>
             <EventRoundedIcon sx={{ fontSize: 16, color: n ? `${checkColor(n) === "default" ? "text.secondary" : `${checkColor(n)}.main`}` : "success.main" }} />
-            <Typography variant="body2" sx={{ fontWeight: n && n.state !== "scheduled" ? 700 : 500, color: n?.state === "overdue" ? "error.main" : "text.primary" }} data-testid="next-check">
+            <Typography variant="body2" sx={{ fontWeight: n && n.state !== "scheduled" ? 700 : 500, color: flagged(true) && n?.state === "overdue" ? "error.main" : "text.primary" }} data-testid="next-check">
               {nextCheckText(s)}
             </Typography>
           </Stack>
 
-          {s.urgent && (
+          {flagged(true) && s.urgent && (
             <Stack direction="row" sx={{ gap: 0.75, alignItems: "flex-start", color: "error.main", mt: 0.75 }}>
               <BoltRoundedIcon sx={{ fontSize: 16, mt: "2px" }} />
               <Typography variant="caption" sx={{ lineHeight: 1.45, fontWeight: 700 }}>

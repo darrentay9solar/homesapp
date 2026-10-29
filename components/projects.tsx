@@ -42,14 +42,15 @@ import { type Options, planDates, type ProjectRow, STATUS_TONE } from "@/lib/cli
 
 import { T, TR } from "@/lib/client/i18n";
 import { FIX_FIELDS, firstProblem, mobileProblem } from "@/lib/client/rules";
+import { useFlagged } from "@/lib/client/warnings";
 /** Where a project opens: inside the dev preview when browsing it, otherwise the app. */
 export function useProjectHref() {
   const pathname = usePathname();
   return (id: number) => (pathname.startsWith("/dev-preview") ? `/dev-preview/projects/${id}` : `/projects/${id}`);
 }
 
-const edgeColor = (p: ProjectRow) => (t: Theme) => {
-  if (p.attention) return t.palette.error.main;
+const edgeColor = (p: ProjectRow, red: boolean) => (t: Theme) => {
+  if (red) return t.palette.error.main;
   const tone = STATUS_TONE[p.status];
   return tone === "default" ? t.palette.text.disabled : t.palette[tone].main;
 };
@@ -61,8 +62,9 @@ export function StatusChip({ p, size = "small" }: { p: Pick<ProjectRow, "status"
 
 /** On time, late or an issue: for the team only. A homeowner never sees a timing verdict. */
 export function TimingChip({ p }: { p: Pick<ProjectRow, "attention" | "flags"> }) {
+  const flagged = useFlagged();
   const me = useMe();
-  if (me?.role === "homeowner") return null;
+  if (me?.role === "homeowner" || !flagged(true)) return null;
   if (!p.attention) return <Chip size="small" variant="outlined" color="success" label={T("On time")} />;
   const late = p.flags.some((f) => f.kind === "overdue");
   return <Chip size="small" color="error" icon={<WarningAmberRoundedIcon />} label={late ? T("Late") : T("Issue")} />;
@@ -83,11 +85,12 @@ function Meta({ k, v, bad }: { k: string; v: string; bad?: boolean }) {
 
 /** One project as a line item, as in the brief: everything a PM scans for at a glance. */
 export function ProjectCard({ p }: { p: ProjectRow }) {
+  const flagged = useFlagged();
   const router = useRouter();
   const href = useProjectHref();
-  const overdue = p.flags.some((f) => f.kind === "overdue");
+  const overdue = flagged(true) && p.flags.some((f) => f.kind === "overdue");
   return (
-    <EdgeCard color={edgeColor(p)} alarm={p.attention}>
+    <EdgeCard color={edgeColor(p, flagged(p.attention))} alarm={flagged(p.attention)}>
       <CardActionArea
         onClick={() => router.push(href(p.id))}
         data-testid="project-card"
@@ -125,7 +128,7 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
           <LinearProgress
             variant="determinate"
             value={p.progress}
-            color={p.attention ? "error" : "primary"}
+            color={flagged(p.attention) ? "error" : "primary"}
             sx={{ mt: 1.5, height: 6, borderRadius: 3 }}
           />
           <Stack direction="row" sx={{ justifyContent: "space-between", mt: 0.75 }}>
@@ -137,7 +140,7 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
             </Typography>
           </Stack>
 
-          {p.flags.length > 0 && (
+          {flagged(true) && p.flags.length > 0 && (
             <Stack sx={{ mt: 1, gap: 0.25 }}>
               {p.flags.map((f) => (
                 <Stack key={f.text} direction="row" sx={{ gap: 0.75, alignItems: "flex-start", color: "error.main" }}>
