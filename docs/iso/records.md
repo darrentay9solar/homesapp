@@ -44,6 +44,7 @@ on the staging site (yearly; first one due before the audit).
 |---|---|---|---|
 | 27 Oct 2026 | 5 staff accounts, all signed in and active: 1 superadmin, 4 project managers. No Admin (finance), contractor, crew or homeowner accounts yet | Snapshot by the developer; **the superadmin still needs to confirm each one is needed** | Open |
 | 29 Oct 2026 | Change: one project manager made a superadmin, at the owner's request (YOUR_STEPS.md step 3, as the database owner; in the audit log as "Outside the app"). Now 2 superadmins, 3 project managers | The owner | Done |
+| 29 Oct 2026 | Change: the owner's sign-in moved from a personal Gmail address to darrentay@9solarfintech.com, at their request (Clerk, the live site's instance): the email added as verified and primary, the Gmail address removed, the password kept. An unused Clerk sign-in with that email (made 13 Oct, used once, no app account or access request) was deleted first, with the owner's go-ahead | The owner | Done |
 
 Quarterly from here, with each account's last sign-in (access-control.md).
 

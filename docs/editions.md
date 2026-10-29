@@ -6,18 +6,20 @@ tested once and released to both.
 
 | | 9 Solar Home | 9 Solar Fintech |
 |---|---|---|
-| App name | GetHomeApps | GetApps |
+| App name | GetHomeApps | GetApps (九太阳) |
+| Clients | Homeowners, at their homes | Businesses (factories and the like): "Clients", at "sites" |
 | Setting (hosting) | `NEXT_PUBLIC_EDITION` and `EDITION` unset (or `home`) | both `fintech` |
 | Homeowners | Yes | No: the role can't be given or asked for |
 | Site check-in, crew locations | Yes | No: no check-in, no Sites page, no Map, no "running late" alerts |
 | Maintenance | Yes | No: not in the menu; its pages say so; no maintenance reminders |
 | Role names | Project Manager, EPC Team | HQ Staff, EPC Project Manager |
-| Project workflow | As built | To be redesigned (the owner's spec to follow) |
-| FusionSolar | 9 Solar Home's API account | Its own API account (to follow) |
+| Project workflow | Milestones 1–3, homeowner approval and handover | Its own: 5 stages, SP milestones alongside, 10 months ([getapps-workflow.md](getapps-workflow.md)) |
+| Groups of projects | No | Groups (contracts) with phases, and their figures |
+| FusionSolar | 9 Solar Home's API account | Its own API account (to follow; its plants will link to completed projects) |
 
 How it works: `lib/client/edition.ts` (screens) and `api/_lib/edition.py` (server) read the setting.
 Names are swapped where text is shown (after translation), in both English and Chinese, so the
-translations stay as they are. Features are switched off on the server (refused) and on screen (hidden).
+translations stay as they are; `tests_py/uat/test_uat_getapps.py` checks every phrase. Features are switched off on the server (refused) and on screen (hidden).
 
 ## Setting up 9 Solar Fintech's site
 
@@ -57,6 +59,10 @@ Connection strings and keys go into `.env.local` or Vercel directly, never into 
 8. **First sign-in.** Sign up on the new site with darrentay@9solarfintech.com; the account links
    itself by email and is the superadmin. Add everyone else from People.
 
+GetApps' database tables (migration 0061: workflow steps, checklists, groups, phases) come with step
+5.1. 9 Solar Home's database doesn't need them; they arrive there, empty and unused, with its next
+migration.
+
 Later: the FusionSolar API account (`FUSIONSOLAR_URL`, `FUSIONSOLAR_USER`, `FUSIONSOLAR_PASSWORD` in
-the new site's Vercel), the project workflow, email and WhatsApp, the nightly backup of the new
+the new site's Vercel), email and WhatsApp, the nightly backup of the new
 database, and a "Switch company" link for people in both.

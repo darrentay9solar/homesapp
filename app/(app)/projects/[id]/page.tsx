@@ -37,11 +37,13 @@ import { SectionPanel } from "@/components/project-fields";
 import { SiteSchedule } from "@/components/site-visits";
 import { DetailRow, NewProjectDialog, ProgressRing, StatusChip, TimingChip } from "@/components/projects";
 import { SiteLog } from "@/components/site-log";
+import { WorkflowPanel } from "@/components/workflow";
 import { Page } from "@/components/shell";
 import { SegTabs, TopBar } from "@/components/topbar";
 import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { handlesPayments, isAdmin, useApp, useMe } from "@/lib/client/app-state";
+import { EDITION, FEATURES } from "@/lib/client/edition";
 import { firstOpenSection, type ProjectFields, type ProjectRow, SECTIONS } from "@/lib/client/projects";
 import { useFlagged } from "@/lib/client/warnings";
 import { useTab } from "@/lib/client/tabs";
@@ -88,7 +90,7 @@ export default function ProjectPage() {
             onChange={setTab}
             options={[
               ...(upkeep ? [{ value: "maintenance" as const, label: "Maintenance" }] : []),
-              { value: "milestones", label: upkeep ? "Installation" : fields?.relation === "homeowner" ? "Your installation" : "Milestones" },
+              { value: "milestones", label: EDITION === "fintech" ? "Workflow" : upkeep ? "Installation" : fields?.relation === "homeowner" ? "Your installation" : "Milestones" },
               { value: "details", label: "Details" },
               { value: "visits", label: "Site visits", count: visits?.visits.length },
             ]}
@@ -145,7 +147,8 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
       </Stack>
       <Box sx={{ minWidth: 0 }} data-testid={`project-${tab}`}>
         {tab === "maintenance" && <ProjectMaintenance pid={p.id} />}
-        {tab === "milestones" && (
+        {tab === "milestones" && EDITION === "fintech" && <WorkflowPanel pid={p.id} onChange={reload} />}
+        {tab === "milestones" && EDITION !== "fintech" && (
           <>
             {p.status === "maintenance" && !p.toFill && (
               <Alert severity="success" icon={<Inventory2RoundedIcon />} sx={{ mb: 1.5 }} data-testid="installation-archived">
@@ -180,7 +183,7 @@ function Body({ p, fields, visits, reload, tab }: { p: ProjectRow; fields: Proje
               </Stack>
             )}
             <Details p={p} />
-            {manager && <ProjectRecordCards pid={p.id} />}
+            {manager && FEATURES.homeowners && <ProjectRecordCards pid={p.id} />}
           </>
         )}
         {tab === "visits" &&
@@ -361,7 +364,7 @@ function Details({ p }: { p: ProjectRow }) {
     <Card sx={{ px: 2, py: 0.5 }} data-testid="project-details">
       <DetailRow icon={<PersonOutlineRoundedIcon />} k="Homeowner">
         {p.homeowner.name}{" "}
-        {p.homeowner.linked ? (
+        {!FEATURES.homeowners ? null : p.homeowner.linked ? (
           <Chip size="small" color="success" variant="outlined" label={T("Account")} sx={{ ml: 0.5, height: 20 }} />
         ) : (
           <Chip size="small" variant="outlined" label={T("Name only")} sx={{ ml: 0.5, height: 20 }} />
@@ -372,7 +375,7 @@ function Details({ p }: { p: ProjectRow }) {
       </DetailRow>
       <DetailRow icon={<PlaceOutlinedIcon />} k="Site">
         {p.postalCode ? `Singapore ${p.postalCode}` : "—"}{" "}
-        {p.siteLocated ? (
+        {!FEATURES.checkIn ? null : p.siteLocated ? (
           <Chip size="small" color="success" variant="outlined" label={T("GPS set")} sx={{ ml: 0.5, height: 20 }} />
         ) : (
           <Chip size="small" color="warning" variant="outlined" label={T("No GPS yet")} sx={{ ml: 0.5, height: 20 }} />
@@ -381,6 +384,11 @@ function Details({ p }: { p: ProjectRow }) {
       <DetailRow icon={p.contractor.type === "group" ? <GroupsRoundedIcon /> : <EngineeringRoundedIcon />} k="Contractor">
         {p.contractor.label}
       </DetailRow>
+      {EDITION === "fintech" && (
+        <DetailRow icon={<GroupsRoundedIcon />} k="Group · phase">
+          {p.group ? (p.phase ? `${p.group.name} · ${p.phase.name}` : p.group.name) : T("Not in a group")}
+        </DetailRow>
+      )}
       <DetailRow icon={<CalendarMonthRoundedIcon />} k="Start → target end">
         {p.startDate ? d2s(p.startDate) : "—"} →{" "}
         <Box component="span" sx={{ color: overdue ? "error.main" : "inherit", fontWeight: overdue ? 600 : 400 }}>

@@ -5,12 +5,14 @@ import { mockBusy, mockCalendar, mockContacts, mockMeeting, mockUpcoming } from 
 import { asFinance, MOCK_SETTINGS, mockAdminFees, mockFinanceMe, mockKpis, mockInvoice, mockInvoices, mockMyPayments, mockOverview, mockProjectPayments, mockRun } from "./mock-finance";
 import { mockDeviceHistory, mockEnergy, mockPlant, mockPower, mockReport, mockSolarOverview, mockTariffs } from "./mock-solar";
 import { mockMaintenance, mockProjectMaintenance, mockRecord, mockSystem } from "./mock-maintenance";
+import { getappsRow, GETAPPS_NAMES, mockChecklists, mockGroup, mockGroups, mockWorkflow } from "./mock-getapps";
 import { asHomeowner, mockAnswers, mockAssistantThread, mockInbox, mockSupportMe, mockSupportPeople, mockThread } from "./mock-support";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
 import { AppShell } from "@/components/shell";
 import { AppProvider } from "@/lib/client/app-state";
+import { EDITION } from "@/lib/client/edition";
 import { currentLang } from "@/lib/client/i18n";
 import { PRIVACY_VERSION } from "@/lib/client/privacy";
 
@@ -739,6 +741,10 @@ function auditHistory(id: number, field: string) {
 
 function answer(method: string, path: string, search: URLSearchParams = new URLSearchParams(), body?: unknown): unknown {
   const key = `${method} ${path}`;
+  if (EDITION === "fintech") {
+    const got = getapps(method, path, key);
+    if (got !== undefined) return got;
+  }
   if (key === "GET /projects") {
     // ?handed=1 (the Table tab): handed-over projects too, with when they were handed over.
     const all = search.get("handed") === "1";
@@ -872,6 +878,25 @@ function answer(method: string, path: string, search: URLSearchParams = new URLS
   }
   if (method !== "GET") return { message: `Preview only — ${method} ${path} was not sent.` };
   return {};
+}
+
+/** GetApps (NEXT_PUBLIC_EDITION=fintech): its projects, workflow, groups and checklists. */
+function getapps(method: string, path: string, key: string): unknown {
+  const rows = () =>
+    PROJECTS.map((p) => ({ ...getappsRow(p), name: GETAPPS_NAMES[p.id] ?? p.name, projectCode: `9SF${String(p.id).padStart(4, "0")}`, closedAt: null }));
+  if (key === "GET /projects") return { projects: rows(), canCreate: true, handedOver: 0, today: day(0) };
+  const pid = path.match(/^\/projects\/(\d+)$/);
+  if (method === "GET" && pid) return rows().find((x) => x.id === Number(pid[1])) ?? {};
+  const wf = path.match(/^\/projects\/(\d+)\/workflow$/);
+  if (method === "GET" && wf) return mockWorkflow(Number(wf[1]));
+  if (method !== "GET" && /^\/projects\/\d+\/workflow\//.test(path)) return { message: "Preview only — nothing was saved." };
+  if (key === "GET /project-groups") return mockGroups();
+  const gid = path.match(/^\/project-groups\/(\d+)$/);
+  if (method === "GET" && gid) return mockGroup(Number(gid[1]));
+  if (key === "GET /workflow/checklists") return mockChecklists();
+  if (method !== "GET" && (path.startsWith("/project-groups") || path.startsWith("/project-phases") || path.startsWith("/workflow/"))) return { message: "Preview only — nothing was saved.", id: 1 };
+  if (key === "GET /projects/options") return { ...PROJECT_OPTIONS, homeowners: [] };
+  return undefined;
 }
 
 function install() {

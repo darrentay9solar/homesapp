@@ -32,9 +32,7 @@ _SWAPS: list[tuple[re.Pattern[str], str]] = (
     [
         (re.compile(r"GetHomeApps"), "GetApps"),
         (re.compile(r"GETHOMEAPPS"), "GETAPPS"),
-        (re.compile(r"9 SOLAR HOME · 九太阳家"), "9 SOLAR FINTECH"),
-        (re.compile(r" · 九太阳家"), ""),
-        (re.compile(r"九太阳家"), "9 Solar Fintech"),
+        (re.compile(r"九太阳家"), "九太阳"),
         (re.compile(r"9 Solar Home"), "9 Solar Fintech"),
         (re.compile(r"9 SOLAR HOME"), "9 SOLAR FINTECH"),
         (re.compile(r"(?<!EPC )Project [Mm]anagers"), "HQ Staff"),
@@ -44,6 +42,18 @@ _SWAPS: list[tuple[re.Pattern[str], str]] = (
         (re.compile(r"(?<!EPC )项目经理"), "总部员工"),
         (re.compile(r"EPC [Tt]eams?"), "EPC Project Manager"),
         (re.compile(r"EPC 团队"), "EPC 项目经理"),
+        (re.compile(r"\bHomeowners\b"), "Clients"),
+        (re.compile(r"\bHomeowner\b"), "Client"),
+        (re.compile(r"\bhomeowners\b"), "clients"),
+        (re.compile(r"\bhomeowner\b"), "client"),
+        (re.compile(r"\bHomes\b"), "Clients"),
+        (re.compile(r"屋主"), "客户"),
+        (re.compile(r"^住宅$"), "客户"),
+        (re.compile(r"\bhomes\b"), "sites"),
+        (re.compile(r"\bhome\b"), "site"),
+        (re.compile(r"住宅|住家"), "场地"),
+        (re.compile(r"家庭用电"), "场地用电"),
+        (re.compile(r"^相$"), "期"),
     ]
     if EDITION == "fintech"
     else []

@@ -7,6 +7,7 @@ import ElectricBoltRoundedIcon from "@mui/icons-material/ElectricBoltRounded";
 import ExpandLessRoundedIcon from "@mui/icons-material/ExpandLessRounded";
 import FactCheckRoundedIcon from "@mui/icons-material/FactCheckRounded";
 import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
+import FolderSpecialRoundedIcon from "@mui/icons-material/FolderSpecialRounded";
 import FormatListBulletedRoundedIcon from "@mui/icons-material/FormatListBulletedRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HandymanRoundedIcon from "@mui/icons-material/HandymanRounded";
@@ -42,7 +43,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 
-import { FEATURES } from "@/lib/client/edition";
+import { EDITION, FEATURES } from "@/lib/client/edition";
 import { ACT_AS_KEY, useFetcher } from "@/lib/client/api";
 import { type Role, useApp, useMe } from "@/lib/client/app-state";
 import { DESIGN } from "@/lib/client/design";
@@ -73,6 +74,8 @@ const GROUPS: Array<{ key: Group; label: string; icon: ReactNode }> = [
 
 const DASHBOARD: Tab = { href: "/dashboard", label: "Dashboard", icon: <InsightsRoundedIcon />, group: "homes" };
 const PROJECTS: Tab = { href: "/projects", label: "Projects", icon: <FormatListBulletedRoundedIcon />, group: "homes" };
+// GetApps: groups of projects (contracts) and their phases.
+const PROJECT_GROUPS: Tab = { href: "/groups", label: "Groups", icon: <FolderSpecialRoundedIcon />, group: "homes" };
 const MAINTENANCE: Tab = { href: "/maintenance", label: "Maintenance", icon: <HandymanRoundedIcon />, group: "homes" };
 // Payments: a homeowner's invoices and the QR; for managers, whether each month is issued and paid.
 const PAYMENTS: Tab = { href: "/payments", label: "Payments", icon: <ReceiptLongRoundedIcon />, group: "homes" };
@@ -93,7 +96,7 @@ const SP_POWER: Tab = { href: "/sp-power", label: "SP Power", icon: <ElectricBol
 const KPIS: Tab = { href: "/kpis", label: "Projected Analytics", icon: <QueryStatsRoundedIcon />, group: "info" };
 
 // Within a group in this order; the groups go Homes, Info, Admin, and Account is always Admin's last.
-const OFFICE: Tab[] = [DASHBOARD, PROJECTS, MAINTENANCE, FINANCE, SUPPORT, FUSIONSOLAR, SP_POWER, PEOPLE, AUDIT, ALERTS, CALENDAR, FILES, ACCOUNT];
+const OFFICE: Tab[] = [DASHBOARD, PROJECTS, PROJECT_GROUPS, MAINTENANCE, FINANCE, SUPPORT, FUSIONSOLAR, SP_POWER, PEOPLE, AUDIT, ALERTS, CALENDAR, FILES, ACCOUNT];
 
 const TABS: Record<Role, Tab[]> = {
   homeowner: [
@@ -111,7 +114,7 @@ const TABS: Record<Role, Tab[]> = {
   // Everything a project manager has, over every project.
   superadmin: [...OFFICE.slice(0, OFFICE.indexOf(SP_POWER) + 1), KPIS, ...OFFICE.slice(OFFICE.indexOf(SP_POWER) + 1)],
   // Admin (finance): payments first; every project and system to look at, read-only.
-  finance: [FINANCE, PROJECTS, MAINTENANCE, SUPPORT, FUSIONSOLAR, SP_POWER, KPIS, ALERTS, CALENDAR, FILES, ACCOUNT],
+  finance: [FINANCE, PROJECTS, PROJECT_GROUPS, MAINTENANCE, SUPPORT, FUSIONSOLAR, SP_POWER, KPIS, ALERTS, CALENDAR, FILES, ACCOUNT],
   contractor: [{ ...PROJECTS, href: "/" }, SUPPORT, SP_POWER, ALERTS, CALENDAR, { ...FILES, label: "Files" }, ACCOUNT],
   epc_team: [
     { ...PROJECTS, href: "/" },
@@ -156,7 +159,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState<{ group: Group; at: HTMLElement } | null>(null);
   if (!me) return null;
   // Pages this edition doesn't have (9 Solar Fintech: no Maintenance, no site check-in).
-  const tabs = TABS[me.role].filter((t) => (FEATURES.maintenance || t.href !== "/maintenance") && (FEATURES.checkIn || t.href !== "/sites"));
+  const tabs = TABS[me.role].filter((t) => (FEATURES.maintenance || t.href !== "/maintenance") && (FEATURES.checkIn || t.href !== "/sites") && (EDITION === "fintech" || t.href !== "/groups"));
   const current = activeHref(pathname, tabs);
   const unread = (state?.unread ?? 0) > 0;
   // A dot on Alerts for unread alerts, on Help or Support for a new answer or someone waiting.

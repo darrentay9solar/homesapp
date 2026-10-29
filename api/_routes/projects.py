@@ -22,8 +22,10 @@ from pydantic import BaseModel
 
 from _lib import address as addr
 from _lib import duplicates, notify, onemap, project_fields, records, to_fill
+from _lib import workflow as wf
 from _lib.account import ROLE_LABEL, Account
 from _lib.db import fetch_all, fetch_one, transaction
+from _lib.edition import EDITION
 from _lib.profile import clean_phone
 from _lib.web import active, role
 
@@ -35,6 +37,11 @@ CREW_ROLES = ("contractor", "epc_team")
 # The brief: no end date means three weeks after the start, and no start date
 # three weeks before the end.
 DEFAULT_SPAN = timedelta(weeks=3)
+# GetApps (9 Solar Fintech): a project's group and phase. Not read in 9 Solar Home's app.
+GETAPPS_COLS = ", pg.name as pgroup_name, ph.name as phase_name"
+GETAPPS_JOINS = """
+          left join project_groups pg on pg.group_id = p.group_id
+          left join project_phases ph on ph.phase_id = p.phase_id"""
 
 STATUS_LABEL = {
     "draft": "Draft",
@@ -78,17 +85,18 @@ def _load(acct: Account, project_id: int | None = None) -> list[dict[str, Any]]:
     if project_id is not None:
         where += " and p.project_id = %(pid)s"
         params["pid"] = project_id
+    cols, joins = (GETAPPS_COLS, GETAPPS_JOINS) if EDITION == "fintech" else ("", "")
     rows = fetch_all(
         f"""
         select p.*, r.name as retailer_name,
                (select s.signed_at from project_signatures s where s.project_id = p.project_id) as signed_at,
                h.full_name as h_name, h.email as h_email, h.ic_last4 as h_ic, h.active as h_active,
-               pm.full_name as pm_name, g.name as group_name
+               pm.full_name as pm_name, g.name as group_name{cols}
           from projects p
           left join electricity_retailers r on r.retailer_id = p.electricity_retailer_id
           left join users h on h.uid = p.homeowner_id
           left join users pm on pm.uid = p.project_manager_id
-          left join contractor_groups g on g.group_id = p.contractor_group_id
+          left join contractor_groups g on g.group_id = p.contractor_group_id{joins}
          where {where}
          order by p.created_at desc
         """,
@@ -145,8 +153,12 @@ def _load(acct: Account, project_id: int | None = None) -> list[dict[str, Any]]:
             f"No check-in for the EPC visit on {when}" + (f" ({v['works_note']})" if v["works_note"] else "")
         )
 
-    out = [_row(r, files.get(r["project_id"], {}), people.get(r["project_id"], []), missed.get(r["project_id"], []))
-           for r in rows]  # fmt: skip
+    # GetApps: progress, stage and timing come from its workflow (api/_lib/workflow.py).
+    wfl = wf.load(ids) if EDITION == "fintech" else None
+    out = [
+        _row(r, files.get(r["project_id"], {}), people.get(r["project_id"], []), missed.get(r["project_id"], []), wfl)
+        for r in rows
+    ]
     # Whether a project is on time, late or had an EPC no-show is the crew's and 9 Solar Home's
     # business: the homeowner sees its progress and status, never a timing verdict.
     if acct.role == "homeowner":
@@ -155,7 +167,13 @@ def _load(acct: Account, project_id: int | None = None) -> list[dict[str, Any]]:
     return out
 
 
-def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], missed: list[str]) -> dict[str, Any]:
+def _row(
+    r: dict[str, Any],
+    files: dict[str, int],
+    crew: list[dict[str, Any]],
+    missed: list[str],
+    loaded: wf.Loaded | None = None,
+) -> dict[str, Any]:
     p = dict(r)
     p["_retailer_name"] = r["retailer_name"]
     p["_homeowner"] = {"ic_last4": r["h_ic"], "email": r["h_email"]}
@@ -204,7 +222,7 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
             team.append({"uid": c["uid"], "name": c["full_name"] or c["email"], "role": c["user_type"]})
             seen.add(c["uid"])
 
-    return {
+    out = {
         "id": r["project_id"],
         "name": r["name"],
         "address": r["address"],
@@ -238,6 +256,30 @@ def _row(r: dict[str, Any], files: dict[str, int], crew: list[dict[str, Any]], m
         "signedAt": r["signed_at"].isoformat() if r.get("signed_at") else None,
         "closedAt": r["closed_at"].isoformat() if r.get("closed_at") else None,
     }
+    if loaded is not None:
+        out["group"] = {"id": r["group_id"], "name": r["pgroup_name"]} if r.get("group_id") else None
+        out["phase"] = {"id": r["phase_id"], "name": r["phase_name"]} if r.get("phase_id") else None
+        st = wf.state(r, loaded, t)
+        done = sum(1 for s in st["stages"] if s["done"]) + (1 if st["complete"] else 0)
+        wflags: list[dict[str, str]] = []
+        if st["lateDays"]:
+            wflags.append({"kind": "overdue", "text": f"Past its 10 months by {st['lateDays']} days"})
+        ca = next(i for i in st["sp"]["items"] if i["key"] == "connection_agreement")
+        if ca.get("overdue"):
+            wflags.append({"kind": "sp", "text": "Connection Agreement overdue (due a week after the PV2 letter)"})
+        out |= {
+            "progress": st["progress"],
+            "milestone": done,
+            "currentMilestone": min(done + 1, len(wf.STAGE_KEYS)),
+            "stage": st["current"],
+            "stageLabel": st["currentLabel"],
+            "complete": st["complete"],
+            "flags": wflags,
+            "attention": bool(wflags),
+            "toFill": 0,
+            "imported": False,
+        }
+    return out
 
 
 @router.get("/projects")
@@ -339,6 +381,9 @@ class ProjectIn(BaseModel):
     projectManagerId: int | None = None
     # They've confirmed it's a different home at a postal code already in the system.
     samePostalOk: bool = False
+    # GetApps: the group (contract) and phase it comes under.
+    groupId: int | None = None
+    phaseId: int | None = None
 
 
 def manager_for(body: ProjectIn, acct: Account, current: int | None = None) -> int:
@@ -358,9 +403,12 @@ def manager_for(body: ProjectIn, acct: Account, current: int | None = None) -> i
 
 
 def plan_dates(start: date | None, end: date | None) -> tuple[date, date]:
-    """Either date is enough; the other is three weeks away."""
+    """Either date is enough; the other is three weeks away (GetApps: a project runs 10 months)."""
     if start is None and end is None:
         raise HTTPException(400, "Give a start date or an end date (or both).")
+    if EDITION == "fintech":
+        start = start or wf.add_months(end, -wf.SPAN_MONTHS)  # type: ignore[arg-type]
+        end = end or wf.target_end(start)
     start = start or end - DEFAULT_SPAN  # type: ignore[operator]
     end = end or start + DEFAULT_SPAN
     if end < start:
@@ -414,10 +462,22 @@ def _validate(body: ProjectIn) -> dict[str, Any]:
             raise HTTPException(400, "Enter the contractor's name.")
 
     start, end = plan_dates(body.startDate, body.endDate)
+    pgroup = pphase = None
+    if EDITION != "fintech":
+        body.groupId = body.phaseId = None
+    if body.groupId is not None:
+        if not fetch_one("select 1 from project_groups where group_id = %s", (body.groupId,)):
+            raise HTTPException(400, "Choose the project's group.")
+        pgroup = body.groupId
+    if body.phaseId is not None:
+        ph = fetch_one("select group_id from project_phases where phase_id = %s", (body.phaseId,))
+        if not ph or ph["group_id"] != pgroup:
+            raise HTTPException(400, "Choose a phase of the project's group.")
+        pphase = body.phaseId
     return {
         "name": name, "postal": postal, "address": address, "homeowner_id": homeowner_id,
         "homeowner_name": homeowner_name, "contact": contact, "group_id": group_id, "user_ids": user_ids,
-        "contractor_text": contractor_text, "start": start, "end": end,
+        "contractor_text": contractor_text, "start": start, "end": end, "pgroup": pgroup, "pphase": pphase,
     }  # fmt: skip
 
 
@@ -438,7 +498,8 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
             raise HTTPException(400, exc.for_people()) from exc
         geo_note = " The site's GPS location couldn't be looked up yet, so check-in is off until it is."
 
-    status = "awaiting_homeowner" if v["homeowner_id"] else "draft"
+    # GetApps has no homeowner approval: a project starts as soon as it's created.
+    status = "in_progress" if EDITION == "fintech" else "awaiting_homeowner" if v["homeowner_id"] else "draft"
     manager = manager_for(body, acct)
     with transaction(acct.uid) as cur:
         cur.execute(
@@ -465,6 +526,11 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
             },  # fmt: skip
         )
         pid = cur.fetchone()["project_id"]
+        if v["pgroup"] is not None:
+            cur.execute(
+                "update projects set group_id = %s, phase_id = %s where project_id = %s",
+                (v["pgroup"], v["pphase"], pid),
+            )
         for uid in v["user_ids"]:
             cur.execute(
                 "insert into project_assignments (project_id, user_id, assigned_by) values (%s, %s, %s)",
@@ -474,7 +540,9 @@ def create(body: ProjectIn, acct: Account = Depends(pm_only)) -> dict[str, Any]:
     _announce(pid, v, acct)
     if manager != acct.uid:
         notify.notify(manager, "assignment", "New project to run", f"{v['name']} — {v['address']}", project_id=pid)
-    if v["homeowner_id"]:
+    if EDITION == "fintech":
+        msg = f"Created {v['name']}."
+    elif v["homeowner_id"]:
         msg = f"Created {v['name']}. The homeowner has been asked to approve it."
     else:
         msg = f"Created {v['name']} as a draft. Link the homeowner's account so they can approve it."

@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { Page } from "@/components/shell";
 import { GRID, Heading, TopBar } from "@/components/topbar";
 import { checkPage, checkPickers, type Finding, type Kind } from "@/lib/client/design-check";
+import { EDITION } from "@/lib/client/edition";
 import { type Lang, LANG_COOKIE, translate } from "@/lib/client/i18n";
 
 /**
@@ -30,7 +31,8 @@ import { type Lang, LANG_COOKIE, translate } from "@/lib/client/i18n";
  * `opens` is false when the click doesn't open a dialog.
  */
 
-const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; opens?: boolean }> = [
+type Screen = { name: string; path: string; kind: Kind; click?: string; opens?: boolean };
+const BASE: Screen[] = [
   { name: "Sign In", path: "/sign-in", kind: "auth" },
   { name: "Create Account", path: "/sign-up", kind: "auth" },
   { name: "Forgot Password", path: "/forgot-password", kind: "auth" },
@@ -173,6 +175,25 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Repeating meeting", path: "/dev-preview/calendar?meeting=308", kind: "app", click: "[data-testid=meeting-details]" },
   { name: "Block Out Time dialog", path: "/dev-preview/calendar?view=list", kind: "app", click: "[data-testid=block-time]" },
 ];
+
+// GetApps' own screens (run the check on the getapps-web preview; ?only=getapps checks just these).
+const GETAPPS: Screen[] = [
+  { name: "GetApps · Projects", path: "/dev-preview/projects", kind: "app" },
+  { name: "GetApps · Projects: a stage", path: "/dev-preview/projects?tab=electrical", kind: "app" },
+  { name: "GetApps · Project workflow", path: "/dev-preview/projects/104", kind: "app" },
+  { name: "GetApps · Project workflow: just started", path: "/dev-preview/projects/103", kind: "app" },
+  { name: "GetApps · Project workflow: SP Turn-On", path: "/dev-preview/projects/106", kind: "app" },
+  { name: "GetApps · Project details", path: "/dev-preview/projects/104?tab=details", kind: "app" },
+  { name: "GetApps · Create Project dialog", path: "/dev-preview/projects", kind: "app", click: "Create project" },
+  { name: "GetApps · Groups", path: "/dev-preview/groups", kind: "app" },
+  { name: "GetApps · Groups: Works checklists", path: "/dev-preview/groups?tab=checklists", kind: "app" },
+  { name: "GetApps · New Group dialog", path: "/dev-preview/groups", kind: "app", click: "[data-testid=group-new]" },
+  { name: "GetApps · Group", path: "/dev-preview/groups/1", kind: "app" },
+  { name: "GetApps · Group: Add Phase dialog", path: "/dev-preview/groups/1", kind: "app", click: "[data-testid=phase-add]" },
+  { name: "GetApps · Group: Edit Group dialog", path: "/dev-preview/groups/1", kind: "app", click: "[data-testid=group-edit]" },
+  { name: "GetApps · Group without phases", path: "/dev-preview/groups/3", kind: "app" },
+];
+const SCREENS: Screen[] = EDITION === "fintech" ? [...BASE, ...GETAPPS] : BASE;
 /**
  * Real phones by their screen in CSS pixels, and the same phones with a bigger font setting
  * (Chrome on Android applies it as page zoom, so the page gets narrower). The first three

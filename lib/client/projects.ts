@@ -5,6 +5,7 @@
  */
 
 import type { Role } from "./app-state";
+import { EDITION } from "./edition";
 import { translate } from "./i18n";
 import { normalise, tokens } from "./people-search";
 
@@ -53,6 +54,12 @@ export type ProjectRow = {
   /** When the homeowner signed the handover, and when it was handed over (closed). */
   signedAt?: string | null;
   closedAt?: string | null;
+  /** GetApps: where it is in its workflow (api/_lib/workflow.py), and the group (contract) and phase it's in. */
+  stage?: string;
+  stageLabel?: string;
+  complete?: boolean;
+  group?: { id: number; name: string } | null;
+  phase?: { id: number; name: string } | null;
 };
 
 /** handedOver: handed-over projects (in maintenance), which live on the Maintenance page rather than in the list. */
@@ -81,15 +88,29 @@ export const STATUS_TONE: Record<ProjectStatus, Tone> = {
   maintenance: "success",
 };
 
-export type Tab = "all" | "attention" | "approval" | "active" | "handover" | "completed";
-export const TABS: Array<[Tab, string]> = [
-  ["all", "All"],
-  ["attention", "Attention"],
-  ["approval", "Approval"],
-  ["active", "Active"],
-  ["handover", "Handover"],
-  ["completed", "Completed"],
-];
+/** GetApps' workflow stages (api/_lib/workflow.py), which are its list's tabs. */
+export type StageTab = "pre_install" | "mechanical" | "electrical" | "commissioning" | "sp_turn_on";
+export type Tab = "all" | "attention" | "approval" | "active" | "handover" | "completed" | StageTab;
+export const TABS: Array<[Tab, string]> =
+  EDITION === "fintech"
+    ? [
+        ["all", "All"],
+        ["attention", "Attention"],
+        ["pre_install", "Pre-Installation"],
+        ["mechanical", "Mechanical"],
+        ["electrical", "Electrical"],
+        ["commissioning", "Commissioning"],
+        ["sp_turn_on", "SP Turn-On"],
+        ["completed", "Completed"],
+      ]
+    : [
+        ["all", "All"],
+        ["attention", "Attention"],
+        ["approval", "Approval"],
+        ["active", "Active"],
+        ["handover", "Handover"],
+        ["completed", "Completed"],
+      ];
 
 const APPROVAL: ProjectStatus[] = ["draft", "awaiting_homeowner", "homeowner_declined", "homeowner_approved"];
 const ACTIVE: ProjectStatus[] = ["pm_approved", "in_progress"];
@@ -98,6 +119,13 @@ const HANDOVER: ProjectStatus[] = ["awaiting_signature"];
 const COMPLETED: ProjectStatus[] = ["signed", "maintenance"];
 
 export function inTab(p: ProjectRow, tab: Tab): boolean {
+  // GetApps: the tabs are the workflow's stages; a project is completed when its workflow is.
+  if (p.stage !== undefined) {
+    if (tab === "all") return true;
+    if (tab === "attention") return p.attention;
+    if (tab === "completed") return Boolean(p.complete);
+    return p.stage === tab;
+  }
   switch (tab) {
     case "all":
       return true;
@@ -111,6 +139,8 @@ export function inTab(p: ProjectRow, tab: Tab): boolean {
       return HANDOVER.includes(p.status);
     case "completed":
       return COMPLETED.includes(p.status);
+    default:
+      return false;
   }
 }
 
@@ -135,6 +165,10 @@ export function matchesProject(p: ProjectRow, query: string): boolean {
       ...p.team.map((t) => t.name ?? ""),
       p.statusLabel,
       translate(p.statusLabel, "zh"),
+      p.stageLabel ?? "",
+      p.stageLabel ? translate(p.stageLabel, "zh") : "",
+      p.group?.name ?? "",
+      p.phase?.name ?? "",
       `milestone ${p.currentMilestone} 里程碑 ${p.currentMilestone} 里程碑${p.currentMilestone}`,
       // Chinese words too, so a search works in either language.
       ...(p.attention ? ["attention", "red", "issue", "需要注意 问题"] : ["on time", "on track", "准时 正常"]),
@@ -156,6 +190,17 @@ export function sortProjects(list: ProjectRow[]): ProjectRow[] {
 // ------------------------------------------------------------------ dates
 
 export const SPAN_DAYS = 21;
+export const SPAN_MONTHS = 10;
+
+/** As api/_lib/workflow.py add_months: the same day n months on, or the month's last day. */
+export function addMonths(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const total = y * 12 + (m - 1) + n;
+  const year = Math.floor(total / 12);
+  const month = (total % 12) + 1;
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
 
 function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -170,8 +215,10 @@ function addDays(iso: string, n: number): string {
  */
 export function planDates(start: string, end: string): { start: string; end: string; error: string | null } | null {
   if (!start && !end) return null;
-  const s = start || addDays(end, -SPAN_DAYS);
-  const e = end || addDays(start, SPAN_DAYS);
+  // GetApps: a project runs 10 months (api/_lib/workflow.py target_end).
+  const months = EDITION === "fintech";
+  const s = start || (months ? addMonths(end, -SPAN_MONTHS) : addDays(end, -SPAN_DAYS));
+  const e = end || (months ? addMonths(start, SPAN_MONTHS) : addDays(start, SPAN_DAYS));
   return { start: s, end: e, error: e < s ? "The end date can't be before the start date." : null };
 }
 

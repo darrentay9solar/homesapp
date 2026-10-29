@@ -38,6 +38,8 @@ import { d2s } from "@/components/ui";
 import { ApiError, useApi, useFetcher } from "@/lib/client/api";
 import { pickerFilter } from "@/lib/client/search";
 import { useApp, useMe } from "@/lib/client/app-state";
+import { EDITION, FEATURES } from "@/lib/client/edition";
+import type { GroupList } from "@/lib/client/workflow";
 import { type Options, planDates, type ProjectRow, STATUS_TONE } from "@/lib/client/projects";
 
 import { T, TR } from "@/lib/client/i18n";
@@ -55,7 +57,10 @@ const edgeColor = (p: ProjectRow, red: boolean) => (t: Theme) => {
   return tone === "default" ? t.palette.text.disabled : t.palette[tone].main;
 };
 
-export function StatusChip({ p, size = "small" }: { p: Pick<ProjectRow, "status" | "statusLabel">; size?: "small" | "medium" }) {
+export function StatusChip({ p, size = "small" }: { p: Pick<ProjectRow, "status" | "statusLabel"> & Partial<Pick<ProjectRow, "stageLabel" | "complete">>; size?: "small" | "medium" }) {
+  // GetApps: where the project is in its workflow.
+  if (p.stageLabel)
+    return <Chip size={size} label={TR(p.stageLabel)} color={p.complete ? "success" : "info"} sx={{ fontWeight: 600, maxWidth: "100%", height: "auto", "& .MuiChip-label": { whiteSpace: "normal", py: 0.25 } }} />;
   const tone = STATUS_TONE[p.status];
   return <Chip size={size} label={TR(p.statusLabel)} color={tone} variant={tone === "default" ? "outlined" : "filled"} sx={{ fontWeight: 600 }} />;
 }
@@ -116,7 +121,11 @@ export function ProjectCard({ p }: { p: ProjectRow }) {
           <Stack direction="row" sx={{ gap: 0.75, mt: 1.25, flexWrap: "wrap" }}>
             <StatusChip p={p} />
             <TimingChip p={p} />
-            <Chip size="small" variant="outlined" label={p.milestone === 3 ? T("All milestones") : T("Milestone {n}", { n: p.currentMilestone })} />
+            {p.stage === undefined ? (
+              <Chip size="small" variant="outlined" label={p.milestone === 3 ? T("All milestones") : T("Milestone {n}", { n: p.currentMilestone })} />
+            ) : (
+              p.group && <Chip size="small" variant="outlined" label={p.phase ? `${p.group.name} · ${p.phase.name}` : p.group.name} sx={{ maxWidth: "100%" }} />
+            )}
           </Stack>
 
           <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(72px, 1fr))", gap: 1, mt: 1.5 }}>
@@ -196,6 +205,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
   const href = useProjectHref();
   const { toast } = useApp();
   const { data: opts } = useApi<Options>("/projects/options");
+  const { data: pgroups } = useApi<GroupList>(EDITION === "fintech" ? "/project-groups" : null);
   // Whoever creates a project chooses who runs it; one with no manager yet can be taken on.
   // Handing over a running project is a superadmin's.
   const chooses = useMe()?.role === "superadmin" || !p || !p.pm.uid;
@@ -211,6 +221,9 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
     groupId: p?.contractor.groupId ? String(p.contractor.groupId) : "",
     // Who runs it. Empty means "me" (or, editing, unchanged).
     manager: p?.pm.uid ? String(p.pm.uid) : "",
+    // GetApps: the group (contract) and phase it's in.
+    pgroup: p?.group ? String(p.group.id) : "",
+    pphase: p?.phase ? String(p.phase.id) : "",
   }));
   const [homeowner, setHomeowner] = useState<Homeowner | string | null>(() =>
     !p ? null : p.homeowner.linked ? { uid: p.homeowner.uid!, name: p.homeowner.name ?? "", email: "", contactNo: p.contactNo } : (p.homeowner.name ?? "")
@@ -294,8 +307,13 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           endDate: f.end || null,
           ...(chooses && opts?.managers?.length && f.manager ? { projectManagerId: Number(f.manager) } : {}),
           samePostalOk: samePostal,
+          ...(EDITION === "fintech" && !p ? { groupId: f.pgroup ? Number(f.pgroup) : null, phaseId: f.pphase ? Number(f.pphase) : null } : {}),
         },
       });
+      // GetApps: an edited project's group and phase are saved on their own.
+      if (EDITION === "fintech" && p && (f.pgroup !== (p.group ? String(p.group.id) : "") || f.pphase !== (p.phase ? String(p.phase.id) : ""))) {
+        await fetcher(`/projects/${p.id}/group`, { method: "PUT", json: { groupId: f.pgroup ? Number(f.pgroup) : null, phaseId: f.pphase ? Number(f.pphase) : null } });
+      }
       toast(res.message);
       onClose();
       if (p) await onSaved?.();
@@ -315,7 +333,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
       onClose={onClose}
     >
       <Stack sx={{ gap: 2.5 }}>
-        <Field label={T("Project name")} required icon={<SolarPowerRoundedIcon />} placeholder={T("e.g. Hillcrest Villa")} value={f.name} onChange={set("name")} error={Boolean(shown("name"))} helperText={shown("name") ?? undefined} />
+        <Field label={T("Project name")} required icon={<SolarPowerRoundedIcon />} placeholder={FEATURES.homeowners ? T("e.g. Hillcrest Villa") : T("e.g. Tampines Loop Factory")} value={f.name} onChange={set("name")} error={Boolean(shown("name"))} helperText={shown("name") ?? undefined} />
 
         <Field
           label={T("Postal code")}
@@ -333,11 +351,15 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
             shown("postal") ??
             (geo && geo.postal === f.postal
               ? geo.ok
-                ? "Found on OneMap. GPS check-in will use this site."
+                ? FEATURES.checkIn
+                  ? "Found on OneMap. GPS check-in will use this site."
+                  : "Found on OneMap."
                 : geo.text
               : /^\d{6}$/.test(f.postal)
                 ? "Looking it up…"
-                : "Used for the site's GPS location at check-in.")
+                : FEATURES.checkIn
+                  ? "Used for the site's GPS location at check-in."
+                  : "Finds the address on OneMap.")
           }
           slotProps={{
             htmlInput: { inputMode: "numeric", maxLength: 6 },
@@ -383,11 +405,13 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
               {...params}
               label={T("Homeowner")}
               required
-              placeholder={T("Choose their account, or type a name")}
+              placeholder={FEATURES.homeowners ? T("Choose their account, or type a name") : T("The company's name")}
               error={Boolean(shown("homeowner"))}
               helperText={
                 shown("homeowner") ??
-                (linked
+                (!FEATURES.homeowners
+                  ? "The company this project is for, e.g. the factory's owner."
+                  : linked
                   ? "Account linked: they'll be asked to approve the project."
                   : homeownerOk
                     ? "No account: the project stays a draft until one is linked, since only an account can approve and e-sign."
@@ -500,6 +524,30 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
           </Field>
         )}
 
+        {EDITION === "fintech" && (
+          <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
+            <Field select label={T("Project group")} icon={<GroupsRoundedIcon />} value={f.pgroup} onChange={(e) => setF((x) => ({ ...x, pgroup: e.target.value, pphase: "" }))}
+              helperText={pgroups?.groups.length === 0 ? T("No groups yet. Create one in Groups.") : T("The contract it comes under (optional).")}
+              slotProps={{ htmlInput: { "data-testid": "project-group" } }}>
+              <MenuItem value="">{T("None")}</MenuItem>
+              {(pgroups?.groups ?? []).map((g) => (
+                <MenuItem key={g.id} value={String(g.id)}>
+                  {g.name}
+                </MenuItem>
+              ))}
+            </Field>
+            <Field select label={T("Phase")} icon={<GroupsRoundedIcon />} value={f.pphase} onChange={set("pphase")} disabled={!f.pgroup}
+              slotProps={{ htmlInput: { "data-testid": "project-phase" } }}>
+              <MenuItem value="">{T("None")}</MenuItem>
+              {(pgroups?.groups.find((g) => String(g.id) === f.pgroup)?.phases ?? []).map((ph) => (
+                <MenuItem key={ph.id} value={String(ph.id)}>
+                  {ph.name}
+                </MenuItem>
+              ))}
+            </Field>
+          </Stack>
+        )}
+
         <Box>
           <Stack direction="row" sx={{ gap: 1.5, flexWrap: "wrap", "& > *": { flex: "1 1 150px", minWidth: 0 } }}>
             <Field label={T("Start date")} type="date" icon={<CalendarMonthRoundedIcon />} value={f.start} onChange={set("start")} />
@@ -523,7 +571,7 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
         {busy ? (p ? T("Saving…") : T("Creating…")) : p ? T("Save Changes") : T("Next — Create Project")}
       </Button>
       <Typography variant="caption" component="p" sx={{ textAlign: "center", color: "text.secondary", mt: 1.25 }}>
-        {p ? T("Anyone newly added to the project will be notified.") : T("The homeowner, contractor admins and EPC crew will be notified.")}
+        {p ? T("Anyone newly added to the project will be notified.") : FEATURES.homeowners ? T("The homeowner, contractor admins and EPC crew will be notified.") : T("The contractor admins and EPC crew will be notified.")}
       </Typography>
     </MDialog>
   );
@@ -531,13 +579,24 @@ export function NewProjectDialog({ onClose, project: p, onSaved }: { onClose: ()
 
 function DatesNote({ start, end }: { start: string; end: string }) {
   const d = planDates(start, end);
-  let text: ReactNode = T("Give a start date, an end date, or both. A missing one is set three weeks from the other.");
+  const months = EDITION === "fintech";
+  let text: ReactNode = months
+    ? T("Give a start date, an end date, or both. A project runs 10 months: a missing one is set from the other.")
+    : T("Give a start date, an end date, or both. A missing one is set three weeks from the other.");
   let color = "text.secondary";
   if (d?.error) {
     text = TR(d.error);
     color = "error.main";
   } else if (d) {
-    const filled = !start ? T("start set 3 weeks before the end") : !end ? T("end set 3 weeks after the start") : null;
+    const filled = !start
+      ? months
+        ? T("start set 10 months before the end")
+        : T("start set 3 weeks before the end")
+      : !end
+        ? months
+          ? T("end set 10 months after the start")
+          : T("end set 3 weeks after the start")
+        : null;
     text = (
       <>
         {T("Runs")} <b>{d2s(d.start)}</b> → <b>{d2s(d.end)}</b>

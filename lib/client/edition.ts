@@ -3,8 +3,9 @@
  * settings (docs/editions.md):
  *
  *   home      9 Solar Home's GetHomeApps (the default)
- *   fintech   9 Solar Fintech's GetApps: no homeowners, no site check-in or location, no Maintenance;
- *             "Project Manager" reads "HQ Staff" and "EPC Team" reads "EPC Project Manager"
+ *   fintech   9 Solar Fintech's GetApps (九太阳): no homeowners, no site check-in or location, no Maintenance;
+ *             "Project Manager" reads "HQ Staff", "EPC Team" reads "EPC Project Manager", and homes and
+ *             homeowners are "Clients"; projects follow GetApps' own workflow (api/_lib/workflow.py)
  *
  * Set by NEXT_PUBLIC_EDITION on the site's hosting (Vercel), and EDITION for the API (api/_lib/edition.py).
  */
@@ -30,9 +31,7 @@ const SWAPS: Array<[RegExp, string]> =
     ? [
         [/GetHomeApps/g, "GetApps"],
         [/GETHOMEAPPS/g, "GETAPPS"],
-        [/9 SOLAR HOME · 九太阳家/g, "9 SOLAR FINTECH"],
-        [/ · 九太阳家/g, ""],
-        [/九太阳家/g, "9 Solar Fintech"],
+        [/九太阳家/g, "九太阳"],
         [/9 Solar Home/g, "9 Solar Fintech"],
         [/9 SOLAR HOME/g, "9 SOLAR FINTECH"],
         // Not after "EPC ": the new role name stays as it is when text passes through twice.
@@ -43,6 +42,21 @@ const SWAPS: Array<[RegExp, string]> =
         [/(?<!EPC )项目经理/g, "总部员工"],
         [/EPC [Tt]eams?/g, "EPC Project Manager"],
         [/EPC 团队/g, "EPC 项目经理"],
+        // No homeowners: the people a project is for are its clients.
+        [/\bHomeowners\b/g, "Clients"],
+        [/\bHomeowner\b/g, "Client"],
+        [/\bhomeowners\b/g, "clients"],
+        [/\bhomeowner\b/g, "client"],
+        [/\bHomes\b/g, "Clients"],
+        [/屋主/g, "客户"],
+        [/^住宅$/g, "客户"],
+        // Its clients are businesses (factories and the like): a project is at a site, not a home.
+        [/\bhomes\b/g, "sites"],
+        [/\bhome\b/g, "site"],
+        [/住宅|住家/g, "场地"],
+        [/家庭用电/g, "场地用电"],
+        // "Phase" is a project's phase here (an electrical phase is 相 in 9 Solar Home's records).
+        [/^相$/g, "期"],
       ]
     : [];
 

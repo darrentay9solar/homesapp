@@ -38,7 +38,7 @@
     "vapid-keys": "node scripts/py.mjs scripts/vapid-keys.py",
     "test:million": "node scripts/py.mjs scripts/test_million.py",
     "test:r2": "node scripts/py.mjs -m pytest -q --r2-live -m r2_live",
-    "test:web": "tsx --test tests/people-search.test.ts tests/audit.test.ts tests/projects.test.ts tests/sites.test.ts tests/search.test.ts tests/alerts.test.ts tests/i18n.test.ts tests/location.test.ts tests/demo.test.ts tests/analytics.test.ts tests/maintenance.test.ts tests/calendar.test.ts tests/rules.test.ts tests/support.test.ts tests/finance.test.ts tests/privacy.test.ts tests/table.test.ts tests/files.test.ts tests/contact.test.ts"
+    "test:web": "tsx --test tests/people-search.test.ts tests/audit.test.ts tests/projects.test.ts tests/sites.test.ts tests/search.test.ts tests/alerts.test.ts tests/i18n.test.ts tests/location.test.ts tests/demo.test.ts tests/analytics.test.ts tests/maintenance.test.ts tests/calendar.test.ts tests/rules.test.ts tests/support.test.ts tests/finance.test.ts tests/privacy.test.ts tests/table.test.ts tests/files.test.ts tests/contact.test.ts tests/workflow.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.20",

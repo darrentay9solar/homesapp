@@ -59,3 +59,29 @@ def test_fintech_has_no_homeowners_check_in_or_maintenance() -> None:
     assert (
         run("fintech", "from _lib.edition import FEATURES; print(sorted(k for k, v in FEATURES.items() if v))") == "[]"
     )
+
+
+def test_fintech_clients_are_businesses_at_sites() -> None:
+    code = (
+        "from _lib.i18n import tr\n"
+        "for s in ['Homes', 'Homeowner contact no.', 'This is a different home at the same postal code', 'Phase']:\n"
+        "    print(tr(s, 'en') + ' | ' + tr(s, 'zh'))"
+    )
+    lines = run("fintech", code).splitlines()
+    assert lines[0] == "Clients | 客户"
+    assert lines[1].startswith("Client contact no. | ")
+    assert lines[2].startswith("This is a different site at the same postal code | ")
+    assert "场地" in lines[2]
+    assert lines[3] == "Phase | 期"
+    # 9 Solar Home keeps its words.
+    assert (
+        run("", "from _lib.i18n import tr; print(tr('Homes', 'zh'), tr('Phase', 'zh'), tr('Homeowner', 'en'))")
+        == "住宅 相 Homeowner"
+    )
+
+
+def test_fintech_chinese_name() -> None:
+    assert (
+        run("fintech", "from _lib.i18n import tr; print(tr('GetHomeApps · 9 Solar Home · 九太阳家', 'en'))")
+        == "GetApps · 9 Solar Fintech · 九太阳"
+    )
