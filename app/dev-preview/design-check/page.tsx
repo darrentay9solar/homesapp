@@ -189,7 +189,7 @@ const GETAPPS: Screen[] = [
   { name: "GetApps · Groups: Works checklists", path: "/dev-preview/groups?tab=checklists", kind: "app" },
   { name: "GetApps · New Group dialog", path: "/dev-preview/groups", kind: "app", click: "[data-testid=group-new]" },
   { name: "GetApps · Group", path: "/dev-preview/groups/1", kind: "app" },
-  { name: "GetApps · Group: Add Phase dialog", path: "/dev-preview/groups/1", kind: "app", click: "[data-testid=phase-add]" },
+  { name: "GetApps · Group: Add Phase dialog", path: "/dev-preview/groups/1?tab=phases", kind: "app", click: "[data-testid=phase-add]" },
   { name: "GetApps · Group: Edit Group dialog", path: "/dev-preview/groups/1", kind: "app", click: "[data-testid=group-edit]" },
   { name: "GetApps · Group without phases", path: "/dev-preview/groups/3", kind: "app" },
 ];
