@@ -30,7 +30,6 @@ import { useApi } from "@/lib/client/api";
 import { locale, T } from "@/lib/client/i18n";
 import { useTab } from "@/lib/client/tabs";
 
-type Check = { key: string; n: number; codes: string[]; years?: number };
 type Kpis = {
   asOf: string;
   portfolio: { systems: number; byPlan: Array<{ plan: string; n: number }>; kwp: number; kwpKnown: number; inProgress: number; newIn12Months: number; kwpNewIn12Months: number; firstOn: string | null };
@@ -53,9 +52,8 @@ type Kpis = {
   };
   customers: { avgRate: number | null; spWithGst: number | null; spFrom: string | null; cheaperPct: number | null; saved12Months: number; savedKwh: number; co2Tons: number; trees: number; co2PerKwh: number; kgPerTree: number };
   operations: { plants: number; health: Record<"normal" | "faulty" | "disconnected" | "unknown", number>; normalPct: number | null; alarms: Record<"critical" | "major" | "minor" | "warning", number>; monitored: number; lastSync: string | null };
-  checks: Check[];
 };
-type Tab = "summary" | "revenue" | "generation" | "customers" | "operations" | "checks";
+type Tab = "summary" | "revenue" | "generation" | "customers" | "operations";
 
 const num = (v: number | null | undefined, digits = 0) => (v === null || v === undefined ? "—" : v.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits }));
 const sgd = (v: number | null | undefined, digits = 0) => (v === null || v === undefined ? "—" : `S$${num(v, digits)}`);
@@ -162,46 +160,9 @@ function operationRows(k: Kpis): Calc[] {
   ];
 }
 
-const CHECK: Record<string, { title: string; why: string }> = {
-  term_differs: { title: "Contract term isn't what invoicing uses", why: "Invoices are issued for {years} years for every system; these systems' contracts say otherwise. Decide which is right before the 'still to come' figure or the invoices are relied on." },
-  no_rate: { title: "No rate per kWh", why: "Can't be invoiced, and isn't in the revenue figures, until a rate is entered." },
-  not_ppa: { title: "Not on a PPA", why: "Bought outright (Value Green): left out of what the contracts bring in." },
-  own_period: { title: "Billed on its own dates", why: "The contract bills from one date to the next (e.g. 18 Jul to 17 Aug); the app bills calendar months." },
-  unmonitored: { title: "Systems not on FusionSolar", why: "Their kWh comes only from the client list." },
-  unlinked_plants: { title: "FusionSolar plants not linked to a system", why: "Their output is in the lifetime total but isn't invoiced." },
-  kwh_differs: { title: "Months where the invoiced kWh isn't FusionSolar's", why: "Months taken from the client list before FusionSolar was linked. Keep a note of why for each, for anyone checking billing against the meters." },
-  no_size: { title: "No size (kWp)", why: "Left out of kWh per kWp." },
-  no_estimate: { title: "No estimated monthly kWh", why: "Left out of 'beside the estimate', and of 'still to come' until it has 3 months of its own." },
-};
-
-function Checks({ checks }: { checks: Check[] }) {
-  if (!checks.length) return <Alert severity="success" sx={{ mt: 2 }}>{T("Nothing makes these figures less certain.")}</Alert>;
-  return (
-    <Stack sx={{ gap: 1, mt: 2 }} data-testid="kpi-checks">
-      {checks.map((c) => (
-        <Card key={c.key} sx={{ p: 2, minWidth: 0 }}>
-          <Stack direction="row" sx={{ gap: 1, alignItems: "baseline" }}>
-            <Typography sx={{ fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{T(CHECK[c.key]?.title ?? c.key)}</Typography>
-            <Typography sx={{ fontWeight: 700, ml: "auto", color: "warning.main" }}>{c.n}</Typography>
-          </Stack>
-          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5, overflowWrap: "anywhere" }}>
-            {T(CHECK[c.key]?.why ?? "", { years: c.years ?? "" })}
-          </Typography>
-          {c.codes.length > 0 && (
-            <Typography variant="caption" component="p" sx={{ mt: 0.75, overflowWrap: "anywhere" }}>
-              {c.codes.slice(0, 30).join(", ")}
-              {c.codes.length > 30 ? ` ${T("and {n} more", { n: c.codes.length - 30 })}` : ""}
-            </Typography>
-          )}
-        </Card>
-      ))}
-    </Stack>
-  );
-}
-
 function KpiScreen() {
   const { data: k, error } = useApi<Kpis>("/kpis");
-  const [tab, setTab] = useTab<Tab>(["summary", "revenue", "generation", "customers", "operations", "checks"], "summary");
+  const [tab, setTab] = useTab<Tab>(["summary", "revenue", "generation", "customers", "operations"], "summary");
   return (
     <>
       <TopBar
@@ -217,7 +178,6 @@ function KpiScreen() {
               { value: "generation" as const, label: "Generation" },
               { value: "customers" as const, label: "Customers" },
               { value: "operations" as const, label: "Operations" },
-              { value: "checks" as const, label: "Checks" },
             ]}
           />
         }
@@ -248,11 +208,6 @@ function KpiScreen() {
                 <StatTile label="Cheaper than SP" value={pct(k.customers.cheaperPct)} sub={T("{n} saved in 12 months", { n: sgd(k.customers.saved12Months) })} icon={<SavingsRoundedIcon />} tone="good" testId="kpi-cheaper" />
                 <StatTile label="CO2 avoided" value={T("{n} t", { n: num(k.customers.co2Tons, 1) })} sub={T("{n} trees' worth", { n: num(k.customers.trees) })} icon={<EcoRoundedIcon />} testId="kpi-co2" />
               </Box>
-              {k.checks.length > 0 && (
-                <Alert severity="warning" sx={{ mt: 1.5 }}>
-                  {T("{n} things make some of these figures less certain; see Checks.", { n: k.checks.length })}
-                </Alert>
-              )}
             </Box>
           )}
           {k && tab === "revenue" && (
@@ -312,7 +267,6 @@ function KpiScreen() {
               <Calculations rows={operationRows(k)} testId="kpi-operations-how" />
             </Box>
           )}
-          {k && tab === "checks" && <Checks checks={k.checks} />}
         </Page>
       </Box>
     </>

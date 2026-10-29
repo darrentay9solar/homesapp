@@ -51,10 +51,8 @@ month" is the last finished calendar month.
 Plant health (FusionSolar's), active alarms by level, systems linked to a
 FusionSolar plant, and when the live figures were last fetched.
 
-## Checks
+## Checks (not shown on the page)
 
-What makes a figure less certain, with the systems' project codes: a contract
-term other than the one invoicing uses, no rate, not a PPA, billed on its own
-dates rather than calendar months, systems not on FusionSolar, plants not
-linked to a system, months where the invoiced kWh isn't FusionSolar's, no
-size, no estimate.
+The API still works out what makes a figure less certain (`checks`: contract terms invoicing
+doesn't follow, missing rates, unlinked plants and so on), for the tests and the due-diligence pack;
+the page stopped showing them on 29 Oct 2026.

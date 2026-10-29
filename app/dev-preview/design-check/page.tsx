@@ -156,7 +156,6 @@ const SCREENS: Array<{ name: string; path: string; kind: Kind; click?: string; o
   { name: "Projected Analytics: generation (Admin)", path: "/dev-preview/kpis?as=finance&tab=generation", kind: "app" },
   { name: "Projected Analytics: customers (Admin)", path: "/dev-preview/kpis?as=finance&tab=customers", kind: "app" },
   { name: "Projected Analytics: operations (Admin)", path: "/dev-preview/kpis?as=finance&tab=operations", kind: "app" },
-  { name: "Projected Analytics: checks (Admin)", path: "/dev-preview/kpis?as=finance&tab=checks", kind: "app" },
   { name: "Payments (Admin)", path: "/dev-preview/finance?as=finance", kind: "app" },
   { name: "Payments: monthly (Admin)", path: "/dev-preview/finance?as=finance&tab=monthly", kind: "app" },
   { name: "Payments: invoices (Admin)", path: "/dev-preview/finance?as=finance&tab=invoices", kind: "app" },
