@@ -48,7 +48,7 @@
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
     "@mui/material-nextjs": "^9.5.0",
-    "@neondatabase/serverless": "^0.10.4",
+    "@neondatabase/serverless": "^1.2.0",
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.45.4",
     "fflate": "0.8.3",
