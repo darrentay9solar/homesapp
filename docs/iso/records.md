@@ -60,3 +60,5 @@ restore point before any database change. Commit = the code that went live.
 | 27 Oct 2026 | 0f4ecf9 | Next.js security fix; scheduled job time limit; power charts; live figures on view; KPIs page |
 | 27 Oct 2026 | 28364d1 | Projected Analytics (renamed); 10-second sync budget; ISO records and licence report |
 | 28 Oct 2026 | 377febe | FusionSolar energy flow, revenue and rated power as FusionSolar shows them; dependency updates. Full UAT: 180,565 passed (a first run on 28 Oct failed 1,743 tests while the test database was slow; those passed on their own and in the full rerun) |
+| 29 Oct 2026 | a6a018b | "Show warnings" switch remembered with the account (migration 0060); Checks taken off Projected Analytics |
+| 10 Nov 2026 | c5c0c03 | Editions (one codebase for 9 Solar Home and 9 Solar Fintech's GetApps); GetApps' project workflow, groups and phases, Works checklists. Nothing changes in 9 Solar Home's app; GetApps' migration 0061 is not applied to its database (no restore point needed). Tests: Python 4,646, UAT 33,306 (7,024 for GetApps), matrix 155,336, web 551, all passed; design check of GetApps' screens at 20 sizes, both themes, English |
