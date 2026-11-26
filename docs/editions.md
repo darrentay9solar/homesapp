@@ -58,7 +58,9 @@ migrations; the superadmin darrentay@9solarfintech.com; invoice company "9 Solar
    - the R2 settings from step 3 (the same names as 9 Solar Home's, with the new bucket's values)
    - `CRON_SECRET`: a new one (YOUR_STEPS.md step 5's command); `APP_URL`: the new site's address
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`: a new pair (YOUR_STEPS.md step 4)
-   - no `FUSIONSOLAR_*` yet: the site runs without FusionSolar until its account is given
+   - no `FUSIONSOLAR_*` yet: the site runs without FusionSolar until its account is given. **Never copy
+     9 Solar Home's FusionSolar settings here**: GetApps gets its own API user from 9 Solar Fintech's
+     FusionSolar account (e.g. `getapps_api`), so the two companies' plants never mix
    Then Deploy.
 7. **Schedule.** A second cron-job.org job, the same as 9 Solar Home's, to the new site's
    `/api/py/cron/visit-reminders` with the new `CRON_SECRET`.
