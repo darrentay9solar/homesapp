@@ -29,6 +29,11 @@ start each on a new line (check the file ends with a line break first).
 
 Done 27 Nov 2026: steps 1 and 5 (database `getapps`, Singapore, Postgres 18; the app login; 62
 migrations; the superadmin darrentay@9solarfintech.com; invoice company "9 Solar Fintech Pte Ltd").
+Done 27 Nov 2026 too: steps 2, 3, 6 and 8. Clerk app "GetApps" (its own users); R2 bucket
+`getapps-prod` with a token for that bucket only (refused on 9 Solar Home's) and CORS for the site;
+Vercel project `getapps` (same team, root `.`), live at https://getapps-blond.vercel.app with 15
+settings and no FusionSolar; the superadmin signed in and linked. Still to do: step 7 (cron-job.org),
+the nightly backup of this database, a domain, email (Resend), FusionSolar's own API user.
 
 1. **Database (Neon).** console.neon.tech → New project → name `getapps`, region Singapore
    (AWS ap-southeast-1). Copy the **owner** connection string (role `neondb_owner`) into `.env.local`
