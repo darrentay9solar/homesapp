@@ -24,7 +24,11 @@ translations stay as they are; `tests_py/uat/test_uat_getapps.py` checks every p
 ## Setting up 9 Solar Fintech's site
 
 The owner creates the accounts (steps 1 to 4 and 6 to 8); the developer runs the database steps (5).
-Connection strings and keys go into `.env.local` or Vercel directly, never into chat.
+Connection strings and keys go into `.env.local` or Vercel directly, never into chat. In `.env.local`,
+start each on a new line (check the file ends with a line break first).
+
+Done 27 Nov 2026: steps 1 and 5 (database `getapps`, Singapore, Postgres 18; the app login; 62
+migrations; the superadmin darrentay@9solarfintech.com; invoice company "9 Solar Fintech Pte Ltd").
 
 1. **Database (Neon).** console.neon.tech → New project → name `getapps`, region Singapore
    (AWS ap-southeast-1). Copy the **owner** connection string (role `neondb_owner`) into `.env.local`
@@ -37,9 +41,11 @@ Connection strings and keys go into `.env.local` or Vercel directly, never into 
 4. **Domain (optional now).** e.g. `app.9solarfintech.com`; the site works on its `vercel.app`
    address until then.
 5. **Developer, on the new database:**
-   1. `npm run db:migrate -- --key=PROD_GETAPPS_MIGRATION_DATABASE_URL --confirm` (the whole schema).
-   2. The app's limited login and the backup login (`scripts/create-app-role.ts`,
-      `scripts/create_backup_role.py`), pointed at the new database.
+   1. The app's limited login first (the migrations grant it access, so it must exist):
+      `npm run db:app-role -- --key=PROD_GETAPPS_MIGRATION_DATABASE_URL`. It saves
+      `PROD_GETAPPS_DATABASE_URL` (the login for Vercel's `DATABASE_URL`) in `.env.local`.
+   2. `npm run db:migrate -- --key=PROD_GETAPPS_MIGRATION_DATABASE_URL --confirm` (the whole schema).
+      Its "restore point" backs up 9 Solar Home's database (read only); the new one is empty.
    3. `node scripts/py.mjs scripts/new_edition.py --target PROD_GETAPPS_MIGRATION_DATABASE_URL
       --person darrentay@9solarfintech.com --company "9 Solar Fintech" --confirm`: the one superadmin,
       with their details from 9 Solar Home's app, and the invoice company name. It refuses any
