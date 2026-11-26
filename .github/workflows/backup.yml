@@ -57,3 +57,40 @@ jobs:
           path: out/*.enc
           retention-days: 30
           if-no-files-found: error
+
+  # GetApps (9 Solar Fintech): its own database, read-only login and passphrase, set by
+  # `python scripts/create_backup_role.py --target getapps --github`:
+  #   BACKUP_DATABASE_URL_GETAPPS, BACKUP_PASSPHRASE_GETAPPS
+  backup-getapps:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install "psycopg[binary]==3.2.3" "cryptography==50.0.2"
+
+      - name: Back up GetApps
+        env:
+          BACKUP_DATABASE_URL_GETAPPS: ${{ secrets.BACKUP_DATABASE_URL_GETAPPS }}
+          BACKUP_PASSPHRASE_GETAPPS: ${{ secrets.BACKUP_PASSPHRASE_GETAPPS }}
+        run: |
+          if [ -z "$BACKUP_DATABASE_URL_GETAPPS" ] || [ -z "$BACKUP_PASSPHRASE_GETAPPS" ]; then
+            echo "::error::BACKUP_DATABASE_URL_GETAPPS or BACKUP_PASSPHRASE_GETAPPS isn't set. Run: python scripts/create_backup_role.py --target getapps --github"
+            exit 1
+          fi
+          python scripts/backup.py --url-env BACKUP_DATABASE_URL_GETAPPS --label getapps --reason nightly --out out
+          ls -l out
+
+      - name: Keep it 30 days
+        uses: actions/upload-artifact@v7
+        with:
+          name: getapps-backup-${{ github.run_id }}
+          path: out/*.enc
+          retention-days: 30
+          if-no-files-found: error

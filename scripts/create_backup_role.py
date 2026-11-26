@@ -32,7 +32,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "api"))
 from _lib.db import _from_env_file  # noqa: E402
 
-URLS = {"dev": "MIGRATION_DATABASE_URL", "test": "TEST_MIGRATION_DATABASE_URL", "prod": "PROD_MIGRATION_DATABASE_URL"}
+URLS = {
+    "dev": "MIGRATION_DATABASE_URL",
+    "test": "TEST_MIGRATION_DATABASE_URL",
+    "prod": "PROD_MIGRATION_DATABASE_URL",
+    # GetApps (9 Solar Fintech): its own database, login, secret and passphrase.
+    "getapps": "PROD_GETAPPS_MIGRATION_DATABASE_URL",
+}
 ROLE = "gethomeapps_backup"
 ENV = ROOT / ".env.local"
 
@@ -63,8 +69,8 @@ def main() -> None:
     owner = _from_env_file(URLS[a.target])
     if not owner:
         sys.exit(f"{URLS[a.target]} isn't in .env.local")
-    if a.github and a.target != "prod":
-        sys.exit("The nightly job backs up production only.")
+    if a.github and a.target not in ("prod", "getapps"):
+        sys.exit("The nightly job backs up production only (9 Solar Home's and GetApps').")
 
     pw = password()
     with psycopg.connect(owner, autocommit=True) as c:
@@ -100,9 +106,11 @@ def main() -> None:
     print(f"{ROLE} is ready on {a.target}: reads everything, writes nothing. Saved as {key} in .env.local.")
 
     if a.github:
-        phrase = _from_env_file("BACKUP_PASSPHRASE") or password(48)
-        set_env("BACKUP_PASSPHRASE", phrase)
-        for name, value in (("BACKUP_DATABASE_URL", url), ("BACKUP_PASSPHRASE", phrase)):
+        # GetApps' backups get their own passphrase: the two companies never share a key.
+        phrase_key = "BACKUP_PASSPHRASE" if a.target == "prod" else "BACKUP_PASSPHRASE_GETAPPS"
+        phrase = _from_env_file(phrase_key) or password(48)
+        set_env(phrase_key, phrase)
+        for name, value in ((key, url), (phrase_key, phrase)):
             r = subprocess.run(
                 ["gh", "secret", "set", name, "--repo", "darrentay9solar/homesapp"],
                 input=value,
@@ -111,7 +119,7 @@ def main() -> None:
             )
             print(f"GitHub secret {name}: {'set' if r.returncode == 0 else 'FAILED ' + r.stderr.strip()[:200]}")
         print(
-            "Keep BACKUP_PASSPHRASE (in .env.local) in your password manager too: without it the nightly backups can't be opened."
+            f"Keep {phrase_key} (in .env.local) in your password manager too: without it the nightly backups can't be opened."
         )
 
 

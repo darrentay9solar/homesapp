@@ -37,7 +37,7 @@ from psycopg.rows import dict_row
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "api"))
-from backup_crypt import encrypt_file, open_backup, passphrase  # noqa: E402
+from backup_crypt import KEYS, encrypt_file, open_backup, passphrase  # noqa: E402
 
 from _lib.db import _from_env_file  # noqa: E402
 
@@ -71,10 +71,11 @@ def migrations(cur: psycopg.Cursor) -> list[str]:
 
 
 def backup(url: str, label: str, out_dir: Path, reason: str | None = None) -> Path:
-    secret = passphrase() if label == "prod" else ""
-    if label == "prod" and not secret:
+    # Production backups (9 Solar Home's "prod", GetApps' "getapps") are always encrypted, each with its own key.
+    secret = passphrase(label) if label in KEYS else ""
+    if label in KEYS and not secret:
         sys.exit(
-            "A production backup is always encrypted: set BACKUP_PASSPHRASE in .env.local (the same as the "
+            f"A production backup is always encrypted: set {KEYS[label]} in .env.local (the same as the "
             "GitHub secret, from the password manager). Nothing was backed up."
         )
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -31,8 +31,13 @@ ITERATIONS = 200_000
 SUFFIX = ".enc"
 
 
-def passphrase() -> str:
-    return os.environ.get("BACKUP_PASSPHRASE", "").strip() or _from_env_file("BACKUP_PASSPHRASE")
+# Each company's backups have their own key: 9 Solar Home's ("prod") and 9 Solar Fintech's GetApps.
+KEYS = {"prod": "BACKUP_PASSPHRASE", "getapps": "BACKUP_PASSPHRASE_GETAPPS"}
+
+
+def passphrase(label: str = "prod") -> str:
+    name = KEYS.get(label, KEYS["prod"])
+    return os.environ.get(name, "").strip() or _from_env_file(name)
 
 
 def _key_iv(secret: str, salt: bytes) -> tuple[bytes, bytes]:
@@ -76,8 +81,9 @@ def open_backup(file: str | Path) -> tarfile.TarFile:
     """A backup to read, encrypted (.enc) or not."""
     p = Path(file)
     if p.name.endswith(SUFFIX):
-        secret = passphrase()
+        label = "getapps" if p.name.startswith("gethomeapps-getapps-") else "prod"
+        secret = passphrase(label)
         if not secret:
-            sys.exit("This backup is encrypted: set BACKUP_PASSPHRASE (in .env.local) to open it.")
+            sys.exit(f"This backup is encrypted: set {KEYS[label]} (in .env.local) to open it.")
         return tarfile.open(fileobj=io.BytesIO(decrypt_bytes(p.read_bytes(), secret)))
     return tarfile.open(p)
