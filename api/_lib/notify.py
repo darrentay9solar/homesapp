@@ -323,6 +323,9 @@ def notify(
     settings = person.get("notification_prefs") or {}
     why = prefs_mod.silenced(settings, kind)
     off = lambda ch: SendResult("skipped", why or f"{ch} turned off in their settings")  # noqa: E731
+    # "Email me reminders": a reminder that comes without an email of its own gets one, in their language.
+    if email is None and kind in prefs_mod.REMINDER_KINDS and settings.get("emailReminders") and not demo.enabled():
+        email = _reminder_email(recipient_uid, title, body, link, lang)
 
     results: dict[str, SendResult] = {}
     try:
@@ -376,6 +379,14 @@ def lang_of(uid: int | None) -> str:
 
 def _l(lang: str) -> Any:
     return lambda text: tr(text, lang) or text
+
+
+def _reminder_email(uid: int, title: str, body: str, link: str, lang: str) -> tuple[str, str, str, str] | None:
+    to = fetch_one("select email from users where uid = %s and active", (uid,))
+    if not to or not to["email"]:
+        return None
+    html_body, text = email_shell(title, [body], ("Open it", f"{app_url()}{link}"), lang)
+    return to["email"], tr(f"{BRAND}: {title}", lang) or title, html_body, text
 
 
 def email_shell(

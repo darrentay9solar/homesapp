@@ -13,6 +13,8 @@ export type Prefs = {
   urgent: boolean;
   mute: Category[];
   channels: { push: boolean; email: boolean; mobile: boolean };
+  /** Reminders (site visits, meetings, maintenance) by email too. */
+  emailReminders: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
@@ -21,6 +23,7 @@ export const DEFAULT_PREFS: Prefs = {
   urgent: true,
   mute: [],
   channels: { push: true, email: true, mobile: true },
+  emailReminders: false,
 };
 
 /** The categories, in the order the screen lists them, with who they matter to. */

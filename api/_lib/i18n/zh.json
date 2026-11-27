@@ -3717,5 +3717,10 @@
  "Tap a phase to rename or remove it.": "点按分期可重命名或移除。",
  "That phase belongs to another group.": "该分期属于另一个项目组。",
  "Group saved.": "项目组已保存。",
- "Taken out of its group.": "已移出项目组。"
+ "Taken out of its group.": "已移出项目组。",
+ "Email me reminders": "通过电子邮件提醒我",
+ "Site visits, meetings and maintenance checks, by email as well": "现场访问、会议和维护检查，也通过电子邮件提醒",
+ "Site visits and meetings, by email as well": "现场访问和会议，也通过电子邮件提醒",
+ "Turn Email on to have reminders by email.": "开启电子邮件，即可通过电子邮件接收提醒。",
+ "Open it": "打开"
 }

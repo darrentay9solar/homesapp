@@ -21,13 +21,20 @@ import { ApiError, useFetcher } from "@/lib/client/api";
 import { isAdmin, useApp, useMe } from "@/lib/client/app-state";
 import { locale, useT } from "@/lib/client/i18n";
 import { CATEGORIES, DEFAULT_PREFS, isPaused, type PauseChoice, pauseUntil, type Prefs } from "@/lib/client/prefs";
+import { FEATURES } from "@/lib/client/edition";
 
-function Row({ label, sub, checked, onChange, testId }: { label: string; sub?: string; checked: boolean; onChange: (v: boolean) => void; testId?: string }) {
+// What "Email me reminders" covers: the reminders this app sends (GetApps has no maintenance).
+const REMINDERS_SUB = FEATURES.maintenance
+  ? "Site visits, meetings and maintenance checks, by email as well"
+  : "Site visits and meetings, by email as well";
+
+function Row({ label, sub, checked, onChange, testId, disabled }: { label: string; sub?: string; checked: boolean; onChange: (v: boolean) => void; testId?: string; disabled?: boolean }) {
   return (
     <FormControlLabel
       labelPlacement="start"
       sx={{ mx: 0, py: 0.75, gap: 2, width: "100%", justifyContent: "space-between", alignItems: "center", "& .MuiFormControlLabel-label": { flex: 1, minWidth: 0, overflowWrap: "anywhere" } }}
-      control={<Switch checked={checked} onChange={(e) => onChange(e.target.checked)} slotProps={{ input: { "aria-label": label, ...(testId ? { "data-testid": testId } : {}) } as object }} />}
+      disabled={disabled}
+      control={<Switch checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} slotProps={{ input: { "aria-label": label, ...(testId ? { "data-testid": testId } : {}) } as object }} />}
       label={
         <Box>
           <Typography sx={{ fontWeight: 500, fontSize: 14.5 }}>{label}</Typography>
@@ -134,6 +141,15 @@ export function NotificationsDialog({ onClose }: { onClose: () => void }) {
         <Row label={t("Phone notifications")} checked={p.channels.push} onChange={(v) => set("channels", { ...p.channels, push: v })} />
         <Divider />
         <Row label={t("Email")} checked={p.channels.email} onChange={(v) => set("channels", { ...p.channels, email: v })} />
+        <Divider />
+        <Row
+          label={t("Email me reminders")}
+          sub={p.channels.email ? t(REMINDERS_SUB) : t("Turn Email on to have reminders by email.")}
+          checked={p.channels.email && Boolean(p.emailReminders)}
+          disabled={!p.channels.email}
+          onChange={(v) => set("emailReminders", v)}
+          testId="email-reminders"
+        />
         <Divider />
         <Row label={t("WhatsApp or SMS")} checked={p.channels.mobile} onChange={(v) => set("channels", { ...p.channels, mobile: v })} />
       </Card>

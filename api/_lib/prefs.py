@@ -7,7 +7,8 @@ Stored per person in users.notification_prefs (migration 0025):
       "quiet": {"on": true, "from": "22:00", "to": "07:00"},  every night, Singapore time
       "urgent": true,                 a crew running late still gets through a pause or quiet hours
       "mute": ["visits", ...],        categories never sent to the phone, email or WhatsApp
-      "channels": {"push": true, "email": true, "mobile": true}
+      "channels": {"push": true, "email": true, "mobile": true},
+      "emailReminders": false         reminders (visits, meetings, maintenance) by email too
     }
 
 Silencing never loses anything: every alert still lands on the Alerts screen.
@@ -46,6 +47,8 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
 }
 CATEGORY_OF = {kind: cat for cat, kinds in CATEGORIES.items() for kind in kinds}
 CHANNELS = ("push", "email", "mobile")
+# The reminders a person can also have by email ("Email me reminders").
+REMINDER_KINDS = ("visit_reminder", "meeting_reminder", "maintenance_due")
 
 DEFAULT: dict[str, Any] = {
     "pausedUntil": None,
@@ -53,6 +56,7 @@ DEFAULT: dict[str, Any] = {
     "urgent": True,
     "mute": [],
     "channels": {"push": True, "email": True, "mobile": True},
+    "emailReminders": False,
 }
 
 HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -67,6 +71,7 @@ def normalise(raw: Any) -> dict[str, Any]:
         "urgent": DEFAULT["urgent"],
         "mute": [],
         "channels": dict(DEFAULT["channels"]),
+        "emailReminders": bool(raw.get("emailReminders", DEFAULT["emailReminders"])),
     }
     if raw.get("pausedUntil"):
         try:
