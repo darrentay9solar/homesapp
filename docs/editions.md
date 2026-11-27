@@ -43,8 +43,9 @@ the nightly backup of this database, a domain, email (Resend), FusionSolar's own
    (Production keys come with the domain, as for 9 Solar Home: YOUR_STEPS.md step 9.)
 3. **File store (Cloudflare R2).** A new bucket, e.g. `getapps-prod`, with its own API token (Object
    Read & Write, that bucket only), and the CORS rule from r2.md with the new site's address.
-4. **Domain (optional now).** e.g. `app.9solarfintech.com`; the site works on its `vercel.app`
-   address until then.
+4. **Domain (optional now).** GetApps is **not** hosted on 9solarfintech.com (that's the group website and
+   its CMS, a separate project). If it gets its own address, use a domain of its own (e.g. `getapps.com.sg`);
+   until then it works on its `vercel.app` address, with its own login page.
 5. **Developer, on the new database:**
    1. The app's limited login first (the migrations grant it access, so it must exist):
       `npm run db:app-role -- --key=PROD_GETAPPS_MIGRATION_DATABASE_URL`. It saves
