@@ -33,7 +33,11 @@ Done 27 Nov 2026 too: steps 2, 3, 6 and 8. Clerk app "GetApps" (its own users); 
 `getapps-prod` with a token for that bucket only (refused on 9 Solar Home's) and CORS for the site;
 Vercel project `getapps` (same team, root `.`), live at https://getapps-blond.vercel.app with 15
 settings and no FusionSolar; the superadmin signed in and linked. Still to do: step 7 (cron-job.org),
-the nightly backup of this database, a domain, email (Resend), FusionSolar's own API user.
+email (Resend), FusionSolar's own API user.
+Address (27 Nov 2026): https://getapps.9solarfintech.com (A getapps → 76.76.21.21 at MSC Hosting; APP_URL and
+VAPID_SUBJECT set to it). Its emails come from getapps.9solarfintech.com (Resend; DKIM, send/rsend CNAMEs, _dmarc.getapps).
+Demo: https://getapps-demo.vercel.app (project getapps-demo, Neon branch `demo`, bucket getapps-demo,
+DEMO_MODE=1; refill with scripts/seed_getapps_demo.py). Nightly backup: done 27 Nov.
 
 1. **Database (Neon).** console.neon.tech → New project → name `getapps`, region Singapore
    (AWS ap-southeast-1). Copy the **owner** connection string (role `neondb_owner`) into `.env.local`
