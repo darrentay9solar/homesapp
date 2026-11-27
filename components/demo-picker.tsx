@@ -66,7 +66,16 @@ export function DemoPicker() {
           options={people.map((p) => ({ value: String(p.uid), label: p.name, desc: p.about ? `${TR(p.roleLabel)} · ${p.about}` : TR(p.roleLabel), icon: ICON[p.role] }))}
         />
       )}
-      <Divider sx={{ my: 2.5, fontSize: 12, color: "text.secondary", "&::before, &::after": { borderColor: "divider" } }}>{T("or sign in with your own account")}</Divider>
+      <Divider
+        sx={{
+          my: 2.5,
+          fontSize: 12,
+          color: "text.secondary",
+          // The lines take what's left, so the words keep one line unless the screen is too narrow for them.
+          "&::before, &::after": { borderColor: "divider", flex: "1 1 24px", minWidth: 16 },
+          "& .MuiDivider-wrapper": { flex: "0 1 auto", textAlign: "center" },
+        }}
+      >{T("or sign in with your own account")}</Divider>
     </Box>
   );
 }
